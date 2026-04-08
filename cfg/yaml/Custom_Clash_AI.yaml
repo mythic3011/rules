@@ -1,0 +1,323 @@
+# Custom_OpenClash_Rules
+# YAML 配置文件（AI 专用 / 非 GFW 用户）
+# 基于 Custom_Clash.yaml 精简：仅保留 AI 分流与基础网络配置
+
+# ==================== 端口配置 Port Configuration ====================
+port: 7890
+socks-port: 7891
+mixed-port: 7893
+redir-port: 7892
+tproxy-port: 7895
+allow-lan: true
+bind-address: "*"
+mode: rule
+tcp-concurrent: true
+unified-delay: true
+
+# ==================== 代理提供者 Proxy Provider ====================
+proxy-providers:
+  provider1:
+    type: http
+    url: "url"
+    interval: 3600
+    path: ./proxy_provider/provider1.yaml
+    proxy: DIRECT
+    header:
+    health-check:
+      enable: true
+      interval: 600
+      url: https://cp.cloudflare.com/generate_204
+    override:
+      skip-cert-verify: true
+      udp: true
+
+# ==================== 地理数据库配置 GeoData Configuration ====================
+geox-url:
+  mmdb: https://testingcf.jsdelivr.net/gh/alecthw/mmdb_china_ip_list@release/Country.mmdb
+  geoip: https://testingcf.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geoip.dat
+  geosite: https://testingcf.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geosite.dat
+  asn: https://testingcf.jsdelivr.net/gh/xishang0128/geoip@release/GeoLite2-ASN.mmdb
+geo-auto-update: true
+geo-update-interval: 24
+geodata-mode: true
+
+# ==================== 日志与控制 ====================
+log-level: info
+ipv6: true
+external-controller: 0.0.0.0:9090
+
+# ==================== 配置文件存储 Profile ====================
+profile:
+  store-selected: true
+  store-fake-ip: true
+
+# ==================== TUN 虚拟网卡配置 ====================
+tun:
+  enable: true
+  stack: system
+  dns-hijack:
+    - 0.0.0.0:53
+  auto-detect-interface: false
+  auto-route: false
+  auto-redirect: false
+  strict-route: false
+  endpoint-independent-nat: true
+
+# ==================== DNS 配置 ====================
+dns:
+  enable: true
+  listen: 0.0.0.0:7874
+  ipv6: true
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  fake-ip-filter:
+    - "*.lan"
+    - localhost.ptlogin2.qq.com
+    - geosite:cn
+  fake-ip-filter-mode: blacklist
+  respect-rules: true
+  default-nameserver:
+    - tls://223.5.5.5:853
+    - tls://119.29.29.29:853
+  nameserver:
+    - https://dns.alidns.com/dns-query#h3=true
+    - https://doh.pub/dns-query
+    - https://1.1.1.1/dns-query
+    - https://dns.google/dns-query
+  proxy-server-nameserver:
+    - https://1.1.1.1/dns-query
+    - https://dns.google/dns-query
+  nameserver-policy:
+    "geosite:private":
+      - https://dns.alidns.com/dns-query#h3=true
+      - https://doh.pub/dns-query
+    "geosite:cn":
+      - https://dns.alidns.com/dns-query#h3=true
+      - https://doh.pub/dns-query
+    "geosite:openai":
+      - https://1.1.1.1/dns-query
+      - https://dns.google/dns-query
+    "geosite:bing":
+      - https://1.1.1.1/dns-query
+      - https://dns.google/dns-query
+    "+.anthropic.com":
+      - https://1.1.1.1/dns-query
+      - https://dns.google/dns-query
+    "+.claude.ai":
+      - https://1.1.1.1/dns-query
+      - https://dns.google/dns-query
+    "+.perplexity.ai":
+      - https://1.1.1.1/dns-query
+      - https://dns.google/dns-query
+    "+.x.ai":
+      - https://1.1.1.1/dns-query
+      - https://dns.google/dns-query
+    "+.poe.com":
+      - https://1.1.1.1/dns-query
+      - https://dns.google/dns-query
+# ==================== 代理策略组 Proxy Groups ====================
+proxy-groups:
+  - name: "🚀 手动选择"
+    type: select
+    proxies:
+      - "♻️ 自动选择"
+      - "🇺🇸 美国节点"
+      - "🇯🇵 日本节点"
+      - "🇸🇬 新加坡节点"
+      - "🇼🇸 台湾节点"
+      - "🇰🇷 韩国节点"
+    filter: "^(?!.*(DIRECT|直接连接|群|邀请|返利|循环|官网|客服|网站|网址|获取|订阅|流量|到期|机场|下次|版本|官址|备用|过期|已用|联系|邮箱|工单|贩卖|通知|倒卖|防止|国内|地址|频道|无法|说明|使用|提示|特别|访问|支持|教程|关注|更新|作者|加入|USE|USED|TOTAL|EXPIRE|EMAIL|Panel|Channel|Author|Traffic|GB|Expire)).*$"
+    use:
+      - provider1
+
+  - name: "♻️ 自动选择"
+    type: url-test
+    filter: "^(?!.*(DIRECT|直接连接|群|邀请|返利|循环|官网|客服|网站|网址|获取|订阅|流量|到期|机场|下次|版本|官址|备用|过期|已用|联系|邮箱|工单|贩卖|通知|倒卖|防止|国内|地址|频道|无法|说明|使用|提示|特别|访问|支持|教程|关注|更新|作者|加入|USE|USED|TOTAL|EXPIRE|EMAIL|Panel|Channel|Author|Traffic|GB|Expire)).*$"
+    tolerance: 50
+    url: "https://cp.cloudflare.com/generate_204"
+    interval: 300
+    use:
+      - provider1
+
+  - name: "🤖 ChatGPT"
+    type: fallback
+    url: "https://cp.cloudflare.com/generate_204"
+    interval: 300
+    proxies:
+      - "🚀 手动选择"
+      - "♻️ 自动选择"
+      - "🇸🇬 新加坡节点"
+      - "🇺🇸 美国节点"
+      - "🇯🇵 日本节点"
+      - "🇼🇸 台湾节点"
+      - "🇰🇷 韩国节点"
+      - "⛔ 拒绝"
+
+  - name: "🤖 Copilot"
+    type: fallback
+    url: "https://cp.cloudflare.com/generate_204"
+    interval: 300
+    proxies:
+      - "🚀 手动选择"
+      - "♻️ 自动选择"
+      - "🎯 全球直连"
+      - "🇺🇸 美国节点"
+      - "🇸🇬 新加坡节点"
+      - "🇯🇵 日本节点"
+      - "🇼🇸 台湾节点"
+      - "🇰🇷 韩国节点"
+      - "⛔ 拒绝"
+
+  - name: "🤖 Claude"
+    type: fallback
+    url: "https://cp.cloudflare.com/generate_204"
+    interval: 300
+    proxies:
+      - "🚀 手动选择"
+      - "♻️ 自动选择"
+      - "🇸🇬 新加坡节点"
+      - "🇺🇸 美国节点"
+      - "🇯🇵 日本节点"
+      - "🇼🇸 台湾节点"
+      - "🇰🇷 韩国节点"
+      - "⛔ 拒绝"
+
+  - name: "🤖 Gemini"
+    type: fallback
+    url: "https://cp.cloudflare.com/generate_204"
+    interval: 300
+    proxies:
+      - "🚀 手动选择"
+      - "♻️ 自动选择"
+      - "🎯 全球直连"
+      - "🇸🇬 新加坡节点"
+      - "🇺🇸 美国节点"
+      - "🇯🇵 日本节点"
+      - "🇼🇸 台湾节点"
+      - "🇰🇷 韩国节点"
+      - "⛔ 拒绝"
+
+  - name: "🤖 Perplexity"
+    type: fallback
+    url: "https://cp.cloudflare.com/generate_204"
+    interval: 300
+    proxies:
+      - "🚀 手动选择"
+      - "♻️ 自动选择"
+      - "🎯 全球直连"
+      - "🇸🇬 新加坡节点"
+      - "🇺🇸 美国节点"
+      - "🇯🇵 日本节点"
+      - "🇼🇸 台湾节点"
+      - "🇰🇷 韩国节点"
+      - "⛔ 拒绝"
+
+  - name: "🤖 Grok"
+    type: fallback
+    url: "https://cp.cloudflare.com/generate_204"
+    interval: 300
+    proxies:
+      - "🚀 手动选择"
+      - "♻️ 自动选择"
+      - "🎯 全球直连"
+      - "🇺🇸 美国节点"
+      - "🇸🇬 新加坡节点"
+      - "🇯🇵 日本节点"
+      - "🇼🇸 台湾节点"
+      - "🇰🇷 韩国节点"
+      - "⛔ 拒绝"
+
+  - name: "🤖 Poe"
+    type: fallback
+    url: "https://cp.cloudflare.com/generate_204"
+    interval: 300
+    proxies:
+      - "🚀 手动选择"
+      - "♻️ 自动选择"
+      - "🎯 全球直连"
+      - "🇸🇬 新加坡节点"
+      - "🇺🇸 美国节点"
+      - "🇯🇵 日本节点"
+      - "🇼🇸 台湾节点"
+      - "🇰🇷 韩国节点"
+      - "⛔ 拒绝"
+
+  - name: "⛔ 拒绝"
+    type: select
+    proxies:
+      - REJECT
+
+  - name: "🐟 漏网之鱼"
+    type: select
+    proxies:
+      - "🎯 全球直连"
+      - "🚀 手动选择"
+      - "♻️ 自动选择"
+
+  - name: "🇯🇵 日本节点"
+    type: url-test
+    url: https://cp.cloudflare.com/generate_204
+    filter: '(?i)(🇯🇵|日本|川日|东京|大阪|泉日|埼玉|沪日|深日|(?<!尼|-)日|\bJP(?:[-_ ]?\d+(?:[-_ ]?[A-Za-z]{2,})?)?\b|Japan|JAPAN|JPN|NRT|HND|KIX|TYO|OSA|关西|Kansai|KANSAI)'
+    use:
+      - provider1
+    interval: 300
+    tolerance: 50
+
+  - name: "🇸🇬 新加坡节点"
+    type: url-test
+    url: https://cp.cloudflare.com/generate_204
+    filter: '(?i)(🇸🇬|新加坡|坡|狮城|\bSG(?:[-_ ]?\d+(?:[-_ ]?[A-Za-z]{2,})?)?\b|Singapore|SINGAPORE|SIN)'
+    use:
+      - provider1
+    interval: 300
+    tolerance: 50
+
+  - name: "🇼🇸 台湾节点"
+    type: url-test
+    url: https://cp.cloudflare.com/generate_204
+    filter: '(?i)(🇹🇼|🇼🇸|台|新北|彰化|\bTW(?:[-_ ]?\d+(?:[-_ ]?[A-Za-z]{2,})?)?\b|Taiwan|TAIWAN|TWN|TPE|ROC)'
+    use:
+      - provider1
+    interval: 300
+    tolerance: 50
+
+  - name: "🇰🇷 韩国节点"
+    type: url-test
+    url: https://cp.cloudflare.com/generate_204
+    filter: '(?i)(🇰🇷|\bKR(?:[-_ ]?\d+(?:[-_ ]?[A-Za-z]{2,})?)?\b|Korea|KOREA|KOR|首尔|韩|韓|春川|Chuncheon|ICN)'
+    use:
+      - provider1
+    interval: 300
+    tolerance: 50
+
+  - name: "🎯 全球直连"
+    type: select
+    proxies:
+      - DIRECT
+
+# ==================== 分流规则 Rules ====================
+rules:
+  - "GEOSITE,private,🎯 全球直连"
+  - "GEOIP,private,🎯 全球直连,no-resolve"
+  - "GEOSITE,google-cn,🎯 全球直连"
+
+  - "GEOSITE,openai,🤖 ChatGPT"
+  - "GEOSITE,bing,🤖 Copilot"
+  - "DOMAIN-SUFFIX,anthropic.com,🤖 Claude"
+  - "DOMAIN-SUFFIX,claude.ai,🤖 Claude"
+  - "DOMAIN-SUFFIX,ai.google.dev,🤖 Gemini"
+  - "DOMAIN-SUFFIX,makersuite.google.com,🤖 Gemini"
+  - "DOMAIN-SUFFIX,generativelanguage.googleapis.com,🤖 Gemini"
+  - "DOMAIN-SUFFIX,perplexity.ai,🤖 Perplexity"
+  - "DOMAIN-SUFFIX,x.ai,🤖 Grok"
+  - "DOMAIN-SUFFIX,poe.com,🤖 Poe"
+  - "DOMAIN-KEYWORD,anthropic,🤖 Claude"
+  - "DOMAIN-KEYWORD,claude,🤖 Claude"
+  - "DOMAIN-KEYWORD,perplexity,🤖 Perplexity"
+  - "DOMAIN-KEYWORD,xai,🤖 Grok"
+  - "DOMAIN-KEYWORD,grok,🤖 Grok"
+  - "DOMAIN-KEYWORD,poe,🤖 Poe"
+  - "DOMAIN-KEYWORD,copilot,🤖 Copilot"
+  - "GEOSITE,cn,🎯 全球直连"
+  - "GEOIP,cn,🎯 全球直连,no-resolve"
+  - "MATCH,🐟 漏网之鱼"

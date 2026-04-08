@@ -4,37 +4,44 @@
 
 **注意：所有的 Smart 模板已弃用，因为 OpenClash 已更新 Smart 覆写功能。此处保留旧文件确保未更新的最新版的用户可以正常使用。**
 
-| 名称 | 适用内核 | 内容 |
-| :-: | :-: | :-: |
-| Custom_Clash.ini | Meta | 本项目标准模板，推荐使用 |
-| Custom_Clash_GFW.ini | Meta | 极简规则版本 |
-| Custom_Clash_Lite.ini | Meta | 更精简版本（策略更简单） |
-| Custom_Clash_Full.ini | Meta | 更完整版本（规则较多） |
+|         名称          | 适用内核 |                            内容                             |
+| :-------------------: | :------: | :---------------------------------------------------------: |
+|   Custom_Clash.ini    |   Meta   |                  本项目标准模板，推荐使用                   |
+|  Custom_Clash_AI.ini  |   Meta   | AI 专用模板（多 Provider 拆分，按需放行指定 Provider 直连） |
+| Custom_Clash_GFW.ini  |   Meta   |                        极简规则版本                         |
+| Custom_Clash_Lite.ini |   Meta   |                  更精简版本（策略更简单）                   |
+| Custom_Clash_Full.ini |   Meta   |                   更完整版本（规则较多）                    |
 
 **备用下载链接：**
 
 Custom_Clash.ini
 
 ```text
-https://testingcf.jsdelivr.net/gh/Aethersailor/Custom_OpenClash_Rules@main/cfg/Custom_Clash.ini
+https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/cfg/Custom_Clash.ini
+```
+
+Custom_Clash_AI.ini
+
+```text
+https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/cfg/Custom_Clash_AI.ini
 ```
 
 Custom_Clash_GFW.ini
 
 ```text
-https://testingcf.jsdelivr.net/gh/Aethersailor/Custom_OpenClash_Rules@main/cfg/Custom_Clash_GFW.ini
+https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/cfg/Custom_Clash_GFW.ini
 ```
 
 Custom_Clash_Lite.ini
 
 ```text
-https://testingcf.jsdelivr.net/gh/Aethersailor/Custom_OpenClash_Rules@main/cfg/Custom_Clash_Lite.ini
+https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/cfg/Custom_Clash_Lite.ini
 ```
 
 Custom_Full_Clash.ini
 
 ```text
-https://testingcf.jsdelivr.net/gh/Aethersailor/Custom_OpenClash_Rules@main/cfg/Custom_Clash_Full.ini
+https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/cfg/Custom_Clash_Full.ini
 ```
 
 ---
