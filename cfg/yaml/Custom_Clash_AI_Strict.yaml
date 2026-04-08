@@ -78,6 +78,7 @@ dns:
   fake-ip-filter-mode: blacklist
   respect-rules: true
   default-nameserver:
+    - 127.0.0.1
     - tls://223.5.5.5:853
     - tls://119.29.29.29:853
   nameserver:
@@ -90,9 +91,11 @@ dns:
     - https://dns.google/dns-query
   nameserver-policy:
     "geosite:private":
+      - 127.0.0.1
       - https://dns.alidns.com/dns-query#h3=true
       - https://doh.pub/dns-query
     "geosite:cn":
+      - 127.0.0.1
       - https://dns.alidns.com/dns-query#h3=true
       - https://doh.pub/dns-query
     "geosite:openai":
