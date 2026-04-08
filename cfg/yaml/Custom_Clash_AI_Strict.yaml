@@ -78,32 +78,32 @@ dns:
   fake-ip-filter-mode: blacklist
   respect-rules: true
   default-nameserver:
-    - 127.0.0.1
-    - tls://223.5.5.5:853
-    - tls://119.29.29.29:853
+    - 1.1.1.1
+    - 8.8.8.8
   nameserver:
-    - https://dns.alidns.com/dns-query#h3=true
-    - https://doh.pub/dns-query
     - https://1.1.1.1/dns-query
     - https://dns.google/dns-query
+    - https://dns.adguard-dns.com/dns-query
   proxy-server-nameserver:
     - https://1.1.1.1/dns-query
     - https://dns.google/dns-query
+    - https://dns.adguard-dns.com/dns-query
   nameserver-policy:
     "geosite:private":
-      - 127.0.0.1
-      - https://dns.alidns.com/dns-query#h3=true
-      - https://doh.pub/dns-query
+      - https://1.1.1.1/dns-query
+      - https://dns.google/dns-query
     "geosite:cn":
-      - 127.0.0.1
-      - https://dns.alidns.com/dns-query#h3=true
-      - https://doh.pub/dns-query
+      - https://1.1.1.1/dns-query
+      - https://dns.google/dns-query
     "geosite:openai":
       - https://1.1.1.1/dns-query
       - https://dns.google/dns-query
     "geosite:bing":
       - https://1.1.1.1/dns-query
       - https://dns.google/dns-query
+    "geosite:category-ads-all":
+      - https://dns.adguard-dns.com/dns-query
+      - https://1.1.1.1/dns-query
     "+.anthropic.com":
       - https://1.1.1.1/dns-query
       - https://dns.google/dns-query
