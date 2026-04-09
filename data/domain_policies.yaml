@@ -1,0 +1,38 @@
+#
+# Policy model:
+# - keep defaults conservative to avoid breaking vendor services accidentally
+# - prefer exact/suffix rules over broad keyword matches
+# - extend per category instead of editing generator logic
+#
+global:
+  include_exact: []
+  include_suffix: []
+  include_keyword: []
+  exclude_exact: [google.com, adobe.com]
+  exclude_suffix: [google.com, adobe.com]
+  exclude_keyword: []
+
+categories:
+  adblock:
+    include_exact: []
+    include_suffix: []
+    include_keyword: []
+    exclude_exact: []
+    exclude_suffix: []
+    exclude_keyword: []
+
+  tracking:
+    include_exact: []
+    include_suffix: []
+    include_keyword: []
+    exclude_exact: []
+    exclude_suffix: []
+    exclude_keyword: []
+
+  malware:
+    include_exact: []
+    include_suffix: []
+    include_keyword: []
+    exclude_exact: []
+    exclude_suffix: []
+    exclude_keyword: []

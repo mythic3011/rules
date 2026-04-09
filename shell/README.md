@@ -19,6 +19,8 @@
 | [**check_cpu_version.sh**](#-check_cpu_versionsh) | 🔍 CPU 架构与指令集检测 | `Multi-Arch` |
 | [**install_openclash_dev.sh**](#-install_openclash_devsh) | 📦 OpenClash Dev 极速基础安装 | `OpenWrt` |
 | [**install_openclash_dev_update.sh**](#-install_openclash_dev_updatesh) | 🚀 全自动化安装/更新/修复 | `OpenWrt` |
+| [**apply_adblock_dnsmasq.sh**](#-apply_adblock_dnsmasqsh) | 🧱 拉取并应用 adblock dnsmasq 输出 | `OpenWrt` |
+| [**setup_adblock_cron.sh**](#-setup_adblock_cronsh) | ⏰ 安装 adblock 自动更新 cron | `OpenWrt` |
 
 ---
 
@@ -127,6 +129,67 @@ wget -qO- "https://testingcf.jsdelivr.net/gh/Aethersailor/Custom_OpenClash_Rules
 RULES_BRANCH="${RULES_BRANCH:-main}"
 wget -qO- "https://testingcf.jsdelivr.net/gh/Aethersailor/Custom_OpenClash_Rules@refs/heads/${RULES_BRANCH}/shell/install_openclash_dev_update.sh" | sh
 ```
+
+---
+
+## 🧱 **apply_adblock_dnsmasq.sh**
+
+**功能说明：**
+從本倉庫拉取生成好的 `adblock` / `tracking` / `malware` `dnsmasq` 輸出，部署到 OpenWrt 當前使用中的 `dnsmasq` 規則目錄，並重啟 `dnsmasq` 生效。
+
+**使用命令：**
+
+```bash
+RULES_BRANCH="${RULES_BRANCH:-main}"
+wget -qO- "https://testingcf.jsdelivr.net/gh/mythic3011/rules@refs/heads/${RULES_BRANCH}/shell/apply_adblock_dnsmasq.sh" | sh
+```
+
+如需同時把生成的 `dns/*.hosts.txt` 合併進 `/etc/hosts`：
+
+```bash
+RULES_BRANCH="${RULES_BRANCH:-main}"
+ENABLE_HOSTS_MERGE=1 wget -qO- "https://testingcf.jsdelivr.net/gh/mythic3011/rules@refs/heads/${RULES_BRANCH}/shell/apply_adblock_dnsmasq.sh" | sh
+```
+
+可選分類開關：
+
+```bash
+ENABLE_ADBLOCK=1
+ENABLE_TRACKING_BLOCK=0
+ENABLE_MALWARE_BLOCK=0
+```
+
+---
+
+## ⏰ **setup_adblock_cron.sh**
+
+**功能說明：**
+安裝 `cron` 定時任務，定期拉取並應用本倉庫生成的 adblock 輸出。腳本會先立即執行一次，再寫入計劃任務。
+
+**使用命令：**
+
+```bash
+RULES_BRANCH="${RULES_BRANCH:-main}"
+wget -qO- "https://testingcf.jsdelivr.net/gh/mythic3011/rules@refs/heads/${RULES_BRANCH}/shell/setup_adblock_cron.sh" | sh
+```
+
+**可選環境變量：**
+
+```bash
+CRON_SCHEDULE="17 */12 * * *"
+ENABLE_ADBLOCK=1
+ENABLE_TRACKING_BLOCK=0
+ENABLE_MALWARE_BLOCK=0
+ENABLE_HOSTS_MERGE=1
+RULES_REPO="mythic3011/rules"
+RULES_BRANCH="main"
+```
+
+建議做法：
+
+- 大型 DNS blocklist 盡量交由 `dnsmasq` / `HTTPS DNS Proxy` 處理。
+- Clash 只保留 `rule/Ads_Lite_Domain.yaml`、`rule/Tracking_Lite_Domain.yaml`、`rule/Malware_Lite_Domain.yaml` 這類極小型補充規則，避免 profile 過大、解析過慢。
+- 如需自定 GitHub blocklist，直接編輯 `data/custom_*_sources.yaml`，然後等 GitHub Action 自動生成輸出。
 
 ---
 

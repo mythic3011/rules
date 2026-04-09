@@ -1,0 +1,33 @@
+categories:
+  adblock:
+    source_config: data/adblock_sources.yaml
+    custom_source_config: data/custom_adblock_sources.yaml
+    lite_seed: data/clash_lite_seed.txt
+    allowlist: dns/local_allowlist.txt
+    blocklist: dns/local_blocklist.txt
+    dnsmasq_output: dns/adblock.dnsmasq.conf
+    hosts_output: dns/adblock.hosts.txt
+    clash_output: rule/Ads_Lite_Domain.yaml
+    clash_name: Ads_Lite_Domain
+
+  tracking:
+    source_config: data/tracking_sources.yaml
+    custom_source_config: data/custom_tracking_sources.yaml
+    lite_seed: data/tracking_lite_seed.txt
+    allowlist: dns/local_tracking_allowlist.txt
+    blocklist: dns/local_tracking_blocklist.txt
+    dnsmasq_output: dns/tracking.dnsmasq.conf
+    hosts_output: dns/tracking.hosts.txt
+    clash_output: rule/Tracking_Lite_Domain.yaml
+    clash_name: Tracking_Lite_Domain
+
+  malware:
+    source_config: data/malware_sources.yaml
+    custom_source_config: data/custom_malware_sources.yaml
+    lite_seed: data/malware_lite_seed.txt
+    allowlist: dns/local_malware_allowlist.txt
+    blocklist: dns/local_malware_blocklist.txt
+    dnsmasq_output: dns/malware.dnsmasq.conf
+    hosts_output: dns/malware.hosts.txt
+    clash_output: rule/Malware_Lite_Domain.yaml
+    clash_name: Malware_Lite_Domain

@@ -1,0 +1,14 @@
+sources:
+  # Example:
+  # - id: my_custom_dnsmasq
+  #   enabled: true
+  #   priority: 100
+  #   format: dnsmasq_conf
+  #   url: https://raw.githubusercontent.com/<owner>/<repo>/<branch>/adblock-for-dnsmasq.conf
+  #   homepage: https://github.com/<owner>/<repo>
+  #
+  # Supported formats:
+  # - dnsmasq_conf
+  # - domainswild2
+  # - plain_domains
+  # - hosts

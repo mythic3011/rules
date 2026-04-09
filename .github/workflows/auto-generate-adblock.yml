@@ -1,0 +1,61 @@
+name: Auto generate adblock outputs
+
+on:
+  push:
+    paths:
+      - "data/adblock_sources.yaml"
+      - "data/categories.yaml"
+      - "data/custom_adblock_sources.yaml"
+      - "data/tracking_sources.yaml"
+      - "data/custom_tracking_sources.yaml"
+      - "data/malware_sources.yaml"
+      - "data/custom_malware_sources.yaml"
+      - "data/clash_lite_seed.txt"
+      - "data/tracking_lite_seed.txt"
+      - "data/malware_lite_seed.txt"
+      - "data/domain_policies.yaml"
+      - "dns/local_allowlist.txt"
+      - "dns/local_blocklist.txt"
+      - "dns/local_tracking_allowlist.txt"
+      - "dns/local_tracking_blocklist.txt"
+      - "dns/local_malware_allowlist.txt"
+      - "dns/local_malware_blocklist.txt"
+      - "py/generate_adblock_outputs.py"
+      - ".github/workflows/auto-generate-adblock.yml"
+  workflow_dispatch:
+  schedule:
+    - cron: "23 3 * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  generate-adblock:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+
+      - name: Generate adblock outputs
+        run: python3 py/generate_adblock_outputs.py
+
+      - name: Commit generated changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add dns/adblock.dnsmasq.conf dns/adblock.hosts.txt dns/tracking.dnsmasq.conf dns/tracking.hosts.txt dns/malware.dnsmasq.conf dns/malware.hosts.txt rule/Ads_Lite_Domain.yaml rule/Tracking_Lite_Domain.yaml rule/Malware_Lite_Domain.yaml
+
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(adblock): auto generate outputs"
+            git push
+          else
+            echo "No generated changes."
+          fi

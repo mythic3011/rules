@@ -1,0 +1,7 @@
+sources:
+  - id: hagezi_pro_mini
+    enabled: true
+    priority: 10
+    format: adblock_domains
+    url: https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/pro.mini.txt
+    homepage: https://github.com/hagezi/dns-blocklists
