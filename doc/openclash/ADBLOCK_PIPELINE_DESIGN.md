@@ -342,3 +342,10 @@ The intended rule is simple:
 - new behavior should first try to fit in `data/`
 - generator code should change only when the model itself changes
 
+---
+
+## 9. Related Document
+
+For day-2 maintenance and extension procedures, see:
+
+- [Adblock DNS Pipeline Operations](./ADBLOCK_PIPELINE_OPERATIONS.md)
