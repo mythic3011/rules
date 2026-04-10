@@ -151,12 +151,20 @@ RULES_BRANCH="${RULES_BRANCH:-main}"
 ENABLE_HOSTS_MERGE=1 wget -qO- "https://testingcf.jsdelivr.net/gh/mythic3011/rules@refs/heads/${RULES_BRANCH}/shell/apply_adblock_dnsmasq.sh" | sh
 ```
 
+如需把生成的 `dns/*.hosts.txt` 合併進自定義 hosts 檔案，例如你目前 OpenWrt 使用的 `/etc/dnsmasq.custom-blocks.hosts`：
+
+```bash
+RULES_BRANCH="${RULES_BRANCH:-main}"
+ENABLE_HOSTS_MERGE=1 HOSTS_TARGET_FILE=/etc/dnsmasq.custom-blocks.hosts wget -qO- "https://testingcf.jsdelivr.net/gh/mythic3011/rules@refs/heads/${RULES_BRANCH}/shell/apply_adblock_dnsmasq.sh" | sh
+```
+
 可選分類開關：
 
 ```bash
 ENABLE_ADBLOCK=1
 ENABLE_TRACKING_BLOCK=0
 ENABLE_MALWARE_BLOCK=0
+HOSTS_TARGET_FILE=/etc/hosts
 ```
 
 ---
