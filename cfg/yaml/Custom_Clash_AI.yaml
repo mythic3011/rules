@@ -296,8 +296,6 @@ rules:
   - "GEOIP,private,🎯 全球直連,no-resolve"
   - "RULE-SET,Custom_Direct_Domain,🎯 全球直連"
   - "RULE-SET,Custom_Direct_IP,🎯 全球直連,no-resolve"
-  - "RULE-SET,Custom_Proxy_Domain,🚀 手動選擇"
-  - "RULE-SET,Custom_Proxy_IP,🚀 手動選擇,no-resolve"
   - "GEOSITE,google-cn,🎯 全球直連"
   - "RULE-SET,AI_ChatGPT,🤖 ChatGPT"
   - "RULE-SET,AI_Copilot,🤖 Copilot"
