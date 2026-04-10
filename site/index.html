@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Rules Report</title>
+    <style>
+      :root {
+        --bg: #f4efe6;
+        --panel: rgba(255, 252, 246, 0.82);
+        --ink: #1f1b18;
+        --muted: #6d6258;
+        --accent: #0f766e;
+        --accent-2: #b45309;
+        --line: rgba(31, 27, 24, 0.12);
+        --shadow: 0 18px 50px rgba(35, 28, 20, 0.12);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: Georgia, "Times New Roman", serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(15, 118, 110, 0.18), transparent 28%),
+          radial-gradient(circle at top right, rgba(180, 83, 9, 0.16), transparent 26%),
+          linear-gradient(180deg, #f7f2e8 0%, var(--bg) 100%);
+      }
+
+      a {
+        color: inherit;
+      }
+
+      .wrap {
+        width: min(1120px, calc(100vw - 32px));
+        margin: 0 auto;
+        padding: 40px 0 64px;
+      }
+
+      .hero {
+        display: grid;
+        gap: 18px;
+        margin-bottom: 28px;
+      }
+
+      .eyebrow {
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        font-size: 12px;
+        color: var(--accent);
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(36px, 6vw, 76px);
+        line-height: 0.96;
+        font-weight: 700;
+        max-width: 10ch;
+      }
+
+      .lead {
+        margin: 0;
+        max-width: 62ch;
+        color: var(--muted);
+        font-size: 18px;
+        line-height: 1.65;
+      }
+
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+
+      .pill {
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.58);
+        padding: 10px 14px;
+        border-radius: 999px;
+        font-size: 14px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+        gap: 16px;
+        margin: 28px 0;
+      }
+
+      .card,
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(10px);
+      }
+
+      .card {
+        padding: 18px 18px 16px;
+      }
+
+      .kicker {
+        margin: 0 0 10px;
+        font-size: 12px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--accent-2);
+      }
+
+      .value {
+        margin: 0;
+        font-size: 44px;
+        line-height: 1;
+      }
+
+      .label {
+        margin: 8px 0 0;
+        color: var(--muted);
+      }
+
+      .panel {
+        overflow: hidden;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      th,
+      td {
+        text-align: left;
+        padding: 14px 18px;
+        border-bottom: 1px solid var(--line);
+        vertical-align: top;
+      }
+
+      th {
+        font-size: 12px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      tbody tr:last-child td {
+        border-bottom: 0;
+      }
+
+      .mono {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 13px;
+      }
+
+      .sources {
+        color: var(--muted);
+      }
+
+      .error {
+        padding: 18px;
+        color: #8a1c1c;
+      }
+
+      @media (max-width: 720px) {
+        th:nth-child(4),
+        td:nth-child(4),
+        th:nth-child(5),
+        td:nth-child(5) {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <section class="hero">
+        <div class="eyebrow">Generated Coverage Dashboard</div>
+        <h1>Rules Pipeline Reports</h1>
+        <p class="lead">
+          A separate GitHub Pages dashboard for the generated DNS blocking outputs. This reads the
+          committed JSON summaries and surfaces source coverage, category size, and output links
+          without touching the legacy wiki.
+        </p>
+        <div class="meta">
+          <div class="pill">Repo: <span id="repo" class="mono">loading</span></div>
+          <div class="pill">Generated: <span id="generated-at" class="mono">loading</span></div>
+        </div>
+      </section>
+
+      <section class="grid" id="stats"></section>
+
+      <section class="panel">
+        <table>
+          <thead>
+            <tr>
+              <th>Category</th>
+              <th>DNS Domains</th>
+              <th>Clash Domains</th>
+              <th>Sources</th>
+              <th>Outputs</th>
+            </tr>
+          </thead>
+          <tbody id="rows">
+            <tr>
+              <td colspan="5" class="error">Loading report index...</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+
+    <script>
+      const statsEl = document.getElementById("stats");
+      const rowsEl = document.getElementById("rows");
+      const repoEl = document.getElementById("repo");
+      const generatedAtEl = document.getElementById("generated-at");
+
+      function fmt(n) {
+        return new Intl.NumberFormat("en-US").format(n || 0);
+      }
+
+      function renderStats(items) {
+        const totalDns = items.reduce((sum, item) => sum + item.final_domain_count, 0);
+        const totalClash = items.reduce((sum, item) => sum + item.clash_domain_count, 0);
+        const totalSources = items.reduce((sum, item) => sum + item.source_count, 0);
+        const cards = [
+          ["Categories", items.length, "Generated rule families"],
+          ["DNS Domains", totalDns, "Combined dnsmasq / hosts scope"],
+          ["Clash Seeds", totalClash, "Curated lite payload domains"],
+          ["Sources", totalSources, "Active upstream inputs"],
+        ];
+        statsEl.innerHTML = cards
+          .map(
+            ([title, value, label]) => `
+              <article class="card">
+                <p class="kicker">${title}</p>
+                <p class="value">${fmt(value)}</p>
+                <p class="label">${label}</p>
+              </article>
+            `
+          )
+          .join("");
+      }
+
+      function renderRows(items) {
+        rowsEl.innerHTML = items
+          .map(
+            (item) => `
+              <tr>
+                <td>
+                  <strong>${item.category}</strong><br />
+                  <a class="mono" href="./report.html?category=${encodeURIComponent(item.category)}">detail view</a><br />
+                  <a class="mono" href="./${item.report}">summary json</a>
+                </td>
+                <td class="mono">${fmt(item.final_domain_count)}</td>
+                <td class="mono">${fmt(item.clash_domain_count)}</td>
+                <td class="sources mono">${fmt(item.source_count)}</td>
+                <td class="mono">
+                  <a href="./${item.dnsmasq_output}">dnsmasq</a><br />
+                  <a href="./${item.hosts_output}">hosts</a><br />
+                  <a href="./${item.clash_output}">clash</a>
+                </td>
+              </tr>
+            `
+          )
+          .join("");
+      }
+
+      fetch("./reports/index.json")
+        .then((response) => {
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          return response.json();
+        })
+        .then((index) => {
+          repoEl.textContent = index.repo;
+          generatedAtEl.textContent = index.generated_at;
+          renderStats(index.categories);
+          renderRows(index.categories);
+        })
+        .catch((error) => {
+          rowsEl.innerHTML = `<tr><td colspan="5" class="error">Failed to load report index: ${error.message}</td></tr>`;
+        });
+    </script>
+  </body>
+  </html>

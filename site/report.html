@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Rules Report Detail</title>
+    <style>
+      :root {
+        --bg: #101419;
+        --panel: rgba(22, 29, 37, 0.82);
+        --ink: #f3efe7;
+        --muted: #b8afa1;
+        --accent: #7dd3fc;
+        --accent-2: #f59e0b;
+        --line: rgba(255, 255, 255, 0.1);
+        --shadow: 0 22px 60px rgba(0, 0, 0, 0.28);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Palatino Linotype", "Book Antiqua", Palatino, serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(125, 211, 252, 0.12), transparent 30%),
+          radial-gradient(circle at top right, rgba(245, 158, 11, 0.12), transparent 26%),
+          linear-gradient(180deg, #11171d 0%, var(--bg) 100%);
+      }
+
+      a {
+        color: inherit;
+      }
+
+      .wrap {
+        width: min(1180px, calc(100vw - 32px));
+        margin: 0 auto;
+        padding: 32px 0 64px;
+      }
+
+      .back {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 18px;
+        color: var(--muted);
+        text-decoration: none;
+      }
+
+      .hero {
+        display: grid;
+        gap: 14px;
+        margin-bottom: 24px;
+      }
+
+      .eyebrow {
+        font-size: 12px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--accent);
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(34px, 6vw, 72px);
+        line-height: 0.95;
+      }
+
+      .lead {
+        margin: 0;
+        max-width: 72ch;
+        color: var(--muted);
+        line-height: 1.7;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 16px;
+        margin: 24px 0;
+      }
+
+      .card,
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(10px);
+      }
+
+      .card {
+        padding: 18px;
+      }
+
+      .kicker {
+        margin: 0 0 10px;
+        font-size: 12px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--accent-2);
+      }
+
+      .value {
+        margin: 0;
+        font-size: 40px;
+        line-height: 1;
+      }
+
+      .label {
+        margin: 8px 0 0;
+        color: var(--muted);
+      }
+
+      .panel {
+        padding: 18px;
+        margin-top: 18px;
+      }
+
+      .panel h2 {
+        margin: 0 0 14px;
+        font-size: 22px;
+      }
+
+      .meta-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 12px 18px;
+      }
+
+      .meta-item {
+        border-top: 1px solid var(--line);
+        padding-top: 10px;
+      }
+
+      .meta-item strong,
+      th {
+        display: block;
+        font-size: 12px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      th,
+      td {
+        text-align: left;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--line);
+        vertical-align: top;
+      }
+
+      tbody tr:last-child td {
+        border-bottom: 0;
+      }
+
+      .mono {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 13px;
+        word-break: break-all;
+      }
+
+      .error {
+        color: #fca5a5;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <a class="back" href="./index.html">← Back to dashboard</a>
+      <section class="hero">
+        <div class="eyebrow">Category Detail</div>
+        <h1 id="title">Loading report...</h1>
+        <p class="lead" id="lead">
+          Loading category summary and upstream source metadata from the generated reports folder.
+        </p>
+      </section>
+
+      <section class="grid" id="stats"></section>
+
+      <section class="panel">
+        <h2>Metadata</h2>
+        <div class="meta-list" id="metadata"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Upstream Sources</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Count</th>
+              <th>Format</th>
+              <th>Homepage</th>
+            </tr>
+          </thead>
+          <tbody id="sources">
+            <tr>
+              <td colspan="4" class="error">Loading sources...</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+
+    <script>
+      const params = new URLSearchParams(window.location.search);
+      const category = params.get("category");
+
+      const titleEl = document.getElementById("title");
+      const leadEl = document.getElementById("lead");
+      const statsEl = document.getElementById("stats");
+      const metadataEl = document.getElementById("metadata");
+      const sourcesEl = document.getElementById("sources");
+
+      function fmt(n) {
+        return new Intl.NumberFormat("en-US").format(n || 0);
+      }
+
+      function fail(message) {
+        titleEl.textContent = "Report unavailable";
+        leadEl.innerHTML = `<span class="error">${message}</span>`;
+        sourcesEl.innerHTML = `<tr><td colspan="4" class="error">${message}</td></tr>`;
+      }
+
+      if (!category) {
+        fail("Missing category query parameter.");
+      } else {
+        fetch(`./reports/${encodeURIComponent(category)}.summary.json`)
+          .then((response) => {
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return response.json();
+          })
+          .then((summary) => {
+            titleEl.textContent = summary.category;
+            leadEl.textContent =
+              `Generated at ${summary.generated_at}. This view shows source provenance, final category size, and the exact output files produced for this block family.`;
+
+            const cards = [
+              ["Final DNS", summary.final_domain_count, "Domains in dnsmasq / hosts output"],
+              ["Clash Lite", summary.clash_domain_count, "Domains in lite Clash payload"],
+              ["Upstreams", summary.sources.length, "Active source inputs"],
+              ["Local Blocklist", summary.local_blocklist_count, "Domains added locally"],
+            ];
+            statsEl.innerHTML = cards
+              .map(
+                ([k, v, label]) => `
+                  <article class="card">
+                    <p class="kicker">${k}</p>
+                    <p class="value">${fmt(v)}</p>
+                    <p class="label">${label}</p>
+                  </article>
+                `
+              )
+              .join("");
+
+            const meta = [
+              ["Generated At", summary.generated_at],
+              ["Source Config", summary.source_config],
+              ["Custom Source Config", summary.custom_source_config],
+              ["Allowlist", summary.allowlist],
+              ["Blocklist", summary.blocklist],
+              ["DNSMasq Output", summary.dnsmasq_output],
+              ["Hosts Output", summary.hosts_output],
+              ["Clash Output", summary.clash_output],
+              ["Merged Pre-Allowlist", fmt(summary.merged_pre_allowlist_count)],
+              ["Post-Allowlist", fmt(summary.post_allowlist_count)],
+              ["Upstream Unique", fmt(summary.upstream_unique_count)],
+            ];
+            metadataEl.innerHTML = meta
+              .map(
+                ([k, v]) => `
+                  <div class="meta-item">
+                    <strong>${k}</strong>
+                    <div class="mono">${v}</div>
+                  </div>
+                `
+              )
+              .join("");
+
+            if (!summary.sources.length) {
+              sourcesEl.innerHTML = `<tr><td colspan="4" class="error">No active upstream sources for this category.</td></tr>`;
+              return;
+            }
+
+            sourcesEl.innerHTML = summary.sources
+              .map(
+                (source) => `
+                  <tr>
+                    <td class="mono">${source.id}</td>
+                    <td class="mono">${fmt(source.count)}</td>
+                    <td class="mono">${source.format}</td>
+                    <td class="mono"><a href="${source.homepage || source.url}">${source.homepage || source.url}</a></td>
+                  </tr>
+                `
+              )
+              .join("");
+          })
+          .catch((error) => fail(`Failed to load category report: ${error.message}`));
+      }
+    </script>
+  </body>
+  </html>

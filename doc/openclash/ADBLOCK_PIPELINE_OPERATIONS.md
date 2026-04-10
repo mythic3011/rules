@@ -26,18 +26,23 @@ Editable inputs:
 - `data/categories.yaml`
 - `data/adblock_sources.yaml`
 - `data/tracking_sources.yaml`
+- `data/telemetry_sources.yaml`
 - `data/malware_sources.yaml`
 - `data/custom_adblock_sources.yaml`
 - `data/custom_tracking_sources.yaml`
+- `data/custom_telemetry_sources.yaml`
 - `data/custom_malware_sources.yaml`
 - `data/domain_policies.yaml`
 - `data/clash_lite_seed.txt`
 - `data/tracking_lite_seed.txt`
+- `data/telemetry_lite_seed.txt`
 - `data/malware_lite_seed.txt`
 - `dns/local_allowlist.txt`
 - `dns/local_blocklist.txt`
 - `dns/local_tracking_allowlist.txt`
 - `dns/local_tracking_blocklist.txt`
+- `dns/local_telemetry_allowlist.txt`
+- `dns/local_telemetry_blocklist.txt`
 - `dns/local_malware_allowlist.txt`
 - `dns/local_malware_blocklist.txt`
 
@@ -47,17 +52,27 @@ Generated outputs:
 - `dns/adblock.hosts.txt`
 - `dns/tracking.dnsmasq.conf`
 - `dns/tracking.hosts.txt`
+- `dns/telemetry.dnsmasq.conf`
+- `dns/telemetry.hosts.txt`
 - `dns/malware.dnsmasq.conf`
 - `dns/malware.hosts.txt`
 - `rule/Ads_Lite_Domain.yaml`
 - `rule/Tracking_Lite_Domain.yaml`
+- `rule/Telemetry_Lite_Domain.yaml`
 - `rule/Malware_Lite_Domain.yaml`
+- `reports/index.json`
+- `reports/*.summary.json`
 
 Operational scripts:
 
 - `py/generate_adblock_outputs.py`
 - `shell/apply_adblock_dnsmasq.sh`
 - `shell/setup_adblock_cron.sh`
+
+Pages site:
+
+- `site/index.html`
+- `.github/workflows/deploy-reports-site.yml`
 
 ---
 
@@ -92,6 +107,7 @@ It triggers on changes to:
 - lite seed files
 - policy config
 - generator code
+- report-rendering site files are deployed by a separate Pages workflow
 
 It also runs on schedule and via `workflow_dispatch`.
 
@@ -105,6 +121,7 @@ If the source is part of the repo default behavior, add it to one of:
 
 - `data/adblock_sources.yaml`
 - `data/tracking_sources.yaml`
+- `data/telemetry_sources.yaml`
 - `data/malware_sources.yaml`
 
 Example:
@@ -125,6 +142,7 @@ If the source is user-specific or experimental, add it to one of:
 
 - `data/custom_adblock_sources.yaml`
 - `data/custom_tracking_sources.yaml`
+- `data/custom_telemetry_sources.yaml`
 - `data/custom_malware_sources.yaml`
 
 This keeps project defaults and user extensions separate.
@@ -151,6 +169,7 @@ Add the domain to the category blocklist:
 
 - `dns/local_blocklist.txt`
 - `dns/local_tracking_blocklist.txt`
+- `dns/local_telemetry_blocklist.txt`
 - `dns/local_malware_blocklist.txt`
 
 ### 5.2 Force-allow a domain
@@ -159,6 +178,7 @@ Add the domain to the category allowlist:
 
 - `dns/local_allowlist.txt`
 - `dns/local_tracking_allowlist.txt`
+- `dns/local_telemetry_allowlist.txt`
 - `dns/local_malware_allowlist.txt`
 
 Rule:

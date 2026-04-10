@@ -25,3 +25,22 @@
 ## 📂 子目录
 
 - **[archived](archived/README.md)**: 存放已废弃或不再使用的工作流。
+
+## 🌐 GitHub Pages 设置
+
+若要启用独立的报表站点，请在仓库设置中执行：
+
+1. 打开 `Settings -> Pages`
+2. 将 `Source` 设置为 `GitHub Actions`
+3. 确认默认分支与 `deploy-reports-site.yml` 中的触发分支一致，目前为 `main`
+
+启用后：
+
+- `auto-generate-adblock.yml` 会生成并提交 `reports/*.json`
+- `deploy-reports-site.yml` 会将 `site/`、`reports/`、`dns/`、`rule/` 发布到 GitHub Pages
+
+若页面没有更新，优先检查：
+
+- Pages 是否已切换到 `GitHub Actions`
+- `deploy-reports-site.yml` 是否在默认分支上触发
+- `reports/` 是否已由生成流程提交

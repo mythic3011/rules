@@ -12,3 +12,13 @@ sources:
   # - domainswild2
   # - plain_domains
   # - hosts
+
+  # Optional broad merged adblock feed.
+  # Keep disabled by default because it overlaps heavily with the baseline
+  # adblock sources and may increase false positives for some users.
+  - id: adblockfilters_217heidai
+    enabled: false
+    priority: 40
+    format: dnsmasq_conf
+    url: https://raw.githubusercontent.com/217heidai/adblockfilters/main/rules/adblockdnsmasq.txt
+    homepage: https://github.com/217heidai/adblockfilters

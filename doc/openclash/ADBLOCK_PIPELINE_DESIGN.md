@@ -66,6 +66,7 @@ Current categories:
 
 - `adblock`
 - `tracking`
+- `telemetry`
 - `malware`
 
 Each category has its own:
@@ -344,7 +345,35 @@ The intended rule is simple:
 
 ---
 
-## 9. Related Document
+## 9. Archived Script Lessons
+
+The archived shell scripts remain useful as historical reference, but only for a narrow set of runtime patterns.
+
+Reusable patterns worth preserving:
+
+- detect the active `dnsmasq` include directory dynamically from `uci show dhcp.@dnsmasq[0]`
+- support both hash-style and index-style OpenWrt `dnsmasq` layouts
+- poll OpenClash status with a bounded timeout before applying runtime changes
+- check download exit codes explicitly and leave a local log when a fetch fails
+- clear only the managed generated artifacts before replacing them
+
+Patterns that should not be copied forward:
+
+- injecting large shell payloads into another shell script by string replacement
+- depending on exact marker lines inside OpenClash developer-option scripts
+- hardcoding one legacy `dnsmasq` directory path or one firmware-specific hash
+- appending directly into `/etc/hosts` as the primary deployment model
+- combining source download logic, deployment logic, and interactive prompting in one script
+
+The design rule is:
+
+- reference archived scripts for runtime heuristics only
+- keep state and content generation in the repository pipeline
+- keep deployment as a dedicated apply step, not an in-place script patch
+
+---
+
+## 10. Related Document
 
 For day-2 maintenance and extension procedures, see:
 
