@@ -115,6 +115,14 @@ append_hosts_section() {
 env_bool() {
     var_name="$1"
     default_value="$2"
+    if [ -z "$var_name" ]; then
+        case "$default_value" in
+            true|1) echo "1" ;;
+            *) echo "0" ;;
+        esac
+        return 0
+    fi
+
     eval "raw_value=\${$var_name-}"
     if [ -n "${raw_value:-}" ]; then
         case "$raw_value" in
@@ -133,6 +141,11 @@ env_bool() {
 env_or_default() {
     var_name="$1"
     default_value="$2"
+    if [ -z "$var_name" ]; then
+        echo "$default_value"
+        return 0
+    fi
+
     eval "raw_value=\${$var_name-}"
     if [ -n "${raw_value:-}" ]; then
         echo "$raw_value"
