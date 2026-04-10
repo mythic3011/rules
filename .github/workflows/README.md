@@ -12,7 +12,8 @@
 
 | 文件名 | 描述 | 触发条件 |
 | :--- | :--- | :--- |
-| **[auto-generate-adblock.yml](auto-generate-adblock.yml)** | 自動拉取 adblock / tracking / malware 上游清單，生成 `dnsmasq`、`hosts` 及極小型 Clash 補充規則 | 對應 `data/`、`dns/local_*`、`py/generate_adblock_outputs.py` 變更 / 每日定時 / 手動觸發 |
+| **[auto-generate-adblock.yml](auto-generate-adblock.yml)** | 自動拉取 adblock / tracking / telemetry / malware 上游清單，生成 `dnsmasq`、`hosts` 及極小型 Clash 補充規則 | 對應 `data/`、`dns/local_*`、`py/generate_adblock_outputs.py` 變更 / 每日定時 / 手動觸發 |
+| **[deploy-reports-site.yml](deploy-reports-site.yml)** | 將獨立的報表站點部署到 GitHub Pages，展示生成後的分類統計、來源數量與輸出連結 | `site/`、`reports/` 變更 / 手動觸發 |
 | **[auto-generate-ai-profiles.yml](auto-generate-ai-profiles.yml)** | 自動生成 AI profiles、模板 YAML / INI 與 AI rule provider 輸出 | AI profile generator / template 變更 / 手動觸發 |
 | **[auto-generate-rules.yml](auto-generate-rules.yml)** | 从 `.list` 规则文件自动生成 `.yaml` 和 `.mrs` 格式的规则集 | `rule/*.list` 变更 / 手动触发 |
 | **[auto-update-game-cdn.yml](auto-update-game-cdn.yml)** | 从 v2fly 上游自动更新 `Game_Download_CDN.list` 规则文件 | 每 8 小时 / 手动触发 |

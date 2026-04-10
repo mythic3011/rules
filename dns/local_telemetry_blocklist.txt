@@ -1,0 +1,59 @@
+# Local telemetry blocklist
+# One domain per line.
+
+# Google analytics / telemetry leftovers
+analytics.google.com
+click.googleanalytics.com
+
+# Session replay / product analytics
+claritybt.freshmarketer.com
+freshmarketer.com
+fwtracks.freshmarketer.com
+cs.luckyorange.net
+upload.luckyorange.net
+settings.luckyorange.net
+
+# Error reporting
+app.getsentry.com
+browser.sentry-cdn.com
+notify.bugsnag.com
+sessions.bugsnag.com
+api.bugsnag.com
+app.bugsnag.com
+
+# Social / platform telemetry
+analytics.pointdrive.linkedin.com
+events.redditmedia.com
+log.byteoversea.com
+
+# OEM telemetry / ads
+iot-logser.realme.com
+bdapi-in-ads.realmemobile.com
+bdapi-ads.realmemobile.com
+iot-eu-logser.realme.com
+data.mistat.india.xiaomi.com
+data.mistat.rus.xiaomi.com
+sdkconfig.ad.intl.xiaomi.com
+sdkconfig.ad.xiaomi.com
+data.mistat.xiaomi.com
+api.ad.xiaomi.com
+tracking.rus.miui.com
+ck.ads.oppomobile.com
+adx.ads.oppomobile.com
+adsfs.oppomobile.com
+data.ads.oppomobile.com
+logbak.hicloud.com
+logservice1.hicloud.com
+logservice.hicloud.com
+metrics.data.hicloud.com
+metrics2.data.hicloud.com
+smetrics.samsung.com
+analytics-api.samsunghealthcn.com
+samsungads.com
+metrics.mzstatic.com
+api-adservices.apple.com
+iadsdk.apple.com
+metrics.icloud.com
+notes-analytics-events.apple.com
+books-analytics-events.apple.com
+weather-analytics-events.apple.com

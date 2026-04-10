@@ -29,6 +29,14 @@ categories:
     exclude_suffix: []
     exclude_keyword: []
 
+  telemetry:
+    include_exact: []
+    include_suffix: []
+    include_keyword: []
+    exclude_exact: []
+    exclude_suffix: []
+    exclude_keyword: []
+
   malware:
     include_exact: []
     include_suffix: []

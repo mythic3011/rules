@@ -8,16 +8,21 @@ on:
       - "data/custom_adblock_sources.yaml"
       - "data/tracking_sources.yaml"
       - "data/custom_tracking_sources.yaml"
+      - "data/telemetry_sources.yaml"
+      - "data/custom_telemetry_sources.yaml"
       - "data/malware_sources.yaml"
       - "data/custom_malware_sources.yaml"
       - "data/clash_lite_seed.txt"
       - "data/tracking_lite_seed.txt"
+      - "data/telemetry_lite_seed.txt"
       - "data/malware_lite_seed.txt"
       - "data/domain_policies.yaml"
       - "dns/local_allowlist.txt"
       - "dns/local_blocklist.txt"
       - "dns/local_tracking_allowlist.txt"
       - "dns/local_tracking_blocklist.txt"
+      - "dns/local_telemetry_allowlist.txt"
+      - "dns/local_telemetry_blocklist.txt"
       - "dns/local_malware_allowlist.txt"
       - "dns/local_malware_blocklist.txt"
       - "py/generate_adblock_outputs.py"
@@ -47,11 +52,31 @@ jobs:
       - name: Generate adblock outputs
         run: python3 py/generate_adblock_outputs.py
 
+      - name: Publish workflow summary
+        run: |
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+
+          index = json.loads(Path("reports/index.json").read_text(encoding="utf-8"))
+          print("## Adblock Generation Summary")
+          print("")
+          print(f"- Generated at: `{index['generated_at']}`")
+          print(f"- Repo: `{index['repo']}`")
+          print("")
+          print("| Category | Sources | DNS domains | Clash domains | Report |")
+          print("| --- | ---: | ---: | ---: | --- |")
+          for item in index["categories"]:
+              print(
+                  f"| `{item['category']}` | {item['source_count']} | {item['final_domain_count']} | {item['clash_domain_count']} | `{item['report']}` |"
+              )
+          PY
+
       - name: Commit generated changes
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add dns/adblock.dnsmasq.conf dns/adblock.hosts.txt dns/tracking.dnsmasq.conf dns/tracking.hosts.txt dns/malware.dnsmasq.conf dns/malware.hosts.txt rule/Ads_Lite_Domain.yaml rule/Tracking_Lite_Domain.yaml rule/Malware_Lite_Domain.yaml
+          git add dns/adblock.dnsmasq.conf dns/adblock.hosts.txt dns/tracking.dnsmasq.conf dns/tracking.hosts.txt dns/telemetry.dnsmasq.conf dns/telemetry.hosts.txt dns/malware.dnsmasq.conf dns/malware.hosts.txt rule/Ads_Lite_Domain.yaml rule/Tracking_Lite_Domain.yaml rule/Telemetry_Lite_Domain.yaml rule/Malware_Lite_Domain.yaml reports/index.json reports/*.summary.json
 
           if ! git diff --cached --quiet; then
             git commit -m "chore(adblock): auto generate outputs"

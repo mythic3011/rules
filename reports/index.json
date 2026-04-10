@@ -1,0 +1,47 @@
+{
+  "generated_at": "2026-04-10T17:16:02Z",
+  "repo": "https://github.com/mythic3011/rules",
+  "generator": "https://github.com/mythic3011/rules/blob/main/py/generate_adblock_outputs.py",
+  "categories": [
+    {
+      "category": "adblock",
+      "final_domain_count": 123099,
+      "clash_domain_count": 10,
+      "source_count": 2,
+      "report": "reports/adblock.summary.json",
+      "dnsmasq_output": "dns/adblock.dnsmasq.conf",
+      "hosts_output": "dns/adblock.hosts.txt",
+      "clash_output": "rule/Ads_Lite_Domain.yaml"
+    },
+    {
+      "category": "tracking",
+      "final_domain_count": 79837,
+      "clash_domain_count": 8,
+      "source_count": 1,
+      "report": "reports/tracking.summary.json",
+      "dnsmasq_output": "dns/tracking.dnsmasq.conf",
+      "hosts_output": "dns/tracking.hosts.txt",
+      "clash_output": "rule/Tracking_Lite_Domain.yaml"
+    },
+    {
+      "category": "telemetry",
+      "final_domain_count": 1804,
+      "clash_domain_count": 46,
+      "source_count": 7,
+      "report": "reports/telemetry.summary.json",
+      "dnsmasq_output": "dns/telemetry.dnsmasq.conf",
+      "hosts_output": "dns/telemetry.hosts.txt",
+      "clash_output": "rule/Telemetry_Lite_Domain.yaml"
+    },
+    {
+      "category": "malware",
+      "final_domain_count": 0,
+      "clash_domain_count": 2,
+      "source_count": 0,
+      "report": "reports/malware.summary.json",
+      "dnsmasq_output": "dns/malware.dnsmasq.conf",
+      "hosts_output": "dns/malware.hosts.txt",
+      "clash_output": "rule/Malware_Lite_Domain.yaml"
+    }
+  ]
+}

@@ -21,6 +21,17 @@ categories:
     clash_output: rule/Tracking_Lite_Domain.yaml
     clash_name: Tracking_Lite_Domain
 
+  telemetry:
+    source_config: data/telemetry_sources.yaml
+    custom_source_config: data/custom_telemetry_sources.yaml
+    lite_seed: data/telemetry_lite_seed.txt
+    allowlist: dns/local_telemetry_allowlist.txt
+    blocklist: dns/local_telemetry_blocklist.txt
+    dnsmasq_output: dns/telemetry.dnsmasq.conf
+    hosts_output: dns/telemetry.hosts.txt
+    clash_output: rule/Telemetry_Lite_Domain.yaml
+    clash_name: Telemetry_Lite_Domain
+
   malware:
     source_config: data/malware_sources.yaml
     custom_source_config: data/custom_malware_sources.yaml
