@@ -1,0 +1,82 @@
+{
+  "dnsmasq_confs": [
+    {
+      "name": "adblock",
+      "enabled_env": "ENABLE_ADBLOCK",
+      "enabled_default": true,
+      "url": "https://testingcf.jsdelivr.net/gh/${RULES_REPO}@refs/heads/${RULES_BRANCH}/dns/adblock.dnsmasq.conf"
+    },
+    {
+      "name": "tracking",
+      "enabled_env": "ENABLE_TRACKING_BLOCK",
+      "enabled_default": false,
+      "url": "https://testingcf.jsdelivr.net/gh/${RULES_REPO}@refs/heads/${RULES_BRANCH}/dns/tracking.dnsmasq.conf"
+    },
+    {
+      "name": "telemetry",
+      "enabled_env": "ENABLE_TELEMETRY_BLOCK",
+      "enabled_default": false,
+      "url": "https://testingcf.jsdelivr.net/gh/${RULES_REPO}@refs/heads/${RULES_BRANCH}/dns/telemetry.dnsmasq.conf"
+    },
+    {
+      "name": "malware",
+      "enabled_env": "ENABLE_MALWARE_BLOCK",
+      "enabled_default": false,
+      "url": "https://testingcf.jsdelivr.net/gh/${RULES_REPO}@refs/heads/${RULES_BRANCH}/dns/malware.dnsmasq.conf"
+    }
+  ],
+  "hosts_sections": [
+    {
+      "name": "rules-adblock",
+      "enabled_env": "ENABLE_HOSTS_MERGE",
+      "enabled_default": false,
+      "target_file_env": "HOSTS_TARGET_FILE",
+      "target_file_default": "/etc/hosts",
+      "tag_begin": "# RULES-ADBLOCK-HOSTS START",
+      "tag_end": "# RULES-ADBLOCK-HOSTS END",
+      "sources": [
+        {
+          "title": "adblock",
+          "enabled_env": "ENABLE_ADBLOCK",
+          "enabled_default": true,
+          "url": "https://testingcf.jsdelivr.net/gh/${RULES_REPO}@refs/heads/${RULES_BRANCH}/dns/adblock.hosts.txt"
+        },
+        {
+          "title": "tracking",
+          "enabled_env": "ENABLE_TRACKING_BLOCK",
+          "enabled_default": false,
+          "url": "https://testingcf.jsdelivr.net/gh/${RULES_REPO}@refs/heads/${RULES_BRANCH}/dns/tracking.hosts.txt"
+        },
+        {
+          "title": "telemetry",
+          "enabled_env": "ENABLE_TELEMETRY_BLOCK",
+          "enabled_default": false,
+          "url": "https://testingcf.jsdelivr.net/gh/${RULES_REPO}@refs/heads/${RULES_BRANCH}/dns/telemetry.hosts.txt"
+        },
+        {
+          "title": "malware",
+          "enabled_env": "ENABLE_MALWARE_BLOCK",
+          "enabled_default": false,
+          "url": "https://testingcf.jsdelivr.net/gh/${RULES_REPO}@refs/heads/${RULES_BRANCH}/dns/malware.hosts.txt"
+        }
+      ]
+    },
+    {
+      "name": "adobe-remote",
+      "enabled_env": "ENABLE_ADOBE_REMOTE",
+      "enabled_default": false,
+      "target_file_env": "HOSTS_TARGET_FILE",
+      "target_file_default": "/etc/hosts",
+      "tag_begin": "# ADOBE-HOSTS START",
+      "tag_end": "# ADOBE-HOSTS END",
+      "sources": [
+        {
+          "title": "adobe-remote",
+          "enabled_default": true,
+          "url_env": "ADOBE_REMOTE_URL",
+          "url_default": "https://raw.githubusercontent.com/ethanaicode/Adobe-Block-Hosts-List/refs/heads/main/hosts"
+        }
+      ]
+    }
+  ]
+}

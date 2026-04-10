@@ -135,7 +135,10 @@ wget -qO- "https://testingcf.jsdelivr.net/gh/Aethersailor/Custom_OpenClash_Rules
 ## 🧱 **apply_adblock_dnsmasq.sh**
 
 **功能说明：**
-從本倉庫拉取生成好的 `adblock` / `tracking` / `malware` `dnsmasq` 輸出，部署到 OpenWrt 當前使用中的 `dnsmasq` 規則目錄，並重啟 `dnsmasq` 生效。
+從本倉庫拉取生成好的 `adblock` / `tracking` / `telemetry` / `malware` `dnsmasq` 輸出，部署到 OpenWrt 當前使用中的 `dnsmasq` 規則目錄，並重啟 `dnsmasq` 生效。
+
+預設優先使用 `JSON manifest` 模式，按 `shell/manifests/adblock.json` 決定要下載哪些 `dnsmasq conf` 與 `hosts` 區塊。
+如果系統缺少 `jq`，且 `AUTO_INSTALL_DEPS=1`，腳本會嘗試用 `opkg` 自動安裝；如果 manifest 模式失敗，且 `ALLOW_LEGACY_FALLBACK=1`，就會自動回退到舊版 env-driven 行為。
 
 **使用命令：**
 
@@ -158,14 +161,36 @@ RULES_BRANCH="${RULES_BRANCH:-main}"
 ENABLE_HOSTS_MERGE=1 HOSTS_TARGET_FILE=/etc/dnsmasq.custom-blocks.hosts wget -qO- "https://testingcf.jsdelivr.net/gh/mythic3011/rules@refs/heads/${RULES_BRANCH}/shell/apply_adblock_dnsmasq.sh" | sh
 ```
 
+如需把遠端 Adobe hosts 清單當作資料源，合併進本地 hosts 檔案的獨立標記區塊：
+
+```bash
+RULES_BRANCH="${RULES_BRANCH:-main}"
+ENABLE_ADOBE_REMOTE=1 HOSTS_TARGET_FILE=/etc/dnsmasq.custom-blocks.hosts wget -qO- "https://testingcf.jsdelivr.net/gh/mythic3011/rules@refs/heads/${RULES_BRANCH}/shell/apply_adblock_dnsmasq.sh" | sh
+```
+
+預設 Adobe 遠端來源：
+
+```bash
+ADOBE_REMOTE_URL="https://raw.githubusercontent.com/ethanaicode/Adobe-Block-Hosts-List/refs/heads/main/hosts"
+```
+
 可選分類開關：
 
 ```bash
 ENABLE_ADBLOCK=1
 ENABLE_TRACKING_BLOCK=0
+ENABLE_TELEMETRY_BLOCK=0
 ENABLE_MALWARE_BLOCK=0
+ENABLE_HOSTS_MERGE=0
+ENABLE_ADOBE_REMOTE=0
 HOSTS_TARGET_FILE=/etc/hosts
+AUTO_INSTALL_DEPS=1
+ALLOW_LEGACY_FALLBACK=1
+MANIFEST_URL=https://testingcf.jsdelivr.net/gh/mythic3011/rules@refs/heads/main/shell/manifests/adblock.json
 ```
+
+建議把大型 `hosts` 類資料合併到 dnsmasq 額外 hosts 檔，例如 `/etc/dnsmasq.custom-blocks.hosts`，而不是直接寫進 `/etc/hosts`。
+Adobe 遠端來源會以獨立標記區塊寫入，不會覆蓋同一檔案內其他非標記內容。
 
 ---
 
@@ -185,10 +210,17 @@ wget -qO- "https://testingcf.jsdelivr.net/gh/mythic3011/rules@refs/heads/${RULES
 
 ```bash
 CRON_SCHEDULE="17 */12 * * *"
+AUTO_INSTALL_DEPS=1
+ALLOW_LEGACY_FALLBACK=1
+MANIFEST_URL=https://testingcf.jsdelivr.net/gh/mythic3011/rules@refs/heads/main/shell/manifests/adblock.json
 ENABLE_ADBLOCK=1
 ENABLE_TRACKING_BLOCK=0
+ENABLE_TELEMETRY_BLOCK=0
 ENABLE_MALWARE_BLOCK=0
 ENABLE_HOSTS_MERGE=1
+ENABLE_ADOBE_REMOTE=0
+HOSTS_TARGET_FILE=/etc/dnsmasq.custom-blocks.hosts
+ADOBE_REMOTE_URL=https://raw.githubusercontent.com/ethanaicode/Adobe-Block-Hosts-List/refs/heads/main/hosts
 RULES_REPO="mythic3011/rules"
 RULES_BRANCH="main"
 ```
