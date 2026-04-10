@@ -16,6 +16,7 @@ Use this document when you need to:
 For the design rationale and decision chain, see:
 
 - [Adblock DNS Pipeline Design](./ADBLOCK_PIPELINE_DESIGN.md)
+- [Rule Asset Matching Contract](./RULE_ASSET_MATCHING_CONTRACT.md)
 
 ---
 

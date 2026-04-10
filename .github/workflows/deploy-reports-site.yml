@@ -6,6 +6,10 @@ on:
     paths:
       - "site/**"
       - "reports/**"
+      - "dns/**"
+      - "rule/**"
+      - "py/generate_adblock_outputs.py"
+      - "doc/openclash/RULE_ASSET_MATCHING_CONTRACT.md"
       - ".github/workflows/deploy-reports-site.yml"
   workflow_dispatch:
 

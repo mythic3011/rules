@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "IP Match Result",
+  "type": "object",
+  "required": [
+    "query",
+    "query_type",
+    "match_mode",
+    "matches",
+    "searched_assets",
+    "skipped_assets"
+  ],
+  "properties": {
+    "query": {
+      "type": "string"
+    },
+    "query_type": {
+      "type": "string",
+      "const": "ip"
+    },
+    "match_mode": {
+      "type": "string",
+      "enum": ["cidr_first"]
+    },
+    "matches": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "asset_path",
+          "asset_type",
+          "matched_by",
+          "matched_network",
+          "rule_source",
+          "priority"
+        ],
+        "properties": {
+          "asset_path": { "type": "string" },
+          "asset_type": { "type": "string", "enum": ["cidr"] },
+          "matched_by": { "type": "string", "enum": ["exact_ip", "cidr_contains"] },
+          "matched_network": { "type": "string" },
+          "rule_source": { "type": "string" },
+          "priority": { "type": "integer" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "searched_assets": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "skipped_assets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["asset_path", "asset_type", "reason"],
+        "properties": {
+          "asset_path": { "type": "string" },
+          "asset_type": { "type": "string" },
+          "reason": {
+            "type": "string",
+            "enum": ["unsupported_type", "mixed_not_enabled", "domain_only_asset"]
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

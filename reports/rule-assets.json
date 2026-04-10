@@ -1,0 +1,887 @@
+{
+  "generated_at": "2026-04-10T19:11:05Z",
+  "repo": "https://github.com/mythic3011/rules",
+  "contract": "https://github.com/mythic3011/rules/blob/main/doc/openclash/RULE_ASSET_MATCHING_CONTRACT.md",
+  "assets": [
+    {
+      "path": "dns/adblock.hosts.txt",
+      "asset_class": "domain",
+      "supported_inputs": [
+        "domain"
+      ],
+      "matcher_modes": [
+        "exact_domain",
+        "domain_suffix"
+      ],
+      "searchable": true,
+      "generated": true,
+      "rule_source": "adblock_pipeline",
+      "notes": "Hosts-format domain output; never route IP containment here."
+    },
+    {
+      "path": "dns/local_allowlist.txt",
+      "asset_class": "domain",
+      "supported_inputs": [
+        "domain"
+      ],
+      "matcher_modes": [
+        "exact_domain",
+        "domain_suffix"
+      ],
+      "searchable": true,
+      "generated": false,
+      "rule_source": "local_override",
+      "notes": "Local domain override list for the DNS pipeline."
+    },
+    {
+      "path": "dns/local_blocklist.txt",
+      "asset_class": "domain",
+      "supported_inputs": [
+        "domain"
+      ],
+      "matcher_modes": [
+        "exact_domain",
+        "domain_suffix"
+      ],
+      "searchable": true,
+      "generated": false,
+      "rule_source": "local_override",
+      "notes": "Local domain override list for the DNS pipeline."
+    },
+    {
+      "path": "dns/local_malware_allowlist.txt",
+      "asset_class": "domain",
+      "supported_inputs": [
+        "domain"
+      ],
+      "matcher_modes": [
+        "exact_domain",
+        "domain_suffix"
+      ],
+      "searchable": true,
+      "generated": false,
+      "rule_source": "local_override",
+      "notes": "Local domain override list for the DNS pipeline."
+    },
+    {
+      "path": "dns/local_malware_blocklist.txt",
+      "asset_class": "domain",
+      "supported_inputs": [
+        "domain"
+      ],
+      "matcher_modes": [
+        "exact_domain",
+        "domain_suffix"
+      ],
+      "searchable": true,
+      "generated": false,
+      "rule_source": "local_override",
+      "notes": "Local domain override list for the DNS pipeline."
+    },
+    {
+      "path": "dns/local_telemetry_allowlist.txt",
+      "asset_class": "domain",
+      "supported_inputs": [
+        "domain"
+      ],
+      "matcher_modes": [
+        "exact_domain",
+        "domain_suffix"
+      ],
+      "searchable": true,
+      "generated": false,
+      "rule_source": "local_override",
+      "notes": "Local domain override list for the DNS pipeline."
+    },
+    {
+      "path": "dns/local_telemetry_blocklist.txt",
+      "asset_class": "domain",
+      "supported_inputs": [
+        "domain"
+      ],
+      "matcher_modes": [
+        "exact_domain",
+        "domain_suffix"
+      ],
+      "searchable": true,
+      "generated": false,
+      "rule_source": "local_override",
+      "notes": "Local domain override list for the DNS pipeline."
+    },
+    {
+      "path": "dns/local_tracking_allowlist.txt",
+      "asset_class": "domain",
+      "supported_inputs": [
+        "domain"
+      ],
+      "matcher_modes": [
+        "exact_domain",
+        "domain_suffix"
+      ],
+      "searchable": true,
+      "generated": false,
+      "rule_source": "local_override",
+      "notes": "Local domain override list for the DNS pipeline."
+    },
+    {
+      "path": "dns/local_tracking_blocklist.txt",
+      "asset_class": "domain",
+      "supported_inputs": [
+        "domain"
+      ],
+      "matcher_modes": [
+        "exact_domain",
+        "domain_suffix"
+      ],
+      "searchable": true,
+      "generated": false,
+      "rule_source": "local_override",
+      "notes": "Local domain override list for the DNS pipeline."
+    },
+    {
+      "path": "dns/malware.hosts.txt",
+      "asset_class": "domain",
+      "supported_inputs": [
+        "domain"
+      ],
+      "matcher_modes": [
+        "exact_domain",
+        "domain_suffix"
+      ],
+      "searchable": true,
+      "generated": true,
+      "rule_source": "adblock_pipeline",
+      "notes": "Hosts-format domain output; never route IP containment here."
+    },
+    {
+      "path": "dns/telemetry.hosts.txt",
+      "asset_class": "domain",
+      "supported_inputs": [
+        "domain"
+      ],
+      "matcher_modes": [
+        "exact_domain",
+        "domain_suffix"
+      ],
+      "searchable": true,
+      "generated": true,
+      "rule_source": "adblock_pipeline",
+      "notes": "Hosts-format domain output; never route IP containment here."
+    },
+    {
+      "path": "dns/tracking.hosts.txt",
+      "asset_class": "domain",
+      "supported_inputs": [
+        "domain"
+      ],
+      "matcher_modes": [
+        "exact_domain",
+        "domain_suffix"
+      ],
+      "searchable": true,
+      "generated": true,
+      "rule_source": "adblock_pipeline",
+      "notes": "Hosts-format domain output; never route IP containment here."
+    },
+    {
+      "path": "dns/adblock.dnsmasq.conf",
+      "asset_class": "domain",
+      "supported_inputs": [
+        "domain"
+      ],
+      "matcher_modes": [
+        "exact_domain",
+        "domain_suffix"
+      ],
+      "searchable": true,
+      "generated": true,
+      "rule_source": "adblock_pipeline",
+      "notes": "dnsmasq domain output; never route IP containment here."
+    },
+    {
+      "path": "dns/malware.dnsmasq.conf",
+      "asset_class": "domain",
+      "supported_inputs": [
+        "domain"
+      ],
+      "matcher_modes": [
+        "exact_domain",
+        "domain_suffix"
+      ],
+      "searchable": true,
+      "generated": true,
+      "rule_source": "adblock_pipeline",
+      "notes": "dnsmasq domain output; never route IP containment here."
+    },
+    {
+      "path": "dns/telemetry.dnsmasq.conf",
+      "asset_class": "domain",
+      "supported_inputs": [
+        "domain"
+      ],
+      "matcher_modes": [
+        "exact_domain",
+        "domain_suffix"
+      ],
+      "searchable": true,
+      "generated": true,
+      "rule_source": "adblock_pipeline",
+      "notes": "dnsmasq domain output; never route IP containment here."
+    },
+    {
+      "path": "dns/tracking.dnsmasq.conf",
+      "asset_class": "domain",
+      "supported_inputs": [
+        "domain"
+      ],
+      "matcher_modes": [
+        "exact_domain",
+        "domain_suffix"
+      ],
+      "searchable": true,
+      "generated": true,
+      "rule_source": "adblock_pipeline",
+      "notes": "dnsmasq domain output; never route IP containment here."
+    },
+    {
+      "path": "rule/AI_ChatGPT_Classical.yaml",
+      "asset_class": "mixed",
+      "supported_inputs": [
+        "domain",
+        "ip"
+      ],
+      "matcher_modes": [
+        "exact_domain",
+        "domain_suffix",
+        "domain_keyword",
+        "exact_ip",
+        "cidr_containment"
+      ],
+      "searchable": true,
+      "generated": true,
+      "rule_source": "classical_rule_provider",
+      "notes": "Mixed classical provider; parse by record type before matching."
+    },
+    {
+      "path": "rule/AI_Claude_Classical.yaml",
+      "asset_class": "mixed",
+      "supported_inputs": [
+        "domain",
+        "ip"
+      ],
+      "matcher_modes": [
+        "exact_domain",
+        "domain_suffix",
+        "domain_keyword",
+        "exact_ip",
+        "cidr_containment"
+      ],
+      "searchable": true,
+      "generated": true,
+      "rule_source": "classical_rule_provider",
+      "notes": "Mixed classical provider; parse by record type before matching."
+    },
+    {
+      "path": "rule/AI_Copilot_Classical.yaml",
+      "asset_class": "mixed",
+      "supported_inputs": [
+        "domain",
+        "ip"
+      ],
+      "matcher_modes": [
+        "exact_domain",
+        "domain_suffix",
+        "domain_keyword",
+        "exact_ip",
+        "cidr_containment"
+      ],
+      "searchable": true,
+      "generated": true,
+      "rule_source": "classical_rule_provider",
+      "notes": "Mixed classical provider; parse by record type before matching."
+    },
+    {
+      "path": "rule/AI_Gemini_Classical.yaml",
+      "asset_class": "mixed",
+      "supported_inputs": [
+        "domain",
+        "ip"
+      ],
+      "matcher_modes": [
+        "exact_domain",
+        "domain_suffix",
+        "domain_keyword",
+        "exact_ip",
+        "cidr_containment"
+      ],
+      "searchable": true,
+      "generated": true,
+      "rule_source": "classical_rule_provider",
+      "notes": "Mixed classical provider; parse by record type before matching."
+    },
+    {
+      "path": "rule/AI_Grok_Classical.yaml",
+      "asset_class": "mixed",
+      "supported_inputs": [
+        "domain",
+        "ip"
+      ],
+      "matcher_modes": [
+        "exact_domain",
+        "domain_suffix",
+        "domain_keyword",
+        "exact_ip",
+        "cidr_containment"
+      ],
+      "searchable": true,
+      "generated": true,
+      "rule_source": "classical_rule_provider",
+      "notes": "Mixed classical provider; parse by record type before matching."
+    },
+    {
+      "path": "rule/AI_Perplexity_Classical.yaml",
+      "asset_class": "mixed",
+      "supported_inputs": [
+        "domain",
+        "ip"
+      ],
+      "matcher_modes": [
+        "exact_domain",
+        "domain_suffix",
+        "domain_keyword",
+        "exact_ip",
+        "cidr_containment"
+      ],
+      "searchable": true,
+      "generated": true,
+      "rule_source": "classical_rule_provider",
+      "notes": "Mixed classical provider; parse by record type before matching."
+    },
+    {
+      "path": "rule/AI_Poe_Classical.yaml",
+      "asset_class": "mixed",
+      "supported_inputs": [
+        "domain",
+        "ip"
+      ],
+      "matcher_modes": [
+        "exact_domain",
+        "domain_suffix",
+        "domain_keyword",
+        "exact_ip",
+        "cidr_containment"
+      ],
+      "searchable": true,
+      "generated": true,
+      "rule_source": "classical_rule_provider",
+      "notes": "Mixed classical provider; parse by record type before matching."
+    },
+    {
+      "path": "rule/Ads_Lite_Domain.yaml",
+      "asset_class": "domain",
+      "supported_inputs": [
+        "domain"
+      ],
+      "matcher_modes": [
+        "exact_domain",
+        "domain_suffix"
+      ],
+      "searchable": true,
+      "generated": true,
+      "rule_source": "domain_rule_provider",
+      "notes": "Pure domain provider; domain queries only."
+    },
+    {
+      "path": "rule/Custom_Direct.list",
+      "asset_class": "unsupported",
+      "supported_inputs": [],
+      "matcher_modes": [],
+      "searchable": false,
+      "generated": false,
+      "rule_source": "raw_rule_list",
+      "notes": "Raw source list; do not search directly until format-specific parsing is formalized."
+    },
+    {
+      "path": "rule/Custom_Direct_Classical.yaml",
+      "asset_class": "mixed",
+      "supported_inputs": [
+        "domain",
+        "ip"
+      ],
+      "matcher_modes": [
+        "exact_domain",
+        "domain_suffix",
+        "domain_keyword",
+        "exact_ip",
+        "cidr_containment"
+      ],
+      "searchable": true,
+      "generated": true,
+      "rule_source": "classical_rule_provider",
+      "notes": "Mixed classical provider; parse by record type before matching."
+    },
+    {
+      "path": "rule/Custom_Direct_Classical_IP.yaml",
+      "asset_class": "cidr",
+      "supported_inputs": [
+        "ip"
+      ],
+      "matcher_modes": [
+        "exact_ip",
+        "cidr_containment"
+      ],
+      "searchable": true,
+      "generated": true,
+      "rule_source": "ip_rule_provider",
+      "notes": "Pure IP/CIDR provider; aggressive IP matching allowed here."
+    },
+    {
+      "path": "rule/Custom_Direct_Classical_Port.yaml",
+      "asset_class": "unsupported",
+      "supported_inputs": [],
+      "matcher_modes": [],
+      "searchable": false,
+      "generated": true,
+      "rule_source": "port_rule_provider",
+      "notes": "Port-oriented rule provider; out of scope for IP/domain matcher v1."
+    },
+    {
+      "path": "rule/Custom_Direct_Domain.mrs",
+      "asset_class": "unsupported",
+      "supported_inputs": [],
+      "matcher_modes": [],
+      "searchable": false,
+      "generated": true,
+      "rule_source": "binary_rule_provider",
+      "notes": "Binary provider; requires dedicated decoder before search is allowed."
+    },
+    {
+      "path": "rule/Custom_Direct_Domain.yaml",
+      "asset_class": "domain",
+      "supported_inputs": [
+        "domain"
+      ],
+      "matcher_modes": [
+        "exact_domain",
+        "domain_suffix"
+      ],
+      "searchable": true,
+      "generated": true,
+      "rule_source": "domain_rule_provider",
+      "notes": "Pure domain provider; domain queries only."
+    },
+    {
+      "path": "rule/Custom_Direct_IP.mrs",
+      "asset_class": "unsupported",
+      "supported_inputs": [],
+      "matcher_modes": [],
+      "searchable": false,
+      "generated": true,
+      "rule_source": "binary_rule_provider",
+      "notes": "Binary provider; requires dedicated decoder before search is allowed."
+    },
+    {
+      "path": "rule/Custom_Direct_IP.yaml",
+      "asset_class": "cidr",
+      "supported_inputs": [
+        "ip"
+      ],
+      "matcher_modes": [
+        "exact_ip",
+        "cidr_containment"
+      ],
+      "searchable": true,
+      "generated": true,
+      "rule_source": "ip_rule_provider",
+      "notes": "Pure IP/CIDR provider; aggressive IP matching allowed here."
+    },
+    {
+      "path": "rule/Custom_Port_Direct.yaml",
+      "asset_class": "unsupported",
+      "supported_inputs": [],
+      "matcher_modes": [],
+      "searchable": false,
+      "generated": false,
+      "rule_source": "unknown",
+      "notes": "Unclassified artifact; excluded from matcher routing."
+    },
+    {
+      "path": "rule/Custom_Proxy.list",
+      "asset_class": "unsupported",
+      "supported_inputs": [],
+      "matcher_modes": [],
+      "searchable": false,
+      "generated": false,
+      "rule_source": "raw_rule_list",
+      "notes": "Raw source list; do not search directly until format-specific parsing is formalized."
+    },
+    {
+      "path": "rule/Custom_Proxy_Classical.yaml",
+      "asset_class": "mixed",
+      "supported_inputs": [
+        "domain",
+        "ip"
+      ],
+      "matcher_modes": [
+        "exact_domain",
+        "domain_suffix",
+        "domain_keyword",
+        "exact_ip",
+        "cidr_containment"
+      ],
+      "searchable": true,
+      "generated": true,
+      "rule_source": "classical_rule_provider",
+      "notes": "Mixed classical provider; parse by record type before matching."
+    },
+    {
+      "path": "rule/Custom_Proxy_Classical_IP.yaml",
+      "asset_class": "cidr",
+      "supported_inputs": [
+        "ip"
+      ],
+      "matcher_modes": [
+        "exact_ip",
+        "cidr_containment"
+      ],
+      "searchable": true,
+      "generated": true,
+      "rule_source": "ip_rule_provider",
+      "notes": "Pure IP/CIDR provider; aggressive IP matching allowed here."
+    },
+    {
+      "path": "rule/Custom_Proxy_Domain.mrs",
+      "asset_class": "unsupported",
+      "supported_inputs": [],
+      "matcher_modes": [],
+      "searchable": false,
+      "generated": true,
+      "rule_source": "binary_rule_provider",
+      "notes": "Binary provider; requires dedicated decoder before search is allowed."
+    },
+    {
+      "path": "rule/Custom_Proxy_Domain.yaml",
+      "asset_class": "domain",
+      "supported_inputs": [
+        "domain"
+      ],
+      "matcher_modes": [
+        "exact_domain",
+        "domain_suffix"
+      ],
+      "searchable": true,
+      "generated": true,
+      "rule_source": "domain_rule_provider",
+      "notes": "Pure domain provider; domain queries only."
+    },
+    {
+      "path": "rule/Custom_Proxy_IP.mrs",
+      "asset_class": "unsupported",
+      "supported_inputs": [],
+      "matcher_modes": [],
+      "searchable": false,
+      "generated": true,
+      "rule_source": "binary_rule_provider",
+      "notes": "Binary provider; requires dedicated decoder before search is allowed."
+    },
+    {
+      "path": "rule/Custom_Proxy_IP.yaml",
+      "asset_class": "cidr",
+      "supported_inputs": [
+        "ip"
+      ],
+      "matcher_modes": [
+        "exact_ip",
+        "cidr_containment"
+      ],
+      "searchable": true,
+      "generated": true,
+      "rule_source": "ip_rule_provider",
+      "notes": "Pure IP/CIDR provider; aggressive IP matching allowed here."
+    },
+    {
+      "path": "rule/Encrypted_DNS.list",
+      "asset_class": "unsupported",
+      "supported_inputs": [],
+      "matcher_modes": [],
+      "searchable": false,
+      "generated": false,
+      "rule_source": "raw_rule_list",
+      "notes": "Raw source list; do not search directly until format-specific parsing is formalized."
+    },
+    {
+      "path": "rule/Encrypted_DNS_Classical.yaml",
+      "asset_class": "mixed",
+      "supported_inputs": [
+        "domain",
+        "ip"
+      ],
+      "matcher_modes": [
+        "exact_domain",
+        "domain_suffix",
+        "domain_keyword",
+        "exact_ip",
+        "cidr_containment"
+      ],
+      "searchable": true,
+      "generated": true,
+      "rule_source": "classical_rule_provider",
+      "notes": "Mixed classical provider; parse by record type before matching."
+    },
+    {
+      "path": "rule/Encrypted_DNS_Classical_IP.yaml",
+      "asset_class": "cidr",
+      "supported_inputs": [
+        "ip"
+      ],
+      "matcher_modes": [
+        "exact_ip",
+        "cidr_containment"
+      ],
+      "searchable": true,
+      "generated": true,
+      "rule_source": "ip_rule_provider",
+      "notes": "Pure IP/CIDR provider; aggressive IP matching allowed here."
+    },
+    {
+      "path": "rule/Encrypted_DNS_Domain.yaml",
+      "asset_class": "domain",
+      "supported_inputs": [
+        "domain"
+      ],
+      "matcher_modes": [
+        "exact_domain",
+        "domain_suffix"
+      ],
+      "searchable": true,
+      "generated": true,
+      "rule_source": "domain_rule_provider",
+      "notes": "Pure domain provider; domain queries only."
+    },
+    {
+      "path": "rule/Encrypted_DNS_IP.mrs",
+      "asset_class": "unsupported",
+      "supported_inputs": [],
+      "matcher_modes": [],
+      "searchable": false,
+      "generated": true,
+      "rule_source": "binary_rule_provider",
+      "notes": "Binary provider; requires dedicated decoder before search is allowed."
+    },
+    {
+      "path": "rule/Encrypted_DNS_IP.yaml",
+      "asset_class": "cidr",
+      "supported_inputs": [
+        "ip"
+      ],
+      "matcher_modes": [
+        "exact_ip",
+        "cidr_containment"
+      ],
+      "searchable": true,
+      "generated": true,
+      "rule_source": "ip_rule_provider",
+      "notes": "Pure IP/CIDR provider; aggressive IP matching allowed here."
+    },
+    {
+      "path": "rule/Game_Download_CDN.list",
+      "asset_class": "unsupported",
+      "supported_inputs": [],
+      "matcher_modes": [],
+      "searchable": false,
+      "generated": false,
+      "rule_source": "raw_rule_list",
+      "notes": "Raw source list; do not search directly until format-specific parsing is formalized."
+    },
+    {
+      "path": "rule/IPTVMainland_Domain.list",
+      "asset_class": "domain",
+      "supported_inputs": [
+        "domain"
+      ],
+      "matcher_modes": [
+        "exact_domain",
+        "domain_suffix"
+      ],
+      "searchable": true,
+      "generated": false,
+      "rule_source": "raw_rule_list",
+      "notes": "Raw domain list; domain queries only."
+    },
+    {
+      "path": "rule/Lan.list",
+      "asset_class": "unsupported",
+      "supported_inputs": [],
+      "matcher_modes": [],
+      "searchable": false,
+      "generated": false,
+      "rule_source": "raw_rule_list",
+      "notes": "Raw source list; do not search directly until format-specific parsing is formalized."
+    },
+    {
+      "path": "rule/Malware_Lite_Domain.yaml",
+      "asset_class": "domain",
+      "supported_inputs": [
+        "domain"
+      ],
+      "matcher_modes": [
+        "exact_domain",
+        "domain_suffix"
+      ],
+      "searchable": true,
+      "generated": true,
+      "rule_source": "domain_rule_provider",
+      "notes": "Pure domain provider; domain queries only."
+    },
+    {
+      "path": "rule/README.md",
+      "asset_class": "unsupported",
+      "supported_inputs": [],
+      "matcher_modes": [],
+      "searchable": false,
+      "generated": false,
+      "rule_source": "unknown",
+      "notes": "Unclassified artifact; excluded from matcher routing."
+    },
+    {
+      "path": "rule/Steam_CDN.list",
+      "asset_class": "unsupported",
+      "supported_inputs": [],
+      "matcher_modes": [],
+      "searchable": false,
+      "generated": false,
+      "rule_source": "raw_rule_list",
+      "notes": "Raw source list; do not search directly until format-specific parsing is formalized."
+    },
+    {
+      "path": "rule/Steam_CDN_Classical.yaml",
+      "asset_class": "mixed",
+      "supported_inputs": [
+        "domain",
+        "ip"
+      ],
+      "matcher_modes": [
+        "exact_domain",
+        "domain_suffix",
+        "domain_keyword",
+        "exact_ip",
+        "cidr_containment"
+      ],
+      "searchable": true,
+      "generated": true,
+      "rule_source": "classical_rule_provider",
+      "notes": "Mixed classical provider; parse by record type before matching."
+    },
+    {
+      "path": "rule/Steam_CDN_Classical_IP.yaml",
+      "asset_class": "cidr",
+      "supported_inputs": [
+        "ip"
+      ],
+      "matcher_modes": [
+        "exact_ip",
+        "cidr_containment"
+      ],
+      "searchable": true,
+      "generated": true,
+      "rule_source": "ip_rule_provider",
+      "notes": "Pure IP/CIDR provider; aggressive IP matching allowed here."
+    },
+    {
+      "path": "rule/Steam_CDN_Domain.mrs",
+      "asset_class": "unsupported",
+      "supported_inputs": [],
+      "matcher_modes": [],
+      "searchable": false,
+      "generated": true,
+      "rule_source": "binary_rule_provider",
+      "notes": "Binary provider; requires dedicated decoder before search is allowed."
+    },
+    {
+      "path": "rule/Steam_CDN_Domain.yaml",
+      "asset_class": "domain",
+      "supported_inputs": [
+        "domain"
+      ],
+      "matcher_modes": [
+        "exact_domain",
+        "domain_suffix"
+      ],
+      "searchable": true,
+      "generated": true,
+      "rule_source": "domain_rule_provider",
+      "notes": "Pure domain provider; domain queries only."
+    },
+    {
+      "path": "rule/Steam_CDN_IP.mrs",
+      "asset_class": "unsupported",
+      "supported_inputs": [],
+      "matcher_modes": [],
+      "searchable": false,
+      "generated": true,
+      "rule_source": "binary_rule_provider",
+      "notes": "Binary provider; requires dedicated decoder before search is allowed."
+    },
+    {
+      "path": "rule/Steam_CDN_IP.yaml",
+      "asset_class": "cidr",
+      "supported_inputs": [
+        "ip"
+      ],
+      "matcher_modes": [
+        "exact_ip",
+        "cidr_containment"
+      ],
+      "searchable": true,
+      "generated": true,
+      "rule_source": "ip_rule_provider",
+      "notes": "Pure IP/CIDR provider; aggressive IP matching allowed here."
+    },
+    {
+      "path": "rule/Talkatone.list",
+      "asset_class": "unsupported",
+      "supported_inputs": [],
+      "matcher_modes": [],
+      "searchable": false,
+      "generated": false,
+      "rule_source": "raw_rule_list",
+      "notes": "Raw source list; do not search directly until format-specific parsing is formalized."
+    },
+    {
+      "path": "rule/Telemetry_Lite_Domain.yaml",
+      "asset_class": "domain",
+      "supported_inputs": [
+        "domain"
+      ],
+      "matcher_modes": [
+        "exact_domain",
+        "domain_suffix"
+      ],
+      "searchable": true,
+      "generated": true,
+      "rule_source": "domain_rule_provider",
+      "notes": "Pure domain provider; domain queries only."
+    },
+    {
+      "path": "rule/Tracking_Lite_Domain.yaml",
+      "asset_class": "domain",
+      "supported_inputs": [
+        "domain"
+      ],
+      "matcher_modes": [
+        "exact_domain",
+        "domain_suffix"
+      ],
+      "searchable": true,
+      "generated": true,
+      "rule_source": "domain_rule_provider",
+      "notes": "Pure domain provider; domain queries only."
+    }
+  ],
+  "counts_by_class": {
+    "domain": 25,
+    "mixed": 11,
+    "unsupported": 17,
+    "cidr": 8
+  }
+}

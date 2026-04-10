@@ -41,6 +41,8 @@ DOMAIN_RE = re.compile(
     r"^(?=.{1,253}$)(?!-)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$"
 )
 
+IP_RULE_HINT_RE = re.compile(r"(^|_)(ip|classical_ip)(\.|_|$)", re.IGNORECASE)
+
 
 def read_simple_list(path: Path) -> list[str]:
     if not path.exists():
@@ -401,6 +403,162 @@ def write_json(path: Path, payload: object) -> None:
     path.write_text(json.dumps(payload, indent=2, sort_keys=False) + "\n", encoding="utf-8")
 
 
+def classify_rule_asset(path: Path) -> dict[str, object]:
+    relative_path = path.relative_to(ROOT)
+    rel_path = str(relative_path)
+    name = path.name
+    suffixes = path.suffixes
+
+    if relative_path.parts[0] == "dns":
+        if name.endswith(".hosts.txt"):
+            return {
+                "path": rel_path,
+                "asset_class": "domain",
+                "supported_inputs": ["domain"],
+                "matcher_modes": ["exact_domain", "domain_suffix"],
+                "searchable": True,
+                "generated": True,
+                "rule_source": "adblock_pipeline",
+                "notes": "Hosts-format domain output; never route IP containment here.",
+            }
+        if name.endswith(".dnsmasq.conf"):
+            return {
+                "path": rel_path,
+                "asset_class": "domain",
+                "supported_inputs": ["domain"],
+                "matcher_modes": ["exact_domain", "domain_suffix"],
+                "searchable": True,
+                "generated": True,
+                "rule_source": "adblock_pipeline",
+                "notes": "dnsmasq domain output; never route IP containment here.",
+            }
+        if name.startswith("local_") and name.endswith(("_allowlist.txt", "_blocklist.txt")):
+            return {
+                "path": rel_path,
+                "asset_class": "domain",
+                "supported_inputs": ["domain"],
+                "matcher_modes": ["exact_domain", "domain_suffix"],
+                "searchable": True,
+                "generated": False,
+                "rule_source": "local_override",
+                "notes": "Local domain override list for the DNS pipeline.",
+            }
+
+    if relative_path.parts[0] == "rule":
+        if name.endswith(".mrs"):
+            return {
+                "path": rel_path,
+                "asset_class": "unsupported",
+                "supported_inputs": [],
+                "matcher_modes": [],
+                "searchable": False,
+                "generated": True,
+                "rule_source": "binary_rule_provider",
+                "notes": "Binary provider; requires dedicated decoder before search is allowed.",
+            }
+        if name.endswith("_Domain.yaml"):
+            return {
+                "path": rel_path,
+                "asset_class": "domain",
+                "supported_inputs": ["domain"],
+                "matcher_modes": ["exact_domain", "domain_suffix"],
+                "searchable": True,
+                "generated": True,
+                "rule_source": "domain_rule_provider",
+                "notes": "Pure domain provider; domain queries only.",
+            }
+        if name.endswith("_Classical_IP.yaml") or name.endswith("_IP.yaml"):
+            return {
+                "path": rel_path,
+                "asset_class": "cidr",
+                "supported_inputs": ["ip"],
+                "matcher_modes": ["exact_ip", "cidr_containment"],
+                "searchable": True,
+                "generated": True,
+                "rule_source": "ip_rule_provider",
+                "notes": "Pure IP/CIDR provider; aggressive IP matching allowed here.",
+            }
+        if name.endswith("_Classical.yaml"):
+            return {
+                "path": rel_path,
+                "asset_class": "mixed",
+                "supported_inputs": ["domain", "ip"],
+                "matcher_modes": ["exact_domain", "domain_suffix", "domain_keyword", "exact_ip", "cidr_containment"],
+                "searchable": True,
+                "generated": True,
+                "rule_source": "classical_rule_provider",
+                "notes": "Mixed classical provider; parse by record type before matching.",
+            }
+        if name.endswith("_Port.yaml"):
+            return {
+                "path": rel_path,
+                "asset_class": "unsupported",
+                "supported_inputs": [],
+                "matcher_modes": [],
+                "searchable": False,
+                "generated": True,
+                "rule_source": "port_rule_provider",
+                "notes": "Port-oriented rule provider; out of scope for IP/domain matcher v1.",
+            }
+        if name.endswith(".list"):
+            asset_class = "unsupported"
+            supported_inputs: list[str] = []
+            matcher_modes: list[str] = []
+            notes = "Raw source list; do not search directly until format-specific parsing is formalized."
+            if name.endswith("_Domain.list"):
+                asset_class = "domain"
+                supported_inputs = ["domain"]
+                matcher_modes = ["exact_domain", "domain_suffix"]
+                notes = "Raw domain list; domain queries only."
+            elif IP_RULE_HINT_RE.search(name):
+                asset_class = "cidr"
+                supported_inputs = ["ip"]
+                matcher_modes = ["exact_ip", "cidr_containment"]
+                notes = "Raw IP-oriented list; IP queries only."
+            return {
+                "path": rel_path,
+                "asset_class": asset_class,
+                "supported_inputs": supported_inputs,
+                "matcher_modes": matcher_modes,
+                "searchable": asset_class != "unsupported",
+                "generated": False,
+                "rule_source": "raw_rule_list",
+                "notes": notes,
+            }
+
+    return {
+        "path": rel_path,
+        "asset_class": "unsupported",
+        "supported_inputs": [],
+        "matcher_modes": [],
+        "searchable": False,
+        "generated": False,
+        "rule_source": "unknown",
+        "notes": "Unclassified artifact; excluded from matcher routing.",
+    }
+
+
+def build_rule_asset_inventory(generated_at: str) -> dict[str, object]:
+    inventory_paths: list[Path] = []
+    inventory_paths.extend(sorted(DNS_DIR.glob("*.txt")))
+    inventory_paths.extend(sorted(DNS_DIR.glob("*.conf")))
+    inventory_paths.extend(sorted(RULE_DIR.glob("*")))
+
+    assets = [classify_rule_asset(path) for path in inventory_paths if path.is_file()]
+    counts_by_class: dict[str, int] = {}
+    for asset in assets:
+        asset_class = str(asset["asset_class"])
+        counts_by_class[asset_class] = counts_by_class.get(asset_class, 0) + 1
+
+    return {
+        "generated_at": generated_at,
+        "repo": REPO_URL,
+        "contract": f"{REPO_URL}/blob/main/doc/openclash/RULE_ASSET_MATCHING_CONTRACT.md",
+        "assets": assets,
+        "counts_by_class": counts_by_class,
+    }
+
+
 def main() -> int:
     policies = load_policies()
     categories = load_categories()
@@ -490,7 +648,9 @@ def main() -> int:
         print(f"Generated {meta['hosts_output'].relative_to(ROOT)} with {len(sorted_domains)} domains.")
         print(f"Generated {meta['clash_output'].relative_to(ROOT)} with {len(clash_domains)} domains.")
         print(f"Generated reports/{category}.summary.json with {len(source_entries)} sources.")
+    write_json(REPORTS_DIR / "rule-assets.json", build_rule_asset_inventory(generated_at))
     write_json(REPORTS_DIR / "index.json", index_payload)
+    print("Generated reports/rule-assets.json.")
     print("Generated reports/index.json.")
     return 0
 

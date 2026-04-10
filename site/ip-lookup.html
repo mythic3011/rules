@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>IP Lookup Beta</title>
+    <link rel="icon" href="./favicon.ico" sizes="any" />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <style>
+      :root {
+        --bg: #f7f2e8;
+        --ink: #1f1b18;
+        --muted: #6d6258;
+        --accent: #0f766e;
+        --accent-2: #b45309;
+        --panel: rgba(255, 252, 246, 0.86);
+        --line: rgba(31, 27, 24, 0.12);
+        --shadow: 0 18px 50px rgba(35, 28, 20, 0.12);
+        --error: #8a1c1c;
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: Georgia, "Times New Roman", serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(15, 118, 110, 0.18), transparent 28%),
+          radial-gradient(circle at top right, rgba(180, 83, 9, 0.16), transparent 26%),
+          linear-gradient(180deg, #f7f2e8 0%, #efe7d7 100%);
+      }
+      a { color: inherit; }
+      .wrap {
+        width: min(1120px, calc(100vw - 32px));
+        margin: 0 auto;
+        padding: 32px 0 64px;
+      }
+      .back {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 18px;
+        color: var(--muted);
+        text-decoration: none;
+      }
+      .hero { display: grid; gap: 14px; margin-bottom: 24px; }
+      .eyebrow {
+        font-size: 12px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--accent);
+      }
+      h1 {
+        margin: 0;
+        font-size: clamp(34px, 6vw, 72px);
+        line-height: 0.95;
+        max-width: 10ch;
+      }
+      .lead {
+        margin: 0;
+        max-width: 70ch;
+        color: var(--muted);
+        line-height: 1.7;
+      }
+      .notice {
+        border-left: 4px solid var(--accent-2);
+        background: rgba(255,255,255,0.55);
+        padding: 14px 16px;
+        border-radius: 14px;
+        color: var(--muted);
+      }
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        box-shadow: var(--shadow);
+        padding: 18px;
+        margin-top: 18px;
+      }
+      .controls {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 12px;
+      }
+      input {
+        width: 100%;
+        padding: 14px 16px;
+        border-radius: 14px;
+        border: 1px solid var(--line);
+        background: #fffdfa;
+        color: var(--ink);
+        font: inherit;
+      }
+      button {
+        border: 0;
+        border-radius: 14px;
+        padding: 14px 18px;
+        background: var(--accent);
+        color: #f7f2e8;
+        font: inherit;
+        cursor: pointer;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 16px;
+        margin-top: 18px;
+      }
+      .card {
+        background: rgba(255,255,255,0.48);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 16px;
+      }
+      .kicker {
+        margin: 0 0 10px;
+        font-size: 12px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--accent-2);
+      }
+      .value { margin: 0; font-size: 38px; line-height: 1; }
+      .label { margin: 8px 0 0; color: var(--muted); }
+      .mono {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 13px;
+        word-break: break-all;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th, td {
+        text-align: left;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--line);
+        vertical-align: top;
+      }
+      th {
+        font-size: 12px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      tbody tr:last-child td { border-bottom: 0; }
+      .error { color: var(--error); }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <a class="back" href="./index.html">← Back to dashboard</a>
+
+      <section class="hero">
+        <div class="eyebrow">IP Lookup Beta</div>
+        <h1>IP lookup (CIDR assets only)</h1>
+        <p class="lead">
+          This first version only searches CIDR-capable assets from the repository inventory. It
+          does not search domain-only assets, mixed classical assets, or unsupported binary assets.
+        </p>
+        <div class="notice">
+          Current scope: IPv4 only, exact IP and CIDR containment only. `mixed` assets are
+          intentionally skipped and reported as skipped, not silently ignored.
+        </div>
+        <div class="notice">
+          Audit trail: <a href="./reports/rule-assets.json">rule asset inventory</a> and
+          <a href="./reports/ip-match.schema.json">IP match schema</a>.
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="controls">
+          <input id="query" type="text" placeholder="Enter IPv4, e.g. 1.1.1.1" />
+          <button id="run">Lookup</button>
+        </div>
+      </section>
+
+      <section class="grid" id="summary"></section>
+
+      <section class="panel">
+        <h2>Matches</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Rule Source</th>
+              <th>Matched By</th>
+              <th>Matched Network</th>
+              <th>Priority</th>
+            </tr>
+          </thead>
+          <tbody id="matches">
+            <tr><td colspan="4" class="mono">No query yet.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="panel">
+        <h2>Skipped Assets</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Asset</th>
+              <th>Type</th>
+              <th>Reason</th>
+            </tr>
+          </thead>
+          <tbody id="skipped">
+            <tr><td colspan="3" class="mono">No query yet.</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+
+    <script>
+      const queryEl = document.getElementById("query");
+      const runEl = document.getElementById("run");
+      const summaryEl = document.getElementById("summary");
+      const matchesEl = document.getElementById("matches");
+      const skippedEl = document.getElementById("skipped");
+
+      function fmt(n) {
+        return new Intl.NumberFormat("en-US").format(n || 0);
+      }
+
+      function isIPv4(input) {
+        const parts = input.trim().split(".");
+        return parts.length === 4 && parts.every((part) => /^\d+$/.test(part) && Number(part) >= 0 && Number(part) <= 255);
+      }
+
+      function ipv4ToInt(ip) {
+        return ip.split(".").reduce((acc, part) => ((acc << 8) + Number(part)) >>> 0, 0) >>> 0;
+      }
+
+      function parseCidrLine(line) {
+        const match = line.match(/(\d{1,3}(?:\.\d{1,3}){3}\/\d{1,2})/);
+        return match ? match[1] : null;
+      }
+
+      function cidrContains(ipInt, cidr) {
+        const [base, prefixStr] = cidr.split("/");
+        const prefix = Number(prefixStr);
+        if (!Number.isInteger(prefix) || prefix < 0 || prefix > 32 || !isIPv4(base)) {
+          return false;
+        }
+        const baseInt = ipv4ToInt(base);
+        const mask = prefix === 0 ? 0 : (0xffffffff << (32 - prefix)) >>> 0;
+        return (ipInt & mask) === (baseInt & mask);
+      }
+
+      function buildSkippedReason(asset) {
+        if (asset.asset_class === "mixed") return "mixed_not_enabled";
+        if (asset.asset_class === "domain") return "domain_only_asset";
+        return "unsupported_type";
+      }
+
+      async function loadInventory() {
+        const response = await fetch("./reports/rule-assets.json");
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json();
+      }
+
+      async function loadCidrEntries(assetPath) {
+        const response = await fetch(`./${assetPath}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const text = await response.text();
+        return text
+          .split("\n")
+          .map((line) => line.trim())
+          .filter((line) => line.startsWith("-"))
+          .map(parseCidrLine)
+          .filter(Boolean);
+      }
+
+      function renderSummary(result) {
+        const cards = [
+          ["Query", result.query, "Validated IPv4 input"],
+          ["Matches", result.matches.length, "Exact and CIDR hits"],
+          ["Searched", result.searched_assets, "CIDR-capable assets scanned"],
+          ["Skipped", result.skipped_assets.length, "Assets explicitly not searched"],
+        ];
+        summaryEl.innerHTML = cards.map(([k, v, label]) => `
+          <article class="card">
+            <p class="kicker">${k}</p>
+            <p class="value ${k === "Query" ? "mono" : ""}">${typeof v === "number" ? fmt(v) : v}</p>
+            <p class="label">${label}</p>
+          </article>
+        `).join("");
+      }
+
+      function renderMatches(matches) {
+        if (!matches.length) {
+          matchesEl.innerHTML = `<tr><td colspan="4" class="mono">No matches.</td></tr>`;
+          return;
+        }
+        matchesEl.innerHTML = matches.map((match) => `
+          <tr>
+            <td class="mono">${match.rule_source}</td>
+            <td class="mono">${match.matched_by}</td>
+            <td class="mono">${match.matched_network}</td>
+            <td class="mono">${match.priority}</td>
+          </tr>
+        `).join("");
+      }
+
+      function renderSkipped(skipped) {
+        if (!skipped.length) {
+          skippedEl.innerHTML = `<tr><td colspan="3" class="mono">No skipped assets.</td></tr>`;
+          return;
+        }
+        skippedEl.innerHTML = skipped.map((item) => `
+          <tr>
+            <td class="mono">${item.asset_path}</td>
+            <td class="mono">${item.asset_type}</td>
+            <td class="mono">${item.reason}</td>
+          </tr>
+        `).join("");
+      }
+
+      async function runLookup() {
+        const query = queryEl.value.trim();
+        if (!isIPv4(query)) {
+          summaryEl.innerHTML = `<article class="card"><p class="kicker">Error</p><p class="value error">Invalid</p><p class="label">IPv4 input required for this beta.</p></article>`;
+          matchesEl.innerHTML = `<tr><td colspan="4" class="error mono">Only IPv4 is supported in this first CIDR-only beta.</td></tr>`;
+          skippedEl.innerHTML = `<tr><td colspan="3" class="mono">No lookup performed.</td></tr>`;
+          return;
+        }
+
+        const inventory = await loadInventory();
+        const searchedAssets = inventory.assets.filter((asset) => asset.searchable && asset.asset_class === "cidr");
+        const skippedAssets = inventory.assets
+          .filter((asset) => !(asset.searchable && asset.asset_class === "cidr"))
+          .map((asset) => ({
+            asset_path: asset.path,
+            asset_type: asset.asset_class,
+            reason: buildSkippedReason(asset),
+          }));
+
+        const ipInt = ipv4ToInt(query);
+        const matches = [];
+
+        for (const asset of searchedAssets) {
+          const cidrs = await loadCidrEntries(asset.path);
+          for (const cidr of cidrs) {
+            if (!cidrContains(ipInt, cidr)) continue;
+            const exact = cidr.endsWith("/32");
+            matches.push({
+              asset_path: asset.path,
+              asset_type: asset.asset_class,
+              matched_by: exact ? "exact_ip" : "cidr_contains",
+              matched_network: cidr,
+              rule_source: asset.path.split("/").pop(),
+              priority: exact ? 10 : 20,
+            });
+          }
+        }
+
+        matches.sort((a, b) => a.priority - b.priority || a.rule_source.localeCompare(b.rule_source));
+
+        const result = {
+          query,
+          query_type: "ip",
+          match_mode: "cidr_first",
+          matches,
+          searched_assets: searchedAssets.length,
+          skipped_assets: skippedAssets,
+        };
+
+        renderSummary(result);
+        renderMatches(result.matches);
+        renderSkipped(result.skipped_assets);
+      }
+
+      runEl.addEventListener("click", () => {
+        runLookup().catch((error) => {
+          summaryEl.innerHTML = `<article class="card"><p class="kicker">Error</p><p class="value error">Failed</p><p class="label">${error.message}</p></article>`;
+          matchesEl.innerHTML = `<tr><td colspan="4" class="error mono">${error.message}</td></tr>`;
+        });
+      });
+
+      queryEl.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          runEl.click();
+        }
+      });
+    </script>
+  </body>
+  </html>

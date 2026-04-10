@@ -378,3 +378,4 @@ The design rule is:
 For day-2 maintenance and extension procedures, see:
 
 - [Adblock DNS Pipeline Operations](./ADBLOCK_PIPELINE_OPERATIONS.md)
+- [Rule Asset Matching Contract](./RULE_ASSET_MATCHING_CONTRACT.md)
