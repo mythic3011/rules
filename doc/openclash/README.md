@@ -6,3 +6,4 @@
 
 - [Adblock DNS Pipeline Design](./ADBLOCK_PIPELINE_DESIGN.md)
 - [Adblock DNS Pipeline Operations](./ADBLOCK_PIPELINE_OPERATIONS.md)
+- [OpenClash Local DNS Recovery](./OPENCLASH_LOCAL_DNS_RECOVERY.md)
