@@ -2,20 +2,20 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/py/generate_adblock_outputs.py
 # CATEGORY: telemetry
-# GENERATED_AT: 2026-04-15T05:34:41Z
-# TOTAL: 1907
+# GENERATED_AT: 2026-04-16T05:39:52Z
+# TOTAL: 1899
 # FORMAT: hosts
 # UPSTREAM hagezi_native_apple: 103
 # UPSTREAM hagezi_native_apple HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_huawei: 127
 # UPSTREAM hagezi_native_huawei HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_oppo_realme: 469
+# UPSTREAM hagezi_native_oppo_realme: 460
 # UPSTREAM hagezi_native_oppo_realme HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_samsung: 198
 # UPSTREAM hagezi_native_samsung HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_tiktok: 384
 # UPSTREAM hagezi_native_tiktok HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_vivo: 243
+# UPSTREAM hagezi_native_vivo: 244
 # UPSTREAM hagezi_native_vivo HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_xiaomi: 353
 # UPSTREAM hagezi_native_xiaomi HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -346,7 +346,6 @@
 0.0.0.0 cloudconf-app-ae.heytapmobile.com
 0.0.0.0 cloudconf-app-af.heytapmobile.com
 0.0.0.0 cloudconf-app-al.heytapmobile.com
-0.0.0.0 cloudconf-app-apc.heytapmobile.com
 0.0.0.0 cloudconf-app-ar.heytapmobile.com
 0.0.0.0 cloudconf-app-at.heytapmobile.com
 0.0.0.0 cloudconf-app-au.heytapmobile.com
@@ -362,7 +361,6 @@
 0.0.0.0 cloudconf-app-by.heytapmobile.com
 0.0.0.0 cloudconf-app-ca.heytapmobile.com
 0.0.0.0 cloudconf-app-ch.heytapmobile.com
-0.0.0.0 cloudconf-app-chl.heytapmobile.com
 0.0.0.0 cloudconf-app-cl.heytapmobile.com
 0.0.0.0 cloudconf-app-co.heytapmobile.com
 0.0.0.0 cloudconf-app-cr.heytapmobile.com
@@ -375,7 +373,6 @@
 0.0.0.0 cloudconf-app-eg.heytapmobile.com
 0.0.0.0 cloudconf-app-es.heytapmobile.com
 0.0.0.0 cloudconf-app-eu.heytapmobile.com
-0.0.0.0 cloudconf-app-euex.heytapmobile.com
 0.0.0.0 cloudconf-app-fi.heytapmobile.com
 0.0.0.0 cloudconf-app-fr.heytapmobile.com
 0.0.0.0 cloudconf-app-gb.heytapmobile.com
@@ -400,7 +397,6 @@
 0.0.0.0 cloudconf-app-kw.heytapmobile.com
 0.0.0.0 cloudconf-app-kz.heytapmobile.com
 0.0.0.0 cloudconf-app-la.heytapmobile.com
-0.0.0.0 cloudconf-app-latam.heytapmobile.com
 0.0.0.0 cloudconf-app-lb.heytapmobile.com
 0.0.0.0 cloudconf-app-lk.heytapmobile.com
 0.0.0.0 cloudconf-app-ly.heytapmobile.com
@@ -415,12 +411,8 @@
 0.0.0.0 cloudconf-app-no.heytapmobile.com
 0.0.0.0 cloudconf-app-np.heytapmobile.com
 0.0.0.0 cloudconf-app-nz.heytapmobile.com
-0.0.0.0 cloudconf-app-oc.heytapmobile.com
-0.0.0.0 cloudconf-app-oca.heytapmobile.com
 0.0.0.0 cloudconf-app-om.heytapmobile.com
-0.0.0.0 cloudconf-app-other.heytapmobile.com
 0.0.0.0 cloudconf-app-pe.heytapmobile.com
-0.0.0.0 cloudconf-app-per.heytapmobile.com
 0.0.0.0 cloudconf-app-ph.heytapmobile.com
 0.0.0.0 cloudconf-app-pk.heytapmobile.com
 0.0.0.0 cloudconf-app-pl.heytapmobile.com
@@ -428,7 +420,6 @@
 0.0.0.0 cloudconf-app-pt.heytapmobile.com
 0.0.0.0 cloudconf-app-qa.heytapmobile.com
 0.0.0.0 cloudconf-app-ro.heytapmobile.com
-0.0.0.0 cloudconf-app-row.heytapmobile.com
 0.0.0.0 cloudconf-app-rs.heytapmobile.com
 0.0.0.0 cloudconf-app-ru.heytapmobile.com
 0.0.0.0 cloudconf-app-sa.heytapmobile.com
@@ -813,6 +804,7 @@
 0.0.0.0 ifsau-eu.coloros.com
 0.0.0.0 ifsau-in.coloros.com
 0.0.0.0 ifsau.coloros.com
+0.0.0.0 il-vcode-od.vivoglobal.com
 0.0.0.0 image.box.xiaomi.com
 0.0.0.0 image.cdn.mvideo.xiaomi.com
 0.0.0.0 image.cdn.pandora.xiaomi.com
