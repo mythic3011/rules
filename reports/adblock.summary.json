@@ -1,6 +1,6 @@
 {
   "category": "adblock",
-  "generated_at": "2026-04-17T05:38:10Z",
+  "generated_at": "2026-04-18T05:19:00Z",
   "source_config": "data/adblock_sources.yaml",
   "custom_source_config": "data/custom_adblock_sources.yaml",
   "allowlist": "dns/local_allowlist.txt",
@@ -9,12 +9,12 @@
   "hosts_output": "dns/adblock.hosts.txt",
   "clash_output": "rule/Ads_Lite_Domain.yaml",
   "clash_name": "Ads_Lite_Domain",
-  "upstream_unique_count": 125003,
+  "upstream_unique_count": 125207,
   "local_blocklist_count": 0,
   "allowlist_count": 0,
-  "merged_pre_allowlist_count": 125003,
-  "post_allowlist_count": 125003,
-  "final_domain_count": 124884,
+  "merged_pre_allowlist_count": 125207,
+  "post_allowlist_count": 125207,
+  "final_domain_count": 125088,
   "clash_seed_count": 10,
   "clash_domain_count": 10,
   "sources": [
@@ -24,7 +24,7 @@
       "priority": 10,
       "url": "https://raw.githubusercontent.com/sjhgvr/oisd/main/domainswild2_small.txt",
       "homepage": "https://oisd.nl/",
-      "count": 56865
+      "count": 56688
     },
     {
       "id": "anti_ad_dnsmasq",
