@@ -75,7 +75,6 @@ dns:
   fake-ip-filter:
     - "*.lan"
     - localhost.ptlogin2.qq.com
-    - geosite:cn
   fake-ip-filter-mode: blacklist
   respect-rules: true
   default-nameserver:
@@ -97,8 +96,7 @@ dns:
       - https://1.1.1.1/dns-query
       - https://dns.google/dns-query
     "geosite:cn":
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - https://127.0.0.1:5053/dns-query
     "geosite:openai":
       - https://1.1.1.1/dns-query
       - https://dns.google/dns-query
@@ -135,7 +133,6 @@ proxy-groups:
       - "🇸🇬 新加坡節點"
       - "🇼🇸 台灣節點"
       - "🇰🇷 韓國節點"
-      - "🎯 全球直連"
     filter: "^(?!.*(DIRECT|直接连接|群|邀请|返利|循环|官网|客服|网站|网址|获取|订阅|流量|到期|机场|下次|版本|官址|备用|过期|已用|联系|邮箱|工单|贩卖|通知|倒卖|防止|国内|地址|频道|无法|说明|使用|提示|特别|访问|支持|教程|关注|更新|作者|加入|USE|USED|TOTAL|EXPIRE|EMAIL|Panel|Channel|Author|Traffic|GB|Expire)).*$"
     use:
       - provider1
@@ -188,6 +185,20 @@ proxy-groups:
       - "🇰🇷 韓國節點"
       - "⛔ 拒絕"
   - name: "🤖 Gemini"
+    type: fallback
+    url: "https://cp.cloudflare.com/generate_204"
+    interval: 300
+    proxies:
+      - "🚀 手動選擇"
+      - "♻️ 自動選擇"
+      - "🎯 全球直連"
+      - "🇸🇬 新加坡節點"
+      - "🇺🇸 美國節點"
+      - "🇯🇵 日本節點"
+      - "🇼🇸 台灣節點"
+      - "🇰🇷 韓國節點"
+      - "⛔ 拒絕"
+  - name: "🤖 NotebookLM"
     type: fallback
     url: "https://cp.cloudflare.com/generate_204"
     interval: 300
@@ -292,21 +303,22 @@ proxy-groups:
 
 # ==================== 分流规则 Rules ====================
 rules:
-  - "GEOSITE,private,🎯 全球直連"
-  - "GEOIP,private,🎯 全球直連,no-resolve"
-  - "RULE-SET,Custom_Direct_Domain,🎯 全球直連"
-  - "RULE-SET,Custom_Direct_IP,🎯 全球直連,no-resolve"
-  - "GEOSITE,google-cn,🎯 全球直連"
-  - "RULE-SET,AI_ChatGPT,🤖 ChatGPT"
-  - "RULE-SET,AI_Copilot,🤖 Copilot"
-  - "RULE-SET,AI_Claude,🤖 Claude"
-  - "RULE-SET,AI_Gemini,🤖 Gemini"
-  - "RULE-SET,AI_Perplexity,🤖 Perplexity"
-  - "RULE-SET,AI_Grok,🤖 Grok"
-  - "RULE-SET,AI_Poe,🤖 Poe"
-  - "GEOSITE,cn,🎯 全球直連"
-  - "GEOIP,HK,🎯 全球直連,no-resolve"
-  - "MATCH,🐟 漏網之魚"
+    - "GEOSITE,private,🎯 全球直連"
+    - "GEOIP,private,🎯 全球直連,no-resolve"
+    - "RULE-SET,Custom_Direct_Domain,🎯 全球直連"
+    - "RULE-SET,Custom_Direct_IP,🎯 全球直連,no-resolve"
+    - "RULE-SET,Custom_Proxy_Domain,🚀 手動選擇"
+    - "RULE-SET,Custom_Proxy_IP,🚀 手動選擇,no-resolve"
+    - "RULE-SET,AI_ChatGPT,🤖 ChatGPT"
+    - "RULE-SET,AI_Copilot,🤖 Copilot"
+    - "RULE-SET,AI_Claude,🤖 Claude"
+    - "RULE-SET,AI_Gemini,🤖 Gemini"
+    - "RULE-SET,AI_NotebookLM,🤖 NotebookLM"
+    - "RULE-SET,AI_Perplexity,🤖 Perplexity"
+    - "RULE-SET,AI_Grok,🤖 Grok"
+    - "RULE-SET,AI_Poe,🤖 Poe"
+    - "GEOIP,HK,🎯 全球直連,no-resolve"
+    - "MATCH,🐟 漏網之魚"
 
 # ==================== 规则提供者 Rule Providers ====================
 rule-providers:
@@ -364,6 +376,13 @@ rule-providers:
     interval: 10800
     type: http
     url: "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_Gemini_Classical.yaml"
+    format: yaml
+
+  AI_NotebookLM:
+    behavior: classical
+    interval: 10800
+    type: http
+    url: "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_NotebookLM_Classical.yaml"
     format: yaml
 
   AI_Perplexity:

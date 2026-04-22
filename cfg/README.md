@@ -7,7 +7,7 @@
 |         名称          | 适用内核 |                            内容                             |
 | :-------------------: | :------: | :---------------------------------------------------------: |
 |   Custom_Clash.ini    |   Meta   |                  本项目标准模板，推荐使用                   |
-|  Custom_Clash_AI.ini  |   Meta   | AI 专用模板（多 Provider 拆分，按需放行指定 Provider 直连） |
+|  Custom_Clash_AI.ini  |   Meta   | AI 专用模板（多 Provider 拆分，面向 HK 本地环境） |
 | Custom_Clash_GFW.ini  |   Meta   |                        极简规则版本                         |
 | Custom_Clash_Lite.ini |   Meta   |                  更精简版本（策略更简单）                   |
 | Custom_Clash_Full.ini |   Meta   |                   更完整版本（规则较多）                    |
