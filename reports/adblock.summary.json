@@ -1,6 +1,6 @@
 {
   "category": "adblock",
-  "generated_at": "2026-04-22T05:36:24Z",
+  "generated_at": "2026-04-23T05:40:30Z",
   "source_config": "data/adblock_sources.yaml",
   "custom_source_config": "data/custom_adblock_sources.yaml",
   "allowlist": "dns/local_allowlist.txt",
@@ -9,12 +9,12 @@
   "hosts_output": "dns/adblock.hosts.txt",
   "clash_output": "rule/Ads_Lite_Domain.yaml",
   "clash_name": "Ads_Lite_Domain",
-  "upstream_unique_count": 123167,
+  "upstream_unique_count": 122056,
   "local_blocklist_count": 0,
   "allowlist_count": 0,
-  "merged_pre_allowlist_count": 123167,
-  "post_allowlist_count": 123167,
-  "final_domain_count": 123048,
+  "merged_pre_allowlist_count": 122056,
+  "post_allowlist_count": 122056,
+  "final_domain_count": 121937,
   "clash_seed_count": 10,
   "clash_domain_count": 10,
   "sources": [
@@ -24,7 +24,7 @@
       "priority": 10,
       "url": "https://raw.githubusercontent.com/sjhgvr/oisd/main/domainswild2_small.txt",
       "homepage": "https://oisd.nl/",
-      "count": 56629
+      "count": 56732
     },
     {
       "id": "anti_ad_dnsmasq",
@@ -32,7 +32,7 @@
       "priority": 20,
       "url": "https://raw.githubusercontent.com/privacy-protection-tools/anti-AD/master/adblock-for-dnsmasq.conf",
       "homepage": "https://github.com/privacy-protection-tools/anti-AD",
-      "count": 106381
+      "count": 105513
     }
   ]
 }
