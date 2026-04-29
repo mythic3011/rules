@@ -1,11 +1,11 @@
 {
-  "generated_at": "2026-04-28T06:15:59Z",
+  "generated_at": "2026-04-29T06:09:51Z",
   "repo": "https://github.com/mythic3011/rules",
   "generator": "https://github.com/mythic3011/rules/blob/main/py/generate_adblock_outputs.py",
   "categories": [
     {
       "category": "adblock",
-      "final_domain_count": 122916,
+      "final_domain_count": 123145,
       "clash_domain_count": 10,
       "source_count": 2,
       "report": "reports/adblock.summary.json",
@@ -15,7 +15,7 @@
     },
     {
       "category": "tracking",
-      "final_domain_count": 72148,
+      "final_domain_count": 74891,
       "clash_domain_count": 8,
       "source_count": 1,
       "report": "reports/tracking.summary.json",
