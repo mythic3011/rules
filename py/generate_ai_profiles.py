@@ -88,6 +88,10 @@ REGION_FILTERS = {
     "kr": r"(?i)(🇰🇷|\bKR(?:[-_ ]?\d+(?:[-_ ]?[A-Za-z]{2,})?)?\b|Korea|KOREA|KOR|首尔|韩|韓|春川|Chuncheon|ICN)",
 }
 
+# AI profiles intentionally exclude Hong Kong region groups from auto/manual
+# selection to avoid drifting back to local-node preference.
+AI_REGION_ORDER = ("us", "jp", "sg", "tw", "kr")
+
 AI_RULESETS = [
     {
         "id": "AI_ChatGPT",
@@ -209,11 +213,7 @@ def render_proxy_groups(strict: bool) -> str:
             [
                 "  proxies:",
                 f'    - "{auto}"',
-                f'    - "{us}"',
-                f'    - "{jp}"',
-                f'    - "{sg}"',
-                f'    - "{tw}"',
-                f'    - "{kr}"',
+                *(f'    - "{GROUP[region]}"' for region in AI_REGION_ORDER),
                 '  filter: "^(?!.*(DIRECT|直接连接|群|邀请|返利|循环|官网|客服|网站|网址|获取|订阅|流量|到期|机场|下次|版本|官址|备用|过期|已用|联系|邮箱|工单|贩卖|通知|倒卖|防止|国内|地址|频道|无法|说明|使用|提示|特别|访问|支持|教程|关注|更新|作者|加入|USE|USED|TOTAL|EXPIRE|EMAIL|Panel|Channel|Author|Traffic|GB|Expire)).*$"',
                 "  use:",
                 "    - provider1",
@@ -259,7 +259,7 @@ def render_proxy_groups(strict: bool) -> str:
         )
     )
 
-    for region in ("us", "jp", "sg", "tw", "kr"):
+    for region in AI_REGION_ORDER:
         blocks.append(
             group_block(
                 GROUP[region],

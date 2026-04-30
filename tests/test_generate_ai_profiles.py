@@ -93,3 +93,18 @@ class GenerateAiProfilesTest(unittest.TestCase):
             "🇰🇷 韓國節點",
         ):
             self.assertIn(f'- name: "{group_name}"', rendered_yaml)
+
+    def test_should_not_include_hong_kong_nodes_in_ai_auto_group(self) -> None:
+        rendered_yaml = MODULE.render_yaml(strict=False)
+        rendered_ini = MODULE.render_ini()
+        auto_group = self.extract_yaml_group_block(rendered_yaml, "♻️ 自動選擇")
+        manual_group = self.extract_yaml_group_block(rendered_yaml, "🚀 手動選擇")
+        auto_group_line = self.extract_ini_group_line(rendered_ini, "♻️ 自動選擇")
+        manual_group_line = self.extract_ini_group_line(rendered_ini, "🚀 手動選擇")
+
+        self.assertNotIn("香港", auto_group)
+        self.assertNotIn("香港", manual_group)
+        self.assertNotIn("香港", auto_group_line)
+        self.assertNotIn("香港", manual_group_line)
+        self.assertNotIn("🇭🇰", rendered_yaml)
+        self.assertNotIn("🇭🇰", rendered_ini)
