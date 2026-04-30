@@ -259,7 +259,7 @@ def render_proxy_groups(strict: bool) -> str:
         )
     )
 
-    for region in ("jp", "sg", "tw", "kr"):
+    for region in ("us", "jp", "sg", "tw", "kr"):
         blocks.append(
             group_block(
                 GROUP[region],

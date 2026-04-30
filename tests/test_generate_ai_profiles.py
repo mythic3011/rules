@@ -81,3 +81,15 @@ class GenerateAiProfilesTest(unittest.TestCase):
         self.assertNotIn('      - "♻️ 自動選擇"', strict_fallback)
         self.assertIn('      - "🎯 全球直連"', strict_fallback)
         self.assertIn('      - "🚀 手動選擇"', strict_fallback)
+
+    def test_should_render_all_referenced_region_groups(self) -> None:
+        rendered_yaml = MODULE.render_yaml(strict=False)
+
+        for group_name in (
+            "🇺🇸 美國節點",
+            "🇯🇵 日本節點",
+            "🇸🇬 新加坡節點",
+            "🇼🇸 台灣節點",
+            "🇰🇷 韓國節點",
+        ):
+            self.assertIn(f'- name: "{group_name}"', rendered_yaml)

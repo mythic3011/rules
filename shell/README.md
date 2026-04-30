@@ -20,6 +20,7 @@
 | [**install_openclash_dev.sh**](#-install_openclash_devsh) | 📦 OpenClash Dev 极速基础安装 | `OpenWrt` |
 | [**install_openclash_dev_update.sh**](#-install_openclash_dev_updatesh) | 🚀 全自动化安装/更新/修复 | `OpenWrt` |
 | [**apply_adblock_dnsmasq.sh**](#-apply_adblock_dnsmasqsh) | 🧱 拉取并应用 adblock dnsmasq 输出 | `OpenWrt` |
+| [**apply_ai_failclosed.sh**](#-apply_ai_failclosedsh) | 🔒 OpenClash down 時阻止 AI provider 直連 | `OpenWrt fw4` |
 | [**setup_adblock_cron.sh**](#-setup_adblock_cronsh) | ⏰ 安装 adblock 自动更新 cron | `OpenWrt` |
 
 ---
@@ -147,14 +148,7 @@ RULES_BRANCH="${RULES_BRANCH:-main}"
 wget -qO- "https://testingcf.jsdelivr.net/gh/mythic3011/rules@refs/heads/${RULES_BRANCH}/shell/apply_adblock_dnsmasq.sh" | sh
 ```
 
-如需同時把生成的 `dns/*.hosts.txt` 合併進 `/etc/hosts`：
-
-```bash
-RULES_BRANCH="${RULES_BRANCH:-main}"
-ENABLE_HOSTS_MERGE=1 wget -qO- "https://testingcf.jsdelivr.net/gh/mythic3011/rules@refs/heads/${RULES_BRANCH}/shell/apply_adblock_dnsmasq.sh" | sh
-```
-
-如需把生成的 `dns/*.hosts.txt` 合併進自定義 hosts 檔案，例如你目前 OpenWrt 使用的 `/etc/dnsmasq.custom-blocks.hosts`：
+如需把生成的 `dns/*.hosts.txt` 合併進 dnsmasq 額外 hosts 檔案，例如 `/etc/dnsmasq.custom-blocks.hosts`：
 
 ```bash
 RULES_BRANCH="${RULES_BRANCH:-main}"
@@ -183,14 +177,64 @@ ENABLE_TELEMETRY_BLOCK=0
 ENABLE_MALWARE_BLOCK=0
 ENABLE_HOSTS_MERGE=0
 ENABLE_ADOBE_REMOTE=0
-HOSTS_TARGET_FILE=/etc/hosts
+HOSTS_TARGET_FILE=/etc/dnsmasq.custom-blocks.hosts
 AUTO_INSTALL_DEPS=1
 ALLOW_LEGACY_FALLBACK=1
 MANIFEST_URL=https://testingcf.jsdelivr.net/gh/mythic3011/rules@refs/heads/main/shell/manifests/adblock.json
 ```
 
-建議把大型 `hosts` 類資料合併到 dnsmasq 額外 hosts 檔，例如 `/etc/dnsmasq.custom-blocks.hosts`，而不是直接寫進 `/etc/hosts`。
+預設已改為 dnsmasq 額外 hosts 檔 `/etc/dnsmasq.custom-blocks.hosts`，不再把 blocking 內容直接寫進 `/etc/hosts`。
 Adobe 遠端來源會以獨立標記區塊寫入，不會覆蓋同一檔案內其他非標記內容。
+
+---
+
+## 🔒 **apply_ai_failclosed.sh**
+
+**功能說明：**
+為指定 AI provider 建立 DNS-to-nftset 保護層。OpenClash 正常運行時只維持集合；OpenClash 不在 `running` 狀態時，防火牆會阻止已啟用 provider 的直連，避免例如 Claude 直接連線導致帳號風險。
+
+預設只啟用 Claude：
+
+```bash
+ENABLE_AI_FAILCLOSED_CLAUDE=1
+ENABLE_AI_FAILCLOSED_CHATGPT=0
+ENABLE_AI_FAILCLOSED_COPILOT=0
+ENABLE_AI_FAILCLOSED_GEMINI=0
+ENABLE_AI_FAILCLOSED_NOTEBOOKLM=0
+ENABLE_AI_FAILCLOSED_PERPLEXITY=0
+ENABLE_AI_FAILCLOSED_GROK=0
+ENABLE_AI_FAILCLOSED_POE=0
+```
+
+**立即套用：**
+
+```bash
+RULES_BRANCH="${RULES_BRANCH:-main}"
+wget -qO- "https://testingcf.jsdelivr.net/gh/mythic3011/rules@refs/heads/${RULES_BRANCH}/shell/apply_ai_failclosed.sh" | sh
+```
+
+**只保護 Claude 的定時檢查：**
+
+```bash
+RULES_BRANCH="${RULES_BRANCH:-main}"
+wget -qO /usr/bin/rules-ai-failclosed "https://testingcf.jsdelivr.net/gh/mythic3011/rules@refs/heads/${RULES_BRANCH}/shell/apply_ai_failclosed.sh"
+chmod +x /usr/bin/rules-ai-failclosed
+(crontab -l 2>/dev/null | grep -v rules-ai-failclosed; echo '* * * * * /usr/bin/rules-ai-failclosed >/tmp/rules-ai-failclosed.log 2>&1') | crontab -
+/etc/init.d/cron restart
+```
+
+**打開其他 provider：**
+
+```bash
+ENABLE_AI_FAILCLOSED_CHATGPT=1 ENABLE_AI_FAILCLOSED_CLAUDE=1 /usr/bin/rules-ai-failclosed
+```
+
+注意：
+
+- 這個腳本不寫 `/etc/hosts`。
+- 它使用 `dnsmasq` 的 `nftset` 輸出，把 provider domain 解析結果放入 `fw4` nft set。
+- 它不是 routing rule；它是 OpenClash down/bypass 時的 fail-closed 保護。
+- 若 OpenClash down 之前從未解析過該 provider domain，nft set 可能還未有 IP；定時執行和正常 DNS 查詢會逐步補齊。
 
 ---
 

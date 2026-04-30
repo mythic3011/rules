@@ -6,4 +6,5 @@
 
 - [Adblock DNS Pipeline Design](./ADBLOCK_PIPELINE_DESIGN.md)
 - [Adblock DNS Pipeline Operations](./ADBLOCK_PIPELINE_OPERATIONS.md)
+- [OpenClash Add Local Proxy To Active Config](./OPENCLASH_ADD_LOCAL_PROXY_TO_ACTIVE_CONFIG.md)
 - [OpenClash Local DNS Recovery](./OPENCLASH_LOCAL_DNS_RECOVERY.md)

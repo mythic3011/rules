@@ -31,7 +31,7 @@
       "enabled_env": "ENABLE_HOSTS_MERGE",
       "enabled_default": false,
       "target_file_env": "HOSTS_TARGET_FILE",
-      "target_file_default": "/etc/hosts",
+      "target_file_default": "/etc/dnsmasq.custom-blocks.hosts",
       "tag_begin": "# RULES-ADBLOCK-HOSTS START",
       "tag_end": "# RULES-ADBLOCK-HOSTS END",
       "sources": [
@@ -66,7 +66,7 @@
       "enabled_env": "ENABLE_ADOBE_REMOTE",
       "enabled_default": false,
       "target_file_env": "HOSTS_TARGET_FILE",
-      "target_file_default": "/etc/hosts",
+      "target_file_default": "/etc/dnsmasq.custom-blocks.hosts",
       "tag_begin": "# ADOBE-HOSTS START",
       "tag_end": "# ADOBE-HOSTS END",
       "sources": [
