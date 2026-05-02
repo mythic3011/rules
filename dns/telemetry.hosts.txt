@@ -2,14 +2,14 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/py/generate_adblock_outputs.py
 # CATEGORY: telemetry
-# GENERATED_AT: 2026-05-01T06:24:24Z
-# TOTAL: 1902
+# GENERATED_AT: 2026-05-02T05:45:38Z
+# TOTAL: 1907
 # FORMAT: hosts
 # UPSTREAM hagezi_native_apple: 104
 # UPSTREAM hagezi_native_apple HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_huawei: 127
 # UPSTREAM hagezi_native_huawei HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_oppo_realme: 460
+# UPSTREAM hagezi_native_oppo_realme: 465
 # UPSTREAM hagezi_native_oppo_realme HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_samsung: 198
 # UPSTREAM hagezi_native_samsung HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -115,10 +115,15 @@
 0.0.0.0 adx-dre.op.hicloud.com
 0.0.0.0 adx-drru.op.dbankcloud.com
 0.0.0.0 adx-drru.op.hicloud.com
+0.0.0.0 adx-op-fr.heytapmobile.com
+0.0.0.0 adx-op-in.heytapmobile.com
+0.0.0.0 adx-op-ru.heytapmobile.com
 0.0.0.0 adx-op-sg.heytapmobile.com
+0.0.0.0 adx-u-sg.heytapmobile.com
 0.0.0.0 adx.ads.oppomobile.com
 0.0.0.0 adx.tv.mi.com
 0.0.0.0 adxlog-adnet.vivo.com.cn
+0.0.0.0 adxu-bigo-sg.heytapmobile.com
 0.0.0.0 akcjasamsung.e-kei.pl
 0.0.0.0 album-cn01a.ocloud.heytapmobi.com
 0.0.0.0 album-sg01a.ocloud.heytapmobi.com
