@@ -2,12 +2,12 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/py/generate_adblock_outputs.py
 # CATEGORY: telemetry
-# GENERATED_AT: 2026-05-10T06:21:02Z
-# TOTAL: 1908
+# GENERATED_AT: 2026-05-11T06:51:57Z
+# TOTAL: 1911
 # FORMAT: hosts
 # UPSTREAM hagezi_native_apple: 104
 # UPSTREAM hagezi_native_apple HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_huawei: 127
+# UPSTREAM hagezi_native_huawei: 130
 # UPSTREAM hagezi_native_huawei HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_oppo_realme: 465
 # UPSTREAM hagezi_native_oppo_realme HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -77,6 +77,7 @@
 0.0.0.0 ads-bdapi-vn.heytapmobile.com
 0.0.0.0 ads-drcn.platform.hihonorcloud.com
 0.0.0.0 ads-drru.cloud.huawei.ru
+0.0.0.0 ads-drru.platform.hihonorcloud.com
 0.0.0.0 ads-frontier.tiktok.com
 0.0.0.0 ads-ie.tiktokw.eu
 0.0.0.0 ads-ru.tiktok.com
@@ -1820,6 +1821,8 @@
 0.0.0.0 trackercollect.ddxq.mobi
 0.0.0.0 trackerfeed.ddxq.mobi
 0.0.0.0 tracking-adnet.vivo.com.cn
+0.0.0.0 tracking-data-drru.platform.hihonorcloud.com
+0.0.0.0 tracking-data.platform.hihonorcloud.com
 0.0.0.0 tracking.americas.business.samsung.com
 0.0.0.0 tracking.apac.business.samsung.com
 0.0.0.0 tracking.eu.miui.com
