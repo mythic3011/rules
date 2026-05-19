@@ -737,6 +737,9 @@ def render_proxy_groups(strict: bool) -> str:
             [
                 "  proxies:",
                 *(f'    - "{proxy}"' for proxy in manual_group_proxies(strict)),
+                f'  filter: "{AI_POOL_FILTER}"',
+                "  use:",
+                "    - provider1",
             ],
         ),
         group_block(
@@ -1154,7 +1157,7 @@ def render_ini() -> str:
             f"ruleset={GROUP['direct']},[]GEOIP,HK,no-resolve",
             f"ruleset={GROUP['fallback']},[]FINAL",
             ";設定節點分組標誌位",
-            f"custom_proxy_group={GROUP['manual']}`select`[]{GROUP['auto']}`[]{GROUP['direct']}`[]{GROUP['us']}`[]{GROUP['jp']}`[]{GROUP['sg']}`[]{GROUP['tw']}`[]{GROUP['kr']}`[]{GROUP['reject']}",
+            f"custom_proxy_group={GROUP['manual']}`select`[]{GROUP['auto']}`[]{GROUP['direct']}`[]{GROUP['us']}`[]{GROUP['jp']}`[]{GROUP['sg']}`[]{GROUP['tw']}`[]{GROUP['kr']}`[]{GROUP['reject']}`{AI_POOL_FILTER}",
             f"custom_proxy_group={GROUP['auto']}`fallback`[]{GROUP['us']}`[]{GROUP['sg']}`[]{GROUP['jp']}`[]{GROUP['tw']}`[]{GROUP['kr']}`https://cp.cloudflare.com/generate_204`300,,50",
             f"custom_proxy_group={GROUP['chatgpt']}`fallback`[]{GROUP['manual']}`[]{GROUP['auto']}`[]{GROUP['sg']}`[]{GROUP['us']}`[]{GROUP['jp']}`[]{GROUP['tw']}`[]{GROUP['kr']}`[]{GROUP['reject']}`https://cp.cloudflare.com/generate_204`300,,50",
             f"custom_proxy_group={GROUP['copilot']}`fallback`[]{GROUP['manual']}`[]{GROUP['auto']}`[]{GROUP['direct']}`[]{GROUP['us']}`[]{GROUP['sg']}`[]{GROUP['jp']}`[]{GROUP['tw']}`[]{GROUP['kr']}`[]{GROUP['reject']}`https://cp.cloudflare.com/generate_204`300,,50",

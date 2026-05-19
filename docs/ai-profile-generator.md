@@ -19,7 +19,7 @@ Custom provider names are explicit and canonical in generated outputs:
 - `Custom_Proxy_Domain`
 - `Custom_Proxy_Classical_IP`
 
-Provider metadata nodes must be filtered. YAML applies provider-level `exclude-filter` under `proxy-providers.provider1.override`. INI cannot express the same provider override, so it relies on explicit group composition and comments documenting the limitation. Raw `host:port` nodes must not be hardcoded into the manual group. If raw nodes are ever exposed intentionally, they should come from proxy-providers or from explicitly declared named proxies, not from pasted subscription strings.
+Provider metadata nodes must be filtered. YAML applies provider-level `exclude-filter` under `proxy-providers.provider1.override`. INI cannot express the same provider override, so it relies on filtered group regex and comments documenting the limitation. Raw `host:port` nodes are allowed to appear in `🚀 手動選擇` when they come dynamically from proxy-providers at runtime, but they must not be hardcoded into generator source.
 
 Taiwan output labels must always use `🇹🇼 台灣節點`. The old `🇼🇸` Samoa flag is only a legacy input-cleanup concern and must never appear in generated output.
 

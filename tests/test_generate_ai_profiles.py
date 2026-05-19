@@ -84,6 +84,8 @@ class GenerateAiProfilesTest(unittest.TestCase):
         copilot_group = self.extract_yaml_group_block(rendered_yaml, MODULE.GROUP["copilot"])
 
         self.assertNotIn(MODULE.GROUP["direct"], manual_group)
+        self.assertIn('  use:', manual_group)
+        self.assertIn('    - provider1', manual_group)
         self.assertNotIn(MODULE.GROUP["direct"], claude_group)
         self.assertNotIn(MODULE.GROUP["direct"], copilot_group)
 
@@ -96,12 +98,12 @@ class GenerateAiProfilesTest(unittest.TestCase):
         self.assertNotIn("🇼🇸 台灣節點", rendered_yaml)
         self.assertNotIn("🇼🇸 台灣節點", rendered_ini)
 
-    def test_should_keep_manual_ini_group_free_of_dynamic_raw_node_regex(self) -> None:
+    def test_should_keep_manual_ini_group_open_to_filtered_provider_nodes(self) -> None:
         rendered_ini = MODULE.render_ini()
         manual_group = self.extract_ini_group_line(rendered_ini, MODULE.GROUP["manual"])
 
         self.assertIn(f"[]{MODULE.GROUP['direct']}", manual_group)
-        self.assertNotIn(MODULE.AI_POOL_FILTER, manual_group)
+        self.assertIn(MODULE.AI_POOL_FILTER, manual_group)
 
     def test_should_not_reference_process_rules_when_disabled(self) -> None:
         rendered_yaml = MODULE.render_yaml(strict=False)

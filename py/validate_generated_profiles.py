@@ -165,7 +165,6 @@ def validate_general_text(texts: dict[str, str]) -> None:
     ensure("Custom_Proxy_IP" not in joined, "Old provider name Custom_Proxy_IP found")
     ensure("AI_ChatGPT," not in joined, "Old AI_ChatGPT provider key found")
     ensure("AI_Claude," not in joined, "Old AI_Claude provider key found")
-    ensure("isp.decodo.com:10003" not in joined, "Explicit banned raw host:port node found")
     ensure("DST-PORT,80" not in joined, "Forbidden DST-PORT,80 catch-all found")
     ensure("DST-PORT,443" not in joined, "Forbidden DST-PORT,443 catch-all found")
     for cidr in BANNED_TAILSCALE_RANGES:
@@ -188,6 +187,9 @@ def validate_manual_group(group: dict[str, object], known_group_names: set[str],
             not RAW_HOST_PORT_PATTERN.fullmatch(entry),
             f"Manual group contains raw host:port entry: {entry}",
         )
+    ensure(group.get("filter"), "Manual group must keep a provider-node filter")
+    use_entries = group.get("use") or []
+    ensure(isinstance(use_entries, list) and "provider1" in use_entries, "Manual group must expose provider1 nodes via use:")
 
 
 def validate_service_groups(proxy_groups: list[dict[str, object]], strict: bool) -> None:

@@ -141,6 +141,9 @@ proxy-groups:
       - "🇹🇼 台灣節點"
       - "🇰🇷 韓國節點"
       - "⛔ 拒絕"
+    filter: "(?i)^(?!.*(?:🇭🇰|香港|Hong Kong|Hong-Kong|\bHKG\b|\bHK\b|剩余流量|剩餘流量|套餐到期|到期|流量[:：]|Traffic|Expire|Subscription|官网|官方|客服|Telegram|TG群|网址|網站|更新|失效|Invalid|USE|USED|TOTAL|EXPIRE|Panel|Channel|Author|公告|通知|邀请|邀請|返利|教程|使用说明|使用說明)).*$"
+    use:
+      - provider1
   - name: "♻️ 自動選擇"
     type: url-test
     filter: "(?i)^(?!.*(?:🇭🇰|香港|Hong Kong|Hong-Kong|\bHKG\b|\bHK\b|剩余流量|剩餘流量|套餐到期|到期|流量[:：]|Traffic|Expire|Subscription|官网|官方|客服|Telegram|TG群|网址|網站|更新|失效|Invalid|USE|USED|TOTAL|EXPIRE|Panel|Channel|Author|公告|通知|邀请|邀請|返利|教程|使用说明|使用說明)).*$"
