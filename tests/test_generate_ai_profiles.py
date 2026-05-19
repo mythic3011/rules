@@ -29,82 +29,103 @@ class GenerateAiProfilesTest(unittest.TestCase):
                     in_block = True
             if in_block:
                 block.append(line)
-
         return "\n".join(block)
 
     def extract_ini_group_line(self, rendered_ini: str, name: str) -> str:
         prefix = f"custom_proxy_group={name}`"
         return next((line for line in rendered_ini.splitlines() if line.startswith(prefix)), "")
 
-    def test_should_define_notebooklm_ruleset(self) -> None:
-        notebooklm_ruleset = next(
-            (item for item in MODULE.AI_RULESETS if item["id"] == "AI_NotebookLM"),
-            None,
+    def test_should_use_classical_provider_keys_for_ai_rules(self) -> None:
+        provider_keys = [item["provider_key"] for item in MODULE.AI_RULESETS]
+
+        self.assertEqual(
+            provider_keys,
+            [
+                "AI_ChatGPT_Classical",
+                "AI_Copilot_Classical",
+                "AI_Claude_Classical",
+                "AI_Gemini_Classical",
+                "AI_NotebookLM_Classical",
+                "AI_Perplexity_Classical",
+                "AI_Grok_Classical",
+                "AI_Poe_Classical",
+            ],
         )
 
-        self.assertIsNotNone(notebooklm_ruleset)
-        self.assertEqual(notebooklm_ruleset["group"], "🤖 NotebookLM")
-        self.assertIn("DOMAIN-SUFFIX,notebooklm.google.com", notebooklm_ruleset["payload"])
-        self.assertIn("DOMAIN-SUFFIX,notebooklm.google", notebooklm_ruleset["payload"])
+    def test_should_render_ai_all_reject_rule_before_geoip_hk(self) -> None:
+        rules = MODULE.render_yaml_rules(strict=False, include_process_rules=False).splitlines()
+        ai_all_index = next(i for i, line in enumerate(rules) if "AI_All_Classical" in line)
+        geoip_hk_index = next(i for i, line in enumerate(rules) if "GEOIP,HK" in line)
+        match_index = next(i for i, line in enumerate(rules) if "MATCH," in line)
 
-    def test_should_render_notebooklm_group_in_generated_outputs(self) -> None:
+        self.assertLess(ai_all_index, geoip_hk_index)
+        self.assertLess(geoip_hk_index, match_index)
+        self.assertIn(f'"RULE-SET,AI_All_Classical,{MODULE.GROUP["reject"]}"', rules[ai_all_index])
+
+    def test_should_render_strict_match_to_reject(self) -> None:
+        rendered_yaml = MODULE.render_yaml(strict=True)
+
+        self.assertIn(f'"MATCH,{MODULE.GROUP["reject"]}"', rendered_yaml)
+        self.assertNotIn('"MATCH,DIRECT"', rendered_yaml)
+
+    def test_should_render_relaxed_fallback_with_reject_last(self) -> None:
+        rendered_yaml = MODULE.render_yaml(strict=False)
+        fallback_group = self.extract_yaml_group_block(rendered_yaml, MODULE.GROUP["fallback"])
+
+        self.assertIn(f'      - "{MODULE.GROUP["direct"]}"', fallback_group)
+        self.assertIn(f'      - "{MODULE.GROUP["manual"]}"', fallback_group)
+        self.assertIn(f'      - "{MODULE.GROUP["auto"]}"', fallback_group)
+        self.assertTrue(fallback_group.rstrip().endswith(f'- "{MODULE.GROUP["reject"]}"'))
+
+    def test_should_keep_direct_out_of_strict_manual_and_service_groups(self) -> None:
+        rendered_yaml = MODULE.render_yaml(strict=True)
+        manual_group = self.extract_yaml_group_block(rendered_yaml, MODULE.GROUP["manual"])
+        claude_group = self.extract_yaml_group_block(rendered_yaml, MODULE.GROUP["claude"])
+        copilot_group = self.extract_yaml_group_block(rendered_yaml, MODULE.GROUP["copilot"])
+
+        self.assertNotIn(MODULE.GROUP["direct"], manual_group)
+        self.assertNotIn(MODULE.GROUP["direct"], claude_group)
+        self.assertNotIn(MODULE.GROUP["direct"], copilot_group)
+
+    def test_should_fix_taiwan_group_label_and_filters(self) -> None:
         rendered_yaml = MODULE.render_yaml(strict=False)
         rendered_ini = MODULE.render_ini()
-        notebooklm_group_line = self.extract_ini_group_line(rendered_ini, "🤖 NotebookLM")
 
-        self.assertIn('- name: "🤖 NotebookLM"', rendered_yaml)
-        self.assertIn('  - "RULE-SET,AI_NotebookLM,🤖 NotebookLM"', rendered_yaml)
-        self.assertIn("ruleset=🤖 NotebookLM,clash-classic:", rendered_ini)
-        self.assertIn("custom_proxy_group=🤖 NotebookLM`fallback`", notebooklm_group_line)
-        self.assertIn("[]🎯 全球直連", notebooklm_group_line)
+        self.assertIn(MODULE.GROUP["tw"], rendered_yaml)
+        self.assertIn(MODULE.GROUP["tw"], rendered_ini)
+        self.assertNotIn("🇼🇸 台灣節點", rendered_yaml)
+        self.assertNotIn("🇼🇸 台灣節點", rendered_ini)
 
-    def test_should_render_hk_first_templates_with_cn_dns_policy_only(self) -> None:
+    def test_should_keep_manual_ini_group_free_of_dynamic_raw_node_regex(self) -> None:
+        rendered_ini = MODULE.render_ini()
+        manual_group = self.extract_ini_group_line(rendered_ini, MODULE.GROUP["manual"])
+
+        self.assertIn(f"[]{MODULE.GROUP['direct']}", manual_group)
+        self.assertNotIn(MODULE.AI_POOL_FILTER, manual_group)
+
+    def test_should_not_reference_process_rules_when_disabled(self) -> None:
         rendered_yaml = MODULE.render_yaml(strict=False)
         rendered_ini = MODULE.render_ini()
 
-        self.assertIn('  - "GEOIP,HK,🎯 全球直連,no-resolve"', rendered_yaml)
-        self.assertIn("ruleset=🎯 全球直連,[]GEOIP,HK,no-resolve", rendered_ini)
+        self.assertFalse(MODULE.ENABLE_PROCESS_RULES)
+        self.assertNotIn("Process_P2P_Classical", rendered_yaml)
+        self.assertNotIn("Process_Download_Classical", rendered_yaml)
+        self.assertNotIn("Process_ProxyTools_Classical", rendered_yaml)
+        self.assertNotIn("Process_Gaming_Classical", rendered_yaml)
+        self.assertNotIn("Process_P2P_Classical", rendered_ini)
+        self.assertNotIn("Process_Download_Classical", rendered_ini)
+        self.assertNotIn("Process_ProxyTools_Classical", rendered_ini)
+        self.assertNotIn("Process_Gaming_Classical", rendered_ini)
+        self.assertNotIn("PROCESS-NAME,", rendered_yaml)
 
-        self.assertNotIn("    - geosite:cn", rendered_yaml)
-        self.assertNotIn('  - "GEOSITE,cn,🎯 全球直連"', rendered_yaml)
-        self.assertNotIn('  - "GEOSITE,google-cn,🎯 全球直連"', rendered_yaml)
-        self.assertNotIn("ruleset=🎯 全球直連,[]GEOSITE,cn", rendered_ini)
-        self.assertNotIn("ruleset=🎯 全球直連,[]GEOSITE,google-cn", rendered_ini)
-        self.assertIn('    "geosite:cn":', rendered_yaml)
-        self.assertIn("      - https://127.0.0.1:5053/dns-query", rendered_yaml)
+    def test_should_render_yaml_rule_providers_with_new_custom_provider_names(self) -> None:
+        rendered_providers = MODULE.render_rule_providers(include_process_rules=False)
 
-    def test_should_keep_auto_only_in_normal_fallback_group(self) -> None:
-        normal_fallback = self.extract_yaml_group_block(MODULE.render_yaml(strict=False), "🐟 漏網之魚")
-        strict_fallback = self.extract_yaml_group_block(MODULE.render_yaml(strict=True), "🐟 漏網之魚")
+        self.assertIn("Custom_Direct_Classical_IP:", rendered_providers)
+        self.assertIn("Custom_Proxy_Classical_IP:", rendered_providers)
+        self.assertNotIn("Custom_Direct_IP:", rendered_providers)
+        self.assertNotIn("Custom_Proxy_IP:", rendered_providers)
 
-        self.assertIn('      - "♻️ 自動選擇"', normal_fallback)
-        self.assertNotIn('      - "♻️ 自動選擇"', strict_fallback)
-        self.assertIn('      - "🎯 全球直連"', strict_fallback)
-        self.assertIn('      - "🚀 手動選擇"', strict_fallback)
 
-    def test_should_render_all_referenced_region_groups(self) -> None:
-        rendered_yaml = MODULE.render_yaml(strict=False)
-
-        for group_name in (
-            "🇺🇸 美國節點",
-            "🇯🇵 日本節點",
-            "🇸🇬 新加坡節點",
-            "🇼🇸 台灣節點",
-            "🇰🇷 韓國節點",
-        ):
-            self.assertIn(f'- name: "{group_name}"', rendered_yaml)
-
-    def test_should_not_include_hong_kong_nodes_in_ai_auto_group(self) -> None:
-        rendered_yaml = MODULE.render_yaml(strict=False)
-        rendered_ini = MODULE.render_ini()
-        auto_group = self.extract_yaml_group_block(rendered_yaml, "♻️ 自動選擇")
-        manual_group = self.extract_yaml_group_block(rendered_yaml, "🚀 手動選擇")
-        auto_group_line = self.extract_ini_group_line(rendered_ini, "♻️ 自動選擇")
-        manual_group_line = self.extract_ini_group_line(rendered_ini, "🚀 手動選擇")
-
-        self.assertNotIn("香港", auto_group)
-        self.assertNotIn("香港", manual_group)
-        self.assertNotIn("香港", auto_group_line)
-        self.assertNotIn("香港", manual_group_line)
-        self.assertNotIn("🇭🇰", rendered_yaml)
-        self.assertNotIn("🇭🇰", rendered_ini)
+if __name__ == "__main__":
+    unittest.main()

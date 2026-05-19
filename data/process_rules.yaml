@@ -1,0 +1,35 @@
+p2p:
+  - BitComet
+  - Folx
+  - qbittorrent
+  - Transmission
+  - transmission-daemon
+  - transmission-qt
+  - uTorrent
+  - WebTorrent
+
+download:
+  - aria2c
+  - curl
+  - fdm
+  - NetTransport
+  - wget
+
+proxy_tools:
+  - clash
+  - hysteria
+  - mihomo
+  - sing-box
+  - singbox
+  - ss-local
+  - ss-redir
+  - ss-server
+  - ssr-local
+  - ssr-redir
+  - trojan-go
+  - v2ray
+  - xray
+
+gaming:
+  - uugamebooster
+  - UUBooster
