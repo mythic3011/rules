@@ -2,20 +2,20 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/py/generate_adblock_outputs.py
 # CATEGORY: telemetry
-# GENERATED_AT: 2026-05-24T06:48:13Z
-# TOTAL: 1893
+# GENERATED_AT: 2026-05-25T07:59:50Z
+# TOTAL: 1898
 # FORMAT: hosts
 # UPSTREAM hagezi_native_apple: 104
 # UPSTREAM hagezi_native_apple HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_huawei: 130
 # UPSTREAM hagezi_native_huawei HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_oppo_realme: 466
+# UPSTREAM hagezi_native_oppo_realme: 465
 # UPSTREAM hagezi_native_oppo_realme HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_samsung: 197
 # UPSTREAM hagezi_native_samsung HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_tiktok: 382
 # UPSTREAM hagezi_native_tiktok HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_vivo: 231
+# UPSTREAM hagezi_native_vivo: 237
 # UPSTREAM hagezi_native_vivo HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_xiaomi: 353
 # UPSTREAM hagezi_native_xiaomi HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -92,7 +92,6 @@
 0.0.0.0 ads.tiktok.tv
 0.0.0.0 ads.us.tiktok.com
 0.0.0.0 ads16-normal-useastred.tiktokw.eu
-0.0.0.0 adsbdfsiad-704007db1.heytapmobi.com
 0.0.0.0 adsfs-sdkconfig.heytapimage.com
 0.0.0.0 adsfs.oppomobile.com
 0.0.0.0 adv.l7.34.sec.miui.com
@@ -263,6 +262,7 @@
 0.0.0.0 asia-vcode-or.vivoglobal.com
 0.0.0.0 asia-vpushonrt-stsdk.vivoglobal.com
 0.0.0.0 asia-vpushort-stsdk.vivoglobal.com
+0.0.0.0 au-vcode-od.vivoglobal.com
 0.0.0.0 au.ff.avast.sec.miui.com
 0.0.0.0 auth.api.gitv.tv
 0.0.0.0 auth.be.sec.miui.com
@@ -338,6 +338,7 @@
 0.0.0.0 child.sec.miui.com
 0.0.0.0 chong.sec.miui.com
 0.0.0.0 ck.ads.oppomobile.com
+0.0.0.0 cl-vcode-od.vivoglobal.com
 0.0.0.0 claritybt.freshmarketer.com
 0.0.0.0 classify-app-eu.allawnos.com
 0.0.0.0 classify-app-in.allawnos.com
@@ -872,10 +873,12 @@
 0.0.0.0 kz-ort-stsdk.vivoglobal.com
 0.0.0.0 kz-pnrt-stsdk.vivoglobal.com
 0.0.0.0 kz-prt-stsdk.vivoglobal.com
+0.0.0.0 kz-romsp-unifyconfig.vivoglobal.com
 0.0.0.0 kz-st-exappupgrade.vivoglobal.com
 0.0.0.0 kz-st-sl.vivoglobal.com
 0.0.0.0 kz-st-sysupgrade.vivoglobal.com
 0.0.0.0 kz-stsdk.vivoglobal.com
+0.0.0.0 kz-vcode-api.vivoglobal.com
 0.0.0.0 kz-vcode-od.vivoglobal.com
 0.0.0.0 kz-vcode-or.vivoglobal.com
 0.0.0.0 launch.apple.com
@@ -1606,11 +1609,13 @@
 0.0.0.0 sau-server-in.allawnos.com
 0.0.0.0 sau-server-sg.allawnos.com
 0.0.0.0 sau-server-us.allawnos.com
+0.0.0.0 sca-cota.vivoglobal.com
 0.0.0.0 sca-domaincfg.vivoglobal.com
 0.0.0.0 sca-err-up.vivoglobal.com
 0.0.0.0 sca-onrt-stsdk.vivoglobal.com
 0.0.0.0 sca-ort-stsdk.vivoglobal.com
 0.0.0.0 sca-p.vivoglobal.com
+0.0.0.0 sca-pnrt-stsdk.vivoglobal.com
 0.0.0.0 sca-romsp-unifyconfig.vivoglobal.com
 0.0.0.0 sca-st-sl.vivoglobal.com
 0.0.0.0 sca-stsdk.vivoglobal.com
