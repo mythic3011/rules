@@ -2,8 +2,8 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/py/generate_adblock_outputs.py
 # CATEGORY: telemetry
-# GENERATED_AT: 2026-05-26T06:57:30Z
-# TOTAL: 1899
+# GENERATED_AT: 2026-05-27T07:15:54Z
+# TOTAL: 1901
 # FORMAT: hosts
 # UPSTREAM hagezi_native_apple: 104
 # UPSTREAM hagezi_native_apple HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -13,9 +13,9 @@
 # UPSTREAM hagezi_native_oppo_realme HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_samsung: 197
 # UPSTREAM hagezi_native_samsung HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_tiktok: 383
+# UPSTREAM hagezi_native_tiktok: 384
 # UPSTREAM hagezi_native_tiktok HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_vivo: 237
+# UPSTREAM hagezi_native_vivo: 238
 # UPSTREAM hagezi_native_vivo HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_xiaomi: 353
 # UPSTREAM hagezi_native_xiaomi HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -339,6 +339,7 @@
 0.0.0.0 child.sec.miui.com
 0.0.0.0 chong.sec.miui.com
 0.0.0.0 ck.ads.oppomobile.com
+0.0.0.0 cl-vcode-od.vivoglobal.com
 0.0.0.0 claritybt.freshmarketer.com
 0.0.0.0 classify-app-eu.allawnos.com
 0.0.0.0 classify-app-in.allawnos.com
@@ -890,6 +891,7 @@
 0.0.0.0 live.miphone.pandora.xiaomi.com
 0.0.0.0 location-i18n.tiktokv.com
 0.0.0.0 location-sg.tiktokv.com
+0.0.0.0 location-ttp2.tiktokv.eu
 0.0.0.0 location-ttp2.us.tiktokv.com
 0.0.0.0 location-v6-i18n.tiktokv.com
 0.0.0.0 location-v6-ru.tiktokv.com
