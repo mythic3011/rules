@@ -2,8 +2,8 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/py/generate_adblock_outputs.py
 # CATEGORY: telemetry
-# GENERATED_AT: 2026-06-02T08:10:05Z
-# TOTAL: 1907
+# GENERATED_AT: 2026-06-03T08:30:47Z
+# TOTAL: 1902
 # FORMAT: hosts
 # UPSTREAM hagezi_native_apple: 104
 # UPSTREAM hagezi_native_apple HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -17,7 +17,7 @@
 # UPSTREAM hagezi_native_tiktok HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_vivo: 241
 # UPSTREAM hagezi_native_vivo HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_xiaomi: 353
+# UPSTREAM hagezi_native_xiaomi: 347
 # UPSTREAM hagezi_native_xiaomi HOMEPAGE: https://github.com/hagezi/dns-blocklists
 
 0.0.0.0 0001-metrics1-data-hicloud-com.geac.dbankedge.cn
@@ -30,7 +30,6 @@
 0.0.0.0 a.market.xiaomi.com
 0.0.0.0 a.union.mi.com
 0.0.0.0 a.union.xiaomi.com
-0.0.0.0 a0.app.xiaomi.com
 0.0.0.0 ab.apple.com.akadns.net
 0.0.0.0 abroad.api.comm.intl.miui.com
 0.0.0.0 abtest-ch.snssdk.com
@@ -212,11 +211,14 @@
 0.0.0.0 api.sms.intl.miui.com
 0.0.0.0 api.vip.miui.com
 0.0.0.0 api.xmpush.global.xiaomi.com
+0.0.0.0 api.xmpush.xiaomi.com
 0.0.0.0 apkrep.ff.avast.sec.miui.com
 0.0.0.0 app.bugsnag.com
 0.0.0.0 app.getsentry.com
 0.0.0.0 app.greengurad.sec.miui.com
+0.0.0.0 app.migc.xiaomi.com
 0.0.0.0 app.miui.com
+0.0.0.0 app.xiaomi.com
 0.0.0.0 appconf-ocs-eu.heytapdl.com
 0.0.0.0 appconf-ocs-in.heytapdl.com
 0.0.0.0 appconf-ocs-sgp.heytapdl.com
@@ -319,7 +321,6 @@
 0.0.0.0 business-api.tiktok.com
 0.0.0.0 business.samsungusa.com
 0.0.0.0 c3-bgp.pandora.xiaomi.com
-0.0.0.0 c3.api.xmpush.xiaomi.com
 0.0.0.0 c3mini.pandora.xiaomi.com
 0.0.0.0 calculator-api-fr.allawnos.com
 0.0.0.0 calculator-api-in.allawnos.com
@@ -685,7 +686,6 @@
 0.0.0.0 fr-api.xmpush.global.xiaomi.com
 0.0.0.0 fr-register.xmpush.global.xiaomi.com
 0.0.0.0 fr.feedback.xmpush.global.xiaomi.com
-0.0.0.0 fr.resolver.msg.global.xiaomi.net
 0.0.0.0 freshmarketer.com
 0.0.0.0 frontier.byteoversea.com
 0.0.0.0 frontier.capcutw.us
@@ -769,7 +769,6 @@
 0.0.0.0 i-sg01a.ocloud.heytapmobi.com
 0.0.0.0 i-th.browser.heytapmobile.com
 0.0.0.0 i-vn.browser.heytapmobile.com
-0.0.0.0 i.api.xmpush.xiaomi.com
 0.0.0.0 i.snssdk.com
 0.0.0.0 i.xiaomi.com
 0.0.0.0 iad-apple.com.akadns.net
@@ -891,7 +890,6 @@
 0.0.0.0 launch.apple.com
 0.0.0.0 lbs-samsung.swypeconnect.com
 0.0.0.0 lg-bgp-misc.pandora.xiaomi.com
-0.0.0.0 lg.api.xmpush.xiaomi.com
 0.0.0.0 live-video-log16-normal-alisg.tiktokv.com
 0.0.0.0 live.miphone.pandora.xiaomi.com
 0.0.0.0 location-i18n.tiktokv.com
@@ -1188,6 +1186,7 @@
 0.0.0.0 mistat.rus.xiaomi.com
 0.0.0.0 mistat.rus.xiaomi.com.edgesuite.net
 0.0.0.0 mistat.rus.xiaomi.com.ksyna.net
+0.0.0.0 mistat.xiaomi.com
 0.0.0.0 mistat.xiaomi.com.download.ks-cdn.com
 0.0.0.0 miui-l7-data-other-c3.pt.miui.com
 0.0.0.0 miui-l7-data-other.pt.miui.com
@@ -1198,7 +1197,6 @@
 0.0.0.0 moa-upload-online.coloros.com
 0.0.0.0 moa-upload-sg.allawnos.com
 0.0.0.0 moai-dev-samsung.com
-0.0.0.0 mob.api.xmpush.xiaomi.com
 0.0.0.0 mob.pandora.xiaomi.com
 0.0.0.0 mon-boot.capcutapi.com
 0.0.0.0 mon-boot.tiktokv.com
@@ -1414,6 +1412,7 @@
 0.0.0.0 report.n.xiaomi.com
 0.0.0.0 resolver.gslb.mi-idc.com
 0.0.0.0 resolver.mi.xiaomi.com
+0.0.0.0 resolver.msg.global.xiaomi.net
 0.0.0.0 rnd-cbgpas01.huawei.com
 0.0.0.0 ro-up.vivoglobal.com
 0.0.0.0 rtc-logger-i18n.tiktokv.com
@@ -1708,7 +1707,6 @@
 0.0.0.0 sticker-service-in.allawnos.com
 0.0.0.0 stocks-analytics-events.apple.com
 0.0.0.0 stocks-analytics-events.news.apple-dns.net
-0.0.0.0 storeconfig.mistat.xiaomi.com
 0.0.0.0 storedl1.nearme.com.cn
 0.0.0.0 storedl3f.nearme.com.cn
 0.0.0.0 storedl4f.nearme.com.cn
@@ -1720,7 +1718,6 @@
 0.0.0.0 supportmetrics.v.aaplimg.com
 0.0.0.0 sys.intl.xiaomi.com
 0.0.0.0 sys.tv.india.xiaomi.com
-0.0.0.0 t.app.xiaomi.com
 0.0.0.0 t1.market.xiaomi.com
 0.0.0.0 t15.market.xiaomi.com
 0.0.0.0 t17.market.xiaomi.com
@@ -1832,7 +1829,6 @@
 0.0.0.0 traffic-media.co.uk
 0.0.0.0 transfer.sec.miui.com
 0.0.0.0 tsearch.snssdk.com
-0.0.0.0 tv.app.migc.xiaomi.com
 0.0.0.0 tvboss.pandora.xiaomi.com
 0.0.0.0 tvepg.pandora.xiaomi.com
 0.0.0.0 u-id.cpc.heytapmobile.com
@@ -1866,7 +1862,6 @@
 0.0.0.0 video.market.xiaomi.com
 0.0.0.0 vip-api.xmpush.global.xiaomi.com
 0.0.0.0 vip-api.xmpush.xiaomi.com
-0.0.0.0 vip.api.xmpush.xiaomi.com
 0.0.0.0 w.pandora.xiaomi.com
 0.0.0.0 wallpaper-service-sg.allawnos.com
 0.0.0.0 wap.game.xiaomi.com
