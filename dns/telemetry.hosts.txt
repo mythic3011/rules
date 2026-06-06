@@ -2,8 +2,8 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/py/generate_adblock_outputs.py
 # CATEGORY: telemetry
-# GENERATED_AT: 2026-06-04T08:02:09Z
-# TOTAL: 1902
+# GENERATED_AT: 2026-06-06T06:40:34Z
+# TOTAL: 1895
 # FORMAT: hosts
 # UPSTREAM hagezi_native_apple: 104
 # UPSTREAM hagezi_native_apple HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -15,7 +15,7 @@
 # UPSTREAM hagezi_native_samsung HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_tiktok: 387
 # UPSTREAM hagezi_native_tiktok HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_vivo: 241
+# UPSTREAM hagezi_native_vivo: 234
 # UPSTREAM hagezi_native_vivo HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_xiaomi: 347
 # UPSTREAM hagezi_native_xiaomi HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -128,6 +128,7 @@
 0.0.0.0 akcjasamsung.e-kei.pl
 0.0.0.0 album-cn01a.ocloud.heytapmobi.com
 0.0.0.0 album-sg01a.ocloud.heytapmobi.com
+0.0.0.0 alliance-adreq-asia.vivoglobal.com
 0.0.0.0 analytics-api.samsunghealthcn.com
 0.0.0.0 analytics-attribution-va.tiktok.com
 0.0.0.0 analytics-attribution.tiktok.com
@@ -267,7 +268,6 @@
 0.0.0.0 asia-vcode-or.vivoglobal.com
 0.0.0.0 asia-vpushonrt-stsdk.vivoglobal.com
 0.0.0.0 asia-vpushort-stsdk.vivoglobal.com
-0.0.0.0 au-vcode-od.vivoglobal.com
 0.0.0.0 au.ff.avast.sec.miui.com
 0.0.0.0 auth.api.gitv.tv
 0.0.0.0 auth.be.sec.miui.com
@@ -342,7 +342,6 @@
 0.0.0.0 child.sec.miui.com
 0.0.0.0 chong.sec.miui.com
 0.0.0.0 ck.ads.oppomobile.com
-0.0.0.0 cl-vcode-od.vivoglobal.com
 0.0.0.0 claritybt.freshmarketer.com
 0.0.0.0 classify-app-eu.allawnos.com
 0.0.0.0 classify-app-in.allawnos.com
@@ -464,7 +463,6 @@
 0.0.0.0 cname-in-bom01-nginxpool03.vivoglobal.com
 0.0.0.0 cname-in-ctdbonrt-stsdk.vivoglobal.com
 0.0.0.0 cname-sin01-stsdk09.vivoglobal.com
-0.0.0.0 co-domaincfg.vivoglobal.com
 0.0.0.0 co-pnrt-stsdk.vivoglobal.com
 0.0.0.0 co-romsp-unifyconfig.vivoglobal.com
 0.0.0.0 co-st-sl.vivoglobal.com
@@ -808,7 +806,6 @@
 0.0.0.0 ifsau-eu.coloros.com
 0.0.0.0 ifsau-in.coloros.com
 0.0.0.0 ifsau.coloros.com
-0.0.0.0 il-vcode-od.vivoglobal.com
 0.0.0.0 image.box.xiaomi.com
 0.0.0.0 image.cdn.mvideo.xiaomi.com
 0.0.0.0 image.cdn.pandora.xiaomi.com
@@ -879,12 +876,10 @@
 0.0.0.0 kz-ort-stsdk.vivoglobal.com
 0.0.0.0 kz-pnrt-stsdk.vivoglobal.com
 0.0.0.0 kz-prt-stsdk.vivoglobal.com
-0.0.0.0 kz-romsp-unifyconfig.vivoglobal.com
 0.0.0.0 kz-st-exappupgrade.vivoglobal.com
 0.0.0.0 kz-st-sl.vivoglobal.com
 0.0.0.0 kz-st-sysupgrade.vivoglobal.com
 0.0.0.0 kz-stsdk.vivoglobal.com
-0.0.0.0 kz-vcode-api.vivoglobal.com
 0.0.0.0 kz-vcode-od.vivoglobal.com
 0.0.0.0 kz-vcode-or.vivoglobal.com
 0.0.0.0 launch.apple.com
@@ -1616,13 +1611,11 @@
 0.0.0.0 sau-server-in.allawnos.com
 0.0.0.0 sau-server-sg.allawnos.com
 0.0.0.0 sau-server-us.allawnos.com
-0.0.0.0 sca-cota.vivoglobal.com
 0.0.0.0 sca-domaincfg.vivoglobal.com
 0.0.0.0 sca-err-up.vivoglobal.com
 0.0.0.0 sca-onrt-stsdk.vivoglobal.com
 0.0.0.0 sca-ort-stsdk.vivoglobal.com
 0.0.0.0 sca-p.vivoglobal.com
-0.0.0.0 sca-pnrt-stsdk.vivoglobal.com
 0.0.0.0 sca-romsp-unifyconfig.vivoglobal.com
 0.0.0.0 sca-st-sl.vivoglobal.com
 0.0.0.0 sca-stsdk.vivoglobal.com
