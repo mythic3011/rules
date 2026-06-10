@@ -2,12 +2,12 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/py/generate_adblock_outputs.py
 # CATEGORY: telemetry
-# GENERATED_AT: 2026-06-09T06:59:58Z
-# TOTAL: 1895
+# GENERATED_AT: 2026-06-10T07:49:02Z
+# TOTAL: 1902
 # FORMAT: hosts
-# UPSTREAM hagezi_native_apple: 104
+# UPSTREAM hagezi_native_apple: 105
 # UPSTREAM hagezi_native_apple HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_huawei: 130
+# UPSTREAM hagezi_native_huawei: 131
 # UPSTREAM hagezi_native_huawei HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_oppo_realme: 465
 # UPSTREAM hagezi_native_oppo_realme HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -15,9 +15,9 @@
 # UPSTREAM hagezi_native_samsung HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_tiktok: 387
 # UPSTREAM hagezi_native_tiktok HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_vivo: 234
+# UPSTREAM hagezi_native_vivo: 240
 # UPSTREAM hagezi_native_vivo HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_xiaomi: 347
+# UPSTREAM hagezi_native_xiaomi: 346
 # UPSTREAM hagezi_native_xiaomi HOMEPAGE: https://github.com/hagezi/dns-blocklists
 
 0.0.0.0 0001-metrics1-data-hicloud-com.geac.dbankedge.cn
@@ -79,6 +79,8 @@
 0.0.0.0 ads-drru.platform.hihonorcloud.com
 0.0.0.0 ads-frontier.tiktok.com
 0.0.0.0 ads-ie.tiktokw.eu
+0.0.0.0 ads-marketing-vivofs.vivo.com.cn
+0.0.0.0 ads-marketing-vivofs.vivo.com.cn.ctdns.cn
 0.0.0.0 ads-ru.tiktok.com
 0.0.0.0 ads-sg.business-tiktok.com
 0.0.0.0 ads-sg.tiktok.com
@@ -94,6 +96,7 @@
 0.0.0.0 ads.tiktok.tv
 0.0.0.0 ads.us.tiktok.com
 0.0.0.0 ads16-normal-useastred.tiktokw.eu
+0.0.0.0 adsdk.vivo.com.cn
 0.0.0.0 adsfs-sdkconfig.heytapimage.com
 0.0.0.0 adsfs.oppomobile.com
 0.0.0.0 adv.l7.34.sec.miui.com
@@ -108,6 +111,7 @@
 0.0.0.0 adx-dra-op-dbankcloud-com-dra.region.dbankedge.cn
 0.0.0.0 adx-dra-op-hicloud-com-dra.appacc.dbankedge.cn
 0.0.0.0 adx-dra-op-hicloud-com-dra.edge.dbankedge.cn
+0.0.0.0 adx-dra-op-hicloud-com-dra.region.dbankedge.cn
 0.0.0.0 adx-dra.op.dbankcloud.com
 0.0.0.0 adx-dra.op.hicloud.com
 0.0.0.0 adx-drcn.op.dbankcloud.cn
@@ -210,7 +214,6 @@
 0.0.0.0 api.sec.miui.com
 0.0.0.0 api.setting.intl.miui.com
 0.0.0.0 api.sms.intl.miui.com
-0.0.0.0 api.vip.miui.com
 0.0.0.0 api.xmpush.global.xiaomi.com
 0.0.0.0 api.xmpush.xiaomi.com
 0.0.0.0 apkrep.ff.avast.sec.miui.com
@@ -463,6 +466,7 @@
 0.0.0.0 cname-in-bom01-nginxpool03.vivoglobal.com
 0.0.0.0 cname-in-ctdbonrt-stsdk.vivoglobal.com
 0.0.0.0 cname-sin01-stsdk09.vivoglobal.com
+0.0.0.0 co-domaincfg.vivoglobal.com
 0.0.0.0 co-pnrt-stsdk.vivoglobal.com
 0.0.0.0 co-romsp-unifyconfig.vivoglobal.com
 0.0.0.0 co-st-sl.vivoglobal.com
@@ -1616,6 +1620,7 @@
 0.0.0.0 sca-onrt-stsdk.vivoglobal.com
 0.0.0.0 sca-ort-stsdk.vivoglobal.com
 0.0.0.0 sca-p.vivoglobal.com
+0.0.0.0 sca-pnrt-stsdk.vivoglobal.com
 0.0.0.0 sca-romsp-unifyconfig.vivoglobal.com
 0.0.0.0 sca-st-sl.vivoglobal.com
 0.0.0.0 sca-stsdk.vivoglobal.com
@@ -1638,6 +1643,7 @@
 0.0.0.0 sec-cdn.static.xiaomi.net
 0.0.0.0 sec.resource.xiaomi.net
 0.0.0.0 secure.report.iss.xiaomi.com
+0.0.0.0 securemetrics-cn.v.aaplimg.com
 0.0.0.0 securemetrics.apple.com
 0.0.0.0 securemetrics.apple.com.cn
 0.0.0.0 securemetrics.v.aaplimg.com
@@ -1681,6 +1687,7 @@
 0.0.0.0 srv.sec.miui.com
 0.0.0.0 ssp.xiaomi.com
 0.0.0.0 sspapi-prd.samsungrs.com
+0.0.0.0 st-ads-jssdk.vivo.com.cn
 0.0.0.0 staging-analyze.pt.xiaomi.com
 0.0.0.0 staging.api.zhuti.n.xiaomi.com
 0.0.0.0 staging.appapi.n.xiaomi.com

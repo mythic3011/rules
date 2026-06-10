@@ -2,12 +2,12 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/py/generate_adblock_outputs.py
 # CATEGORY: telemetry
-# GENERATED_AT: 2026-06-09T06:59:58Z
-# TOTAL: 1895
+# GENERATED_AT: 2026-06-10T07:49:02Z
+# TOTAL: 1902
 # FORMAT: Clash Domain Rule Provider (Telemetry_Lite_Domain)
-# UPSTREAM hagezi_native_apple: 104
+# UPSTREAM hagezi_native_apple: 105
 # UPSTREAM hagezi_native_apple HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_huawei: 130
+# UPSTREAM hagezi_native_huawei: 131
 # UPSTREAM hagezi_native_huawei HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_oppo_realme: 465
 # UPSTREAM hagezi_native_oppo_realme HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -15,9 +15,9 @@
 # UPSTREAM hagezi_native_samsung HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_tiktok: 387
 # UPSTREAM hagezi_native_tiktok HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_vivo: 234
+# UPSTREAM hagezi_native_vivo: 240
 # UPSTREAM hagezi_native_vivo HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_xiaomi: 347
+# UPSTREAM hagezi_native_xiaomi: 346
 # UPSTREAM hagezi_native_xiaomi HOMEPAGE: https://github.com/hagezi/dns-blocklists
 
 payload:
