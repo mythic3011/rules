@@ -2,8 +2,8 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/py/generate_adblock_outputs.py
 # CATEGORY: telemetry
-# GENERATED_AT: 2026-06-10T07:49:02Z
-# TOTAL: 1902
+# GENERATED_AT: 2026-06-11T08:17:44Z
+# TOTAL: 1940
 # FORMAT: hosts
 # UPSTREAM hagezi_native_apple: 105
 # UPSTREAM hagezi_native_apple HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -13,7 +13,7 @@
 # UPSTREAM hagezi_native_oppo_realme HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_samsung: 197
 # UPSTREAM hagezi_native_samsung HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_tiktok: 387
+# UPSTREAM hagezi_native_tiktok: 425
 # UPSTREAM hagezi_native_tiktok HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_vivo: 240
 # UPSTREAM hagezi_native_vivo HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -48,10 +48,16 @@
 0.0.0.0 activity.hybrid.xiaomi.com
 0.0.0.0 ad-instantpage-ru.tiktokv.com
 0.0.0.0 ad-instantpage-sg.tiktokv.com
+0.0.0.0 ad-instantpage-sg.tiktokv.com.edgekey.net
 0.0.0.0 ad-instantpage-ttp2.tiktokv.eu
+0.0.0.0 ad-instantpage-ttp2.tiktokv.eu.edgesuite.net
+0.0.0.0 ad-instantpage-ttp2.tiktokv.eu.ttdns3.com
 0.0.0.0 ad-instantpage-ttp2.tiktokv.us
+0.0.0.0 ad-instantpage-ttp2.tiktokv.us.edgesuite.net
 0.0.0.0 ad-instantpage-va.tiktokv.com
 0.0.0.0 ad-instantpage.tiktokv.us
+0.0.0.0 ad-instantpage.tiktokv.us.edgesuite.net
+0.0.0.0 ad-instantpage.tiktokv.us.ttdns4.com
 0.0.0.0 ad.cdn.pandora.xiaomi.com
 0.0.0.0 ad.eu.xiaomi.com
 0.0.0.0 ad.india.xiaomi.com
@@ -66,6 +72,7 @@
 0.0.0.0 ad.tiktokv.us
 0.0.0.0 ad.xiaomi.com
 0.0.0.0 adinstantpage16-normal-useastred.tiktokv.eu
+0.0.0.0 adinstantpage16-normal-useastred.tiktokv.eu.edgesuite.net
 0.0.0.0 adlog.vivo.com
 0.0.0.0 adlog.vivo.com.cn
 0.0.0.0 ads-api.tiktok.com
@@ -135,25 +142,43 @@
 0.0.0.0 alliance-adreq-asia.vivoglobal.com
 0.0.0.0 analytics-api.samsunghealthcn.com
 0.0.0.0 analytics-attribution-va.tiktok.com
+0.0.0.0 analytics-attribution-va.tiktok.com.edgekey.net
 0.0.0.0 analytics-attribution.tiktok.com
 0.0.0.0 analytics-dev-api.test.samsunghealth.com
 0.0.0.0 analytics-exp-i18n.tiktok.com
+0.0.0.0 analytics-exp-i18n.tiktok.com.edgekey.net
 0.0.0.0 analytics-exp-ru.tiktok.com
+0.0.0.0 analytics-exp-ru.tiktok.com.edgesuite.net
+0.0.0.0 analytics-exp-ru.tiktok.com.ttdns2.com
 0.0.0.0 analytics-exp-sg.tiktok.com
+0.0.0.0 analytics-exp-sg.tiktok.com.edgekey.net
 0.0.0.0 analytics-exp-ttp2.tiktokw.eu
+0.0.0.0 analytics-exp-ttp2.tiktokw.eu.edgesuite.net
 0.0.0.0 analytics-exp.us.tiktok.com
+0.0.0.0 analytics-exp.us.tiktok.com.edgesuite.net
 0.0.0.0 analytics-exp16-normal-useastred.tiktokw.eu
+0.0.0.0 analytics-exp16-normal-useastred.tiktokw.eu.edgesuite.net
 0.0.0.0 analytics-i18n.tiktok.com
+0.0.0.0 analytics-i18n.tiktok.com.edgekey.net
 0.0.0.0 analytics-ie.tiktokw.eu
+0.0.0.0 analytics-ie.tiktokw.eu.ttdns3.com
 0.0.0.0 analytics-ipv6.tiktokw.us
+0.0.0.0 analytics-ipv6.tiktokw.us.edgesuite.net
 0.0.0.0 analytics-ru.tiktok.com
+0.0.0.0 analytics-ru.tiktok.com.ttdns2.com
 0.0.0.0 analytics-sg.tiktok.com
+0.0.0.0 analytics-sg.tiktok.com.edgekey.net
 0.0.0.0 analytics-stg.samsungknox.com
 0.0.0.0 analytics-test.tiktok.com
 0.0.0.0 analytics-ttp2.tiktokw.eu
+0.0.0.0 analytics-ttp2.tiktokw.eu.edgesuite.net
+0.0.0.0 analytics-ttp2.tiktokw.eu.ttdns3.com
 0.0.0.0 analytics-ttp2.us.tiktok.com
+0.0.0.0 analytics-ttp2.us.tiktok.com.edgesuite.net
 0.0.0.0 analytics-useast2a.tiktok.com
 0.0.0.0 analytics-v6.tiktok.com
+0.0.0.0 analytics-v6.tiktok.com.edgesuite.net
+0.0.0.0 analytics-v6.tiktok.com.ttdns2.com
 0.0.0.0 analytics.bigdata.samsung.com
 0.0.0.0 analytics.ff.avast.sec.miui.com
 0.0.0.0 analytics.mpay.samsung.com
@@ -162,13 +187,26 @@
 0.0.0.0 analytics.samsungknox.com
 0.0.0.0 analytics.snssdk.com
 0.0.0.0 analytics.tiktok.com
+0.0.0.0 analytics.tiktok.com.bytewlb.akadns.net
+0.0.0.0 analytics.tiktok.com.edgekey.net
+0.0.0.0 analytics.tiktok.com.ttdns2.com
 0.0.0.0 analytics.us.tiktok.com
+0.0.0.0 analytics.us.tiktok.com-row.bytewlb.akadns.net
+0.0.0.0 analytics.us.tiktok.com.bytedance.akadns.net
+0.0.0.0 analytics.us.tiktok.com.bytewlb.akadns.net
+0.0.0.0 analytics.us.tiktok.com.edgesuite.net
 0.0.0.0 analytics16-normal-alisg.tiktok.com
+0.0.0.0 analytics16-normal-alisg.tiktok.com.edgesuite.net
 0.0.0.0 analytics16-normal-no1a.tiktokw.eu
+0.0.0.0 analytics16-normal-no1a.tiktokw.eu.edgesuite.net
 0.0.0.0 analytics16-normal-useast5.tiktokw.us
+0.0.0.0 analytics16-normal-useast5.tiktokw.us.edgesuite.net
 0.0.0.0 analytics16-normal-useast8.tiktokw.us
+0.0.0.0 analytics16-normal-useast8.tiktokw.us.edgesuite.net
 0.0.0.0 analytics16-normal-useastred.tiktokw.eu
+0.0.0.0 analytics16-normal-useastred.tiktokw.eu.edgesuite.net
 0.0.0.0 analytics16-normal.tiktok.com
+0.0.0.0 analytics16-normal.tiktok.com.edgesuite.net
 0.0.0.0 api-adservices.apple.com
 0.0.0.0 api-analytics-qa.samsungknox.com
 0.0.0.0 api-analytics.samsungknox.com
