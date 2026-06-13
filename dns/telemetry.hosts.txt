@@ -2,20 +2,20 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/py/generate_adblock_outputs.py
 # CATEGORY: telemetry
-# GENERATED_AT: 2026-06-12T08:03:44Z
-# TOTAL: 1940
+# GENERATED_AT: 2026-06-13T07:07:59Z
+# TOTAL: 1925
 # FORMAT: hosts
-# UPSTREAM hagezi_native_apple: 105
+# UPSTREAM hagezi_native_apple: 106
 # UPSTREAM hagezi_native_apple HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_huawei: 131
 # UPSTREAM hagezi_native_huawei HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_oppo_realme: 465
 # UPSTREAM hagezi_native_oppo_realme HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_samsung: 197
+# UPSTREAM hagezi_native_samsung: 199
 # UPSTREAM hagezi_native_samsung HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_tiktok: 425
+# UPSTREAM hagezi_native_tiktok: 423
 # UPSTREAM hagezi_native_tiktok HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_vivo: 240
+# UPSTREAM hagezi_native_vivo: 224
 # UPSTREAM hagezi_native_vivo HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_xiaomi: 346
 # UPSTREAM hagezi_native_xiaomi HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -88,7 +88,6 @@
 0.0.0.0 ads-ie.tiktokw.eu
 0.0.0.0 ads-marketing-vivofs.vivo.com.cn
 0.0.0.0 ads-marketing-vivofs.vivo.com.cn.ctdns.cn
-0.0.0.0 ads-ru.tiktok.com
 0.0.0.0 ads-sg.business-tiktok.com
 0.0.0.0 ads-sg.tiktok.com
 0.0.0.0 ads-ttp2.tiktokw.eu
@@ -500,6 +499,7 @@
 0.0.0.0 cname-asia-st-exappupgrade.vivoglobal.com
 0.0.0.0 cname-asia-stsdk09.vivoglobal.com
 0.0.0.0 cname-asia02-stsdk.vivoglobal.com
+0.0.0.0 cname-de-stsdk.vivoglobal.com
 0.0.0.0 cname-in-apport-stsdk.vivoglobal.com
 0.0.0.0 cname-in-bom01-nginxpool03.vivoglobal.com
 0.0.0.0 cname-in-ctdbonrt-stsdk.vivoglobal.com
@@ -650,7 +650,6 @@
 0.0.0.0 epoch-id.cdo.heytapmobi.com
 0.0.0.0 err-up.vivoglobal.com
 0.0.0.0 err.up.vivoglobal.com
-0.0.0.0 eu-album-api.vivoglobal.com
 0.0.0.0 eu-cota.vivoglobal.com
 0.0.0.0 eu-domaincfg.vivoglobal.com
 0.0.0.0 eu-errup.vivoglobal.com
@@ -708,6 +707,7 @@
 0.0.0.0 featureinfo-service-sg.allawnos.com
 0.0.0.0 feedback.miui.com
 0.0.0.0 feedbackws.fe.apple-dns.cn
+0.0.0.0 feedbackws.fe.apple-dns.net
 0.0.0.0 feedbackws.fe2.apple-dns.net
 0.0.0.0 feedbackws.icloud.com
 0.0.0.0 feedbackws.icloud.com.cn
@@ -864,7 +864,6 @@
 0.0.0.0 in-apport-stsdk.vivoglobal.com
 0.0.0.0 in-apppnrt-stsdk.vivoglobal.com
 0.0.0.0 in-appprt-stsdk.vivoglobal.com
-0.0.0.0 in-cfg-stsdk.vivoglobal.com
 0.0.0.0 in-cota.vivoglobal.com
 0.0.0.0 in-ctdbonrt-stsdk.vivoglobal.com
 0.0.0.0 in-ctdbort-stsdk.vivoglobal.com
@@ -1653,19 +1652,6 @@
 0.0.0.0 sau-server-in.allawnos.com
 0.0.0.0 sau-server-sg.allawnos.com
 0.0.0.0 sau-server-us.allawnos.com
-0.0.0.0 sca-domaincfg.vivoglobal.com
-0.0.0.0 sca-err-up.vivoglobal.com
-0.0.0.0 sca-onrt-stsdk.vivoglobal.com
-0.0.0.0 sca-ort-stsdk.vivoglobal.com
-0.0.0.0 sca-p.vivoglobal.com
-0.0.0.0 sca-pnrt-stsdk.vivoglobal.com
-0.0.0.0 sca-romsp-unifyconfig.vivoglobal.com
-0.0.0.0 sca-st-sl.vivoglobal.com
-0.0.0.0 sca-stsdk.vivoglobal.com
-0.0.0.0 sca-timesync.vivoglobal.com
-0.0.0.0 sca-vcode-api.vivoglobal.com
-0.0.0.0 sca-vcode-od.vivoglobal.com
-0.0.0.0 sca-vcode-or.vivoglobal.com
 0.0.0.0 sca.samsung.com
 0.0.0.0 sdfp.snssdk.com
 0.0.0.0 sdk-cache.video.ptqy.gitv.tv
@@ -1830,7 +1816,6 @@
 0.0.0.0 tr-album-api.vivoglobal.com
 0.0.0.0 tr-cota.vivoglobal.com
 0.0.0.0 tr-domaincfg.vivoglobal.com
-0.0.0.0 tr-err-up.vivoglobal.com
 0.0.0.0 tr-gdpr-vgc-datacenter.vivoglobal.com
 0.0.0.0 tr-onrt-stsdk.vivoglobal.com
 0.0.0.0 tr-ort-stsdk.vivoglobal.com
@@ -1883,7 +1868,8 @@
 0.0.0.0 upload.luckyorange.net
 0.0.0.0 upu.samsungelectronics.com
 0.0.0.0 ureca.samsungapps.com
-0.0.0.0 url4077.ads-service.tiktok.com
+0.0.0.0 ureca.samsungapps.com.ad.mexnet.de
+0.0.0.0 us-report.gras.samsungdm.com
 0.0.0.0 userid.xiaomi.com
 0.0.0.0 userprofile.push.heytapmobi.com
 0.0.0.0 v16-ad.byteoversea.com
@@ -1926,7 +1912,6 @@
 0.0.0.0 xlog16-platform-useast5.us.tiktokv.com
 0.0.0.0 xlog16-platform-ycru.tiktokv.com
 0.0.0.0 xlog16-tmp-normal-useast1a.tiktokv.com
-0.0.0.0 xn--ex-adreq-asa-c5b.vivoglobal.com
 0.0.0.0 xn-ex-adreq-asa-c5b.vivoglobal.com
 0.0.0.0 xp-cdn-lb.itunes-apple.com.akadns.net
 0.0.0.0 xp-cdn.apple.com
