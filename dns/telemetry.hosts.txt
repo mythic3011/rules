@@ -2,8 +2,8 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/py/generate_adblock_outputs.py
 # CATEGORY: telemetry
-# GENERATED_AT: 2026-06-26T07:04:56Z
-# TOTAL: 1927
+# GENERATED_AT: 2026-06-27T06:39:49Z
+# TOTAL: 1929
 # FORMAT: hosts
 # UPSTREAM hagezi_native_apple: 106
 # UPSTREAM hagezi_native_apple HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -15,9 +15,9 @@
 # UPSTREAM hagezi_native_samsung HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_tiktok: 423
 # UPSTREAM hagezi_native_tiktok HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_vivo: 226
+# UPSTREAM hagezi_native_vivo: 227
 # UPSTREAM hagezi_native_vivo HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_xiaomi: 346
+# UPSTREAM hagezi_native_xiaomi: 347
 # UPSTREAM hagezi_native_xiaomi HOMEPAGE: https://github.com/hagezi/dns-blocklists
 
 0.0.0.0 0001-metrics1-data-hicloud-com.geac.dbankedge.cn
@@ -65,6 +65,7 @@
 0.0.0.0 ad.intl.xiaomi.com.edgesuite.net
 0.0.0.0 ad.intl.xiaomi.com.ksyna.net
 0.0.0.0 ad.mi.com
+0.0.0.0 ad.miui.com
 0.0.0.0 ad.quickapp.hybrid.xiaomi.com
 0.0.0.0 ad.rus.xiaomi.com
 0.0.0.0 ad.tiktok.tv
@@ -1287,6 +1288,7 @@
 0.0.0.0 mssdk.tiktokw.us
 0.0.0.0 mssdk.us.tiktok.com
 0.0.0.0 mssdk.us.tiktokv.com
+0.0.0.0 mx-album-api.vivoglobal.com
 0.0.0.0 mx-cota.vivoglobal.com
 0.0.0.0 mx-domaincfg.vivoglobal.com
 0.0.0.0 mx-err-up.vivoglobal.com
