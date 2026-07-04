@@ -2,10 +2,10 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/py/generate_adblock_outputs.py
 # CATEGORY: telemetry
-# GENERATED_AT: 2026-07-03T06:44:11Z
-# TOTAL: 1929
+# GENERATED_AT: 2026-07-04T06:31:29Z
+# TOTAL: 1930
 # FORMAT: hosts
-# UPSTREAM hagezi_native_apple: 106
+# UPSTREAM hagezi_native_apple: 107
 # UPSTREAM hagezi_native_apple HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_huawei: 131
 # UPSTREAM hagezi_native_huawei HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -145,6 +145,7 @@
 0.0.0.0 analytics-attribution-va.tiktok.com.edgekey.net
 0.0.0.0 analytics-attribution.tiktok.com
 0.0.0.0 analytics-dev-api.test.samsunghealth.com
+0.0.0.0 analytics-events.apple.com
 0.0.0.0 analytics-exp-i18n.tiktok.com
 0.0.0.0 analytics-exp-i18n.tiktok.com.edgekey.net
 0.0.0.0 analytics-exp-ru.tiktok.com
@@ -567,7 +568,6 @@
 0.0.0.0 crypto-dsf-us.allawnos.com
 0.0.0.0 cs.luckyorange.net
 0.0.0.0 cse.avlyun.sec.miui.com
-0.0.0.0 cstat-lb.apple.com.akadns.net
 0.0.0.0 cstat-origin.apple.com
 0.0.0.0 cstat.apple.com
 0.0.0.0 cstat.apple.com.edgesuite.net
@@ -1305,6 +1305,7 @@
 0.0.0.0 mx-vcode-or.vivoglobal.com
 0.0.0.0 nav.sec.miui.com
 0.0.0.0 netcheck.pandora.xiaomi.com
+0.0.0.0 news-analytics-events.apple.com
 0.0.0.0 news-app-events.apple.com
 0.0.0.0 news-events.apple.com
 0.0.0.0 news-notification-events.apple.com
@@ -1405,6 +1406,7 @@
 0.0.0.0 plbusiness.samsung.com
 0.0.0.0 pmir.sec.miui.com
 0.0.0.0 pnrt-stsdk.vivoglobal.com
+0.0.0.0 podcasts-analytics-events.apple.com
 0.0.0.0 port.sec.intl.miui.com
 0.0.0.0 port.sec.miui.com
 0.0.0.0 prd-usw2-requestattribution-iad.apple.com
@@ -1856,6 +1858,7 @@
 0.0.0.0 traffic-media.co.uk
 0.0.0.0 transfer.sec.miui.com
 0.0.0.0 tsearch.snssdk.com
+0.0.0.0 tv-analytics-events.apple.com
 0.0.0.0 tvboss.pandora.xiaomi.com
 0.0.0.0 tvepg.pandora.xiaomi.com
 0.0.0.0 u-id.cpc.heytapmobile.com
@@ -1917,11 +1920,9 @@
 0.0.0.0 xlog16-platform-ycru.tiktokv.com
 0.0.0.0 xlog16-tmp-normal-useast1a.tiktokv.com
 0.0.0.0 xn-ex-adreq-asa-c5b.vivoglobal.com
-0.0.0.0 xp-cdn-lb.itunes-apple.com.akadns.net
 0.0.0.0 xp-cdn.apple.com
 0.0.0.0 xp.apple.com
 0.0.0.0 xp.apple.com.edgekey.net
-0.0.0.0 xp.itunes-apple.com.akadns.net
 0.0.0.0 xp.v.aaplimg.com
 0.0.0.0 xpu.samsungelectronics.com
 0.0.0.0 ypu.samsungelectronics.com
