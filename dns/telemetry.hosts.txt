@@ -2,8 +2,8 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/py/generate_adblock_outputs.py
 # CATEGORY: telemetry
-# GENERATED_AT: 2026-07-08T06:09:01Z
-# TOTAL: 1931
+# GENERATED_AT: 2026-07-09T07:06:35Z
+# TOTAL: 1935
 # FORMAT: hosts
 # UPSTREAM hagezi_native_apple: 107
 # UPSTREAM hagezi_native_apple HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -11,9 +11,9 @@
 # UPSTREAM hagezi_native_huawei HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_oppo_realme: 465
 # UPSTREAM hagezi_native_oppo_realme HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_samsung: 199
+# UPSTREAM hagezi_native_samsung: 202
 # UPSTREAM hagezi_native_samsung HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_tiktok: 423
+# UPSTREAM hagezi_native_tiktok: 424
 # UPSTREAM hagezi_native_tiktok HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_vivo: 227
 # UPSTREAM hagezi_native_vivo HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -90,6 +90,7 @@
 0.0.0.0 ads-ie.tiktokw.eu
 0.0.0.0 ads-marketing-vivofs.vivo.com.cn
 0.0.0.0 ads-marketing-vivofs.vivo.com.cn.ctdns.cn
+0.0.0.0 ads-ru.tiktok.com
 0.0.0.0 ads-sg.business-tiktok.com
 0.0.0.0 ads-sg.tiktok.com
 0.0.0.0 ads-ttp2.tiktokw.eu
@@ -593,6 +594,7 @@
 0.0.0.0 dc-dragate-cn.heytapmobi.com
 0.0.0.0 dc-stat-in.heytapmobile.com
 0.0.0.0 dc.di.atlas.samsung.com
+0.0.0.0 dc.di.runestone.samsung.com
 0.0.0.0 dc.dqa.samsung.com
 0.0.0.0 dc.heytapmobile.com
 0.0.0.0 dcc-awareness-cn.heytapmobi.com
@@ -613,7 +615,6 @@
 0.0.0.0 dhfs-th.oppomobile.com
 0.0.0.0 dhfs-vn.oppomobile.com
 0.0.0.0 dhfsf.oppomobile.com
-0.0.0.0 di.runestone.samsung.com
 0.0.0.0 diagassets-lb.apple.com.akadns.net
 0.0.0.0 diagassets.apple.com
 0.0.0.0 diagassets.g.aaplimg.com
@@ -624,6 +625,7 @@
 0.0.0.0 dls-account.di.atlas.samsung.com
 0.0.0.0 dls-ddc.dqa.samsung.com
 0.0.0.0 dls-udc.dqa.samsung.com
+0.0.0.0 dls.di.runestone.samsung.com
 0.0.0.0 dnkeeper.dbankcloud.com
 0.0.0.0 dnkeeper.hicloud.com
 0.0.0.0 dnkeeper.platform.dbankcloud.cn
@@ -1373,6 +1375,8 @@
 0.0.0.0 opex-service-eu.allawnos.com
 0.0.0.0 opex-service-in.allawnos.com
 0.0.0.0 opex-service-sg.allawnos.com
+0.0.0.0 orsdls.di.runestone.samsung.com
+0.0.0.0 orsfs.di.runestone.samsung.com
 0.0.0.0 ort-stsdk.vivoglobal.com
 0.0.0.0 os-mon.snssdk.com
 0.0.0.0 osb-krsvc.samsungqbe.com
