@@ -2,12 +2,12 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/py/generate_adblock_outputs.py
 # CATEGORY: telemetry
-# GENERATED_AT: 2026-07-10T06:57:02Z
-# TOTAL: 1935
+# GENERATED_AT: 2026-07-11T05:55:19Z
+# TOTAL: 1938
 # FORMAT: hosts
 # UPSTREAM hagezi_native_apple: 107
 # UPSTREAM hagezi_native_apple HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_huawei: 132
+# UPSTREAM hagezi_native_huawei: 135
 # UPSTREAM hagezi_native_huawei HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_oppo_realme: 465
 # UPSTREAM hagezi_native_oppo_realme HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -46,6 +46,8 @@
 0.0.0.0 acr0.samsungcloudsolution.com
 0.0.0.0 activity.browser.intl.miui.com
 0.0.0.0 activity.hybrid.xiaomi.com
+0.0.0.0 ad-drcn.media.dbankcloud.cn
+0.0.0.0 ad-drcn.media.dbankcloud.ru
 0.0.0.0 ad-instantpage-ru.tiktokv.com
 0.0.0.0 ad-instantpage-sg.tiktokv.com
 0.0.0.0 ad-instantpage-sg.tiktokv.com.edgekey.net
@@ -1307,6 +1309,7 @@
 0.0.0.0 mx-vcode-od.vivoglobal.com
 0.0.0.0 mx-vcode-or.vivoglobal.com
 0.0.0.0 nav.sec.miui.com
+0.0.0.0 nebula-collector.huawei.com
 0.0.0.0 netcheck.pandora.xiaomi.com
 0.0.0.0 news-analytics-events.apple.com
 0.0.0.0 news-app-events.apple.com
