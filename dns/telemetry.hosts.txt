@@ -2,14 +2,14 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/py/generate_adblock_outputs.py
 # CATEGORY: telemetry
-# GENERATED_AT: 2026-07-14T05:41:56Z
-# TOTAL: 1938
+# GENERATED_AT: 2026-07-15T05:43:15Z
+# TOTAL: 1941
 # FORMAT: hosts
 # UPSTREAM hagezi_native_apple: 107
 # UPSTREAM hagezi_native_apple HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_huawei: 135
 # UPSTREAM hagezi_native_huawei HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_oppo_realme: 465
+# UPSTREAM hagezi_native_oppo_realme: 468
 # UPSTREAM hagezi_native_oppo_realme HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_samsung: 202
 # UPSTREAM hagezi_native_samsung HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -48,6 +48,9 @@
 0.0.0.0 activity.hybrid.xiaomi.com
 0.0.0.0 ad-drcn.media.dbankcloud.cn
 0.0.0.0 ad-drcn.media.dbankcloud.ru
+0.0.0.0 ad-growth-in.heytapmobile.com
+0.0.0.0 ad-growth-ru.heytapmobile.com
+0.0.0.0 ad-growth-sg.heytapmobile.com
 0.0.0.0 ad-instantpage-ru.tiktokv.com
 0.0.0.0 ad-instantpage-sg.tiktokv.com
 0.0.0.0 ad-instantpage-sg.tiktokv.com.edgekey.net
