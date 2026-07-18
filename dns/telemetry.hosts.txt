@@ -2,8 +2,8 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/py/generate_adblock_outputs.py
 # CATEGORY: telemetry
-# GENERATED_AT: 2026-07-17T05:57:29Z
-# TOTAL: 1941
+# GENERATED_AT: 2026-07-18T05:38:03Z
+# TOTAL: 1942
 # FORMAT: hosts
 # UPSTREAM hagezi_native_apple: 107
 # UPSTREAM hagezi_native_apple HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -13,7 +13,7 @@
 # UPSTREAM hagezi_native_oppo_realme HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_samsung: 202
 # UPSTREAM hagezi_native_samsung HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_tiktok: 424
+# UPSTREAM hagezi_native_tiktok: 425
 # UPSTREAM hagezi_native_tiktok HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_vivo: 227
 # UPSTREAM hagezi_native_vivo HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -1469,6 +1469,7 @@
 0.0.0.0 ro-up.vivoglobal.com
 0.0.0.0 rtc-logger-i18n.tiktokv.com
 0.0.0.0 rtc-logger-ie.tiktokv.eu
+0.0.0.0 rtc-logger-ttp2.tiktokv.us
 0.0.0.0 rtc-logger-ttp2.us.tiktokv.com
 0.0.0.0 rtc-logger-va.tiktokv.com
 0.0.0.0 rtc-logger.tiktokv.com
