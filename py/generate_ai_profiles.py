@@ -643,6 +643,14 @@ def ini_group_candidates(groups: list[str]) -> str:
     return "`".join(f"[]{group}" for group in groups)
 
 
+def yaml_proxy_list(groups: list[str], indent_level: int = 4) -> list[str]:
+    prefix = " " * indent_level
+    return [
+        f"{prefix}- {yaml_string(group)}"
+        for group in groups
+    ]
+
+
 def render_ini_manual_group() -> str:
     candidates = ini_group_candidates(
         [
@@ -683,7 +691,7 @@ def render_proxy_groups(strict: bool) -> str:
             "  interval: 300",
             "  proxies:",
         ]
-        lines.extend(f'    - "{proxy}"' for proxy in proxies)
+        lines.extend(yaml_proxy_list(proxies))
         return group_block(name, "fallback", lines)
 
     blocks = [
@@ -692,7 +700,7 @@ def render_proxy_groups(strict: bool) -> str:
             "select",
             [
                 "  proxies:",
-                *(f'    - "{proxy}"' for proxy in manual_group_proxies(strict)),
+                *yaml_proxy_list(manual_group_proxies(strict)),
                 f'  filter: "{AI_POOL_FILTER}"',
                 "  use:",
                 "    - provider1",
@@ -720,7 +728,7 @@ def render_proxy_groups(strict: bool) -> str:
                 "select",
                 [
                     "  proxies:",
-                    *(f'    - "{proxy}"' for proxy in service_ui_proxies(service, strict)),
+                    *yaml_proxy_list(service_ui_proxies(service, strict)),
                 ],
             )
         )
