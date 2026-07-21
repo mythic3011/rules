@@ -640,7 +640,7 @@ def render_ini_service_groups(service: dict[str, object]) -> list[str]:
 
 
 def ini_group_candidates(groups: list[str]) -> str:
-    return "".join(f"`[]{group}" for group in groups)
+    return "`".join(f"[]{group}" for group in groups)
 
 
 def render_ini_manual_group() -> str:
