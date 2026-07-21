@@ -52,6 +52,18 @@ class GenerateAiProfilesTest(unittest.TestCase):
             ],
         )
 
+    def test_should_derive_rule_sets_from_one_service_catalog(self) -> None:
+        service_ids = [item["id"] for item in MODULE.AI_SERVICES]
+        catalog_provider_keys = [item["provider_key"] for item in MODULE.AI_SERVICES]
+        ruleset_provider_keys = [item["provider_key"] for item in MODULE.AI_RULESETS]
+
+        self.assertEqual(len(service_ids), len(set(service_ids)))
+        self.assertEqual(catalog_provider_keys, ruleset_provider_keys)
+        self.assertEqual(
+            {item["group"] for item in MODULE.AI_RULESETS},
+            {item["group"] for item in MODULE.AI_SERVICES},
+        )
+
     def test_should_render_ai_all_reject_rule_before_geoip_hk(self) -> None:
         rules = MODULE.render_yaml_rules(strict=False, include_process_rules=False).splitlines()
         ai_all_index = next(i for i, line in enumerate(rules) if "AI_All_Classical" in line)
@@ -82,12 +94,44 @@ class GenerateAiProfilesTest(unittest.TestCase):
         manual_group = self.extract_yaml_group_block(rendered_yaml, MODULE.GROUP["manual"])
         claude_group = self.extract_yaml_group_block(rendered_yaml, MODULE.GROUP["claude"])
         copilot_group = self.extract_yaml_group_block(rendered_yaml, MODULE.GROUP["copilot"])
+        copilot_auto_group = self.extract_yaml_group_block(
+            rendered_yaml,
+            MODULE.service_auto_group_name(MODULE.GROUP["copilot"]),
+        )
 
         self.assertNotIn(MODULE.GROUP["direct"], manual_group)
         self.assertIn('  use:', manual_group)
         self.assertIn('    - provider1', manual_group)
         self.assertNotIn(MODULE.GROUP["direct"], claude_group)
         self.assertNotIn(MODULE.GROUP["direct"], copilot_group)
+        self.assertNotIn(MODULE.GROUP["direct"], copilot_auto_group)
+
+    def test_should_separate_service_ui_from_automatic_fallback_chain(self) -> None:
+        rendered_yaml = MODULE.render_yaml(strict=False)
+        claude_group = self.extract_yaml_group_block(rendered_yaml, MODULE.GROUP["claude"])
+        claude_auto_name = MODULE.service_auto_group_name(MODULE.GROUP["claude"])
+        claude_auto_group = self.extract_yaml_group_block(rendered_yaml, claude_auto_name)
+
+        self.assertIn("    type: select", claude_group)
+        self.assertIn(f'      - "{claude_auto_name}"', claude_group)
+        self.assertIn(f'      - "{MODULE.GROUP["manual"]}"', claude_group)
+        self.assertIn(f'      - "{MODULE.GROUP["auto"]}"', claude_group)
+
+        self.assertIn("    type: fallback", claude_auto_group)
+        self.assertNotIn(MODULE.GROUP["manual"], claude_auto_group)
+        self.assertNotIn(f'      - "{MODULE.GROUP["auto"]}"', claude_auto_group)
+        self.assertIn(f'      - "{MODULE.GROUP["sg"]}"', claude_auto_group)
+        self.assertIn(f'      - "{MODULE.GROUP["us"]}"', claude_auto_group)
+        self.assertTrue(claude_auto_group.rstrip().endswith(f'- "{MODULE.GROUP["reject"]}"'))
+
+    def test_should_keep_global_region_groups_provider_only(self) -> None:
+        rendered_yaml = MODULE.render_yaml(strict=False)
+
+        for region in MODULE.AI_REGION_ORDER:
+            block = self.extract_yaml_group_block(rendered_yaml, MODULE.GROUP[region])
+            self.assertIn("    use:", block)
+            self.assertIn("      - provider1", block)
+            self.assertNotIn("    proxies:", block)
 
     def test_should_fix_taiwan_group_label_and_filters(self) -> None:
         rendered_yaml = MODULE.render_yaml(strict=False)
