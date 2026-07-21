@@ -633,15 +633,14 @@ def render_ini_service_groups(service: dict[str, object]) -> list[str]:
     return [
         (
             f"custom_proxy_group={service_auto_group_name(str(service['group']))}"
-            f"`fallback`{auto_candidates}"
-            "`https://cp.cloudflare.com/generate_204`300,,50"
+            f"`fallback`{auto_candidates}`https://cp.cloudflare.com/generate_204`300,,50"
         ),
         f"custom_proxy_group={service['group']}`select`{ui_candidates}",
     ]
 
 
 def ini_group_candidates(groups: list[str]) -> str:
-    return "`".join(f"[]{group}" for group in groups)
+    return "".join(f"`[]{group}" for group in groups)
 
 
 def render_ini_manual_group() -> str:
@@ -668,8 +667,7 @@ def render_ini_global_auto_group() -> str:
     )
     return (
         f"custom_proxy_group={GROUP['auto']}"
-        f"`fallback`{candidates}"
-        "`https://cp.cloudflare.com/generate_204`300,,50"
+        f"`fallback`{candidates}`https://cp.cloudflare.com/generate_204`300,,50"
     )
 
 
