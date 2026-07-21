@@ -8,7 +8,6 @@ Outputs:
   - cfg/yaml/Custom_Clash_AI_Strict.yaml
   - cfg/Custom_Clash_AI.ini
   - rule/AI_*_Classical.yaml
-  - rule/AI_All_Classical.yaml
   - rule/SSH_*_Classical.yaml
   - rule/Gaming_Direct_Classical.yaml
   - optional rule/Process_*_Classical.yaml
@@ -38,12 +37,6 @@ BASE_URL = f"https://testingcf.jsdelivr.net/gh/{REPO_SLUG}@main"
 
 OPENCLASH_SECRET = os.environ.get("OPENCLASH_SECRET", "").strip()
 ENABLE_PROCESS_RULES = os.getenv("ENABLE_PROCESS_RULES", "false").lower() == "true"
-
-LOCAL_CLAUDE_PROXY_NAME = os.environ.get("AI_CLAUDE_PROXY_NAME", "").strip()
-LOCAL_CLAUDE_PROXY_SERVER = os.environ.get("AI_CLAUDE_PROXY_SERVER", "").strip()
-LOCAL_CLAUDE_PROXY_PORT = os.environ.get("AI_CLAUDE_PROXY_PORT", "").strip()
-LOCAL_CLAUDE_PROXY_USERNAME = os.environ.get("AI_CLAUDE_PROXY_USERNAME", "").strip()
-LOCAL_CLAUDE_PROXY_PASSWORD = os.environ.get("AI_CLAUDE_PROXY_PASSWORD", "").strip()
 
 PROVIDER_NOISE_EXCLUDE_TERMS = (
     r"剩余流量|剩餘流量|套餐到期|到期|流量[:：]|Traffic|Expire|Subscription|"
@@ -91,6 +84,7 @@ GROUP = {
     "sg": "🇸🇬 新加坡節點",
     "tw": "🇹🇼 台灣節點",
     "kr": "🇰🇷 韓國節點",
+    "other": "🌐 其他／未識別節點",
     "chatgpt": "🤖 ChatGPT",
     "copilot": "🤖 Copilot",
     "claude": "🤖 Claude",
@@ -101,114 +95,183 @@ GROUP = {
     "poe": "🤖 Poe",
 }
 
-REGION_FILTERS = {
+REGION_TERMS = {
     "us": (
-        r"(?i)(🇺🇸|美國|美国|波特蘭|波特兰|達拉斯|达拉斯|俄勒岡|俄勒冈|鳳凰城|凤凰城|"
+        r"🇺🇸|美國|美国|波特蘭|波特兰|達拉斯|达拉斯|俄勒岡|俄勒冈|鳳凰城|凤凰城|"
         r"費利蒙|费利蒙|硅谷|拉斯維加斯|拉斯维加斯|洛杉磯|洛杉矶|聖何塞|圣何塞|"
         r"聖克拉拉|圣克拉拉|西雅圖|西雅图|芝加哥|紐約|纽约|亞特蘭大|亚特兰大|"
         r"邁阿密|迈阿密|華盛頓|华盛顿|\bUS(?:[-_ ]?\d+(?:[-_ ]?[A-Za-z]{2,})?)?\b|"
         r"United States|UnitedStates|USA|America|JFK|EWR|IAD|ATL|ORD|MIA|NYC|"
-        r"LAX|SFO|SEA|DFW|SJC)"
+        r"LAX|SFO|SEA|DFW|SJC"
     ),
     "jp": (
-        r"(?i)(🇯🇵|日本|東京|东京|大阪|關西|关西|埼玉|川日|泉日|滬日|沪日|深日|"
+        r"🇯🇵|日本|東京|东京|大阪|關西|关西|埼玉|川日|泉日|滬日|沪日|深日|"
         r"\bJP(?:[-_ ]?\d+(?:[-_ ]?[A-Za-z]{2,})?)?\b|Japan|JPN|NRT|HND|KIX|TYO|OSA|"
-        r"Kansai)"
+        r"Kansai"
     ),
     "sg": (
-        r"(?i)(🇸🇬|新加坡|獅城|狮城|\bSG(?:[-_ ]?\d+(?:[-_ ]?[A-Za-z]{2,})?)?\b|"
-        r"Singapore|SIN)"
+        r"🇸🇬|新加坡|獅城|狮城|\bSG(?:[-_ ]?\d+(?:[-_ ]?[A-Za-z]{2,})?)?\b|"
+        r"Singapore|SIN"
     ),
     "tw": (
-        r"(?i)(🇹🇼|台灣|臺灣|台湾|台北|臺北|新北|台中|臺中|高雄|彰化|"
-        r"\bTW(?:[-_ ]?\d+(?:[-_ ]?[A-Za-z]{2,})?)?\b|Taiwan|TWN|TPE|ROC)"
+        r"🇹🇼|台灣|臺灣|台湾|台北|臺北|新北|台中|臺中|高雄|彰化|"
+        r"\bTW(?:[-_ ]?\d+(?:[-_ ]?[A-Za-z]{2,})?)?\b|Taiwan|TWN|TPE|ROC"
     ),
     "kr": (
-        r"(?i)(🇰🇷|韓國|韩国|首爾|首尔|春川|"
-        r"\bKR(?:[-_ ]?\d+(?:[-_ ]?[A-Za-z]{2,})?)?\b|Korea|KOR|Chuncheon|ICN)"
+        r"🇰🇷|韓國|韩国|首爾|首尔|春川|"
+        r"\bKR(?:[-_ ]?\d+(?:[-_ ]?[A-Za-z]{2,})?)?\b|Korea|KOR|Chuncheon|ICN"
     ),
 }
 
-AI_REGION_ORDER = ("us", "jp", "sg", "tw", "kr")
+PRIMARY_REGION_ORDER = ("us", "jp", "sg", "tw", "kr")
+ALL_REGION_ORDER = (*PRIMARY_REGION_ORDER, "other")
 
-AI_RULESETS = [
+REGION_FILTERS = {
+    region: rf"(?i)(?:{terms})"
+    for region, terms in REGION_TERMS.items()
+}
+
+KNOWN_REGION_TERMS = "|".join(
+    rf"(?:{REGION_TERMS[region]})"
+    for region in PRIMARY_REGION_ORDER
+)
+KNOWN_REGION_EXCLUDE_PATTERN = rf"(?i)(?:{KNOWN_REGION_TERMS})"
+
+OTHER_REGION_FILTER = (
+    rf"(?i)^(?!.*(?:"
+    rf"{PROVIDER_NOISE_EXCLUDE_TERMS}|"
+    rf"{AI_HK_EXCLUDE_TERMS}|"
+    rf"{KNOWN_REGION_TERMS}"
+    rf")).*$"
+)
+
+AI_SERVICES = [
     {
+        "id": "chatgpt",
         "provider_key": "AI_ChatGPT_Classical",
         "group": GROUP["chatgpt"],
         "file": "AI_ChatGPT_Classical.yaml",
-        "payload": ["GEOSITE,openai"],
+        "geosites": ("openai",),
+        "payload": [],
+        "regions": ("sg", "us", "jp", "tw", "kr"),
+        "direct_relaxed": False,
     },
     {
+        "id": "copilot",
         "provider_key": "AI_Copilot_Classical",
         "group": GROUP["copilot"],
         "file": "AI_Copilot_Classical.yaml",
-        "payload": ["GEOSITE,bing", "DOMAIN-KEYWORD,copilot"],
+        "geosites": ("github-copilot",),
+        "payload": [
+            "DOMAIN-SUFFIX,copilot.com",
+            "DOMAIN-SUFFIX,copilot.microsoft.com",
+            "DOMAIN-SUFFIX,copilot.cloud.microsoft",
+        ],
+        "regions": ("us", "sg", "jp", "tw", "kr"),
+        "direct_relaxed": True,
     },
     {
+        "id": "claude",
         "provider_key": "AI_Claude_Classical",
         "group": GROUP["claude"],
         "file": "AI_Claude_Classical.yaml",
-        "payload": [
-            "DOMAIN-SUFFIX,anthropic.com",
-            "DOMAIN-SUFFIX,claude.ai",
-            "DOMAIN-KEYWORD,anthropic",
-            "DOMAIN-KEYWORD,claude",
-        ],
+        "geosites": ("anthropic",),
+        "payload": [],
+        "regions": ("sg", "us", "jp", "tw", "kr"),
+        "direct_relaxed": False,
     },
     {
+        "id": "gemini",
         "provider_key": "AI_Gemini_Classical",
         "group": GROUP["gemini"],
         "file": "AI_Gemini_Classical.yaml",
+        "geosites": (),
         "payload": [
+            "DOMAIN-SUFFIX,gemini.google",
             "DOMAIN-SUFFIX,ai.google.dev",
+            "DOMAIN-SUFFIX,ai.studio",
+            "DOMAIN-SUFFIX,aistudio.google.com",
+            "DOMAIN-SUFFIX,gemini.gstatic.com",
+            "DOMAIN-SUFFIX,generativeai.google",
             "DOMAIN-SUFFIX,makersuite.google.com",
-            "DOMAIN-SUFFIX,generativelanguage.googleapis.com",
+            "DOMAIN,gemini.google.com",
+            "DOMAIN,generativelanguage.googleapis.com",
+            "DOMAIN,geller-pa.googleapis.com",
+            "DOMAIN,proactivebackend-pa.googleapis.com",
+            "DOMAIN,robinfrontend-pa.googleapis.com",
         ],
+        "regions": ("sg", "us", "jp", "tw", "kr"),
+        "direct_relaxed": True,
     },
     {
+        "id": "notebooklm",
         "provider_key": "AI_NotebookLM_Classical",
         "group": GROUP["notebooklm"],
         "file": "AI_NotebookLM_Classical.yaml",
+        "geosites": (),
         "payload": [
             "DOMAIN-SUFFIX,notebooklm.google.com",
             "DOMAIN-SUFFIX,notebooklm.google",
+            "DOMAIN,notebooklm-pa.googleapis.com",
+            "DOMAIN,notebooklm.googleapis.com",
         ],
+        "regions": ("sg", "us", "jp", "tw", "kr"),
+        "direct_relaxed": True,
     },
     {
+        "id": "perplexity",
         "provider_key": "AI_Perplexity_Classical",
         "group": GROUP["perplexity"],
         "file": "AI_Perplexity_Classical.yaml",
-        "payload": ["DOMAIN-SUFFIX,perplexity.ai", "DOMAIN-KEYWORD,perplexity"],
+        "geosites": ("perplexity",),
+        "payload": [],
+        "regions": ("sg", "us", "jp", "tw", "kr"),
+        "direct_relaxed": True,
     },
     {
+        "id": "grok",
         "provider_key": "AI_Grok_Classical",
         "group": GROUP["grok"],
         "file": "AI_Grok_Classical.yaml",
-        "payload": ["DOMAIN-SUFFIX,x.ai", "DOMAIN-KEYWORD,xai", "DOMAIN-KEYWORD,grok"],
+        "geosites": ("xai",),
+        "payload": [],
+        "regions": ("us", "sg", "jp", "tw", "kr"),
+        "direct_relaxed": True,
     },
     {
+        "id": "poe",
         "provider_key": "AI_Poe_Classical",
         "group": GROUP["poe"],
         "file": "AI_Poe_Classical.yaml",
-        "payload": ["DOMAIN-SUFFIX,poe.com", "DOMAIN-KEYWORD,poe"],
+        "geosites": ("poe",),
+        "payload": [],
+        "regions": ("sg", "us", "jp", "tw", "kr"),
+        "direct_relaxed": False,
     },
 ]
 
-AI_ALL_RULESET = {
-    "provider_key": "AI_All_Classical",
-    "group": GROUP["reject"],
-    "file": "AI_All_Classical.yaml",
-    "payload": [
-        "DOMAIN-KEYWORD,openai",
-        "DOMAIN-KEYWORD,chatgpt",
-        "DOMAIN-KEYWORD,anthropic",
-        "DOMAIN-KEYWORD,claude",
-        "DOMAIN-KEYWORD,gemini",
-        "DOMAIN-KEYWORD,perplexity",
-        "DOMAIN-KEYWORD,grok",
-        "DOMAIN-KEYWORD,copilot",
-        "DOMAIN-KEYWORD,poe",
-    ],
+# Only services with local delta entries need generated rule-provider files.
+AI_RULESETS = [
+    {
+        "provider_key": service["provider_key"],
+        "group": service["group"],
+        "file": service["file"],
+        "payload": service["payload"],
+    }
+    for service in AI_SERVICES
+    if service["payload"]
+]
+
+AI_GUARD_GEOSITES = (
+    "google-deepmind",
+    "category-ai-!cn",
+)
+
+MANAGED_AI_RULE_FILES = {
+    str(service["file"])
+    for service in AI_SERVICES
+} | {
+    "AI_All_Classical.yaml",
 }
 
 SSH_RULESETS = [
@@ -293,6 +356,8 @@ GAMING_RULESET = {
         "DOMAIN-SUFFIX,uu.163.com",
         "DOMAIN-SUFFIX,n0808.com",
         "DOMAIN-SUFFIX,sandai.net",
+        "DOMAIN-SUFFIX,epicgames.com",
+        "DOMAIN-SUFFIX,epicgamescdn.com",
     ],
     "comments": [
         "# Game update CDN - direct for performance and UDP stability",
@@ -368,39 +433,6 @@ def write_text(path: Path, content: str) -> None:
     path.write_text(content.rstrip() + "\n", encoding="utf-8", newline="\n")
 
 
-def has_local_claude_proxy() -> bool:
-    return bool(
-        LOCAL_CLAUDE_PROXY_NAME
-        and LOCAL_CLAUDE_PROXY_SERVER
-        and LOCAL_CLAUDE_PROXY_PORT
-        and LOCAL_CLAUDE_PROXY_USERNAME
-        and LOCAL_CLAUDE_PROXY_PASSWORD
-    )
-
-
-def render_local_proxies() -> str:
-    if not has_local_claude_proxy():
-        return ""
-
-    try:
-        port = int(LOCAL_CLAUDE_PROXY_PORT)
-    except ValueError as exc:
-        raise ValueError("AI_CLAUDE_PROXY_PORT must be an integer") from exc
-
-    return "\n".join(
-        [
-            "proxies:",
-            f"  - name: {yaml_string(LOCAL_CLAUDE_PROXY_NAME)}",
-            "    type: socks5",
-            f"    server: {yaml_string(LOCAL_CLAUDE_PROXY_SERVER)}",
-            f"    port: {port}",
-            f"    username: {yaml_string(LOCAL_CLAUDE_PROXY_USERNAME)}",
-            f"    password: {yaml_string(LOCAL_CLAUDE_PROXY_PASSWORD)}",
-            "    udp: true",
-        ]
-    )
-
-
 def load_process_rule_source() -> dict[str, list[str]]:
     if not ENABLE_PROCESS_RULES:
         return {}
@@ -464,7 +496,7 @@ def render_rule_file(
         lines.append("")
         lines.extend(extra_comments)
     lines.extend(["", "payload:"])
-    lines.extend(f"  - {rule}" for rule in payload)
+    lines.extend(f"  - {yaml_string(rule)}" for rule in payload)
     return "\n".join(lines)
 
 
@@ -531,188 +563,114 @@ def ensure_custom_direct_supporting_rules() -> None:
     )
 
 
+def service_region_groups(service: dict[str, object]) -> list[str]:
+    groups = [
+        GROUP[str(region)]
+        for region in service["regions"]
+    ]
+    groups.append(GROUP["other"])
+    return groups
+
+
+def all_region_groups() -> list[str]:
+    return [GROUP[region] for region in ALL_REGION_ORDER]
+
+
 def manual_group_proxies(strict: bool) -> list[str]:
-    proxies = [GROUP["auto"], *(GROUP[region] for region in AI_REGION_ORDER)]
+    proxies = [
+        GROUP["auto"],
+        *all_region_groups(),
+    ]
     if not strict:
         proxies.insert(1, GROUP["direct"])
     proxies.append(GROUP["reject"])
     return proxies
 
 
-def relaxed_service_proxies() -> dict[str, list[str]]:
-    proxies = {
-        GROUP["chatgpt"]: [
-            GROUP["manual"],
-            GROUP["auto"],
-            GROUP["sg"],
-            GROUP["us"],
-            GROUP["jp"],
-            GROUP["tw"],
-            GROUP["kr"],
-            GROUP["reject"],
-        ],
-        GROUP["copilot"]: [
-            GROUP["manual"],
-            GROUP["auto"],
-            GROUP["direct"],
-            GROUP["us"],
-            GROUP["sg"],
-            GROUP["jp"],
-            GROUP["tw"],
-            GROUP["kr"],
-            GROUP["reject"],
-        ],
-        GROUP["claude"]: [
-            GROUP["manual"],
-            GROUP["auto"],
-            GROUP["sg"],
-            GROUP["us"],
-            GROUP["jp"],
-            GROUP["tw"],
-            GROUP["kr"],
-            GROUP["reject"],
-        ],
-        GROUP["gemini"]: [
-            GROUP["manual"],
-            GROUP["auto"],
-            GROUP["direct"],
-            GROUP["sg"],
-            GROUP["us"],
-            GROUP["jp"],
-            GROUP["tw"],
-            GROUP["kr"],
-            GROUP["reject"],
-        ],
-        GROUP["notebooklm"]: [
-            GROUP["manual"],
-            GROUP["auto"],
-            GROUP["direct"],
-            GROUP["sg"],
-            GROUP["us"],
-            GROUP["jp"],
-            GROUP["tw"],
-            GROUP["kr"],
-            GROUP["reject"],
-        ],
-        GROUP["perplexity"]: [
-            GROUP["manual"],
-            GROUP["auto"],
-            GROUP["direct"],
-            GROUP["sg"],
-            GROUP["us"],
-            GROUP["jp"],
-            GROUP["tw"],
-            GROUP["kr"],
-            GROUP["reject"],
-        ],
-        GROUP["grok"]: [
-            GROUP["manual"],
-            GROUP["auto"],
-            GROUP["direct"],
-            GROUP["us"],
-            GROUP["sg"],
-            GROUP["jp"],
-            GROUP["tw"],
-            GROUP["kr"],
-            GROUP["reject"],
-        ],
-        GROUP["poe"]: [
-            GROUP["manual"],
-            GROUP["auto"],
-            GROUP["sg"],
-            GROUP["us"],
-            GROUP["jp"],
-            GROUP["tw"],
-            GROUP["kr"],
-            GROUP["reject"],
-        ],
-    }
+def service_auto_group_name(service_group: str) -> str:
+    return f"{service_group} · 自動"
+
+
+def service_auto_proxies(service: dict[str, object], strict: bool) -> list[str]:
+    # DIRECT must not be part of an availability fallback. A generic HTTP
+    # health check cannot determine whether an AI service is region-usable.
+    proxies = service_region_groups(service)
+    proxies.append(GROUP["reject"])
     return proxies
 
 
-def strict_service_proxies() -> dict[str, list[str]]:
-    return {
-        GROUP["chatgpt"]: [
-            GROUP["manual"],
+def service_ui_proxies(service: dict[str, object], strict: bool) -> list[str]:
+    proxies = [
+        service_auto_group_name(str(service["group"])),
+        GROUP["manual"],
+        GROUP["auto"],
+    ]
+    if service["direct_relaxed"] and not strict:
+        proxies.append(GROUP["direct"])
+    proxies.extend(service_region_groups(service))
+    proxies.append(GROUP["reject"])
+    return proxies
+
+
+def render_ini_service_groups(service: dict[str, object]) -> list[str]:
+    auto_proxies = service_region_groups(service)
+    auto_proxies.append(GROUP["reject"])
+    auto_candidates = ini_group_candidates(auto_proxies)
+
+    ui_proxies = [
+        service_auto_group_name(str(service["group"])),
+        GROUP["manual"],
+        GROUP["auto"],
+    ]
+
+    if service["direct_relaxed"]:
+        ui_proxies.append(GROUP["direct"])
+
+    ui_proxies.extend(service_region_groups(service))
+    ui_proxies.append(GROUP["reject"])
+    ui_candidates = ini_group_candidates(ui_proxies)
+
+    return [
+        (
+            f"custom_proxy_group={service_auto_group_name(str(service['group']))}"
+            f"`fallback`{auto_candidates}"
+            "`https://cp.cloudflare.com/generate_204`300,,50"
+        ),
+        f"custom_proxy_group={service['group']}`select`{ui_candidates}",
+    ]
+
+
+def ini_group_candidates(groups: list[str]) -> str:
+    return "".join(f"[]{group}" for group in groups)
+
+
+def render_ini_manual_group() -> str:
+    candidates = ini_group_candidates(
+        [
             GROUP["auto"],
-            GROUP["sg"],
-            GROUP["us"],
-            GROUP["jp"],
-            GROUP["tw"],
-            GROUP["kr"],
+            GROUP["direct"],
+            *all_region_groups(),
             GROUP["reject"],
-        ],
-        GROUP["copilot"]: [
-            GROUP["manual"],
-            GROUP["auto"],
-            GROUP["us"],
-            GROUP["sg"],
-            GROUP["jp"],
-            GROUP["tw"],
-            GROUP["kr"],
+        ]
+    )
+    return (
+        f"custom_proxy_group={GROUP['manual']}"
+        f"`select`{candidates}`{AI_POOL_FILTER}"
+    )
+
+
+def render_ini_global_auto_group() -> str:
+    candidates = ini_group_candidates(
+        [
+            *all_region_groups(),
             GROUP["reject"],
-        ],
-        GROUP["claude"]: [
-            GROUP["manual"],
-            GROUP["auto"],
-            GROUP["sg"],
-            GROUP["us"],
-            GROUP["jp"],
-            GROUP["tw"],
-            GROUP["kr"],
-            GROUP["reject"],
-        ],
-        GROUP["gemini"]: [
-            GROUP["manual"],
-            GROUP["auto"],
-            GROUP["sg"],
-            GROUP["us"],
-            GROUP["jp"],
-            GROUP["tw"],
-            GROUP["kr"],
-            GROUP["reject"],
-        ],
-        GROUP["notebooklm"]: [
-            GROUP["manual"],
-            GROUP["auto"],
-            GROUP["sg"],
-            GROUP["us"],
-            GROUP["jp"],
-            GROUP["tw"],
-            GROUP["kr"],
-            GROUP["reject"],
-        ],
-        GROUP["perplexity"]: [
-            GROUP["manual"],
-            GROUP["auto"],
-            GROUP["sg"],
-            GROUP["us"],
-            GROUP["jp"],
-            GROUP["tw"],
-            GROUP["kr"],
-            GROUP["reject"],
-        ],
-        GROUP["grok"]: [
-            GROUP["manual"],
-            GROUP["auto"],
-            GROUP["us"],
-            GROUP["sg"],
-            GROUP["jp"],
-            GROUP["tw"],
-            GROUP["kr"],
-            GROUP["reject"],
-        ],
-        GROUP["poe"]: [
-            GROUP["manual"],
-            GROUP["auto"],
-            GROUP["sg"],
-            GROUP["us"],
-            GROUP["jp"],
-            GROUP["tw"],
-            GROUP["kr"],
-            GROUP["reject"],
-        ],
-    }
+        ]
+    )
+    return (
+        f"custom_proxy_group={GROUP['auto']}"
+        f"`fallback`{candidates}"
+        "`https://cp.cloudflare.com/generate_204`300,,50"
+    )
 
 
 def render_proxy_groups(strict: bool) -> str:
@@ -721,7 +679,7 @@ def render_proxy_groups(strict: bool) -> str:
         block.extend(lines)
         return "\n".join(block)
 
-    def ai_group(name: str, proxies: list[str]) -> str:
+    def fallback_group(name: str, proxies: list[str]) -> str:
         lines = [
             '  url: "https://cp.cloudflare.com/generate_204"',
             "  interval: 300",
@@ -756,15 +714,24 @@ def render_proxy_groups(strict: bool) -> str:
         ),
     ]
 
-    service_proxies = strict_service_proxies() if strict else relaxed_service_proxies()
-    if has_local_claude_proxy():
-        service_proxies[GROUP["claude"]] = [
-            LOCAL_CLAUDE_PROXY_NAME,
-            *service_proxies[GROUP["claude"]],
-        ]
-
-    for name, proxies in service_proxies.items():
-        blocks.append(ai_group(name, proxies))
+    for service in AI_SERVICES:
+        service_group = str(service["group"])
+        blocks.append(
+            group_block(
+                service_group,
+                "select",
+                [
+                    "  proxies:",
+                    *(f'    - "{proxy}"' for proxy in service_ui_proxies(service, strict)),
+                ],
+            )
+        )
+        blocks.append(
+            fallback_group(
+                service_auto_group_name(service_group),
+                service_auto_proxies(service, strict),
+            )
+        )
 
     blocks.append(group_block(GROUP["reject"], "select", ["  proxies:", "    - REJECT"]))
 
@@ -779,7 +746,7 @@ def render_proxy_groups(strict: bool) -> str:
         )
     )
 
-    for region in AI_REGION_ORDER:
+    for region in PRIMARY_REGION_ORDER:
         blocks.append(
             group_block(
                 GROUP[region],
@@ -795,97 +762,145 @@ def render_proxy_groups(strict: bool) -> str:
             )
         )
 
+    blocks.append(
+        group_block(
+            GROUP["other"],
+            "url-test",
+            [
+                '  url: "https://cp.cloudflare.com/generate_204"',
+                "  interval: 300",
+                "  tolerance: 50",
+                f"  filter: {yaml_string(AI_POOL_FILTER)}",
+                (
+                    "  exclude-filter: "
+                    f"{yaml_string(KNOWN_REGION_EXCLUDE_PATTERN)}"
+                ),
+                "  use:",
+                "    - provider1",
+            ],
+        )
+    )
+
     blocks.append(group_block(GROUP["direct"], "select", ["  proxies:", "    - DIRECT"]))
     return "\n".join(blocks).rstrip()
+
+
+def render_ai_yaml_rules() -> list[str]:
+    lines: list[str] = []
+
+    for service in AI_SERVICES:
+        if service["payload"]:
+            lines.append(
+                f'  - "RULE-SET,{service["provider_key"]},{service["group"]}"'
+            )
+
+        for geosite in service["geosites"]:
+            lines.append(
+                f'  - "GEOSITE,{geosite},{service["group"]}"'
+            )
+
+    for geosite in AI_GUARD_GEOSITES:
+        lines.append(
+            f'  - "GEOSITE,{geosite},{GROUP["reject"]}"'
+        )
+
+    return lines
 
 
 def render_yaml_rules(strict: bool, include_process_rules: bool) -> str:
     lines = [
         f'  - "GEOSITE,private,{GROUP["direct"]}"',
         f'  - "GEOIP,private,{GROUP["direct"]},no-resolve"',
-        f'  - "RULE-SET,SSH_Direct_Classical,{GROUP["direct"]}"',
-        f'  - "RULE-SET,SSH_Proxy_Classical,{GROUP["manual"]}"',
-        f'  - "RULE-SET,Gaming_Direct_Classical,{GROUP["direct"]}"',
     ]
 
-    if include_process_rules:
-        lines.extend(PROCESS_RULES_WARNING)
-        for spec in PROCESS_RULESET_SPECS:
-            lines.append(f'  - "RULE-SET,{spec["provider_key"]},{spec["group"]}"')
+    # AI rules must precede user custom/direct rules so that strict routing
+    # cannot be bypassed by a broad custom entry.
+    lines.extend(render_ai_yaml_rules())
 
-    lines.extend(
-        [
-            f'  - "RULE-SET,Custom_Direct_Domain,{GROUP["direct"]}"',
-            f'  - "RULE-SET,Custom_Direct_Classical_IP,{GROUP["direct"]}"',
-            f'  - "RULE-SET,Custom_Proxy_Domain,{GROUP["manual"]}"',
-            f'  - "RULE-SET,Custom_Proxy_Classical_IP,{GROUP["manual"]}"',
-        ]
-    )
-    lines.extend(
-        f'  - "RULE-SET,{item["provider_key"]},{item["group"]}"' for item in AI_RULESETS
-    )
-    lines.extend(
-        [
-            f'  - "RULE-SET,{AI_ALL_RULESET["provider_key"]},{GROUP["reject"]}"',
-            f'  - "GEOIP,HK,{GROUP["direct"]},no-resolve"',
-            f'  - "MATCH,{GROUP["reject"] if strict else GROUP["fallback"]}"',
-        ]
+    if not strict:
+        lines.extend(
+            [
+                f'  - "RULE-SET,SSH_Direct_Classical,{GROUP["direct"]}"',
+                f'  - "RULE-SET,SSH_Proxy_Classical,{GROUP["manual"]}"',
+                f'  - "RULE-SET,Gaming_Direct_Classical,{GROUP["direct"]}"',
+            ]
+        )
+
+        if include_process_rules:
+            lines.extend(PROCESS_RULES_WARNING)
+            for spec in PROCESS_RULESET_SPECS:
+                lines.append(
+                    f'  - "RULE-SET,{spec["provider_key"]},{spec["group"]}"'
+                )
+
+        lines.extend(
+            [
+                f'  - "RULE-SET,Custom_Direct_Domain,{GROUP["direct"]}"',
+                f'  - "RULE-SET,Custom_Direct_Classical_IP,{GROUP["direct"]}"',
+                f'  - "RULE-SET,Custom_Proxy_Domain,{GROUP["manual"]}"',
+                f'  - "RULE-SET,Custom_Proxy_Classical_IP,{GROUP["manual"]}"',
+                f'  - "GEOIP,HK,{GROUP["direct"]},no-resolve"',
+            ]
+        )
+
+    lines.append(
+        f'  - "MATCH,{GROUP["reject"] if strict else GROUP["fallback"]}"'
     )
     return "\n".join(lines)
 
 
-def render_rule_providers(include_process_rules: bool) -> str:
-    providers = [
-        {
-            "name": "Custom_Direct_Domain",
-            "behavior": "domain",
-            "url": f"{BASE_URL}/rule/Custom_Direct_Domain.yaml",
-            "format": "yaml",
-        },
-        {
-            "name": "Custom_Direct_Classical_IP",
-            "behavior": "classical",
-            "url": f"{BASE_URL}/rule/Custom_Direct_Classical_IP.yaml",
-            "format": "yaml",
-        },
-        {
-            "name": "Custom_Proxy_Domain",
-            "behavior": "domain",
-            "url": f"{BASE_URL}/rule/Custom_Proxy_Domain.yaml",
-            "format": "yaml",
-        },
-        {
-            "name": "Custom_Proxy_Classical_IP",
-            "behavior": "classical",
-            "url": f"{BASE_URL}/rule/Custom_Proxy_Classical_IP.yaml",
-            "format": "yaml",
-        },
-        {
-            "name": "SSH_Direct_Classical",
-            "behavior": "classical",
-            "url": f"{BASE_URL}/rule/SSH_Direct_Classical.yaml",
-            "format": "yaml",
-        },
-        {
-            "name": "SSH_Proxy_Classical",
-            "behavior": "classical",
-            "url": f"{BASE_URL}/rule/SSH_Proxy_Classical.yaml",
-            "format": "yaml",
-        },
-        {
-            "name": "SSH_Process_Classical",
-            "behavior": "classical",
-            "url": f"{BASE_URL}/rule/SSH_Process_Classical.yaml",
-            "format": "yaml",
-        },
-        {
-            "name": "Gaming_Direct_Classical",
-            "behavior": "classical",
-            "url": f"{BASE_URL}/rule/Gaming_Direct_Classical.yaml",
-            "format": "yaml",
-        },
-    ]
-    if include_process_rules:
+def render_rule_providers(include_process_rules: bool, strict: bool) -> str:
+    providers: list[dict[str, str]] = []
+
+    if not strict:
+        providers.extend(
+            [
+                {
+                    "name": "Custom_Direct_Domain",
+                    "behavior": "domain",
+                    "url": f"{BASE_URL}/rule/Custom_Direct_Domain.yaml",
+                    "format": "yaml",
+                },
+                {
+                    "name": "Custom_Direct_Classical_IP",
+                    "behavior": "classical",
+                    "url": f"{BASE_URL}/rule/Custom_Direct_Classical_IP.yaml",
+                    "format": "yaml",
+                },
+                {
+                    "name": "Custom_Proxy_Domain",
+                    "behavior": "domain",
+                    "url": f"{BASE_URL}/rule/Custom_Proxy_Domain.yaml",
+                    "format": "yaml",
+                },
+                {
+                    "name": "Custom_Proxy_Classical_IP",
+                    "behavior": "classical",
+                    "url": f"{BASE_URL}/rule/Custom_Proxy_Classical_IP.yaml",
+                    "format": "yaml",
+                },
+                {
+                    "name": "SSH_Direct_Classical",
+                    "behavior": "classical",
+                    "url": f"{BASE_URL}/rule/SSH_Direct_Classical.yaml",
+                    "format": "yaml",
+                },
+                {
+                    "name": "SSH_Proxy_Classical",
+                    "behavior": "classical",
+                    "url": f"{BASE_URL}/rule/SSH_Proxy_Classical.yaml",
+                    "format": "yaml",
+                },
+                {
+                    "name": "Gaming_Direct_Classical",
+                    "behavior": "classical",
+                    "url": f"{BASE_URL}/rule/Gaming_Direct_Classical.yaml",
+                    "format": "yaml",
+                },
+            ]
+        )
+
+    if include_process_rules and not strict:
         for spec in PROCESS_RULESET_SPECS:
             providers.append(
                 {
@@ -895,6 +910,7 @@ def render_rule_providers(include_process_rules: bool) -> str:
                     "format": "yaml",
                 }
             )
+
     for item in AI_RULESETS:
         providers.append(
             {
@@ -904,14 +920,6 @@ def render_rule_providers(include_process_rules: bool) -> str:
                 "format": "yaml",
             }
         )
-    providers.append(
-        {
-            "name": AI_ALL_RULESET["provider_key"],
-            "behavior": "classical",
-            "url": f"{BASE_URL}/rule/{AI_ALL_RULESET['file']}",
-            "format": "yaml",
-        }
-    )
 
     blocks = []
     for provider in providers:
@@ -941,7 +949,6 @@ def render_secret_lines() -> list[str]:
 
 def render_yaml(strict: bool) -> str:
     title = zh_hk("YAML 配置文件（AI 专用严格版）" if strict else "YAML 配置文件（AI 专用）")
-    local_proxies = render_local_proxies()
 
     lines = [
         "# Custom_OpenClash_Rules",
@@ -954,7 +961,7 @@ def render_yaml(strict: bool) -> str:
             [
                 "# 嚴格版 AI kill-switch：",
                 "# 1. 指定 AI 規則走對應服務組",
-                "# 2. AI_All_Classical 廣義關鍵字命中後直落 ⛔ 拒絕",
+                "# 2. 上游 AI guard GEOSITE 命中後直落 ⛔ 拒絕",
                 "# 3. 最終 MATCH 仍然直落 ⛔ 拒絕",
             ]
         )
@@ -992,7 +999,7 @@ def render_yaml(strict: bool) -> str:
             "    override:",
             "      skip-cert-verify: true",
             "      udp: true",
-            f"      exclude-filter: {yaml_string(PROVIDER_NOISE_EXCLUDE_PATTERN)}",
+            f"    exclude-filter: {yaml_string(PROVIDER_NOISE_EXCLUDE_PATTERN)}",
             "",
             "# ==================== 地理数据库配置 GeoData Configuration ====================",
             "geox-url:",
@@ -1084,15 +1091,6 @@ def render_yaml(strict: bool) -> str:
             "      - https://1.1.1.1/dns-query",
             "      - https://dns.google/dns-query",
             "",
-            *(
-                [
-                    "# ==================== 本地代理 Local Proxies ====================",
-                    local_proxies,
-                    "",
-                ]
-                if local_proxies
-                else []
-            ),
             "# ==================== 代理策略组 Proxy Groups ====================",
             "proxy-groups:",
             indent(render_proxy_groups(strict), 2),
@@ -1103,7 +1101,7 @@ def render_yaml(strict: bool) -> str:
             "",
             "# ==================== 规则提供者 Rule Providers ====================",
             "rule-providers:",
-            indent(render_rule_providers(ENABLE_PROCESS_RULES), 2),
+            indent(render_rule_providers(ENABLE_PROCESS_RULES, strict), 2),
         ]
     )
     return "\n".join(lines)
@@ -1127,10 +1125,32 @@ def render_ini() -> str:
         "",
         f"ruleset={GROUP['direct']},[]GEOSITE,private",
         f"ruleset={GROUP['direct']},[]GEOIP,private,no-resolve",
-        f"ruleset={GROUP['direct']},clash-classic:{BASE_URL}/rule/SSH_Direct_Classical.yaml,28800",
-        f"ruleset={GROUP['manual']},clash-classic:{BASE_URL}/rule/SSH_Proxy_Classical.yaml,28800",
-        f"ruleset={GROUP['direct']},clash-classic:{BASE_URL}/rule/Gaming_Direct_Classical.yaml,28800",
     ]
+
+    for service in AI_SERVICES:
+        if service["payload"]:
+            lines.append(
+                f"ruleset={service['group']},"
+                f"clash-classic:{BASE_URL}/rule/{service['file']},28800"
+            )
+
+        for geosite in service["geosites"]:
+            lines.append(
+                f"ruleset={service['group']},[]GEOSITE,{geosite}"
+            )
+
+    for geosite in AI_GUARD_GEOSITES:
+        lines.append(
+            f"ruleset={GROUP['reject']},[]GEOSITE,{geosite}"
+        )
+
+    lines.extend(
+        [
+            f"ruleset={GROUP['direct']},clash-classic:{BASE_URL}/rule/SSH_Direct_Classical.yaml,28800",
+            f"ruleset={GROUP['manual']},clash-classic:{BASE_URL}/rule/SSH_Proxy_Classical.yaml,28800",
+            f"ruleset={GROUP['direct']},clash-classic:{BASE_URL}/rule/Gaming_Direct_Classical.yaml,28800",
+        ]
+    )
 
     if ENABLE_PROCESS_RULES:
         lines.extend(PROCESS_RULES_WARNING)
@@ -1147,33 +1167,30 @@ def render_ini() -> str:
             f"ruleset={GROUP['manual']},clash-classic:{BASE_URL}/rule/Custom_Proxy_Classical_IP.yaml,28800",
         ]
     )
-    for item in AI_RULESETS:
-        lines.append(
-            f'ruleset={item["group"]},clash-classic:{BASE_URL}/rule/{item["file"]},28800'
-        )
+
     lines.extend(
         [
-            f"ruleset={GROUP['reject']},clash-classic:{BASE_URL}/rule/{AI_ALL_RULESET['file']},28800",
             f"ruleset={GROUP['direct']},[]GEOIP,HK,no-resolve",
             f"ruleset={GROUP['fallback']},[]FINAL",
             ";設定節點分組標誌位",
-            f"custom_proxy_group={GROUP['manual']}`select`[]{GROUP['auto']}`[]{GROUP['direct']}`[]{GROUP['us']}`[]{GROUP['jp']}`[]{GROUP['sg']}`[]{GROUP['tw']}`[]{GROUP['kr']}`[]{GROUP['reject']}`{AI_POOL_FILTER}",
-            f"custom_proxy_group={GROUP['auto']}`fallback`[]{GROUP['us']}`[]{GROUP['sg']}`[]{GROUP['jp']}`[]{GROUP['tw']}`[]{GROUP['kr']}`https://cp.cloudflare.com/generate_204`300,,50",
-            f"custom_proxy_group={GROUP['chatgpt']}`fallback`[]{GROUP['manual']}`[]{GROUP['auto']}`[]{GROUP['sg']}`[]{GROUP['us']}`[]{GROUP['jp']}`[]{GROUP['tw']}`[]{GROUP['kr']}`[]{GROUP['reject']}`https://cp.cloudflare.com/generate_204`300,,50",
-            f"custom_proxy_group={GROUP['copilot']}`fallback`[]{GROUP['manual']}`[]{GROUP['auto']}`[]{GROUP['direct']}`[]{GROUP['us']}`[]{GROUP['sg']}`[]{GROUP['jp']}`[]{GROUP['tw']}`[]{GROUP['kr']}`[]{GROUP['reject']}`https://cp.cloudflare.com/generate_204`300,,50",
-            f"custom_proxy_group={GROUP['claude']}`fallback`[]{GROUP['manual']}`[]{GROUP['auto']}`[]{GROUP['sg']}`[]{GROUP['us']}`[]{GROUP['jp']}`[]{GROUP['tw']}`[]{GROUP['kr']}`[]{GROUP['reject']}`https://cp.cloudflare.com/generate_204`300,,50",
-            f"custom_proxy_group={GROUP['gemini']}`fallback`[]{GROUP['manual']}`[]{GROUP['auto']}`[]{GROUP['direct']}`[]{GROUP['sg']}`[]{GROUP['us']}`[]{GROUP['jp']}`[]{GROUP['tw']}`[]{GROUP['kr']}`[]{GROUP['reject']}`https://cp.cloudflare.com/generate_204`300,,50",
-            f"custom_proxy_group={GROUP['notebooklm']}`fallback`[]{GROUP['manual']}`[]{GROUP['auto']}`[]{GROUP['direct']}`[]{GROUP['sg']}`[]{GROUP['us']}`[]{GROUP['jp']}`[]{GROUP['tw']}`[]{GROUP['kr']}`[]{GROUP['reject']}`https://cp.cloudflare.com/generate_204`300,,50",
-            f"custom_proxy_group={GROUP['perplexity']}`fallback`[]{GROUP['manual']}`[]{GROUP['auto']}`[]{GROUP['direct']}`[]{GROUP['sg']}`[]{GROUP['us']}`[]{GROUP['jp']}`[]{GROUP['tw']}`[]{GROUP['kr']}`[]{GROUP['reject']}`https://cp.cloudflare.com/generate_204`300,,50",
-            f"custom_proxy_group={GROUP['grok']}`fallback`[]{GROUP['manual']}`[]{GROUP['auto']}`[]{GROUP['direct']}`[]{GROUP['us']}`[]{GROUP['sg']}`[]{GROUP['jp']}`[]{GROUP['tw']}`[]{GROUP['kr']}`[]{GROUP['reject']}`https://cp.cloudflare.com/generate_204`300,,50",
-            f"custom_proxy_group={GROUP['poe']}`fallback`[]{GROUP['manual']}`[]{GROUP['auto']}`[]{GROUP['sg']}`[]{GROUP['us']}`[]{GROUP['jp']}`[]{GROUP['tw']}`[]{GROUP['kr']}`[]{GROUP['reject']}`https://cp.cloudflare.com/generate_204`300,,50",
+            render_ini_manual_group(),
+            render_ini_global_auto_group(),
+        ]
+    )
+
+    for service in AI_SERVICES:
+        lines.extend(render_ini_service_groups(service))
+
+    lines.extend(
+        [
             f"custom_proxy_group={GROUP['reject']}`select`[]REJECT",
-            f"custom_proxy_group={GROUP['fallback']}`select`[]{GROUP['direct']}`[]{GROUP['manual']}`[]{GROUP['auto']}`[]{GROUP['reject']}",
+            f"custom_proxy_group={GROUP['fallback']}`select`[]{GROUP['direct']}`[]{GROUP['manual']}`[]{GROUP['auto']}`[]{GROUP['other']}`[]{GROUP['reject']}",
             f"custom_proxy_group={GROUP['us']}`url-test`{REGION_FILTERS['us']}`https://cp.cloudflare.com/generate_204`300,,50",
             f"custom_proxy_group={GROUP['jp']}`url-test`{REGION_FILTERS['jp']}`https://cp.cloudflare.com/generate_204`300,,50",
             f"custom_proxy_group={GROUP['sg']}`url-test`{REGION_FILTERS['sg']}`https://cp.cloudflare.com/generate_204`300,,50",
             f"custom_proxy_group={GROUP['tw']}`url-test`{REGION_FILTERS['tw']}`https://cp.cloudflare.com/generate_204`300,,50",
             f"custom_proxy_group={GROUP['kr']}`url-test`{REGION_FILTERS['kr']}`https://cp.cloudflare.com/generate_204`300,,50",
+            f"custom_proxy_group={GROUP['other']}`url-test`{OTHER_REGION_FILTER}`https://cp.cloudflare.com/generate_204`300,,50",
             f"custom_proxy_group={GROUP['direct']}`select`[]DIRECT",
             ";下方參數請勿修改",
             "enable_rule_generator=true",
@@ -1183,7 +1200,21 @@ def render_ini() -> str:
     return "\n".join(lines) + "\n"
 
 
+def remove_stale_ai_rule_outputs() -> None:
+    active_files = {
+        str(item["file"])
+        for item in AI_RULESETS
+    }
+
+    for file_name in sorted(MANAGED_AI_RULE_FILES - active_files):
+        path = RULE_DIR / file_name
+        if path.exists():
+            path.unlink()
+
+
 def write_rule_outputs() -> None:
+    remove_stale_ai_rule_outputs()
+
     for item in AI_RULESETS:
         write_text(
             RULE_DIR / item["file"],
@@ -1193,19 +1224,6 @@ def write_rule_outputs() -> None:
                 payload=item["payload"],
             ),
         )
-
-    write_text(
-        RULE_DIR / AI_ALL_RULESET["file"],
-        render_rule_file(
-            provider_key=AI_ALL_RULESET["provider_key"],
-            group=AI_ALL_RULESET["group"],
-            payload=AI_ALL_RULESET["payload"],
-            extra_comments=[
-                "# Keyword-only fallback for broad AI service detection.",
-                "# Do not copy exact per-service payloads into this file.",
-            ],
-        ),
-    )
 
     for item in SSH_RULESETS:
         write_text(RULE_DIR / item["file"], render_custom_comment_rule_file(item["comment_lines"]))

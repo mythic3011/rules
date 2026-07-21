@@ -3,9 +3,18 @@
 # SOURCE: https://github.com/mythic3011/rules/blob/main/py/generate_ai_profiles.py
 # RULE-PROVIDER: AI_Gemini_Classical
 # GROUP: 🤖 Gemini
-# TOTAL: 3
+# TOTAL: 12
 
 payload:
-  - DOMAIN-SUFFIX,ai.google.dev
-  - DOMAIN-SUFFIX,makersuite.google.com
-  - DOMAIN-SUFFIX,generativelanguage.googleapis.com
+  - "DOMAIN-SUFFIX,gemini.google"
+  - "DOMAIN-SUFFIX,ai.google.dev"
+  - "DOMAIN-SUFFIX,ai.studio"
+  - "DOMAIN-SUFFIX,aistudio.google.com"
+  - "DOMAIN-SUFFIX,gemini.gstatic.com"
+  - "DOMAIN-SUFFIX,generativeai.google"
+  - "DOMAIN-SUFFIX,makersuite.google.com"
+  - "DOMAIN,gemini.google.com"
+  - "DOMAIN,generativelanguage.googleapis.com"
+  - "DOMAIN,geller-pa.googleapis.com"
+  - "DOMAIN,proactivebackend-pa.googleapis.com"
+  - "DOMAIN,robinfrontend-pa.googleapis.com"

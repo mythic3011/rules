@@ -3,8 +3,9 @@
 # SOURCE: https://github.com/mythic3011/rules/blob/main/py/generate_ai_profiles.py
 # RULE-PROVIDER: AI_Copilot_Classical
 # GROUP: 🤖 Copilot
-# TOTAL: 2
+# TOTAL: 3
 
 payload:
-  - GEOSITE,bing
-  - DOMAIN-KEYWORD,copilot
+  - "DOMAIN-SUFFIX,copilot.com"
+  - "DOMAIN-SUFFIX,copilot.microsoft.com"
+  - "DOMAIN-SUFFIX,copilot.cloud.microsoft"

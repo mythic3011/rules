@@ -33,7 +33,7 @@ proxy-providers:
     override:
       skip-cert-verify: true
       udp: true
-      exclude-filter: "(?i)(剩余流量|剩餘流量|套餐到期|到期|流量[:：]|Traffic|Expire|Subscription|官网|官方|客服|Telegram|TG群|网址|網站|更新|失效|Invalid|USE|USED|TOTAL|EXPIRE|Panel|Channel|Author|公告|通知|邀请|邀請|返利|教程|使用说明|使用說明)"
+    exclude-filter: "(?i)(剩余流量|剩餘流量|套餐到期|到期|流量[:：]|Traffic|Expire|Subscription|官网|官方|客服|Telegram|TG群|网址|網站|更新|失效|Invalid|USE|USED|TOTAL|EXPIRE|Panel|Channel|Author|公告|通知|邀请|邀請|返利|教程|使用说明|使用說明)"
 
 # ==================== 地理数据库配置 GeoData Configuration ====================
 geox-url:
@@ -138,6 +138,7 @@ proxy-groups:
       - "🇸🇬 新加坡節點"
       - "🇹🇼 台灣節點"
       - "🇰🇷 韓國節點"
+      - "🌐 其他／未識別節點"
       - "⛔ 拒絕"
     filter: "(?i)^(?!.*(?:🇭🇰|香港|Hong Kong|Hong-Kong|\bHKG\b|\bHK\b|剩余流量|剩餘流量|套餐到期|到期|流量[:：]|Traffic|Expire|Subscription|官网|官方|客服|Telegram|TG群|网址|網站|更新|失效|Invalid|USE|USED|TOTAL|EXPIRE|Panel|Channel|Author|公告|通知|邀请|邀請|返利|教程|使用说明|使用說明)).*$"
     use:
@@ -151,10 +152,9 @@ proxy-groups:
     use:
       - provider1
   - name: "🤖 ChatGPT"
-    type: fallback
-    url: "https://cp.cloudflare.com/generate_204"
-    interval: 300
+    type: select
     proxies:
+      - "🤖 ChatGPT · 自動"
       - "🚀 手動選擇"
       - "♻️ 自動選擇"
       - "🇸🇬 新加坡節點"
@@ -162,12 +162,24 @@ proxy-groups:
       - "🇯🇵 日本節點"
       - "🇹🇼 台灣節點"
       - "🇰🇷 韓國節點"
+      - "🌐 其他／未識別節點"
+      - "⛔ 拒絕"
+  - name: "🤖 ChatGPT · 自動"
+    type: fallback
+    url: "https://cp.cloudflare.com/generate_204"
+    interval: 300
+    proxies:
+      - "🇸🇬 新加坡節點"
+      - "🇺🇸 美國節點"
+      - "🇯🇵 日本節點"
+      - "🇹🇼 台灣節點"
+      - "🇰🇷 韓國節點"
+      - "🌐 其他／未識別節點"
       - "⛔ 拒絕"
   - name: "🤖 Copilot"
-    type: fallback
-    url: "https://cp.cloudflare.com/generate_204"
-    interval: 300
+    type: select
     proxies:
+      - "🤖 Copilot · 自動"
       - "🚀 手動選擇"
       - "♻️ 自動選擇"
       - "🎯 全球直連"
@@ -176,12 +188,24 @@ proxy-groups:
       - "🇯🇵 日本節點"
       - "🇹🇼 台灣節點"
       - "🇰🇷 韓國節點"
+      - "🌐 其他／未識別節點"
+      - "⛔ 拒絕"
+  - name: "🤖 Copilot · 自動"
+    type: fallback
+    url: "https://cp.cloudflare.com/generate_204"
+    interval: 300
+    proxies:
+      - "🇺🇸 美國節點"
+      - "🇸🇬 新加坡節點"
+      - "🇯🇵 日本節點"
+      - "🇹🇼 台灣節點"
+      - "🇰🇷 韓國節點"
+      - "🌐 其他／未識別節點"
       - "⛔ 拒絕"
   - name: "🤖 Claude"
-    type: fallback
-    url: "https://cp.cloudflare.com/generate_204"
-    interval: 300
+    type: select
     proxies:
+      - "🤖 Claude · 自動"
       - "🚀 手動選擇"
       - "♻️ 自動選擇"
       - "🇸🇬 新加坡節點"
@@ -189,12 +213,24 @@ proxy-groups:
       - "🇯🇵 日本節點"
       - "🇹🇼 台灣節點"
       - "🇰🇷 韓國節點"
+      - "🌐 其他／未識別節點"
+      - "⛔ 拒絕"
+  - name: "🤖 Claude · 自動"
+    type: fallback
+    url: "https://cp.cloudflare.com/generate_204"
+    interval: 300
+    proxies:
+      - "🇸🇬 新加坡節點"
+      - "🇺🇸 美國節點"
+      - "🇯🇵 日本節點"
+      - "🇹🇼 台灣節點"
+      - "🇰🇷 韓國節點"
+      - "🌐 其他／未識別節點"
       - "⛔ 拒絕"
   - name: "🤖 Gemini"
-    type: fallback
-    url: "https://cp.cloudflare.com/generate_204"
-    interval: 300
+    type: select
     proxies:
+      - "🤖 Gemini · 自動"
       - "🚀 手動選擇"
       - "♻️ 自動選擇"
       - "🎯 全球直連"
@@ -203,12 +239,24 @@ proxy-groups:
       - "🇯🇵 日本節點"
       - "🇹🇼 台灣節點"
       - "🇰🇷 韓國節點"
+      - "🌐 其他／未識別節點"
+      - "⛔ 拒絕"
+  - name: "🤖 Gemini · 自動"
+    type: fallback
+    url: "https://cp.cloudflare.com/generate_204"
+    interval: 300
+    proxies:
+      - "🇸🇬 新加坡節點"
+      - "🇺🇸 美國節點"
+      - "🇯🇵 日本節點"
+      - "🇹🇼 台灣節點"
+      - "🇰🇷 韓國節點"
+      - "🌐 其他／未識別節點"
       - "⛔ 拒絕"
   - name: "🤖 NotebookLM"
-    type: fallback
-    url: "https://cp.cloudflare.com/generate_204"
-    interval: 300
+    type: select
     proxies:
+      - "🤖 NotebookLM · 自動"
       - "🚀 手動選擇"
       - "♻️ 自動選擇"
       - "🎯 全球直連"
@@ -217,12 +265,24 @@ proxy-groups:
       - "🇯🇵 日本節點"
       - "🇹🇼 台灣節點"
       - "🇰🇷 韓國節點"
+      - "🌐 其他／未識別節點"
+      - "⛔ 拒絕"
+  - name: "🤖 NotebookLM · 自動"
+    type: fallback
+    url: "https://cp.cloudflare.com/generate_204"
+    interval: 300
+    proxies:
+      - "🇸🇬 新加坡節點"
+      - "🇺🇸 美國節點"
+      - "🇯🇵 日本節點"
+      - "🇹🇼 台灣節點"
+      - "🇰🇷 韓國節點"
+      - "🌐 其他／未識別節點"
       - "⛔ 拒絕"
   - name: "🤖 Perplexity"
-    type: fallback
-    url: "https://cp.cloudflare.com/generate_204"
-    interval: 300
+    type: select
     proxies:
+      - "🤖 Perplexity · 自動"
       - "🚀 手動選擇"
       - "♻️ 自動選擇"
       - "🎯 全球直連"
@@ -231,12 +291,24 @@ proxy-groups:
       - "🇯🇵 日本節點"
       - "🇹🇼 台灣節點"
       - "🇰🇷 韓國節點"
+      - "🌐 其他／未識別節點"
+      - "⛔ 拒絕"
+  - name: "🤖 Perplexity · 自動"
+    type: fallback
+    url: "https://cp.cloudflare.com/generate_204"
+    interval: 300
+    proxies:
+      - "🇸🇬 新加坡節點"
+      - "🇺🇸 美國節點"
+      - "🇯🇵 日本節點"
+      - "🇹🇼 台灣節點"
+      - "🇰🇷 韓國節點"
+      - "🌐 其他／未識別節點"
       - "⛔ 拒絕"
   - name: "🤖 Grok"
-    type: fallback
-    url: "https://cp.cloudflare.com/generate_204"
-    interval: 300
+    type: select
     proxies:
+      - "🤖 Grok · 自動"
       - "🚀 手動選擇"
       - "♻️ 自動選擇"
       - "🎯 全球直連"
@@ -245,12 +317,24 @@ proxy-groups:
       - "🇯🇵 日本節點"
       - "🇹🇼 台灣節點"
       - "🇰🇷 韓國節點"
+      - "🌐 其他／未識別節點"
       - "⛔ 拒絕"
-  - name: "🤖 Poe"
+  - name: "🤖 Grok · 自動"
     type: fallback
     url: "https://cp.cloudflare.com/generate_204"
     interval: 300
     proxies:
+      - "🇺🇸 美國節點"
+      - "🇸🇬 新加坡節點"
+      - "🇯🇵 日本節點"
+      - "🇹🇼 台灣節點"
+      - "🇰🇷 韓國節點"
+      - "🌐 其他／未識別節點"
+      - "⛔ 拒絕"
+  - name: "🤖 Poe"
+    type: select
+    proxies:
+      - "🤖 Poe · 自動"
       - "🚀 手動選擇"
       - "♻️ 自動選擇"
       - "🇸🇬 新加坡節點"
@@ -258,6 +342,19 @@ proxy-groups:
       - "🇯🇵 日本節點"
       - "🇹🇼 台灣節點"
       - "🇰🇷 韓國節點"
+      - "🌐 其他／未識別節點"
+      - "⛔ 拒絕"
+  - name: "🤖 Poe · 自動"
+    type: fallback
+    url: "https://cp.cloudflare.com/generate_204"
+    interval: 300
+    proxies:
+      - "🇸🇬 新加坡節點"
+      - "🇺🇸 美國節點"
+      - "🇯🇵 日本節點"
+      - "🇹🇼 台灣節點"
+      - "🇰🇷 韓國節點"
+      - "🌐 其他／未識別節點"
       - "⛔ 拒絕"
   - name: "⛔ 拒絕"
     type: select
@@ -275,7 +372,7 @@ proxy-groups:
     url: "https://cp.cloudflare.com/generate_204"
     interval: 300
     tolerance: 50
-    filter: '(?i)(🇺🇸|美國|美国|波特蘭|波特兰|達拉斯|达拉斯|俄勒岡|俄勒冈|鳳凰城|凤凰城|費利蒙|费利蒙|硅谷|拉斯維加斯|拉斯维加斯|洛杉磯|洛杉矶|聖何塞|圣何塞|聖克拉拉|圣克拉拉|西雅圖|西雅图|芝加哥|紐約|纽约|亞特蘭大|亚特兰大|邁阿密|迈阿密|華盛頓|华盛顿|\bUS(?:[-_ ]?\d+(?:[-_ ]?[A-Za-z]{2,})?)?\b|United States|UnitedStates|USA|America|JFK|EWR|IAD|ATL|ORD|MIA|NYC|LAX|SFO|SEA|DFW|SJC)'
+    filter: '(?i)(?:🇺🇸|美國|美国|波特蘭|波特兰|達拉斯|达拉斯|俄勒岡|俄勒冈|鳳凰城|凤凰城|費利蒙|费利蒙|硅谷|拉斯維加斯|拉斯维加斯|洛杉磯|洛杉矶|聖何塞|圣何塞|聖克拉拉|圣克拉拉|西雅圖|西雅图|芝加哥|紐約|纽约|亞特蘭大|亚特兰大|邁阿密|迈阿密|華盛頓|华盛顿|\bUS(?:[-_ ]?\d+(?:[-_ ]?[A-Za-z]{2,})?)?\b|United States|UnitedStates|USA|America|JFK|EWR|IAD|ATL|ORD|MIA|NYC|LAX|SFO|SEA|DFW|SJC)'
     use:
       - provider1
   - name: "🇯🇵 日本節點"
@@ -283,7 +380,7 @@ proxy-groups:
     url: "https://cp.cloudflare.com/generate_204"
     interval: 300
     tolerance: 50
-    filter: '(?i)(🇯🇵|日本|東京|东京|大阪|關西|关西|埼玉|川日|泉日|滬日|沪日|深日|\bJP(?:[-_ ]?\d+(?:[-_ ]?[A-Za-z]{2,})?)?\b|Japan|JPN|NRT|HND|KIX|TYO|OSA|Kansai)'
+    filter: '(?i)(?:🇯🇵|日本|東京|东京|大阪|關西|关西|埼玉|川日|泉日|滬日|沪日|深日|\bJP(?:[-_ ]?\d+(?:[-_ ]?[A-Za-z]{2,})?)?\b|Japan|JPN|NRT|HND|KIX|TYO|OSA|Kansai)'
     use:
       - provider1
   - name: "🇸🇬 新加坡節點"
@@ -291,7 +388,7 @@ proxy-groups:
     url: "https://cp.cloudflare.com/generate_204"
     interval: 300
     tolerance: 50
-    filter: '(?i)(🇸🇬|新加坡|獅城|狮城|\bSG(?:[-_ ]?\d+(?:[-_ ]?[A-Za-z]{2,})?)?\b|Singapore|SIN)'
+    filter: '(?i)(?:🇸🇬|新加坡|獅城|狮城|\bSG(?:[-_ ]?\d+(?:[-_ ]?[A-Za-z]{2,})?)?\b|Singapore|SIN)'
     use:
       - provider1
   - name: "🇹🇼 台灣節點"
@@ -299,7 +396,7 @@ proxy-groups:
     url: "https://cp.cloudflare.com/generate_204"
     interval: 300
     tolerance: 50
-    filter: '(?i)(🇹🇼|台灣|臺灣|台湾|台北|臺北|新北|台中|臺中|高雄|彰化|\bTW(?:[-_ ]?\d+(?:[-_ ]?[A-Za-z]{2,})?)?\b|Taiwan|TWN|TPE|ROC)'
+    filter: '(?i)(?:🇹🇼|台灣|臺灣|台湾|台北|臺北|新北|台中|臺中|高雄|彰化|\bTW(?:[-_ ]?\d+(?:[-_ ]?[A-Za-z]{2,})?)?\b|Taiwan|TWN|TPE|ROC)'
     use:
       - provider1
   - name: "🇰🇷 韓國節點"
@@ -307,7 +404,16 @@ proxy-groups:
     url: "https://cp.cloudflare.com/generate_204"
     interval: 300
     tolerance: 50
-    filter: '(?i)(🇰🇷|韓國|韩国|首爾|首尔|春川|\bKR(?:[-_ ]?\d+(?:[-_ ]?[A-Za-z]{2,})?)?\b|Korea|KOR|Chuncheon|ICN)'
+    filter: '(?i)(?:🇰🇷|韓國|韩国|首爾|首尔|春川|\bKR(?:[-_ ]?\d+(?:[-_ ]?[A-Za-z]{2,})?)?\b|Korea|KOR|Chuncheon|ICN)'
+    use:
+      - provider1
+  - name: "🌐 其他／未識別節點"
+    type: url-test
+    url: "https://cp.cloudflare.com/generate_204"
+    interval: 300
+    tolerance: 50
+    filter: "(?i)^(?!.*(?:🇭🇰|香港|Hong Kong|Hong-Kong|\\bHKG\\b|\\bHK\\b|剩余流量|剩餘流量|套餐到期|到期|流量[:：]|Traffic|Expire|Subscription|官网|官方|客服|Telegram|TG群|网址|網站|更新|失效|Invalid|USE|USED|TOTAL|EXPIRE|Panel|Channel|Author|公告|通知|邀请|邀請|返利|教程|使用说明|使用說明)).*$"
+    exclude-filter: "(?i)(?:(?:🇺🇸|美國|美国|波特蘭|波特兰|達拉斯|达拉斯|俄勒岡|俄勒冈|鳳凰城|凤凰城|費利蒙|费利蒙|硅谷|拉斯維加斯|拉斯维加斯|洛杉磯|洛杉矶|聖何塞|圣何塞|聖克拉拉|圣克拉拉|西雅圖|西雅图|芝加哥|紐約|纽约|亞特蘭大|亚特兰大|邁阿密|迈阿密|華盛頓|华盛顿|\\bUS(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|United States|UnitedStates|USA|America|JFK|EWR|IAD|ATL|ORD|MIA|NYC|LAX|SFO|SEA|DFW|SJC)|(?:🇯🇵|日本|東京|东京|大阪|關西|关西|埼玉|川日|泉日|滬日|沪日|深日|\\bJP(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|Japan|JPN|NRT|HND|KIX|TYO|OSA|Kansai)|(?:🇸🇬|新加坡|獅城|狮城|\\bSG(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|Singapore|SIN)|(?:🇹🇼|台灣|臺灣|台湾|台北|臺北|新北|台中|臺中|高雄|彰化|\\bTW(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|Taiwan|TWN|TPE|ROC)|(?:🇰🇷|韓國|韩国|首爾|首尔|春川|\\bKR(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|Korea|KOR|Chuncheon|ICN))"
     use:
       - provider1
   - name: "🎯 全球直連"
@@ -319,6 +425,17 @@ proxy-groups:
 rules:
     - "GEOSITE,private,🎯 全球直連"
     - "GEOIP,private,🎯 全球直連,no-resolve"
+    - "GEOSITE,openai,🤖 ChatGPT"
+    - "RULE-SET,AI_Copilot_Classical,🤖 Copilot"
+    - "GEOSITE,github-copilot,🤖 Copilot"
+    - "GEOSITE,anthropic,🤖 Claude"
+    - "RULE-SET,AI_Gemini_Classical,🤖 Gemini"
+    - "RULE-SET,AI_NotebookLM_Classical,🤖 NotebookLM"
+    - "GEOSITE,perplexity,🤖 Perplexity"
+    - "GEOSITE,xai,🤖 Grok"
+    - "GEOSITE,poe,🤖 Poe"
+    - "GEOSITE,google-deepmind,⛔ 拒絕"
+    - "GEOSITE,category-ai-!cn,⛔ 拒絕"
     - "RULE-SET,SSH_Direct_Classical,🎯 全球直連"
     - "RULE-SET,SSH_Proxy_Classical,🚀 手動選擇"
     - "RULE-SET,Gaming_Direct_Classical,🎯 全球直連"
@@ -326,15 +443,6 @@ rules:
     - "RULE-SET,Custom_Direct_Classical_IP,🎯 全球直連"
     - "RULE-SET,Custom_Proxy_Domain,🚀 手動選擇"
     - "RULE-SET,Custom_Proxy_Classical_IP,🚀 手動選擇"
-    - "RULE-SET,AI_ChatGPT_Classical,🤖 ChatGPT"
-    - "RULE-SET,AI_Copilot_Classical,🤖 Copilot"
-    - "RULE-SET,AI_Claude_Classical,🤖 Claude"
-    - "RULE-SET,AI_Gemini_Classical,🤖 Gemini"
-    - "RULE-SET,AI_NotebookLM_Classical,🤖 NotebookLM"
-    - "RULE-SET,AI_Perplexity_Classical,🤖 Perplexity"
-    - "RULE-SET,AI_Grok_Classical,🤖 Grok"
-    - "RULE-SET,AI_Poe_Classical,🤖 Poe"
-    - "RULE-SET,AI_All_Classical,⛔ 拒絕"
     - "GEOIP,HK,🎯 全球直連,no-resolve"
     - "MATCH,🐟 漏網之魚"
 
@@ -382,13 +490,6 @@ rule-providers:
     url: "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/SSH_Proxy_Classical.yaml"
     format: yaml
 
-  SSH_Process_Classical:
-    behavior: classical
-    interval: 10800
-    type: http
-    url: "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/SSH_Process_Classical.yaml"
-    format: yaml
-
   Gaming_Direct_Classical:
     behavior: classical
     interval: 10800
@@ -396,25 +497,11 @@ rule-providers:
     url: "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/Gaming_Direct_Classical.yaml"
     format: yaml
 
-  AI_ChatGPT_Classical:
-    behavior: classical
-    interval: 10800
-    type: http
-    url: "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_ChatGPT_Classical.yaml"
-    format: yaml
-
   AI_Copilot_Classical:
     behavior: classical
     interval: 10800
     type: http
     url: "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_Copilot_Classical.yaml"
-    format: yaml
-
-  AI_Claude_Classical:
-    behavior: classical
-    interval: 10800
-    type: http
-    url: "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_Claude_Classical.yaml"
     format: yaml
 
   AI_Gemini_Classical:
@@ -429,32 +516,4 @@ rule-providers:
     interval: 10800
     type: http
     url: "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_NotebookLM_Classical.yaml"
-    format: yaml
-
-  AI_Perplexity_Classical:
-    behavior: classical
-    interval: 10800
-    type: http
-    url: "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_Perplexity_Classical.yaml"
-    format: yaml
-
-  AI_Grok_Classical:
-    behavior: classical
-    interval: 10800
-    type: http
-    url: "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_Grok_Classical.yaml"
-    format: yaml
-
-  AI_Poe_Classical:
-    behavior: classical
-    interval: 10800
-    type: http
-    url: "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_Poe_Classical.yaml"
-    format: yaml
-
-  AI_All_Classical:
-    behavior: classical
-    interval: 10800
-    type: http
-    url: "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_All_Classical.yaml"
     format: yaml

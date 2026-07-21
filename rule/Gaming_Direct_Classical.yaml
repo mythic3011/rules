@@ -3,7 +3,7 @@
 # SOURCE: https://github.com/mythic3011/rules/blob/main/py/generate_ai_profiles.py
 # RULE-PROVIDER: Gaming_Direct_Classical
 # GROUP: 🎯 全球直連
-# TOTAL: 19
+# TOTAL: 21
 
 # Game update CDN - direct for performance and UDP stability
 # EA caution:
@@ -12,22 +12,24 @@
 # Add narrower EA CDN/game domains only after testing your region/account behavior.
 
 payload:
-  - DOMAIN-SUFFIX,steamcontent.com
-  - DOMAIN-SUFFIX,steampipe.akamaized.net
-  - DOMAIN-SUFFIX,steamserver.net
-  - DOMAIN-SUFFIX,battle.net
-  - DOMAIN-SUFFIX,blizzard.com
-  - DOMAIN-SUFFIX,blzstatic.cn
-  - DOMAIN-SUFFIX,origin.com
-  - DOMAIN-SUFFIX,warframe.com
-  - DOMAIN-SUFFIX,square-enix.com
-  - DOMAIN-SUFFIX,finalfantasyxiv.com
-  - DOMAIN-SUFFIX,ffxiv.com
-  - DOMAIN-SUFFIX,nintendo.net
-  - DOMAIN-SUFFIX,srv.nintendo.net
-  - DOMAIN-SUFFIX,cdn.nintendo.net
-  - DOMAIN-SUFFIX,stun.playstation.net
-  - DOMAIN-SUFFIX,xboxlive.com
-  - DOMAIN-SUFFIX,uu.163.com
-  - DOMAIN-SUFFIX,n0808.com
-  - DOMAIN-SUFFIX,sandai.net
+  - "DOMAIN-SUFFIX,steamcontent.com"
+  - "DOMAIN-SUFFIX,steampipe.akamaized.net"
+  - "DOMAIN-SUFFIX,steamserver.net"
+  - "DOMAIN-SUFFIX,battle.net"
+  - "DOMAIN-SUFFIX,blizzard.com"
+  - "DOMAIN-SUFFIX,blzstatic.cn"
+  - "DOMAIN-SUFFIX,origin.com"
+  - "DOMAIN-SUFFIX,warframe.com"
+  - "DOMAIN-SUFFIX,square-enix.com"
+  - "DOMAIN-SUFFIX,finalfantasyxiv.com"
+  - "DOMAIN-SUFFIX,ffxiv.com"
+  - "DOMAIN-SUFFIX,nintendo.net"
+  - "DOMAIN-SUFFIX,srv.nintendo.net"
+  - "DOMAIN-SUFFIX,cdn.nintendo.net"
+  - "DOMAIN-SUFFIX,stun.playstation.net"
+  - "DOMAIN-SUFFIX,xboxlive.com"
+  - "DOMAIN-SUFFIX,uu.163.com"
+  - "DOMAIN-SUFFIX,n0808.com"
+  - "DOMAIN-SUFFIX,sandai.net"
+  - "DOMAIN-SUFFIX,epicgames.com"
+  - "DOMAIN-SUFFIX,epicgamescdn.com"
