@@ -41,38 +41,52 @@ class GenerateAiProfilesTest(unittest.TestCase):
         self.assertEqual(
             provider_keys,
             [
-                "AI_ChatGPT_Classical",
                 "AI_Copilot_Classical",
-                "AI_Claude_Classical",
                 "AI_Gemini_Classical",
                 "AI_NotebookLM_Classical",
-                "AI_Perplexity_Classical",
-                "AI_Grok_Classical",
-                "AI_Poe_Classical",
             ],
         )
 
-    def test_should_derive_rule_sets_from_one_service_catalog(self) -> None:
+    def test_should_generate_rule_sets_only_for_services_with_local_payloads(self) -> None:
         service_ids = [item["id"] for item in MODULE.AI_SERVICES]
-        catalog_provider_keys = [item["provider_key"] for item in MODULE.AI_SERVICES]
         ruleset_provider_keys = [item["provider_key"] for item in MODULE.AI_RULESETS]
 
         self.assertEqual(len(service_ids), len(set(service_ids)))
-        self.assertEqual(catalog_provider_keys, ruleset_provider_keys)
+        self.assertEqual(
+            ruleset_provider_keys,
+            [service["provider_key"] for service in MODULE.AI_SERVICES if service["payload"]],
+        )
         self.assertEqual(
             {item["group"] for item in MODULE.AI_RULESETS},
-            {item["group"] for item in MODULE.AI_SERVICES},
+            {service["group"] for service in MODULE.AI_SERVICES if service["payload"]},
         )
 
-    def test_should_render_ai_all_reject_rule_before_geoip_hk(self) -> None:
+    def test_should_render_service_identity_and_guard_rules_before_relaxed_rules(self) -> None:
         rules = MODULE.render_yaml_rules(strict=False, include_process_rules=False).splitlines()
-        ai_all_index = next(i for i, line in enumerate(rules) if "AI_All_Classical" in line)
+        identity_rules = [
+            f'"RULE-SET,{service["provider_key"]},{service["group"]}"'
+            for service in MODULE.AI_SERVICES
+            if service["payload"]
+        ]
+        identity_rules.extend(
+            f'"GEOSITE,{geosite},{service["group"]}"'
+            for service in MODULE.AI_SERVICES
+            for geosite in service["geosites"]
+        )
+        guard_indices = [
+            next(i for i, line in enumerate(rules) if f'"GEOSITE,{geosite},{MODULE.GROUP["reject"]}"' in line)
+            for geosite in MODULE.AI_GUARD_GEOSITES
+        ]
+        ssh_index = next(i for i, line in enumerate(rules) if "SSH_Direct_Classical" in line)
         geoip_hk_index = next(i for i, line in enumerate(rules) if "GEOIP,HK" in line)
         match_index = next(i for i, line in enumerate(rules) if "MATCH," in line)
 
-        self.assertLess(ai_all_index, geoip_hk_index)
+        for expected in identity_rules:
+            self.assertTrue(any(expected in line for line in rules), expected)
+        self.assertNotIn("AI_All_Classical", "\n".join(rules))
+        self.assertLess(max(guard_indices), ssh_index)
+        self.assertLess(ssh_index, geoip_hk_index)
         self.assertLess(geoip_hk_index, match_index)
-        self.assertIn(f'"RULE-SET,AI_All_Classical,{MODULE.GROUP["reject"]}"', rules[ai_all_index])
 
     def test_should_render_strict_match_to_reject(self) -> None:
         rendered_yaml = MODULE.render_yaml(strict=True)
@@ -127,7 +141,7 @@ class GenerateAiProfilesTest(unittest.TestCase):
     def test_should_keep_global_region_groups_provider_only(self) -> None:
         rendered_yaml = MODULE.render_yaml(strict=False)
 
-        for region in MODULE.AI_REGION_ORDER:
+        for region in MODULE.ALL_REGION_ORDER:
             block = self.extract_yaml_group_block(rendered_yaml, MODULE.GROUP[region])
             self.assertIn("    use:", block)
             self.assertIn("      - provider1", block)
@@ -165,12 +179,28 @@ class GenerateAiProfilesTest(unittest.TestCase):
         self.assertNotIn("PROCESS-NAME,", rendered_yaml)
 
     def test_should_render_yaml_rule_providers_with_new_custom_provider_names(self) -> None:
-        rendered_providers = MODULE.render_rule_providers(include_process_rules=False)
+        rendered_providers = MODULE.render_rule_providers(include_process_rules=False, strict=False)
 
         self.assertIn("Custom_Direct_Classical_IP:", rendered_providers)
         self.assertIn("Custom_Proxy_Classical_IP:", rendered_providers)
         self.assertNotIn("Custom_Direct_IP:", rendered_providers)
         self.assertNotIn("Custom_Proxy_IP:", rendered_providers)
+
+    def test_should_omit_relaxed_only_providers_from_strict_profile(self) -> None:
+        strict_providers = MODULE.render_rule_providers(include_process_rules=False, strict=True)
+
+        for item in MODULE.AI_RULESETS:
+            self.assertIn(f'{item["provider_key"]}:', strict_providers)
+        for name in (
+            "Custom_Direct_Domain",
+            "Custom_Direct_Classical_IP",
+            "Custom_Proxy_Domain",
+            "Custom_Proxy_Classical_IP",
+            "SSH_Direct_Classical",
+            "SSH_Proxy_Classical",
+            "Gaming_Direct_Classical",
+        ):
+            self.assertNotIn(f"{name}:", strict_providers)
 
 
 if __name__ == "__main__":
