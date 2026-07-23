@@ -1,0 +1,193 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "1",
+  "profile": "hk",
+  "externalGroups": [
+    "🎯 全球直連",
+    "⛔ 拒絕"
+  ],
+  "migration": {
+    "migratedServiceIds": [
+      "claude",
+      "windsurf",
+      "huggingface"
+    ],
+    "legacyReplacementIds": [
+      "claude"
+    ]
+  },
+  "accountProtection": {
+    "protectedGroup": "🔐 Claude Account Guard",
+    "rejectGroup": "⛔ 拒絕"
+  },
+  "rules": {
+    "beforeLegacy": [
+      {
+        "kind": "remote-classical",
+        "target": "🔐 Claude Account Guard",
+        "url": "https://raw.githubusercontent.com/VPSDance/ai-proxy-rules/d07cac190c33e7914ba7adaf7e7c14298fba7024/rules/clash/anthropic.yaml",
+        "interval": 10800
+      },
+      {
+        "kind": "remote-classical",
+        "target": "⛔ 拒絕",
+        "url": "https://raw.githubusercontent.com/VPSDance/ai-proxy-rules/d07cac190c33e7914ba7adaf7e7c14298fba7024/rules/clash/anthropic.yaml",
+        "interval": 10800
+      }
+    ],
+    "afterLegacy": [
+      {
+        "kind": "remote-classical",
+        "target": "🌊 Windsurf",
+        "url": "https://raw.githubusercontent.com/VPSDance/ai-proxy-rules/d07cac190c33e7914ba7adaf7e7c14298fba7024/rules/clash/windsurf.yaml",
+        "interval": 10800
+      },
+      {
+        "kind": "remote-classical",
+        "target": "🤗 Hugging Face",
+        "url": "https://raw.githubusercontent.com/VPSDance/ai-proxy-rules/d07cac190c33e7914ba7adaf7e7c14298fba7024/rules/clash/huggingface.yaml",
+        "interval": 10800
+      },
+      {
+        "kind": "remote-classical",
+        "target": "🤖 AI Other",
+        "url": "https://raw.githubusercontent.com/VPSDance/ai-proxy-rules/d07cac190c33e7914ba7adaf7e7c14298fba7024/rules/clash/all.yaml",
+        "interval": 10800
+      },
+      {
+        "kind": "geosite",
+        "target": "🤖 AI Other",
+        "value": "google-deepmind"
+      },
+      {
+        "kind": "geosite",
+        "target": "🤖 AI Other",
+        "value": "category-ai-!cn"
+      }
+    ]
+  },
+  "groups": [
+    {
+      "kind": "select",
+      "name": "🇯🇵 JP Stable",
+      "candidates": [
+        {
+          "kind": "group-ref",
+          "value": "⛔ 拒絕"
+        },
+        {
+          "kind": "node-filter",
+          "value": "(?i)🇯🇵|日本|東京|东京|大阪|關西|关西|埼玉|川日|泉日|滬日|沪日|深日|\\bJP(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|Japan|JPN|NRT|HND|KIX|TYO|OSA|Kansai"
+        }
+      ]
+    },
+    {
+      "kind": "select",
+      "name": "🇸🇬 SG Stable",
+      "candidates": [
+        {
+          "kind": "group-ref",
+          "value": "⛔ 拒絕"
+        },
+        {
+          "kind": "node-filter",
+          "value": "(?i)🇸🇬|新加坡|獅城|狮城|\\bSG(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|Singapore|SIN"
+        }
+      ]
+    },
+    {
+      "kind": "select",
+      "name": "🇺🇸 US Stable",
+      "candidates": [
+        {
+          "kind": "group-ref",
+          "value": "⛔ 拒絕"
+        },
+        {
+          "kind": "node-filter",
+          "value": "(?i)🇺🇸|美國|美国|波特蘭|波特兰|達拉斯|达拉斯|俄勒岡|俄勒冈|鳳凰城|凤凰城|費利蒙|费利蒙|硅谷|拉斯維加斯|拉斯维加斯|洛杉磯|洛杉矶|聖何塞|圣何塞|聖克拉拉|圣克拉拉|西雅圖|西雅图|芝加哥|紐約|纽约|亞特蘭大|亚特兰大|邁阿密|迈阿密|華盛頓|华盛顿|\\bUS(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|United States|UnitedStates|\\bUSA\\b|America|JFK|EWR|IAD|ATL|ORD|MIA|NYC|LAX|SFO|SEA|DFW|SJC"
+        }
+      ]
+    },
+    {
+      "kind": "select",
+      "name": "🔐 Claude Account Guard",
+      "candidates": [
+        {
+          "kind": "group-ref",
+          "value": "⛔ 拒絕"
+        }
+      ]
+    },
+    {
+      "kind": "select",
+      "name": "🌊 Windsurf",
+      "candidates": [
+        {
+          "kind": "group-ref",
+          "value": "🇺🇸 US Stable"
+        },
+        {
+          "kind": "group-ref",
+          "value": "🇸🇬 SG Stable"
+        },
+        {
+          "kind": "group-ref",
+          "value": "🇯🇵 JP Stable"
+        },
+        {
+          "kind": "group-ref",
+          "value": "⛔ 拒絕"
+        }
+      ]
+    },
+    {
+      "kind": "select",
+      "name": "🤗 Hugging Face",
+      "candidates": [
+        {
+          "kind": "group-ref",
+          "value": "🇺🇸 US Stable"
+        },
+        {
+          "kind": "group-ref",
+          "value": "🇸🇬 SG Stable"
+        },
+        {
+          "kind": "group-ref",
+          "value": "🇯🇵 JP Stable"
+        },
+        {
+          "kind": "group-ref",
+          "value": "⛔ 拒絕"
+        }
+      ]
+    },
+    {
+      "kind": "select",
+      "name": "🤖 AI Other",
+      "candidates": [
+        {
+          "kind": "group-ref",
+          "value": "🎯 全球直連"
+        },
+        {
+          "kind": "group-ref",
+          "value": "🇺🇸 US Stable"
+        },
+        {
+          "kind": "group-ref",
+          "value": "🇸🇬 SG Stable"
+        },
+        {
+          "kind": "group-ref",
+          "value": "🇯🇵 JP Stable"
+        },
+        {
+          "kind": "group-ref",
+          "value": "⛔ 拒絕"
+        }
+      ]
+    }
+  ]
+}

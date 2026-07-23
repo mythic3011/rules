@@ -138,3 +138,12 @@ modeControl:
   hiddenPrefix: "@mode/"
 aiAllRuleset: AI_All_Classical
 categoryGeosites: [google-deepmind, category-ai-!cn]
+iniMvp:
+  profile: hk
+  migratedServices: [claude, windsurf, huggingface]
+  legacyReplacementIds: [claude]
+  aiOtherGroup: "🤖 AI Other"
+  aiOtherAllowedRoutes: [direct, us-stable, sg-stable, jp-stable, reject]
+  presentation:
+    rejectGroup: "⛔ 拒絕"
+    directGroup: "🎯 全球直連"

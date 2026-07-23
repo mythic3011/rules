@@ -23,6 +23,18 @@ const RegionSchema = z.object({
   filter: z.string().min(1), url: z.url(), interval: z.number().int().positive(), tolerance: z.number().int().nonnegative(),
 }).strict();
 const ModeControlSchema = z.object({ visibleGroup: z.string().min(1), hiddenPrefix: z.string().regex(/^@mode\/$/) }).strict();
+const IniMvpSchema = z.object({
+  profile: IdSchema,
+  migratedServices: z.array(IdSchema).min(1),
+  legacyReplacementIds: z.array(IdSchema).min(1),
+  aiOtherGroup: z.string().min(1),
+  aiOtherAllowedRoutes: z.array(IdSchema).min(1),
+  presentation: z.object({ rejectGroup: z.string().min(1), directGroup: z.string().min(1) }).strict(),
+}).strict().superRefine((value, ctx) => {
+  if (new Set(value.migratedServices).size !== value.migratedServices.length) ctx.addIssue({ code: "custom", path: ["migratedServices"], message: "migrated services must be unique" });
+  if (new Set(value.legacyReplacementIds).size !== value.legacyReplacementIds.length) ctx.addIssue({ code: "custom", path: ["legacyReplacementIds"], message: "legacy replacement IDs must be unique" });
+  if (new Set(value.aiOtherAllowedRoutes).size !== value.aiOtherAllowedRoutes.length) ctx.addIssue({ code: "custom", path: ["aiOtherAllowedRoutes"], message: "AI Other allowed routes must be unique" });
+});
 export const MihomoProjectionConfigSchema = z.object({
   schemaVersion: z.literal(1),
   sources: z.record(IdSchema, SourceSchema),
@@ -34,6 +46,7 @@ export const MihomoProjectionConfigSchema = z.object({
   modeControl: ModeControlSchema,
   aiAllRuleset: RuleProviderKeySchema,
   categoryGeosites: z.array(z.string().min(1)).min(1),
+  iniMvp: IniMvpSchema,
 }).strict();
 export type MihomoProjectionConfig = z.infer<typeof MihomoProjectionConfigSchema>;
 
@@ -175,6 +188,36 @@ function validateProjection(config: RoutingConfig, projection: MihomoProjectionC
     if (config.accessProfiles[configuredProfileId] === undefined) issues.push(issue("missing-reference", ["profiles", configuredProfileId], "projection profile has no canonical access profile"));
     requiredRoute(config, configuredProfile.categoryAiRoute, ["profiles", configuredProfileId, "categoryAiRoute"]);
     if (configuredProfile.aiAllRoute !== undefined) requiredRoute(config, configuredProfile.aiAllRoute, ["profiles", configuredProfileId, "aiAllRoute"]);
+  }
+  const iniMvp = projection.iniMvp;
+  addName(iniMvp.aiOtherGroup, ["iniMvp", "aiOtherGroup"]);
+  if (iniMvp.profile !== "hk") {
+    issues.push(issue("policy-invariant", ["iniMvp", "profile"], "INI MVP is intentionally limited to the canonical HK access profile"));
+  }
+  if (config.accessProfiles[iniMvp.profile] === undefined) {
+    issues.push(issue("missing-reference", ["iniMvp", "profile"], `canonical access profile ${iniMvp.profile} does not exist`));
+  }
+  const iniMvpProfile = projection.profiles[iniMvp.profile];
+  if (iniMvpProfile === undefined || iniMvpProfile.aiAllRoute === undefined) {
+    issues.push(issue("missing-reference", ["iniMvp", "profile"], "INI MVP profile requires an AI_All route"));
+  } else if (iniMvpProfile.aiAllRoute !== iniMvpProfile.categoryAiRoute) {
+    issues.push(issue("policy-invariant", ["iniMvp", "profile"], "INI MVP AI_All and category-AI routes must match"));
+  } else if (!iniMvp.aiOtherAllowedRoutes.includes(iniMvpProfile.aiAllRoute)) {
+    issues.push(issue("policy-invariant", ["iniMvp", "aiOtherAllowedRoutes"], "AI Other allowed routes must include the active profile route"));
+  }
+  for (const routeId of iniMvp.aiOtherAllowedRoutes) {
+    requiredRoute(config, routeId, ["iniMvp", "aiOtherAllowedRoutes", routeId]);
+  }
+  const migratedServices = new Set(iniMvp.migratedServices);
+  for (const serviceId of iniMvp.migratedServices) {
+    if (config.services[serviceId] === undefined) {
+      issues.push(issue("missing-reference", ["iniMvp", "migratedServices"], `canonical service ${serviceId} does not exist`));
+    }
+  }
+  for (const serviceId of iniMvp.legacyReplacementIds) {
+    if (!migratedServices.has(serviceId)) {
+      issues.push(issue("policy-invariant", ["iniMvp", "legacyReplacementIds"], `legacy replacement ${serviceId} must be included in migratedServices`));
+    }
   }
   if (projection.profiles[profileId] === undefined) issues.push(issue("missing-reference", ["profiles", profileId], `projection profile ${profileId} does not exist`));
   if (projection.ruleProviders[projection.aiAllRuleset] === undefined) issues.push(issue("missing-reference", ["aiAllRuleset"], "AI_All provider does not exist"));

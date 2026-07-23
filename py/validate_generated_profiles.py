@@ -6,6 +6,7 @@ from __future__ import annotations
 import os
 import re
 import sys
+import json
 from pathlib import Path
 
 try:
@@ -99,6 +100,7 @@ PROCESS_WARNING_PHRASES = [
 RELAXED_YAML = YAML_DIR / "Custom_Clash_AI.yaml"
 STRICT_YAML = YAML_DIR / "Custom_Clash_AI_Strict.yaml"
 INI_PATH = CFG_DIR / "Custom_Clash_AI.ini"
+INI_MVP_PLAN = ROOT / "generated" / "ai-routing" / "hk.ini-mvp-plan.json"
 DOC_PATHS = [
     DOCS_DIR / "ai-profile-generator.md",
     DOCS_DIR / "ssh-routing.md",
@@ -311,6 +313,29 @@ def ini_rule_index(rulesets: list[str], needle: str) -> int:
     raise ValidationError(f"Missing INI ruleset containing: {needle}")
 
 
+def render_ini_mvp_rule(record: dict[str, object]) -> str:
+    if record.get("kind") == "remote-classical":
+        return f"ruleset={record['target']},clash-classic:{record['url']},{record['interval']}"
+    if record.get("kind") == "geosite":
+        return f"ruleset={record['target']},[]GEOSITE,{record['value']}"
+    raise ValidationError("INI MVP plan has an unsupported rule record")
+
+
+def expected_ini_mvp_group_fields(group: dict[str, object]) -> list[str]:
+    candidates = group.get("candidates")
+    ensure(group.get("kind") == "select" and isinstance(candidates, list), "INI MVP plan group is invalid")
+    fields: list[str] = []
+    for candidate in candidates:
+        ensure(isinstance(candidate, dict), "INI MVP plan candidate is invalid")
+        if candidate.get("kind") == "group-ref":
+            fields.append(f"[]{candidate.get('value')}")
+        elif candidate.get("kind") == "node-filter":
+            fields.append(str(candidate.get("value")))
+        else:
+            raise ValidationError("INI MVP plan candidate kind is invalid")
+    return fields
+
+
 def validate_ini(text: str) -> None:
     ensure("[custom]" in text, "INI missing [custom] section")
     ensure("rule-providers:" not in text, "INI must not contain YAML rule-providers syntax")
@@ -319,20 +344,54 @@ def validate_ini(text: str) -> None:
     for key in AI_PROVIDER_KEYS:
         ensure(f"{key}.yaml" in text, f"INI missing local AI rule provider: {key}")
     for geosite, group in AI_SERVICE_GEOSITES.items():
+        if geosite == "anthropic":
+            continue
         ensure(f"ruleset={group},[]GEOSITE,{geosite}" in text, f"INI missing AI GEOSITE identity: {geosite}")
-    for geosite in AI_GUARD_GEOSITES:
-        ensure(f"ruleset={GROUP['reject']},[]GEOSITE,{geosite}" in text, f"INI missing AI guard: {geosite}")
+    plan = json.loads(read_text(INI_MVP_PLAN))
+    ensure(plan.get("schemaVersion") == 1 and plan.get("profile") == "hk", "INI MVP plan is not the HK v1 plan")
+    migration = plan.get("migration")
+    account = plan.get("accountProtection")
+    rule_sections = plan.get("rules")
+    groups = plan.get("groups")
+    ensure(isinstance(migration, dict) and migration.get("migratedServiceIds") == ["claude", "windsurf", "huggingface"] and migration.get("legacyReplacementIds") == ["claude"], "INI MVP service migration scope is wrong")
+    ensure(isinstance(account, dict) and isinstance(rule_sections, dict) and isinstance(groups, list), "INI MVP plan has an invalid deployment shape")
+    before_legacy = rule_sections.get("beforeLegacy")
+    after_legacy = rule_sections.get("afterLegacy")
+    ensure(isinstance(before_legacy, list) and len(before_legacy) >= 2 and isinstance(after_legacy, list) and after_legacy, "INI MVP plan has missing ordered rules")
+    ensure(all(isinstance(record, dict) for record in [*before_legacy, *after_legacy]), "INI MVP plan rules must be mappings")
+    protected_rule = before_legacy[0]
+    terminal_reject = before_legacy[1]
+    ensure(protected_rule.get("kind") == "remote-classical" and terminal_reject.get("kind") == "remote-classical", "INI MVP protected rules must be remote classical")
+    ensure(protected_rule.get("target") == account.get("protectedGroup") and terminal_reject.get("target") == account.get("rejectGroup") and protected_rule.get("url") == terminal_reject.get("url") and protected_rule.get("interval") == terminal_reject.get("interval"), "Claude terminal reject must immediately mirror the protected provider")
+    expected_before = [render_ini_mvp_rule(record) for record in before_legacy]
+    expected_after = [render_ini_mvp_rule(record) for record in after_legacy]
+    ensure(all(line in text for line in [*expected_before, *expected_after]), "INI is missing a normalized MVP rule record")
+    ensure("ruleset=🤖 Claude,[]GEOSITE,anthropic" not in text and "custom_proxy_group=🤖 Claude`" not in text and "custom_proxy_group=🤖 Claude ·" not in text, "INI must not retain legacy Claude rules or groups")
+    for group in groups:
+        ensure(isinstance(group, dict) and isinstance(group.get("name"), str), "INI MVP plan group must be a mapping")
+        expected_fields = expected_ini_mvp_group_fields(group)
+        prefix = f"custom_proxy_group={group['name']}`select`"
+        rendered = next((line for line in text.splitlines() if line.startswith(prefix)), "")
+        ensure(rendered, f"INI missing MVP group {group['name']}")
+        fields = rendered.split("`")
+        ensure(fields[:2] == [f"custom_proxy_group={group['name']}", "select"] and fields[2:] == expected_fields, f"INI MVP group {group['name']} has invalid candidate separators or order")
+    protected_group = next((group for group in groups if group.get("name") == account.get("protectedGroup")), None)
+    ensure(isinstance(protected_group, dict) and expected_ini_mvp_group_fields(protected_group) == [f"[]{account.get('rejectGroup')}"], "Claude public INI group must be REJECT-only")
     if not ENABLE_PROCESS_RULES:
         for key in PROCESS_PROVIDER_KEYS:
             ensure(key not in text, f"INI must not reference {key} while disabled")
 
     rulesets = extract_ini_rulesets(text)
     private_ip = ini_rule_index(rulesets, "[]GEOIP,private")
-    guard_indices = [ini_rule_index(rulesets, f"[]GEOSITE,{geosite}") for geosite in AI_GUARD_GEOSITES]
+    before_indices = [rulesets.index(line) for line in expected_before]
+    after_indices = [rulesets.index(line) for line in expected_after]
     ssh_direct = ini_rule_index(rulesets, "SSH_Direct_Classical.yaml")
     custom_direct = ini_rule_index(rulesets, "Custom_Direct_Domain.yaml")
     final_rule = ini_rule_index(rulesets, "[]FINAL")
-    ensure(private_ip < min(guard_indices) < ssh_direct < custom_direct < final_rule, "INI AI guards must precede relaxed SSH/custom rules")
+    legacy_chatgpt = ini_rule_index(rulesets, "ruleset=🤖 ChatGPT,[]GEOSITE,openai")
+    ensure(before_indices == list(range(before_indices[0], before_indices[0] + len(before_indices))), "INI protected rule records must remain adjacent")
+    ensure(after_indices == list(range(after_indices[0], after_indices[0] + len(after_indices))), "INI post-legacy rule records must remain adjacent")
+    ensure(private_ip < before_indices[0] < legacy_chatgpt < after_indices[0] < ssh_direct < custom_direct < final_rule, "INI MVP rule ordering is wrong")
 
 
 def validate_process_rules() -> None:

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
+import tempfile
 import unittest
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -162,6 +165,133 @@ class GenerateAiProfilesTest(unittest.TestCase):
 
         self.assertIn(f"[]{MODULE.GROUP['direct']}", manual_group)
         self.assertIn(MODULE.AI_POOL_FILTER, manual_group)
+
+    def test_should_render_ini_mvp_before_legacy_and_keep_claude_reject_only(self) -> None:
+        rendered_ini = MODULE.render_ini()
+        claude_provider = "rules/clash/anthropic.yaml"
+        claude_rule = rendered_ini.index(claude_provider)
+        claude_reject = rendered_ini.index(
+            f"ruleset={MODULE.GROUP['reject']},clash-classic:",
+            claude_rule,
+        )
+        chatgpt = rendered_ini.index("ruleset=🤖 ChatGPT,[]GEOSITE,openai")
+        windsurf = rendered_ini.index("rules/clash/windsurf.yaml")
+        huggingface = rendered_ini.index("rules/clash/huggingface.yaml")
+        ai_all = rendered_ini.index("rules/clash/all.yaml")
+        category_guard = rendered_ini.index("[]GEOSITE,category-ai-!cn")
+
+        self.assertLess(claude_rule, claude_reject)
+        self.assertLess(claude_reject, chatgpt)
+        self.assertLess(chatgpt, windsurf)
+        self.assertLess(windsurf, huggingface)
+        self.assertLess(huggingface, ai_all)
+        self.assertLess(ai_all, category_guard)
+        self.assertEqual(
+            self.extract_ini_group_line(rendered_ini, "🔐 Claude Account Guard"),
+            "custom_proxy_group=🔐 Claude Account Guard`select`[]⛔ 拒絕",
+        )
+        self.assertEqual(
+            self.extract_ini_group_line(rendered_ini, "🌊 Windsurf"),
+            "custom_proxy_group=🌊 Windsurf`select`[]🇺🇸 US Stable`[]🇸🇬 SG Stable`[]🇯🇵 JP Stable`[]⛔ 拒絕",
+        )
+        plan = json.loads(MODULE.INI_MVP_PLAN_PATH.read_text(encoding="utf-8"))
+        us_stable = next(group for group in plan["groups"] if group["name"] == "🇺🇸 US Stable")
+        self.assertEqual(
+            self.extract_ini_group_line(rendered_ini, "🇺🇸 US Stable"),
+            f"custom_proxy_group=🇺🇸 US Stable`select`[]{MODULE.GROUP['reject']}`{us_stable['candidates'][1]['value']}",
+        )
+        self.assertNotIn("custom_proxy_group=🤖 Claude`", rendered_ini)
+        self.assertNotIn("ruleset=🤖 Claude,[]GEOSITE,anthropic", rendered_ini)
+
+    def test_should_reject_malformed_ini_mvp_plan_before_rendering(self) -> None:
+        plan = json.loads(MODULE.INI_MVP_PLAN_PATH.read_text(encoding="utf-8"))
+        invalid_plans = []
+
+        bad_version = dict(plan)
+        bad_version["schemaVersion"] = 2
+        invalid_plans.append(bad_version)
+
+        boolean_version = json.loads(json.dumps(plan))
+        boolean_version["schemaVersion"] = True
+        invalid_plans.append(boolean_version)
+
+        unknown_field = json.loads(json.dumps(plan))
+        unknown_field["unexpected"] = True
+        invalid_plans.append(unknown_field)
+
+        tampered_protected_rule = json.loads(json.dumps(plan))
+        tampered_protected_rule["rules"]["beforeLegacy"][0]["target"] = "DIRECT"
+        invalid_plans.append(tampered_protected_rule)
+
+        mismatched_protected_terminal = json.loads(json.dumps(plan))
+        mismatched_protected_terminal["rules"]["beforeLegacy"][1]["url"] = "https://example.invalid/anthropic.yaml"
+        invalid_plans.append(mismatched_protected_terminal)
+
+        missing_protected_group = json.loads(json.dumps(plan))
+        missing_protected_group["accountProtection"]["protectedGroup"] = "Missing Claude Guard"
+        invalid_plans.append(missing_protected_group)
+
+        extra_protected_direct = json.loads(json.dumps(plan))
+        extra_protected_direct["rules"]["afterLegacy"].append(
+            {
+                **extra_protected_direct["rules"]["beforeLegacy"][0],
+                "target": "🎯 全球直連",
+            }
+        )
+        invalid_plans.append(extra_protected_direct)
+
+        unsafe_url = json.loads(json.dumps(plan))
+        unsafe_url["rules"]["afterLegacy"][0]["url"] = "https://token@example.invalid/rules.yaml"
+        invalid_plans.append(unsafe_url)
+
+        duplicate_rule = json.loads(json.dumps(plan))
+        duplicate_rule["rules"]["afterLegacy"].append(dict(duplicate_rule["rules"]["afterLegacy"][0]))
+        invalid_plans.append(duplicate_rule)
+
+        duplicate_candidate = json.loads(json.dumps(plan))
+        duplicate_candidate["groups"][0]["candidates"].append(dict(duplicate_candidate["groups"][0]["candidates"][0]))
+        invalid_plans.append(duplicate_candidate)
+
+        duplicate_group = json.loads(json.dumps(plan))
+        duplicate_group["groups"].append(dict(duplicate_group["groups"][0]))
+        invalid_plans.append(duplicate_group)
+
+        filtered_group_not_reject_first = json.loads(json.dumps(plan))
+        stable_group = next(group for group in filtered_group_not_reject_first["groups"] if any(candidate["kind"] == "node-filter" for candidate in group["candidates"]))
+        stable_group["candidates"].reverse()
+        invalid_plans.append(filtered_group_not_reject_first)
+
+        unresolved_rule_target = json.loads(json.dumps(plan))
+        unresolved_rule_target["rules"]["afterLegacy"][0]["target"] = "Missing Target"
+        invalid_plans.append(unresolved_rule_target)
+
+        unresolved_group_reference = json.loads(json.dumps(plan))
+        windsurf_group = next(group for group in unresolved_group_reference["groups"] if group["name"] == "🌊 Windsurf")
+        windsurf_group["candidates"][0]["value"] = "Missing Group"
+        invalid_plans.append(unresolved_group_reference)
+
+        cyclic_groups = json.loads(json.dumps(plan))
+        cycle_left = next(group for group in cyclic_groups["groups"] if group["name"] == "🌊 Windsurf")
+        cycle_right = next(group for group in cyclic_groups["groups"] if group["name"] == "🤗 Hugging Face")
+        cycle_left["candidates"] = [{"kind": "group-ref", "value": cycle_right["name"]}]
+        cycle_right["candidates"] = [{"kind": "group-ref", "value": cycle_left["name"]}]
+        invalid_plans.append(cyclic_groups)
+
+        replacement_not_migrated = json.loads(json.dumps(plan))
+        replacement_not_migrated["migration"]["legacyReplacementIds"] = ["not-migrated"]
+        invalid_plans.append(replacement_not_migrated)
+
+        boolean_interval = json.loads(json.dumps(plan))
+        boolean_interval["rules"]["beforeLegacy"][0]["interval"] = True
+        invalid_plans.append(boolean_interval)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            plan_path = Path(temporary) / "hk.ini-mvp-plan.json"
+            with patch.object(MODULE, "INI_MVP_PLAN_PATH", plan_path):
+                for invalid in invalid_plans:
+                    plan_path.write_text(json.dumps(invalid), encoding="utf-8")
+                    with self.assertRaises(RuntimeError):
+                        MODULE.load_ini_mvp_plan()
 
     def test_should_not_reference_process_rules_when_disabled(self) -> None:
         rendered_yaml = MODULE.render_yaml(strict=False)

@@ -10,6 +10,7 @@ import YAML from "yaml";
 import { RoutingConfigLoadError, loadRoutingConfig, loadRoutingConfigFromFiles } from "../../src/routing/loader.js";
 import { compileRoutingProfile, RoutingCompileError } from "../../src/routing/compiler.js";
 import { compileMihomoFragment, loadMihomoProjectionConfig, MihomoProjectionError, renderMihomoFragment } from "../../src/routing/mihomo-projection.js";
+import { compileIniMvpPlan, IniMvpPlanSchema } from "../../src/routing/ini-mvp-plan.js";
 import { compileControllerPlan, compileFirewallSemanticPlan } from "../../src/routing/runtime-plan.js";
 import {
   ControllerTransactionError,
@@ -27,7 +28,7 @@ import {
   canonicalServiceIdFromLegacy,
   canonicalServiceIdFromLegacyGroup,
 } from "../../src/routing/migration-adapter.js";
-import { RoutingConfigSchema } from "../../src/routing/schema.js";
+import { RoutingConfigSchema, type RoutingConfig } from "../../src/routing/schema.js";
 import { renderShadowTemplate, ShadowTemplateError } from "../../src/routing/shadow-template.js";
 import {
   composeShadowProfile,
@@ -249,6 +250,106 @@ test("canonical HK matrix and protected Claude configuration validate", async ()
   ]);
   assert.deepEqual(Object.keys(config.accessProfiles).sort(), ["hk", "jp", "sg", "us"]);
   assert.deepEqual(validateRoutingSemantics(config), []);
+});
+
+test("INI MVP plan owns ordered rules/groups, pins providers, and keeps Claude reject-only", async () => {
+  const config = await loadRoutingConfig(VALID_DIRECTORY);
+  const projection = await loadMihomoProjectionConfig(MIHOMO_PROJECTION);
+  const plan = compileIniMvpPlan(config, projection);
+  assert.deepEqual(plan.migration.migratedServiceIds, ["claude", "windsurf", "huggingface"]);
+  assert.deepEqual(plan.migration.legacyReplacementIds, ["claude"]);
+  assert.equal(plan.profile, "hk");
+  assert.deepEqual(plan.externalGroups, ["🎯 全球直連", "⛔ 拒絕"]);
+  const [claudeRule, claudeReject] = plan.rules.beforeLegacy;
+  assert.equal(claudeRule?.kind, "remote-classical");
+  assert.equal(claudeReject?.kind, "remote-classical");
+  if (claudeRule?.kind !== "remote-classical" || claudeReject?.kind !== "remote-classical") throw new Error("expected Claude remote rule pair");
+  assert.equal(claudeRule.target, "🔐 Claude Account Guard");
+  assert.equal(claudeReject.target, "⛔ 拒絕");
+  assert.equal(claudeRule.url, claudeReject.url);
+  assert.equal(claudeRule.interval, claudeReject.interval);
+  assert.match(claudeRule.url, /\/d07cac190c33e7914ba7adaf7e7c14298fba7024\/rules\/clash\/anthropic\.yaml$/);
+  assert.deepEqual(plan.rules.afterLegacy.map((rule) => rule.kind === "remote-classical" ? rule.target : `${rule.target}:${rule.value}`), ["🌊 Windsurf", "🤗 Hugging Face", "🤖 AI Other", "🤖 AI Other:google-deepmind", "🤖 AI Other:category-ai-!cn"]);
+  const claudeGroup = plan.groups.find((group) => group.name === "🔐 Claude Account Guard");
+  const windsurfGroup = plan.groups.find((group) => group.name === "🌊 Windsurf");
+  const aiOtherGroup = plan.groups.find((group) => group.name === "🤖 AI Other");
+  const stableGroups = plan.groups.filter((group) => group.candidates.some((candidate) => candidate.kind === "node-filter"));
+  assert.deepEqual(claudeGroup?.candidates, [{ kind: "group-ref", value: "⛔ 拒絕" }]);
+  assert.deepEqual(windsurfGroup?.candidates.map((candidate) => candidate.value), ["🇺🇸 US Stable", "🇸🇬 SG Stable", "🇯🇵 JP Stable", "⛔ 拒絕"]);
+  assert.deepEqual(aiOtherGroup?.candidates.map((candidate) => candidate.value), ["🎯 全球直連", "🇺🇸 US Stable", "🇸🇬 SG Stable", "🇯🇵 JP Stable", "⛔ 拒絕"]);
+  for (const group of stableGroups) assert.equal(group.candidates[0]?.kind === "group-ref" && group.candidates[0].value === "⛔ 拒絕", true);
+  assert.doesNotThrow(() => IniMvpPlanSchema.parse(plan));
+
+  const invalid = structuredClone(plan);
+  const firstGroup = invalid.groups[0];
+  if (firstGroup === undefined) throw new Error("expected group");
+  firstGroup.candidates.push(structuredClone(firstGroup.candidates[0]!));
+  assert.throws(() => IniMvpPlanSchema.parse(invalid));
+
+  const mustReject = (candidate: unknown): void => {
+    assert.throws(() => IniMvpPlanSchema.parse(candidate));
+  };
+  const directClaude = structuredClone(plan);
+  directClaude.rules.beforeLegacy[0]!.target = "🎯 全球直連";
+  mustReject(directClaude);
+
+  const mismatchedClaudeTerminal = structuredClone(plan);
+  const terminal = mismatchedClaudeTerminal.rules.beforeLegacy[1];
+  if (terminal?.kind !== "remote-classical") throw new Error("expected Claude terminal reject");
+  terminal.url = "https://example.invalid/anthropic.yaml";
+  mustReject(mismatchedClaudeTerminal);
+
+  const missingProtectedGroup = structuredClone(plan);
+  missingProtectedGroup.accountProtection.protectedGroup = "Missing Claude Guard";
+  mustReject(missingProtectedGroup);
+
+  const filteredGroupNotRejectFirst = structuredClone(plan);
+  const stableGroup = filteredGroupNotRejectFirst.groups.find((group) => group.candidates.some((candidate) => candidate.kind === "node-filter"));
+  if (stableGroup === undefined) throw new Error("expected stable node-filter group");
+  stableGroup.candidates.reverse();
+  mustReject(filteredGroupNotRejectFirst);
+
+  const unresolvedRuleTarget = structuredClone(plan);
+  unresolvedRuleTarget.rules.afterLegacy[0]!.target = "Missing Target";
+  mustReject(unresolvedRuleTarget);
+
+  const unresolvedGroupReference = structuredClone(plan);
+  const unresolvedGroup = unresolvedGroupReference.groups.find((group) => group.name === "🌊 Windsurf");
+  if (unresolvedGroup === undefined) throw new Error("expected Windsurf group");
+  unresolvedGroup.candidates[0] = { kind: "group-ref", value: "Missing Group" };
+  mustReject(unresolvedGroupReference);
+
+  const cyclicGroups = structuredClone(plan);
+  const cycleLeft = cyclicGroups.groups.find((group) => group.name === "🌊 Windsurf");
+  const cycleRight = cyclicGroups.groups.find((group) => group.name === "🤗 Hugging Face");
+  if (cycleLeft === undefined || cycleRight === undefined) throw new Error("expected service groups for cycle test");
+  cycleLeft.candidates = [{ kind: "group-ref", value: cycleRight.name }];
+  cycleRight.candidates = [{ kind: "group-ref", value: cycleLeft.name }];
+  mustReject(cyclicGroups);
+
+  const legacyReplacementNotMigrated = structuredClone(plan);
+  legacyReplacementNotMigrated.migration.legacyReplacementIds = ["not-migrated"];
+  mustReject(legacyReplacementNotMigrated);
+});
+
+test("INI MVP puts the HK effective route first and rejects divergent AI Other routes", async () => {
+  const config = await loadRoutingConfig(VALID_DIRECTORY);
+  const projection = await loadMihomoProjectionConfig(MIHOMO_PROJECTION);
+  const hk = config.accessProfiles.hk;
+  const projectedHk = projection.profiles.hk;
+  if (hk === undefined || projectedHk === undefined) throw new Error("expected HK profile");
+  const overridden: RoutingConfig = {
+    ...config,
+    accessProfiles: {
+      ...config.accessProfiles,
+      hk: { ...hk, serviceOverrides: { ...hk.serviceOverrides, windsurf: "sg-stable" } },
+    },
+  };
+  const overriddenPlan = compileIniMvpPlan(overridden, projection);
+  const windsurf = overriddenPlan.groups.find((group) => group.name === "🌊 Windsurf");
+  assert.deepEqual(windsurf?.candidates.map((candidate) => candidate.value), ["🇸🇬 SG Stable", "🇺🇸 US Stable", "🇯🇵 JP Stable", "⛔ 拒絕"]);
+  const divergent = { ...projection, profiles: { ...projection.profiles, hk: { ...projectedHk, categoryAiRoute: "us-stable" } } };
+  assert.throws(() => compileIniMvpPlan(config, divergent));
 });
 
 test("compiler preview resolves the canonical HK service matrix and keeps Claude locked", async () => {
