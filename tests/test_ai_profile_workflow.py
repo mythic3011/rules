@@ -1,0 +1,47 @@
+"""Structural security checks for the AI profile generation workflow."""
+
+from __future__ import annotations
+
+from pathlib import Path
+import unittest
+
+import yaml
+
+
+ROOT = Path(__file__).resolve().parents[1]
+WORKFLOW_PATH = ROOT / ".github" / "workflows" / "auto-generate-ai-profiles.yml"
+
+
+class AiProfileWorkflowTests(unittest.TestCase):
+    def test_pr_validation_is_read_only_and_commit_is_push_only(self) -> None:
+        workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
+
+        self.assertEqual(workflow["permissions"], {"contents": "read"})
+        jobs = workflow["jobs"]
+        validation = jobs["validate-ai-profiles"]
+        commit = jobs["commit-managed-python-outputs"]
+
+        self.assertEqual(validation["permissions"], {"contents": "read"})
+        self.assertEqual(commit["permissions"], {"contents": "write"})
+        self.assertEqual(commit["needs"], "validate-ai-profiles")
+        self.assertEqual(commit["if"], "github.event_name == 'push'")
+
+        validation_steps = validation["steps"]
+        self.assertTrue(any(step["name"] == "Validate AI routing manifests" for step in validation_steps))
+        self.assertTrue(any(step["name"] == "Generate AI profile outputs" for step in validation_steps))
+        self.assertTrue(any(step["name"] == "Reject generated output drift in pull requests" for step in validation_steps))
+
+        commit_steps = commit["steps"]
+        self.assertTrue(any(step["name"] == "Regenerate managed Python outputs" for step in commit_steps))
+        self.assertTrue(any(step["name"] == "Commit generated changes" for step in commit_steps))
+        checkout = next(step for step in commit_steps if step["name"] == "Checkout pushed revision")
+        self.assertEqual(checkout["with"]["ref"], "${{ github.sha }}")
+        self.assertEqual(commit["env"]["TARGET_REF"], "${{ github.ref }}")
+        commit_run = next(step["run"] for step in commit_steps if step["name"] == "Commit generated changes")
+        self.assertIn("refs/heads/*", commit_run)
+        self.assertIn('git push origin "HEAD:${TARGET_REF}"', commit_run)
+        self.assertNotIn("--force", commit_run)
+
+
+if __name__ == "__main__":
+    unittest.main()

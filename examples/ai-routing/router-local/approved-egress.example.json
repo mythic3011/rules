@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "mode": "example",
+  "policyVersion": "1",
+  "services": {
+    "claude": {
+      "bindings": [{ "approvedId": "US-Claude-01", "node": "EXAMPLE-NODE-NOT-DEPLOYABLE", "provider": "provider1" }, { "approvedId": "US-Claude-02", "node": "EXAMPLE-NODE-NOT-DEPLOYABLE-2", "provider": "provider1" }],
+      "revokedNodes": []
+    }
+  }
+}
