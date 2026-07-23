@@ -20,7 +20,7 @@
     "export:routing-schema": "node --import tsx src/routing/cli.ts export-schema schema/routing-config.schema.json",
     "check:routing-schema": "npm run export:routing-schema && git diff --exit-code -- schema/routing-config.schema.json",
     "typecheck": "tsc --noEmit",
-    "test:routing": "node --import tsx --test tests/routing/routing.test.ts"
+    "test:routing": "node --import tsx --test tests/routing/*.test.ts"
   },
   "dependencies": {
     "yaml": "^2.8.0",

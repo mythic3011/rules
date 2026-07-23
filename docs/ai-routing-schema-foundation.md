@@ -254,6 +254,14 @@ gate is an interface boundary, not evidence that an OpenWrt firewall path is
 actually closed. `shell/ai-routing-controller.sh --reconcile` remains disabled
 before it reads router-local inputs or makes an API call.
 
+## Phase 4e-a firewall-proof contract
+
+`docs/ai-routing-firewall-proof.md` records the separate hermetic proof and
+containment boundary: generation-bound static and dynamic evidence, freshness,
+snapshot/freeze TOCTOU protection, and redacted dual-capability containment.
+It is not a live firewall adapter or router proof; its explicit nonclaims and
+deferred privileged namespace-lab boundary remain part of the contract.
+
 ## Phase 1 gaps
 
 - No standalone or production Mihomo profile is emitted, and this projection has not cut over authority from the existing Python generator.
