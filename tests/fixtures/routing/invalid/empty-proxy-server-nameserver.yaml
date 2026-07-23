@@ -1,0 +1,17 @@
+schemaVersion: 1
+policyVersion: "1"
+routeTargets:
+  direct: { kind: direct, group: DIRECT }
+  reject: { kind: reject, group: REJECT }
+protectionClasses: {}
+services: {}
+accessProfiles: {}
+dns:
+  defaultProfile: default
+  profiles:
+    default:
+      respectRules: true
+      defaultNameserver: [{ kind: udp, host: 1.1.1.1 }]
+      proxyServerNameserver: []
+      nameserver: [{ kind: udp, host: 1.1.1.1 }]
+      servicePolicies: {}

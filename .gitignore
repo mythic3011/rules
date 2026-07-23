@@ -1,6 +1,8 @@
 # Python cache
 __pycache__/
 *.py[cod]
+node_modules/
+local/ai-routing/
 .codex/
 .DS_Store
 AGENTS.md

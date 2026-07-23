@@ -1,0 +1,155 @@
+services:
+  chatgpt:
+    displayName: "🤖 ChatGPT"
+    protectionClass: stable-session
+    defaultRoute: us-stable
+    allowedRoutes: [us-stable, sg-stable, jp-stable, reject]
+    selector:
+      kind: profile-aware
+      visibleGroup: "🤖 ChatGPT"
+      hiddenProfileTarget: "@profile/chatgpt"
+      allowedRouteRefs: [us-stable, sg-stable, jp-stable, reject]
+    upstream: { source: vpsdance, provider: openai }
+    endpoints:
+      service: { ruleset: AI_ChatGPT_Classical, session: stable }
+  copilot:
+    displayName: "🧑‍💻 Copilot"
+    protectionClass: direct-capable
+    defaultRoute: direct
+    allowedRoutes: [direct, us-stable, sg-stable, jp-stable, reject]
+    selector:
+      kind: profile-aware
+      visibleGroup: "🧑‍💻 Copilot"
+      hiddenProfileTarget: "@profile/copilot"
+      allowedRouteRefs: [direct, us-stable, sg-stable, jp-stable, reject]
+    upstream: { source: vpsdance, provider: copilot }
+    endpoints:
+      service: { ruleset: AI_Copilot_Classical, session: stateless }
+  claude:
+    displayName: "🔐 Claude Account Guard"
+    protectionClass: account-protected
+    defaultRoute: reject
+    allowedRoutes: [reject, claude-us-pinned]
+    selector:
+      kind: explicit-node
+      visibleGroup: "🔐 Claude Account Guard"
+      initialRoute: reject
+      allowedRouteRefs: [reject, claude-us-pinned]
+    upstream: { source: vpsdance, provider: anthropic }
+    endpoints:
+      service: { ruleset: AI_Claude_Classical, session: stable }
+  gemini:
+    displayName: "🤖 Gemini"
+    protectionClass: direct-capable
+    defaultRoute: direct
+    allowedRoutes: [direct, us-stable, sg-stable, jp-stable, reject]
+    selector:
+      kind: profile-aware
+      visibleGroup: "🤖 Gemini"
+      hiddenProfileTarget: "@profile/gemini"
+      allowedRouteRefs: [direct, us-stable, sg-stable, jp-stable, reject]
+    upstream: { source: local-rules, provider: gemini }
+    endpoints:
+      service: { ruleset: AI_Gemini_Classical, session: stateless }
+  notebooklm:
+    displayName: "🤖 NotebookLM"
+    protectionClass: direct-capable
+    defaultRoute: direct
+    allowedRoutes: [direct, us-stable, sg-stable, jp-stable, reject]
+    selector:
+      kind: profile-aware
+      visibleGroup: "🤖 NotebookLM"
+      hiddenProfileTarget: "@profile/notebooklm"
+      allowedRouteRefs: [direct, us-stable, sg-stable, jp-stable, reject]
+    upstream: { source: local-rules, provider: notebooklm }
+    endpoints:
+      service: { ruleset: AI_NotebookLM_Classical, session: stateless }
+  perplexity:
+    displayName: "🤖 Perplexity"
+    protectionClass: direct-capable
+    defaultRoute: direct
+    allowedRoutes: [direct, us-stable, sg-stable, jp-stable, reject]
+    selector:
+      kind: profile-aware
+      visibleGroup: "🤖 Perplexity"
+      hiddenProfileTarget: "@profile/perplexity"
+      allowedRouteRefs: [direct, us-stable, sg-stable, jp-stable, reject]
+    upstream: { source: vpsdance, provider: perplexity }
+    endpoints:
+      service: { ruleset: AI_Perplexity_Classical, session: stateless }
+  grok:
+    displayName: "🤖 Grok"
+    protectionClass: direct-capable
+    defaultRoute: direct
+    allowedRoutes: [direct, us-stable, sg-stable, jp-stable, reject]
+    selector:
+      kind: profile-aware
+      visibleGroup: "🤖 Grok"
+      hiddenProfileTarget: "@profile/grok"
+      allowedRouteRefs: [direct, us-stable, sg-stable, jp-stable, reject]
+    upstream: { source: vpsdance, provider: x-ai }
+    endpoints:
+      service: { ruleset: AI_Grok_Classical, session: stateless }
+  poe:
+    displayName: "🤖 Poe"
+    protectionClass: stable-session
+    defaultRoute: us-stable
+    allowedRoutes: [us-stable, sg-stable, jp-stable, reject]
+    selector:
+      kind: profile-aware
+      visibleGroup: "🤖 Poe"
+      hiddenProfileTarget: "@profile/poe"
+      allowedRouteRefs: [us-stable, sg-stable, jp-stable, reject]
+    upstream: { source: vpsdance, provider: poe }
+    endpoints:
+      service: { ruleset: AI_Poe_Classical, session: stable }
+  windsurf:
+    displayName: "🌊 Windsurf"
+    protectionClass: proxy-required
+    defaultRoute: us-stable
+    allowedRoutes:
+      - us-stable
+      - sg-stable
+      - jp-stable
+      - reject
+    selector:
+      kind: profile-aware
+      visibleGroup: "🌊 Windsurf"
+      hiddenProfileTarget: "@profile/windsurf"
+      allowedRouteRefs:
+        - us-stable
+        - sg-stable
+        - jp-stable
+        - reject
+    upstream:
+      source: vpsdance
+      provider: windsurf
+    endpoints:
+      service:
+        ruleset: AI_Windsurf_Classical
+        session: stable
+  huggingface:
+    displayName: "🤗 Hugging Face"
+    protectionClass: proxy-required
+    defaultRoute: us-stable
+    allowedRoutes:
+      - us-stable
+      - sg-stable
+      - jp-stable
+      - reject
+    selector:
+      kind: profile-aware
+      visibleGroup: "🤗 Hugging Face"
+      hiddenProfileTarget: "@profile/huggingface"
+      allowedRouteRefs:
+        - us-stable
+        - sg-stable
+        - jp-stable
+        - reject
+    upstream:
+      source: vpsdance
+      provider: huggingface
+    endpoints:
+      service:
+        ruleset: AI_HuggingFace_Classical
+        session: stable

@@ -1,0 +1,961 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "policyVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "routeTargets": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "direct"
+              },
+              "group": {
+                "type": "string",
+                "const": "DIRECT"
+              }
+            },
+            "required": [
+              "kind",
+              "group"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "reject"
+              },
+              "group": {
+                "type": "string",
+                "const": "REJECT"
+              }
+            },
+            "required": [
+              "kind",
+              "group"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "region-auto"
+              },
+              "group": {
+                "type": "string",
+                "minLength": 1
+              },
+              "region": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]*$"
+              },
+              "dynamic": {
+                "type": "boolean",
+                "const": true
+              }
+            },
+            "required": [
+              "kind",
+              "group",
+              "region",
+              "dynamic"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "region-stable"
+              },
+              "group": {
+                "type": "string",
+                "minLength": 1
+              },
+              "region": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]*$"
+              },
+              "dynamic": {
+                "type": "boolean",
+                "const": false
+              }
+            },
+            "required": [
+              "kind",
+              "group",
+              "region",
+              "dynamic"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "pinned-egress"
+              },
+              "group": {
+                "type": "string",
+                "minLength": 1
+              },
+              "approvedNodes": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "emptyFallback": {
+                "type": "string",
+                "const": "REJECT"
+              },
+              "dynamic": {
+                "type": "boolean",
+                "const": false
+              }
+            },
+            "required": [
+              "kind",
+              "group",
+              "approvedNodes",
+              "emptyFallback",
+              "dynamic"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "protectionClasses": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "direct-capable"
+              },
+              "directAllowed": {
+                "type": "boolean",
+                "const": true
+              },
+              "dynamicRouteAllowed": {
+                "type": "boolean",
+                "const": true
+              }
+            },
+            "required": [
+              "kind",
+              "directAllowed",
+              "dynamicRouteAllowed"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "proxy-required"
+              },
+              "directAllowed": {
+                "type": "boolean",
+                "const": false
+              },
+              "dynamicRouteAllowed": {
+                "type": "boolean",
+                "const": true
+              }
+            },
+            "required": [
+              "kind",
+              "directAllowed",
+              "dynamicRouteAllowed"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "stable-session"
+              },
+              "directAllowed": {
+                "type": "boolean",
+                "const": false
+              },
+              "dynamicRouteAllowed": {
+                "type": "boolean",
+                "const": false
+              }
+            },
+            "required": [
+              "kind",
+              "directAllowed",
+              "dynamicRouteAllowed"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "account-protected"
+              },
+              "directAllowed": {
+                "type": "boolean",
+                "const": false
+              },
+              "dynamicRouteAllowed": {
+                "type": "boolean",
+                "const": false
+              },
+              "activation": {
+                "type": "string",
+                "const": "explicit-user-selection"
+              },
+              "initialRoute": {
+                "type": "string",
+                "const": "reject"
+              },
+              "dnsMode": {
+                "type": "string",
+                "const": "proxy-only"
+              },
+              "ipv6": {
+                "type": "string",
+                "const": "proxy-or-reject"
+              },
+              "quic": {
+                "type": "string",
+                "const": "proxy-or-reject"
+              },
+              "firewallKillSwitch": {
+                "type": "boolean",
+                "const": true
+              },
+              "failMode": {
+                "type": "string",
+                "const": "reject"
+              },
+              "resetOn": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "policy-version-change",
+                    "selected-node-missing",
+                    "exit-ip-change",
+                    "geo-mismatch",
+                    "node-revoked"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "kind",
+              "directAllowed",
+              "dynamicRouteAllowed",
+              "activation",
+              "initialRoute",
+              "dnsMode",
+              "ipv6",
+              "quic",
+              "firewallKillSwitch",
+              "failMode",
+              "resetOn"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "services": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "protectionClass": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "defaultRoute": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "allowedRoutes": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*$"
+            }
+          },
+          "selector": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "profile-aware"
+                  },
+                  "visibleGroup": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "hiddenProfileTarget": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "allowedRouteRefs": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9-]*$"
+                    }
+                  }
+                },
+                "required": [
+                  "kind",
+                  "visibleGroup",
+                  "hiddenProfileTarget",
+                  "allowedRouteRefs"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "explicit-node"
+                  },
+                  "visibleGroup": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "initialRoute": {
+                    "type": "string",
+                    "const": "reject"
+                  },
+                  "allowedRouteRefs": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9-]*$"
+                    }
+                  }
+                },
+                "required": [
+                  "kind",
+                  "visibleGroup",
+                  "initialRoute",
+                  "allowedRouteRefs"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "upstream": {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]*$"
+              },
+              "provider": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]*$"
+              }
+            },
+            "required": [
+              "source",
+              "provider"
+            ],
+            "additionalProperties": false
+          },
+          "endpoints": {
+            "default": {},
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*$"
+            },
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "ruleset": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "session": {
+                  "type": "string",
+                  "enum": [
+                    "stateless",
+                    "stable",
+                    "realtime",
+                    "bulk"
+                  ]
+                },
+                "routeOverride": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]*$"
+                }
+              },
+              "required": [
+                "ruleset",
+                "session"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "displayName",
+          "protectionClass",
+          "defaultRoute",
+          "allowedRoutes",
+          "selector",
+          "upstream",
+          "endpoints"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "accessProfiles": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "defaultRoute": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "serviceOverrides": {
+            "default": {},
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*$"
+            },
+            "additionalProperties": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*$"
+            }
+          },
+          "endpointOverrides": {
+            "default": {},
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*$"
+            },
+            "additionalProperties": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]*$"
+              },
+              "additionalProperties": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]*$"
+              }
+            }
+          }
+        },
+        "required": [
+          "displayName",
+          "defaultRoute",
+          "serviceOverrides",
+          "endpointOverrides"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "dns": {
+      "type": "object",
+      "properties": {
+        "defaultProfile": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        "profiles": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "respectRules": {
+                "type": "boolean"
+              },
+              "defaultNameserver": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "viaRoute": {
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9-]*$"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "const": "udp"
+                        },
+                        "host": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "port": {
+                          "default": 53,
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 65535
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "host",
+                        "port"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "viaRoute": {
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9-]*$"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "const": "doh"
+                        },
+                        "url": {
+                          "type": "string",
+                          "format": "uri"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "url"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "viaRoute": {
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9-]*$"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "const": "dot"
+                        },
+                        "host": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "port": {
+                          "default": 853,
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 65535
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "host",
+                        "port"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              },
+              "proxyServerNameserver": {
+                "type": "array",
+                "items": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "viaRoute": {
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9-]*$"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "const": "udp"
+                        },
+                        "host": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "port": {
+                          "default": 53,
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 65535
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "host",
+                        "port"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "viaRoute": {
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9-]*$"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "const": "doh"
+                        },
+                        "url": {
+                          "type": "string",
+                          "format": "uri"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "url"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "viaRoute": {
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9-]*$"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "const": "dot"
+                        },
+                        "host": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "port": {
+                          "default": 853,
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 65535
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "host",
+                        "port"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              },
+              "nameserver": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "viaRoute": {
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9-]*$"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "const": "udp"
+                        },
+                        "host": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "port": {
+                          "default": 53,
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 65535
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "host",
+                        "port"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "viaRoute": {
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9-]*$"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "const": "doh"
+                        },
+                        "url": {
+                          "type": "string",
+                          "format": "uri"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "url"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "viaRoute": {
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9-]*$"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "const": "dot"
+                        },
+                        "host": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "port": {
+                          "default": 853,
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 65535
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "host",
+                        "port"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              },
+              "servicePolicies": {
+                "default": {},
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]*$"
+                },
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": {
+                    "resolvers": {
+                      "minItems": 1,
+                      "type": "array",
+                      "items": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "viaRoute": {
+                                "type": "string",
+                                "pattern": "^[a-z][a-z0-9-]*$"
+                              },
+                              "kind": {
+                                "type": "string",
+                                "const": "udp"
+                              },
+                              "host": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "port": {
+                                "default": 53,
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 65535
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "host",
+                              "port"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "viaRoute": {
+                                "type": "string",
+                                "pattern": "^[a-z][a-z0-9-]*$"
+                              },
+                              "kind": {
+                                "type": "string",
+                                "const": "doh"
+                              },
+                              "url": {
+                                "type": "string",
+                                "format": "uri"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "url"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "viaRoute": {
+                                "type": "string",
+                                "pattern": "^[a-z][a-z0-9-]*$"
+                              },
+                              "kind": {
+                                "type": "string",
+                                "const": "dot"
+                              },
+                              "host": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "port": {
+                                "default": 853,
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 65535
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "host",
+                              "port"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      }
+                    },
+                    "failure": {
+                      "type": "string",
+                      "enum": [
+                        "refuse",
+                        "fallback"
+                      ]
+                    },
+                    "fallback": {
+                      "type": "string",
+                      "enum": [
+                        "none",
+                        "direct",
+                        "local",
+                        "system"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "resolvers",
+                    "failure",
+                    "fallback"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "respectRules",
+              "defaultNameserver",
+              "proxyServerNameserver",
+              "nameserver",
+              "servicePolicies"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "defaultProfile",
+        "profiles"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "policyVersion",
+    "routeTargets",
+    "protectionClasses",
+    "services",
+    "accessProfiles",
+    "dns"
+  ],
+  "additionalProperties": false
+}

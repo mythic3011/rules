@@ -1,0 +1,34 @@
+schemaVersion: 1
+policyVersion: "1"
+routeTargets:
+  reject: { kind: reject, group: REJECT }
+  us-auto: { kind: region-auto, group: "US Auto", region: us, dynamic: true }
+protectionClasses:
+  stable-session:
+    kind: stable-session
+    directAllowed: false
+    dynamicRouteAllowed: false
+services:
+  windsurf:
+    displayName: Windsurf
+    protectionClass: stable-session
+    defaultRoute: us-auto
+    allowedRoutes: [us-auto, reject]
+    selector:
+      kind: profile-aware
+      visibleGroup: Windsurf
+      hiddenProfileTarget: "@profile/windsurf"
+      allowedRouteRefs: [us-auto, reject]
+    upstream: { source: vpsdance, provider: windsurf }
+    endpoints:
+      control: { ruleset: AI-Windsurf, session: stable }
+accessProfiles: {}
+dns:
+  defaultProfile: default
+  profiles:
+    default:
+      respectRules: false
+      defaultNameserver: [{ kind: udp, host: 1.1.1.1 }]
+      proxyServerNameserver: []
+      nameserver: [{ kind: udp, host: 1.1.1.1 }]
+      servicePolicies: {}

@@ -1,0 +1,627 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "1",
+  "accessProfile": {
+    "id": "sg",
+    "displayName": "🇸🇬 新加坡出口策略"
+  },
+  "dns": {
+    "id": "default",
+    "respectRules": true,
+    "defaultNameserver": [
+      {
+        "kind": "udp",
+        "host": "1.1.1.1",
+        "port": 53
+      }
+    ],
+    "proxyServerNameserver": [
+      {
+        "kind": "doh",
+        "url": "https://1.1.1.1/dns-query"
+      }
+    ],
+    "nameserver": [
+      {
+        "kind": "doh",
+        "url": "https://1.1.1.1/dns-query"
+      }
+    ],
+    "servicePolicies": [
+      {
+        "serviceId": "claude",
+        "failure": "refuse",
+        "fallback": "none",
+        "resolvers": [
+          {
+            "viaRoute": "claude-us-pinned",
+            "kind": "doh",
+            "url": "https://1.1.1.1/dns-query"
+          }
+        ]
+      }
+    ]
+  },
+  "services": [
+    {
+      "id": "chatgpt",
+      "displayName": "🤖 ChatGPT",
+      "protectionClass": "stable-session",
+      "effectiveRoute": {
+        "id": "sg-stable",
+        "kind": "region-stable",
+        "group": "🇸🇬 SG Stable",
+        "dynamic": false
+      },
+      "selector": {
+        "kind": "profile-aware",
+        "visibleGroup": "🤖 ChatGPT",
+        "hiddenProfileTarget": "@profile/chatgpt",
+        "choices": [
+          {
+            "id": "us-stable",
+            "kind": "region-stable",
+            "group": "🇺🇸 US Stable",
+            "dynamic": false
+          },
+          {
+            "id": "sg-stable",
+            "kind": "region-stable",
+            "group": "🇸🇬 SG Stable",
+            "dynamic": false
+          },
+          {
+            "id": "jp-stable",
+            "kind": "region-stable",
+            "group": "🇯🇵 JP Stable",
+            "dynamic": false
+          },
+          {
+            "id": "reject",
+            "kind": "reject",
+            "group": "REJECT",
+            "dynamic": false
+          }
+        ]
+      },
+      "endpoints": [
+        {
+          "id": "service",
+          "ruleset": "AI_ChatGPT_Classical",
+          "session": "stable",
+          "effectiveRoute": {
+            "id": "sg-stable",
+            "kind": "region-stable",
+            "group": "🇸🇬 SG Stable",
+            "dynamic": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "claude",
+      "displayName": "🔐 Claude Account Guard",
+      "protectionClass": "account-protected",
+      "effectiveRoute": {
+        "id": "reject",
+        "kind": "reject",
+        "group": "REJECT",
+        "dynamic": false
+      },
+      "selector": {
+        "kind": "explicit-node",
+        "visibleGroup": "🔐 Claude Account Guard",
+        "initialRoute": "reject",
+        "runtimeSelectionRequired": true,
+        "choices": [
+          {
+            "kind": "route",
+            "route": {
+              "id": "reject",
+              "kind": "reject",
+              "group": "REJECT",
+              "dynamic": false
+            }
+          },
+          {
+            "kind": "approved-node",
+            "routeId": "claude-us-pinned",
+            "group": "🔐 Claude US Pinned",
+            "node": "US-Claude-01",
+            "emptyFallback": "REJECT"
+          },
+          {
+            "kind": "approved-node",
+            "routeId": "claude-us-pinned",
+            "group": "🔐 Claude US Pinned",
+            "node": "US-Claude-02",
+            "emptyFallback": "REJECT"
+          }
+        ]
+      },
+      "endpoints": [
+        {
+          "id": "service",
+          "ruleset": "AI_Claude_Classical",
+          "session": "stable",
+          "effectiveRoute": {
+            "id": "reject",
+            "kind": "reject",
+            "group": "REJECT",
+            "dynamic": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "copilot",
+      "displayName": "🧑‍💻 Copilot",
+      "protectionClass": "direct-capable",
+      "effectiveRoute": {
+        "id": "sg-stable",
+        "kind": "region-stable",
+        "group": "🇸🇬 SG Stable",
+        "dynamic": false
+      },
+      "selector": {
+        "kind": "profile-aware",
+        "visibleGroup": "🧑‍💻 Copilot",
+        "hiddenProfileTarget": "@profile/copilot",
+        "choices": [
+          {
+            "id": "direct",
+            "kind": "direct",
+            "group": "DIRECT",
+            "dynamic": false
+          },
+          {
+            "id": "us-stable",
+            "kind": "region-stable",
+            "group": "🇺🇸 US Stable",
+            "dynamic": false
+          },
+          {
+            "id": "sg-stable",
+            "kind": "region-stable",
+            "group": "🇸🇬 SG Stable",
+            "dynamic": false
+          },
+          {
+            "id": "jp-stable",
+            "kind": "region-stable",
+            "group": "🇯🇵 JP Stable",
+            "dynamic": false
+          },
+          {
+            "id": "reject",
+            "kind": "reject",
+            "group": "REJECT",
+            "dynamic": false
+          }
+        ]
+      },
+      "endpoints": [
+        {
+          "id": "service",
+          "ruleset": "AI_Copilot_Classical",
+          "session": "stateless",
+          "effectiveRoute": {
+            "id": "sg-stable",
+            "kind": "region-stable",
+            "group": "🇸🇬 SG Stable",
+            "dynamic": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "gemini",
+      "displayName": "🤖 Gemini",
+      "protectionClass": "direct-capable",
+      "effectiveRoute": {
+        "id": "sg-stable",
+        "kind": "region-stable",
+        "group": "🇸🇬 SG Stable",
+        "dynamic": false
+      },
+      "selector": {
+        "kind": "profile-aware",
+        "visibleGroup": "🤖 Gemini",
+        "hiddenProfileTarget": "@profile/gemini",
+        "choices": [
+          {
+            "id": "direct",
+            "kind": "direct",
+            "group": "DIRECT",
+            "dynamic": false
+          },
+          {
+            "id": "us-stable",
+            "kind": "region-stable",
+            "group": "🇺🇸 US Stable",
+            "dynamic": false
+          },
+          {
+            "id": "sg-stable",
+            "kind": "region-stable",
+            "group": "🇸🇬 SG Stable",
+            "dynamic": false
+          },
+          {
+            "id": "jp-stable",
+            "kind": "region-stable",
+            "group": "🇯🇵 JP Stable",
+            "dynamic": false
+          },
+          {
+            "id": "reject",
+            "kind": "reject",
+            "group": "REJECT",
+            "dynamic": false
+          }
+        ]
+      },
+      "endpoints": [
+        {
+          "id": "service",
+          "ruleset": "AI_Gemini_Classical",
+          "session": "stateless",
+          "effectiveRoute": {
+            "id": "sg-stable",
+            "kind": "region-stable",
+            "group": "🇸🇬 SG Stable",
+            "dynamic": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "grok",
+      "displayName": "🤖 Grok",
+      "protectionClass": "direct-capable",
+      "effectiveRoute": {
+        "id": "sg-stable",
+        "kind": "region-stable",
+        "group": "🇸🇬 SG Stable",
+        "dynamic": false
+      },
+      "selector": {
+        "kind": "profile-aware",
+        "visibleGroup": "🤖 Grok",
+        "hiddenProfileTarget": "@profile/grok",
+        "choices": [
+          {
+            "id": "direct",
+            "kind": "direct",
+            "group": "DIRECT",
+            "dynamic": false
+          },
+          {
+            "id": "us-stable",
+            "kind": "region-stable",
+            "group": "🇺🇸 US Stable",
+            "dynamic": false
+          },
+          {
+            "id": "sg-stable",
+            "kind": "region-stable",
+            "group": "🇸🇬 SG Stable",
+            "dynamic": false
+          },
+          {
+            "id": "jp-stable",
+            "kind": "region-stable",
+            "group": "🇯🇵 JP Stable",
+            "dynamic": false
+          },
+          {
+            "id": "reject",
+            "kind": "reject",
+            "group": "REJECT",
+            "dynamic": false
+          }
+        ]
+      },
+      "endpoints": [
+        {
+          "id": "service",
+          "ruleset": "AI_Grok_Classical",
+          "session": "stateless",
+          "effectiveRoute": {
+            "id": "sg-stable",
+            "kind": "region-stable",
+            "group": "🇸🇬 SG Stable",
+            "dynamic": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "huggingface",
+      "displayName": "🤗 Hugging Face",
+      "protectionClass": "proxy-required",
+      "effectiveRoute": {
+        "id": "sg-stable",
+        "kind": "region-stable",
+        "group": "🇸🇬 SG Stable",
+        "dynamic": false
+      },
+      "selector": {
+        "kind": "profile-aware",
+        "visibleGroup": "🤗 Hugging Face",
+        "hiddenProfileTarget": "@profile/huggingface",
+        "choices": [
+          {
+            "id": "us-stable",
+            "kind": "region-stable",
+            "group": "🇺🇸 US Stable",
+            "dynamic": false
+          },
+          {
+            "id": "sg-stable",
+            "kind": "region-stable",
+            "group": "🇸🇬 SG Stable",
+            "dynamic": false
+          },
+          {
+            "id": "jp-stable",
+            "kind": "region-stable",
+            "group": "🇯🇵 JP Stable",
+            "dynamic": false
+          },
+          {
+            "id": "reject",
+            "kind": "reject",
+            "group": "REJECT",
+            "dynamic": false
+          }
+        ]
+      },
+      "endpoints": [
+        {
+          "id": "service",
+          "ruleset": "AI_HuggingFace_Classical",
+          "session": "stable",
+          "effectiveRoute": {
+            "id": "sg-stable",
+            "kind": "region-stable",
+            "group": "🇸🇬 SG Stable",
+            "dynamic": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "notebooklm",
+      "displayName": "🤖 NotebookLM",
+      "protectionClass": "direct-capable",
+      "effectiveRoute": {
+        "id": "sg-stable",
+        "kind": "region-stable",
+        "group": "🇸🇬 SG Stable",
+        "dynamic": false
+      },
+      "selector": {
+        "kind": "profile-aware",
+        "visibleGroup": "🤖 NotebookLM",
+        "hiddenProfileTarget": "@profile/notebooklm",
+        "choices": [
+          {
+            "id": "direct",
+            "kind": "direct",
+            "group": "DIRECT",
+            "dynamic": false
+          },
+          {
+            "id": "us-stable",
+            "kind": "region-stable",
+            "group": "🇺🇸 US Stable",
+            "dynamic": false
+          },
+          {
+            "id": "sg-stable",
+            "kind": "region-stable",
+            "group": "🇸🇬 SG Stable",
+            "dynamic": false
+          },
+          {
+            "id": "jp-stable",
+            "kind": "region-stable",
+            "group": "🇯🇵 JP Stable",
+            "dynamic": false
+          },
+          {
+            "id": "reject",
+            "kind": "reject",
+            "group": "REJECT",
+            "dynamic": false
+          }
+        ]
+      },
+      "endpoints": [
+        {
+          "id": "service",
+          "ruleset": "AI_NotebookLM_Classical",
+          "session": "stateless",
+          "effectiveRoute": {
+            "id": "sg-stable",
+            "kind": "region-stable",
+            "group": "🇸🇬 SG Stable",
+            "dynamic": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "perplexity",
+      "displayName": "🤖 Perplexity",
+      "protectionClass": "direct-capable",
+      "effectiveRoute": {
+        "id": "sg-stable",
+        "kind": "region-stable",
+        "group": "🇸🇬 SG Stable",
+        "dynamic": false
+      },
+      "selector": {
+        "kind": "profile-aware",
+        "visibleGroup": "🤖 Perplexity",
+        "hiddenProfileTarget": "@profile/perplexity",
+        "choices": [
+          {
+            "id": "direct",
+            "kind": "direct",
+            "group": "DIRECT",
+            "dynamic": false
+          },
+          {
+            "id": "us-stable",
+            "kind": "region-stable",
+            "group": "🇺🇸 US Stable",
+            "dynamic": false
+          },
+          {
+            "id": "sg-stable",
+            "kind": "region-stable",
+            "group": "🇸🇬 SG Stable",
+            "dynamic": false
+          },
+          {
+            "id": "jp-stable",
+            "kind": "region-stable",
+            "group": "🇯🇵 JP Stable",
+            "dynamic": false
+          },
+          {
+            "id": "reject",
+            "kind": "reject",
+            "group": "REJECT",
+            "dynamic": false
+          }
+        ]
+      },
+      "endpoints": [
+        {
+          "id": "service",
+          "ruleset": "AI_Perplexity_Classical",
+          "session": "stateless",
+          "effectiveRoute": {
+            "id": "sg-stable",
+            "kind": "region-stable",
+            "group": "🇸🇬 SG Stable",
+            "dynamic": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "poe",
+      "displayName": "🤖 Poe",
+      "protectionClass": "stable-session",
+      "effectiveRoute": {
+        "id": "sg-stable",
+        "kind": "region-stable",
+        "group": "🇸🇬 SG Stable",
+        "dynamic": false
+      },
+      "selector": {
+        "kind": "profile-aware",
+        "visibleGroup": "🤖 Poe",
+        "hiddenProfileTarget": "@profile/poe",
+        "choices": [
+          {
+            "id": "us-stable",
+            "kind": "region-stable",
+            "group": "🇺🇸 US Stable",
+            "dynamic": false
+          },
+          {
+            "id": "sg-stable",
+            "kind": "region-stable",
+            "group": "🇸🇬 SG Stable",
+            "dynamic": false
+          },
+          {
+            "id": "jp-stable",
+            "kind": "region-stable",
+            "group": "🇯🇵 JP Stable",
+            "dynamic": false
+          },
+          {
+            "id": "reject",
+            "kind": "reject",
+            "group": "REJECT",
+            "dynamic": false
+          }
+        ]
+      },
+      "endpoints": [
+        {
+          "id": "service",
+          "ruleset": "AI_Poe_Classical",
+          "session": "stable",
+          "effectiveRoute": {
+            "id": "sg-stable",
+            "kind": "region-stable",
+            "group": "🇸🇬 SG Stable",
+            "dynamic": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "windsurf",
+      "displayName": "🌊 Windsurf",
+      "protectionClass": "proxy-required",
+      "effectiveRoute": {
+        "id": "sg-stable",
+        "kind": "region-stable",
+        "group": "🇸🇬 SG Stable",
+        "dynamic": false
+      },
+      "selector": {
+        "kind": "profile-aware",
+        "visibleGroup": "🌊 Windsurf",
+        "hiddenProfileTarget": "@profile/windsurf",
+        "choices": [
+          {
+            "id": "us-stable",
+            "kind": "region-stable",
+            "group": "🇺🇸 US Stable",
+            "dynamic": false
+          },
+          {
+            "id": "sg-stable",
+            "kind": "region-stable",
+            "group": "🇸🇬 SG Stable",
+            "dynamic": false
+          },
+          {
+            "id": "jp-stable",
+            "kind": "region-stable",
+            "group": "🇯🇵 JP Stable",
+            "dynamic": false
+          },
+          {
+            "id": "reject",
+            "kind": "reject",
+            "group": "REJECT",
+            "dynamic": false
+          }
+        ]
+      },
+      "endpoints": [
+        {
+          "id": "service",
+          "ruleset": "AI_Windsurf_Classical",
+          "session": "stable",
+          "effectiveRoute": {
+            "id": "sg-stable",
+            "kind": "region-stable",
+            "group": "🇸🇬 SG Stable",
+            "dynamic": false
+          }
+        }
+      ]
+    }
+  ]
+}

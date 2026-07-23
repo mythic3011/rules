@@ -1,0 +1,22 @@
+#NON-EXECUTABLE FIREWALL SEMANTIC PLAN
+#A router-local adapter must discover OpenClash runtime chains, marks, and interfaces.
+
+schemaVersion: 1
+policyVersion: "1"
+deploymentRequired: true
+protectedSources: router-local-deployment-required
+allow:
+  - router-dns
+  - runtime-discovered-mihomo-interception-path
+  - router-originated-approved-proxy-egress
+deny:
+  - direct-wan-v4
+  - direct-wan-v6
+  - external-dns-tcp-udp-53
+  - dot-tcp-udp-853
+  - direct-quic-udp-443
+adapterRequirements:
+  - discover-openclash-uci-config
+  - discover-nft-chain-mark-interface
+  - dedicated-device-or-vlan
+  - live-reboot-race-proof

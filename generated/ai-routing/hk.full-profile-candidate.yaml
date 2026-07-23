@@ -1,0 +1,584 @@
+# SHADOW / NON-PRODUCTION AI routing candidate. Existing Python relaxed YAML remains production authority.
+
+# Static/global settings remain owned by the legacy Python relaxed profile.
+port: 7890
+socks-port: 7891
+mixed-port: 7893
+redir-port: 7892
+tproxy-port: 7895
+allow-lan: true
+bind-address: "*"
+mode: rule
+tcp-concurrent: true
+unified-delay: true
+geox-url:
+  mmdb: https://testingcf.jsdelivr.net/gh/alecthw/mmdb_china_ip_list@release/Country.mmdb
+  geoip: https://testingcf.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geoip.dat
+  geosite: https://testingcf.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geosite.dat
+  asn: https://testingcf.jsdelivr.net/gh/xishang0128/geoip@release/GeoLite2-ASN.mmdb
+geo-auto-update: true
+geo-update-interval: 24
+geodata-mode: true
+log-level: info
+ipv6: true
+external-controller: 0.0.0.0:9090
+secret: ""
+profile:
+  store-selected: true
+  store-fake-ip: true
+tun:
+  enable: true
+  stack: system
+  dns-hijack:
+    - 0.0.0.0:53
+  auto-detect-interface: false
+  auto-route: false
+  auto-redirect: false
+  strict-route: false
+  endpoint-independent-nat: true
+
+proxy-providers:
+  provider1:
+    type: http
+    url: url
+    interval: 3600
+    path: ./proxy_provider/provider1.yaml
+    proxy: DIRECT
+    header: null
+    health-check:
+      enable: true
+      interval: 600
+      url: https://cp.cloudflare.com/generate_204
+    override:
+      skip-cert-verify: true
+      udp: true
+    exclude-filter: (?i)(剩余流量|剩餘流量|套餐到期|到期|流量[:：]|Traffic|Expire|Subscription|官网|官方|客服|Telegram|TG群|网址|網站|更新|失效|Invalid|USE|USED|TOTAL|EXPIRE|Panel|Channel|Author|公告|通知|邀请|邀請|返利|教程|使用说明|使用說明)
+
+dns:
+  enable: true
+  listen: 0.0.0.0:7874
+  ipv6: true
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  fake-ip-filter:
+    - "*.lan"
+    - localhost.ptlogin2.qq.com
+  fake-ip-filter-mode: blacklist
+  respect-rules: true
+  default-nameserver:
+    - 1.1.1.1
+    - 8.8.8.8
+  nameserver:
+    - https://1.1.1.1/dns-query
+    - https://dns.google/dns-query
+    - https://dns.adguard-dns.com/dns-query
+  proxy-server-nameserver:
+    - https://1.1.1.1/dns-query
+    - https://dns.google/dns-query
+    - https://dns.adguard-dns.com/dns-query
+  direct-nameserver:
+    - https://127.0.0.1:5053/dns-query
+  direct-nameserver-follow-policy: false
+  nameserver-policy:
+    geosite:private:
+      - https://1.1.1.1/dns-query
+      - https://dns.google/dns-query
+    geosite:cn:
+      - https://127.0.0.1:5053/dns-query
+    geosite:openai:
+      - https://1.1.1.1/dns-query
+      - https://dns.google/dns-query
+    geosite:bing:
+      - https://1.1.1.1/dns-query
+      - https://dns.google/dns-query
+    geosite:category-ads-all:
+      - https://dns.adguard-dns.com/dns-query
+      - https://1.1.1.1/dns-query
+    +.anthropic.com:
+      - https://1.1.1.1/dns-query
+      - https://dns.google/dns-query
+    +.claude.ai:
+      - https://1.1.1.1/dns-query
+      - https://dns.google/dns-query
+    +.perplexity.ai:
+      - https://1.1.1.1/dns-query
+      - https://dns.google/dns-query
+    +.x.ai:
+      - https://1.1.1.1/dns-query
+      - https://dns.google/dns-query
+    +.poe.com:
+      - https://1.1.1.1/dns-query
+      - https://dns.google/dns-query
+    rule-set:AI_Claude_Classical:
+      - https://1.1.1.1/dns-query#🔐 Claude Account Guard
+
+proxy-groups:
+  - name: 🚀 手動選擇
+    type: select
+    proxies:
+      - ♻️ 自動選擇
+      - 🎯 全球直連
+      - 🇺🇸 美國節點
+      - 🇯🇵 日本節點
+      - 🇸🇬 新加坡節點
+      - 🇹🇼 台灣節點
+      - 🇰🇷 韓國節點
+      - 🌐 其他／未識別節點
+      - ⛔ 拒絕
+    filter: "(?i)^(?!.*(?:🇭🇰|香港|Hong
+      Kong|Hong-Kong|\bHKG\b|\bHK\b|剩余流量|剩餘流量|套餐到期|到期|流量[:：]|Traffic|Expire|Subsc\
+      ription|官网|官方|客服|Telegram|TG群|网址|網站|更新|失效|Invalid|USE|USED|TOTAL|EXPIRE|Pan\
+      el|Channel|Author|公告|通知|邀请|邀請|返利|教程|使用说明|使用說明)).*$"
+    use:
+      - provider1
+  - name: ♻️ 自動選擇
+    type: url-test
+    filter: "(?i)^(?!.*(?:🇭🇰|香港|Hong
+      Kong|Hong-Kong|\bHKG\b|\bHK\b|剩余流量|剩餘流量|套餐到期|到期|流量[:：]|Traffic|Expire|Subsc\
+      ription|官网|官方|客服|Telegram|TG群|网址|網站|更新|失效|Invalid|USE|USED|TOTAL|EXPIRE|Pan\
+      el|Channel|Author|公告|通知|邀请|邀請|返利|教程|使用说明|使用說明)).*$"
+    tolerance: 50
+    url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    use:
+      - provider1
+  - name: ⛔ 拒絕
+    type: select
+    proxies:
+      - REJECT
+  - name: 🐟 漏網之魚
+    type: select
+    proxies:
+      - 🎯 全球直連
+      - 🚀 手動選擇
+      - ♻️ 自動選擇
+      - ⛔ 拒絕
+  - name: 🇺🇸 美國節點
+    type: url-test
+    url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+    filter: (?i)(?:🇺🇸|美國|美国|波特蘭|波特兰|達拉斯|达拉斯|俄勒岡|俄勒冈|鳳凰城|凤凰城|費利蒙|费利蒙|硅谷|拉斯維加斯|拉斯维加斯|洛杉磯|洛杉矶|聖何塞|圣何塞|聖克拉拉|圣克拉拉|西雅圖|西雅图|芝加哥|紐約|纽约|亞特蘭大|亚特兰大|邁阿密|迈阿密|華盛頓|华盛顿|\bUS(?:[-_
+      ]?\d+(?:[-_ ]?[A-Za-z]{2,})?)?\b|United
+      States|UnitedStates|USA|America|JFK|EWR|IAD|ATL|ORD|MIA|NYC|LAX|SFO|SEA|DFW|SJC)
+    use:
+      - provider1
+  - name: 🇯🇵 日本節點
+    type: url-test
+    url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+    filter: (?i)(?:🇯🇵|日本|東京|东京|大阪|關西|关西|埼玉|川日|泉日|滬日|沪日|深日|\bJP(?:[-_ ]?\d+(?:[-_
+      ]?[A-Za-z]{2,})?)?\b|Japan|JPN|NRT|HND|KIX|TYO|OSA|Kansai)
+    use:
+      - provider1
+  - name: 🇸🇬 新加坡節點
+    type: url-test
+    url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+    filter: (?i)(?:🇸🇬|新加坡|獅城|狮城|\bSG(?:[-_ ]?\d+(?:[-_
+      ]?[A-Za-z]{2,})?)?\b|Singapore|SIN)
+    use:
+      - provider1
+  - name: 🇹🇼 台灣節點
+    type: url-test
+    url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+    filter: (?i)(?:🇹🇼|台灣|臺灣|台湾|台北|臺北|新北|台中|臺中|高雄|彰化|\bTW(?:[-_ ]?\d+(?:[-_
+      ]?[A-Za-z]{2,})?)?\b|Taiwan|TWN|TPE|ROC)
+    use:
+      - provider1
+  - name: 🇰🇷 韓國節點
+    type: url-test
+    url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+    filter: (?i)(?:🇰🇷|韓國|韩国|首爾|首尔|春川|\bKR(?:[-_ ]?\d+(?:[-_
+      ]?[A-Za-z]{2,})?)?\b|Korea|KOR|Chuncheon|ICN)
+    use:
+      - provider1
+  - name: 🌐 其他／未識別節點
+    type: url-test
+    url: https://cp.cloudflare.com/generate_204
+    interval: 300
+    tolerance: 50
+    filter: (?i)^(?!.*(?:🇭🇰|香港|Hong
+      Kong|Hong-Kong|\bHKG\b|\bHK\b|剩余流量|剩餘流量|套餐到期|到期|流量[:：]|Traffic|Expire|Subscription|官网|官方|客服|Telegram|TG群|网址|網站|更新|失效|Invalid|USE|USED|TOTAL|EXPIRE|Panel|Channel|Author|公告|通知|邀请|邀請|返利|教程|使用说明|使用說明)).*$
+    exclude-filter: (?i)(?:(?:🇺🇸|美國|美国|波特蘭|波特兰|達拉斯|达拉斯|俄勒岡|俄勒冈|鳳凰城|凤凰城|費利蒙|费利蒙|硅谷|拉斯維加斯|拉斯维加斯|洛杉磯|洛杉矶|聖何塞|圣何塞|聖克拉拉|圣克拉拉|西雅圖|西雅图|芝加哥|紐約|纽约|亞特蘭大|亚特兰大|邁阿密|迈阿密|華盛頓|华盛顿|\bUS(?:[-_
+      ]?\d+(?:[-_ ]?[A-Za-z]{2,})?)?\b|United
+      States|UnitedStates|USA|America|JFK|EWR|IAD|ATL|ORD|MIA|NYC|LAX|SFO|SEA|DFW|SJC)|(?:🇯🇵|日本|東京|东京|大阪|關西|关西|埼玉|川日|泉日|滬日|沪日|深日|\bJP(?:[-_
+      ]?\d+(?:[-_
+      ]?[A-Za-z]{2,})?)?\b|Japan|JPN|NRT|HND|KIX|TYO|OSA|Kansai)|(?:🇸🇬|新加坡|獅城|狮城|\bSG(?:[-_
+      ]?\d+(?:[-_
+      ]?[A-Za-z]{2,})?)?\b|Singapore|SIN)|(?:🇹🇼|台灣|臺灣|台湾|台北|臺北|新北|台中|臺中|高雄|彰化|\bTW(?:[-_
+      ]?\d+(?:[-_
+      ]?[A-Za-z]{2,})?)?\b|Taiwan|TWN|TPE|ROC)|(?:🇰🇷|韓國|韩国|首爾|首尔|春川|\bKR(?:[-_
+      ]?\d+(?:[-_ ]?[A-Za-z]{2,})?)?\b|Korea|KOR|Chuncheon|ICN))
+    use:
+      - provider1
+  - name: 🎯 全球直連
+    type: select
+    proxies:
+      - DIRECT
+  - name: 🇯🇵 JP Stable
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - REJECT
+    use:
+      - provider1
+    filter: (?i)🇯🇵|日本|東京|东京|大阪|關西|关西|埼玉|川日|泉日|滬日|沪日|深日|\bJP(?:[-_ ]?\d+(?:[-_
+      ]?[A-Za-z]{2,})?)?\b|Japan|JPN|NRT|HND|KIX|TYO|OSA|Kansai
+  - name: 🇸🇬 SG Stable
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - REJECT
+    use:
+      - provider1
+    filter: (?i)🇸🇬|新加坡|獅城|狮城|\bSG(?:[-_ ]?\d+(?:[-_ ]?[A-Za-z]{2,})?)?\b|Singapore|SIN
+  - name: 🇺🇸 US Stable
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - REJECT
+    use:
+      - provider1
+    filter: (?i)🇺🇸|美國|美国|波特蘭|波特兰|達拉斯|达拉斯|俄勒岡|俄勒冈|鳳凰城|凤凰城|費利蒙|费利蒙|硅谷|拉斯維加斯|拉斯维加斯|洛杉磯|洛杉矶|聖何塞|圣何塞|聖克拉拉|圣克拉拉|西雅圖|西雅图|芝加哥|紐約|纽约|亞特蘭大|亚特兰大|邁阿密|迈阿密|華盛頓|华盛顿|\bUS(?:[-_
+      ]?\d+(?:[-_ ]?[A-Za-z]{2,})?)?\b|United
+      States|UnitedStates|\bUSA\b|America|JFK|EWR|IAD|ATL|ORD|MIA|NYC|LAX|SFO|SEA|DFW|SJC
+  - name: "@mode/hk"
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - REJECT
+  - name: "@mode/jp"
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - REJECT
+  - name: "@mode/sg"
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - REJECT
+  - name: "@mode/us"
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - REJECT
+  - name: 🌍 AI 存取模式
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - "@mode/hk"
+      - "@mode/jp"
+      - "@mode/sg"
+      - "@mode/us"
+  - name: "@profile/chatgpt"
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - 🇺🇸 US Stable
+      - 🇸🇬 SG Stable
+      - 🇯🇵 JP Stable
+      - REJECT
+  - name: 🤖 ChatGPT
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - "@profile/chatgpt"
+      - 🇺🇸 US Stable
+      - 🇸🇬 SG Stable
+      - 🇯🇵 JP Stable
+      - REJECT
+  - name: 🔐 Claude Account Guard
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - REJECT
+  - name: "@profile/copilot"
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - DIRECT
+      - 🇺🇸 US Stable
+      - 🇸🇬 SG Stable
+      - 🇯🇵 JP Stable
+      - REJECT
+  - name: 🧑‍💻 Copilot
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - "@profile/copilot"
+      - DIRECT
+      - 🇺🇸 US Stable
+      - 🇸🇬 SG Stable
+      - 🇯🇵 JP Stable
+      - REJECT
+  - name: "@profile/gemini"
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - DIRECT
+      - 🇺🇸 US Stable
+      - 🇸🇬 SG Stable
+      - 🇯🇵 JP Stable
+      - REJECT
+  - name: 🤖 Gemini
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - "@profile/gemini"
+      - DIRECT
+      - 🇺🇸 US Stable
+      - 🇸🇬 SG Stable
+      - 🇯🇵 JP Stable
+      - REJECT
+  - name: "@profile/grok"
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - DIRECT
+      - 🇺🇸 US Stable
+      - 🇸🇬 SG Stable
+      - 🇯🇵 JP Stable
+      - REJECT
+  - name: 🤖 Grok
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - "@profile/grok"
+      - DIRECT
+      - 🇺🇸 US Stable
+      - 🇸🇬 SG Stable
+      - 🇯🇵 JP Stable
+      - REJECT
+  - name: "@profile/huggingface"
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - 🇺🇸 US Stable
+      - 🇸🇬 SG Stable
+      - 🇯🇵 JP Stable
+      - REJECT
+  - name: 🤗 Hugging Face
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - "@profile/huggingface"
+      - 🇺🇸 US Stable
+      - 🇸🇬 SG Stable
+      - 🇯🇵 JP Stable
+      - REJECT
+  - name: "@profile/notebooklm"
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - DIRECT
+      - 🇺🇸 US Stable
+      - 🇸🇬 SG Stable
+      - 🇯🇵 JP Stable
+      - REJECT
+  - name: 🤖 NotebookLM
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - "@profile/notebooklm"
+      - DIRECT
+      - 🇺🇸 US Stable
+      - 🇸🇬 SG Stable
+      - 🇯🇵 JP Stable
+      - REJECT
+  - name: "@profile/perplexity"
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - DIRECT
+      - 🇺🇸 US Stable
+      - 🇸🇬 SG Stable
+      - 🇯🇵 JP Stable
+      - REJECT
+  - name: 🤖 Perplexity
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - "@profile/perplexity"
+      - DIRECT
+      - 🇺🇸 US Stable
+      - 🇸🇬 SG Stable
+      - 🇯🇵 JP Stable
+      - REJECT
+  - name: "@profile/poe"
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - 🇺🇸 US Stable
+      - 🇸🇬 SG Stable
+      - 🇯🇵 JP Stable
+      - REJECT
+  - name: 🤖 Poe
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - "@profile/poe"
+      - 🇺🇸 US Stable
+      - 🇸🇬 SG Stable
+      - 🇯🇵 JP Stable
+      - REJECT
+  - name: "@profile/windsurf"
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - 🇺🇸 US Stable
+      - 🇸🇬 SG Stable
+      - 🇯🇵 JP Stable
+      - REJECT
+  - name: 🌊 Windsurf
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - "@profile/windsurf"
+      - 🇺🇸 US Stable
+      - 🇸🇬 SG Stable
+      - 🇯🇵 JP Stable
+      - REJECT
+
+rules:
+  - GEOSITE,private,🎯 全球直連
+  - GEOIP,private,🎯 全球直連,no-resolve
+  - RULE-SET,AI_Claude_Classical,🔐 Claude Account Guard
+  - RULE-SET,AI_Claude_Classical,REJECT
+  - RULE-SET,AI_ChatGPT_Classical,🤖 ChatGPT
+  - RULE-SET,AI_Copilot_Classical,🧑‍💻 Copilot
+  - RULE-SET,AI_Gemini_Classical,🤖 Gemini
+  - RULE-SET,AI_Grok_Classical,🤖 Grok
+  - RULE-SET,AI_HuggingFace_Classical,🤗 Hugging Face
+  - RULE-SET,AI_NotebookLM_Classical,🤖 NotebookLM
+  - RULE-SET,AI_Perplexity_Classical,🤖 Perplexity
+  - RULE-SET,AI_Poe_Classical,🤖 Poe
+  - RULE-SET,AI_Windsurf_Classical,🌊 Windsurf
+  - RULE-SET,AI_All_Classical,DIRECT
+  - GEOSITE,google-deepmind,DIRECT
+  - GEOSITE,category-ai-!cn,DIRECT
+  - RULE-SET,SSH_Direct_Classical,🎯 全球直連
+  - RULE-SET,SSH_Proxy_Classical,🚀 手動選擇
+  - RULE-SET,Gaming_Direct_Classical,🎯 全球直連
+  - RULE-SET,Custom_Direct_Domain,🎯 全球直連
+  - RULE-SET,Custom_Direct_Classical_IP,🎯 全球直連
+  - RULE-SET,Custom_Proxy_Domain,🚀 手動選擇
+  - RULE-SET,Custom_Proxy_Classical_IP,🚀 手動選擇
+  - GEOIP,HK,🎯 全球直連,no-resolve
+  - MATCH,🐟 漏網之魚
+
+rule-providers:
+  Custom_Direct_Domain:
+    behavior: domain
+    interval: 10800
+    type: http
+    url: https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/Custom_Direct_Domain.yaml
+    format: yaml
+  Custom_Direct_Classical_IP:
+    behavior: classical
+    interval: 10800
+    type: http
+    url: https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/Custom_Direct_Classical_IP.yaml
+    format: yaml
+  Custom_Proxy_Domain:
+    behavior: domain
+    interval: 10800
+    type: http
+    url: https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/Custom_Proxy_Domain.yaml
+    format: yaml
+  Custom_Proxy_Classical_IP:
+    behavior: classical
+    interval: 10800
+    type: http
+    url: https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/Custom_Proxy_Classical_IP.yaml
+    format: yaml
+  SSH_Direct_Classical:
+    behavior: classical
+    interval: 10800
+    type: http
+    url: https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/SSH_Direct_Classical.yaml
+    format: yaml
+  SSH_Proxy_Classical:
+    behavior: classical
+    interval: 10800
+    type: http
+    url: https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/SSH_Proxy_Classical.yaml
+    format: yaml
+  Gaming_Direct_Classical:
+    behavior: classical
+    interval: 10800
+    type: http
+    url: https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/Gaming_Direct_Classical.yaml
+    format: yaml
+  AI_All_Classical:
+    type: http
+    behavior: classical
+    format: yaml
+    interval: 10800
+    url: https://raw.githubusercontent.com/VPSDance/ai-proxy-rules/d07cac190c33e7914ba7adaf7e7c14298fba7024/rules/clash/all.yaml
+  AI_ChatGPT_Classical:
+    type: http
+    behavior: classical
+    format: yaml
+    interval: 10800
+    url: https://raw.githubusercontent.com/VPSDance/ai-proxy-rules/d07cac190c33e7914ba7adaf7e7c14298fba7024/rules/clash/openai.yaml
+  AI_Claude_Classical:
+    type: http
+    behavior: classical
+    format: yaml
+    interval: 10800
+    url: https://raw.githubusercontent.com/VPSDance/ai-proxy-rules/d07cac190c33e7914ba7adaf7e7c14298fba7024/rules/clash/anthropic.yaml
+  AI_Copilot_Classical:
+    type: http
+    behavior: classical
+    format: yaml
+    interval: 10800
+    url: https://raw.githubusercontent.com/VPSDance/ai-proxy-rules/d07cac190c33e7914ba7adaf7e7c14298fba7024/rules/clash/copilot.yaml
+  AI_Gemini_Classical:
+    type: http
+    behavior: classical
+    format: yaml
+    interval: 10800
+    url: https://raw.githubusercontent.com/mythic3011/rules/0e9631339904f4a989c884781570b5756d82c9a3/rule/AI_Gemini_Classical.yaml
+  AI_Grok_Classical:
+    type: http
+    behavior: classical
+    format: yaml
+    interval: 10800
+    url: https://raw.githubusercontent.com/VPSDance/ai-proxy-rules/d07cac190c33e7914ba7adaf7e7c14298fba7024/rules/clash/x-ai.yaml
+  AI_HuggingFace_Classical:
+    type: http
+    behavior: classical
+    format: yaml
+    interval: 10800
+    url: https://raw.githubusercontent.com/VPSDance/ai-proxy-rules/d07cac190c33e7914ba7adaf7e7c14298fba7024/rules/clash/huggingface.yaml
+  AI_NotebookLM_Classical:
+    type: http
+    behavior: classical
+    format: yaml
+    interval: 10800
+    url: https://raw.githubusercontent.com/mythic3011/rules/0e9631339904f4a989c884781570b5756d82c9a3/rule/AI_NotebookLM_Classical.yaml
+  AI_Perplexity_Classical:
+    type: http
+    behavior: classical
+    format: yaml
+    interval: 10800
+    url: https://raw.githubusercontent.com/VPSDance/ai-proxy-rules/d07cac190c33e7914ba7adaf7e7c14298fba7024/rules/clash/perplexity.yaml
+  AI_Poe_Classical:
+    type: http
+    behavior: classical
+    format: yaml
+    interval: 10800
+    url: https://raw.githubusercontent.com/VPSDance/ai-proxy-rules/d07cac190c33e7914ba7adaf7e7c14298fba7024/rules/clash/poe.yaml
+  AI_Windsurf_Classical:
+    type: http
+    behavior: classical
+    format: yaml
+    interval: 10800
+    url: https://raw.githubusercontent.com/VPSDance/ai-proxy-rules/d07cac190c33e7914ba7adaf7e7c14298fba7024/rules/clash/windsurf.yaml

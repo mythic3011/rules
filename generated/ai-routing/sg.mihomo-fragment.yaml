@@ -1,0 +1,323 @@
+#NON-STANDALONE AI ROUTING FRAGMENT
+#PROVENANCE: VPSDance AI rules (VPSDance/ai-proxy-rules@d07cac190c33e7914ba7adaf7e7c14298fba7024), mythic3011 generated AI rules (mythic3011/rules@0e9631339904f4a989c884781570b5756d82c9a3)
+#EXTERNAL PROXY PROVIDERS: provider1
+#Global MATCH remains owned by the Python generator.
+
+proxy-groups:
+  - name: 🇯🇵 JP Stable
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - REJECT
+    use:
+      - provider1
+    filter: (?i)🇯🇵|日本|東京|东京|大阪|關西|关西|埼玉|川日|泉日|滬日|沪日|深日|\bJP(?:[-_ ]?\d+(?:[-_
+      ]?[A-Za-z]{2,})?)?\b|Japan|JPN|NRT|HND|KIX|TYO|OSA|Kansai
+  - name: 🇸🇬 SG Stable
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - REJECT
+    use:
+      - provider1
+    filter: (?i)🇸🇬|新加坡|獅城|狮城|\bSG(?:[-_ ]?\d+(?:[-_
+      ]?[A-Za-z]{2,})?)?\b|Singapore|SIN
+  - name: 🇺🇸 US Stable
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - REJECT
+    use:
+      - provider1
+    filter: (?i)🇺🇸|美國|美国|波特蘭|波特兰|達拉斯|达拉斯|俄勒岡|俄勒冈|鳳凰城|凤凰城|費利蒙|费利蒙|硅谷|拉斯維加斯|拉斯维加斯|洛杉磯|洛杉矶|聖何塞|圣何塞|聖克拉拉|圣克拉拉|西雅圖|西雅图|芝加哥|紐約|纽约|亞特蘭大|亚特兰大|邁阿密|迈阿密|華盛頓|华盛顿|\bUS(?:[-_
+      ]?\d+(?:[-_ ]?[A-Za-z]{2,})?)?\b|United
+      States|UnitedStates|\bUSA\b|America|JFK|EWR|IAD|ATL|ORD|MIA|NYC|LAX|SFO|SEA|DFW|SJC
+  - name: "@mode/hk"
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - REJECT
+  - name: "@mode/jp"
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - REJECT
+  - name: "@mode/sg"
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - REJECT
+  - name: "@mode/us"
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - REJECT
+  - name: 🌍 AI 存取模式
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - "@mode/hk"
+      - "@mode/jp"
+      - "@mode/sg"
+      - "@mode/us"
+  - name: "@profile/chatgpt"
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - 🇸🇬 SG Stable
+      - 🇺🇸 US Stable
+      - 🇯🇵 JP Stable
+      - REJECT
+  - name: 🤖 ChatGPT
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - "@profile/chatgpt"
+      - 🇸🇬 SG Stable
+      - 🇺🇸 US Stable
+      - 🇯🇵 JP Stable
+      - REJECT
+  - name: 🔐 Claude Account Guard
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - REJECT
+  - name: "@profile/copilot"
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - 🇸🇬 SG Stable
+      - DIRECT
+      - 🇺🇸 US Stable
+      - 🇯🇵 JP Stable
+      - REJECT
+  - name: 🧑‍💻 Copilot
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - "@profile/copilot"
+      - 🇸🇬 SG Stable
+      - DIRECT
+      - 🇺🇸 US Stable
+      - 🇯🇵 JP Stable
+      - REJECT
+  - name: "@profile/gemini"
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - 🇸🇬 SG Stable
+      - DIRECT
+      - 🇺🇸 US Stable
+      - 🇯🇵 JP Stable
+      - REJECT
+  - name: 🤖 Gemini
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - "@profile/gemini"
+      - 🇸🇬 SG Stable
+      - DIRECT
+      - 🇺🇸 US Stable
+      - 🇯🇵 JP Stable
+      - REJECT
+  - name: "@profile/grok"
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - 🇸🇬 SG Stable
+      - DIRECT
+      - 🇺🇸 US Stable
+      - 🇯🇵 JP Stable
+      - REJECT
+  - name: 🤖 Grok
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - "@profile/grok"
+      - 🇸🇬 SG Stable
+      - DIRECT
+      - 🇺🇸 US Stable
+      - 🇯🇵 JP Stable
+      - REJECT
+  - name: "@profile/huggingface"
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - 🇸🇬 SG Stable
+      - 🇺🇸 US Stable
+      - 🇯🇵 JP Stable
+      - REJECT
+  - name: 🤗 Hugging Face
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - "@profile/huggingface"
+      - 🇸🇬 SG Stable
+      - 🇺🇸 US Stable
+      - 🇯🇵 JP Stable
+      - REJECT
+  - name: "@profile/notebooklm"
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - 🇸🇬 SG Stable
+      - DIRECT
+      - 🇺🇸 US Stable
+      - 🇯🇵 JP Stable
+      - REJECT
+  - name: 🤖 NotebookLM
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - "@profile/notebooklm"
+      - 🇸🇬 SG Stable
+      - DIRECT
+      - 🇺🇸 US Stable
+      - 🇯🇵 JP Stable
+      - REJECT
+  - name: "@profile/perplexity"
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - 🇸🇬 SG Stable
+      - DIRECT
+      - 🇺🇸 US Stable
+      - 🇯🇵 JP Stable
+      - REJECT
+  - name: 🤖 Perplexity
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - "@profile/perplexity"
+      - 🇸🇬 SG Stable
+      - DIRECT
+      - 🇺🇸 US Stable
+      - 🇯🇵 JP Stable
+      - REJECT
+  - name: "@profile/poe"
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - 🇸🇬 SG Stable
+      - 🇺🇸 US Stable
+      - 🇯🇵 JP Stable
+      - REJECT
+  - name: 🤖 Poe
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - "@profile/poe"
+      - 🇸🇬 SG Stable
+      - 🇺🇸 US Stable
+      - 🇯🇵 JP Stable
+      - REJECT
+  - name: "@profile/windsurf"
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - 🇸🇬 SG Stable
+      - 🇺🇸 US Stable
+      - 🇯🇵 JP Stable
+      - REJECT
+  - name: 🌊 Windsurf
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - "@profile/windsurf"
+      - 🇸🇬 SG Stable
+      - 🇺🇸 US Stable
+      - 🇯🇵 JP Stable
+      - REJECT
+rule-providers:
+  AI_All_Classical:
+    type: http
+    behavior: classical
+    format: yaml
+    interval: 10800
+    url: https://raw.githubusercontent.com/VPSDance/ai-proxy-rules/d07cac190c33e7914ba7adaf7e7c14298fba7024/rules/clash/all.yaml
+  AI_ChatGPT_Classical:
+    type: http
+    behavior: classical
+    format: yaml
+    interval: 10800
+    url: https://raw.githubusercontent.com/VPSDance/ai-proxy-rules/d07cac190c33e7914ba7adaf7e7c14298fba7024/rules/clash/openai.yaml
+  AI_Claude_Classical:
+    type: http
+    behavior: classical
+    format: yaml
+    interval: 10800
+    url: https://raw.githubusercontent.com/VPSDance/ai-proxy-rules/d07cac190c33e7914ba7adaf7e7c14298fba7024/rules/clash/anthropic.yaml
+  AI_Copilot_Classical:
+    type: http
+    behavior: classical
+    format: yaml
+    interval: 10800
+    url: https://raw.githubusercontent.com/VPSDance/ai-proxy-rules/d07cac190c33e7914ba7adaf7e7c14298fba7024/rules/clash/copilot.yaml
+  AI_Gemini_Classical:
+    type: http
+    behavior: classical
+    format: yaml
+    interval: 10800
+    url: https://raw.githubusercontent.com/mythic3011/rules/0e9631339904f4a989c884781570b5756d82c9a3/rule/AI_Gemini_Classical.yaml
+  AI_Grok_Classical:
+    type: http
+    behavior: classical
+    format: yaml
+    interval: 10800
+    url: https://raw.githubusercontent.com/VPSDance/ai-proxy-rules/d07cac190c33e7914ba7adaf7e7c14298fba7024/rules/clash/x-ai.yaml
+  AI_HuggingFace_Classical:
+    type: http
+    behavior: classical
+    format: yaml
+    interval: 10800
+    url: https://raw.githubusercontent.com/VPSDance/ai-proxy-rules/d07cac190c33e7914ba7adaf7e7c14298fba7024/rules/clash/huggingface.yaml
+  AI_NotebookLM_Classical:
+    type: http
+    behavior: classical
+    format: yaml
+    interval: 10800
+    url: https://raw.githubusercontent.com/mythic3011/rules/0e9631339904f4a989c884781570b5756d82c9a3/rule/AI_NotebookLM_Classical.yaml
+  AI_Perplexity_Classical:
+    type: http
+    behavior: classical
+    format: yaml
+    interval: 10800
+    url: https://raw.githubusercontent.com/VPSDance/ai-proxy-rules/d07cac190c33e7914ba7adaf7e7c14298fba7024/rules/clash/perplexity.yaml
+  AI_Poe_Classical:
+    type: http
+    behavior: classical
+    format: yaml
+    interval: 10800
+    url: https://raw.githubusercontent.com/VPSDance/ai-proxy-rules/d07cac190c33e7914ba7adaf7e7c14298fba7024/rules/clash/poe.yaml
+  AI_Windsurf_Classical:
+    type: http
+    behavior: classical
+    format: yaml
+    interval: 10800
+    url: https://raw.githubusercontent.com/VPSDance/ai-proxy-rules/d07cac190c33e7914ba7adaf7e7c14298fba7024/rules/clash/windsurf.yaml
+dns:
+  respect-rules: true
+  default-nameserver:
+    - 1.1.1.1
+  proxy-server-nameserver:
+    - https://1.1.1.1/dns-query
+  nameserver:
+    - https://1.1.1.1/dns-query
+  nameserver-policy:
+    rule-set:AI_Claude_Classical:
+      - https://1.1.1.1/dns-query#🔐 Claude Account Guard
+rules:
+  - RULE-SET,AI_Claude_Classical,🔐 Claude Account Guard
+  - RULE-SET,AI_Claude_Classical,REJECT
+  - RULE-SET,AI_ChatGPT_Classical,🤖 ChatGPT
+  - RULE-SET,AI_Copilot_Classical,🧑‍💻 Copilot
+  - RULE-SET,AI_Gemini_Classical,🤖 Gemini
+  - RULE-SET,AI_Grok_Classical,🤖 Grok
+  - RULE-SET,AI_HuggingFace_Classical,🤗 Hugging Face
+  - RULE-SET,AI_NotebookLM_Classical,🤖 NotebookLM
+  - RULE-SET,AI_Perplexity_Classical,🤖 Perplexity
+  - RULE-SET,AI_Poe_Classical,🤖 Poe
+  - RULE-SET,AI_Windsurf_Classical,🌊 Windsurf
+  - RULE-SET,AI_All_Classical,🇸🇬 SG Stable
+  - GEOSITE,google-deepmind,🇸🇬 SG Stable
+  - GEOSITE,category-ai-!cn,🇸🇬 SG Stable

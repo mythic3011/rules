@@ -1,0 +1,29 @@
+accessProfiles:
+  hk:
+    displayName: "🇭🇰 香港存取策略"
+    defaultRoute: direct
+    serviceOverrides:
+      chatgpt: us-stable
+      windsurf: us-stable
+      huggingface: us-stable
+      poe: us-stable
+      claude: reject
+    endpointOverrides: {}
+  sg:
+    displayName: "🇸🇬 新加坡出口策略"
+    defaultRoute: sg-stable
+    serviceOverrides:
+      claude: reject
+    endpointOverrides: {}
+  jp:
+    displayName: "🇯🇵 日本出口策略"
+    defaultRoute: jp-stable
+    serviceOverrides:
+      claude: reject
+    endpointOverrides: {}
+  us:
+    displayName: "🇺🇸 美國出口策略"
+    defaultRoute: us-stable
+    serviceOverrides:
+      claude: reject
+    endpointOverrides: {}

@@ -1,0 +1,45 @@
+routeTargets:
+  direct:
+    kind: direct
+    group: DIRECT
+  reject:
+    kind: reject
+    group: REJECT
+  us-auto:
+    kind: region-auto
+    group: "🇺🇸 US Auto"
+    region: us
+    dynamic: true
+  us-stable:
+    kind: region-stable
+    group: "🇺🇸 US Stable"
+    region: us
+    dynamic: false
+  sg-auto:
+    kind: region-auto
+    group: "🇸🇬 SG Auto"
+    region: sg
+    dynamic: true
+  sg-stable:
+    kind: region-stable
+    group: "🇸🇬 SG Stable"
+    region: sg
+    dynamic: false
+  jp-auto:
+    kind: region-auto
+    group: "🇯🇵 JP Auto"
+    region: jp
+    dynamic: true
+  jp-stable:
+    kind: region-stable
+    group: "🇯🇵 JP Stable"
+    region: jp
+    dynamic: false
+  claude-us-pinned:
+    kind: pinned-egress
+    group: "🔐 Claude US Pinned"
+    approvedNodes:
+      - US-Claude-01
+      - US-Claude-02
+    emptyFallback: REJECT
+    dynamic: false

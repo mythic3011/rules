@@ -1,0 +1,22 @@
+dns:
+  defaultProfile: default
+  profiles:
+    default:
+      respectRules: true
+      defaultNameserver:
+        - kind: udp
+          host: 1.1.1.1
+      proxyServerNameserver:
+        - kind: doh
+          url: https://1.1.1.1/dns-query
+      nameserver:
+        - kind: doh
+          url: https://1.1.1.1/dns-query
+      servicePolicies:
+        claude:
+          resolvers:
+            - kind: doh
+              url: https://1.1.1.1/dns-query
+              viaRoute: claude-us-pinned
+          failure: refuse
+          fallback: none

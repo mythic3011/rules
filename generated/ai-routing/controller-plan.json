@@ -1,0 +1,249 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "1",
+  "modeControl": {
+    "visibleGroup": "🌍 AI 存取模式",
+    "modes": {
+      "hk": "@mode/hk",
+      "jp": "@mode/jp",
+      "sg": "@mode/sg",
+      "us": "@mode/us"
+    }
+  },
+  "api": {
+    "proxiesPath": "/proxies",
+    "versionPath": "/version",
+    "requestEncoding": "precomputed-percent-path+jshn-body"
+  },
+  "modes": {
+    "hk": {
+      "hiddenSelections": [
+        {
+          "group": "@profile/chatgpt",
+          "proxyPath": "/proxies/%40profile%2Fchatgpt",
+          "target": "🇺🇸 US Stable"
+        },
+        {
+          "group": "@profile/copilot",
+          "proxyPath": "/proxies/%40profile%2Fcopilot",
+          "target": "DIRECT"
+        },
+        {
+          "group": "@profile/gemini",
+          "proxyPath": "/proxies/%40profile%2Fgemini",
+          "target": "DIRECT"
+        },
+        {
+          "group": "@profile/grok",
+          "proxyPath": "/proxies/%40profile%2Fgrok",
+          "target": "DIRECT"
+        },
+        {
+          "group": "@profile/huggingface",
+          "proxyPath": "/proxies/%40profile%2Fhuggingface",
+          "target": "🇺🇸 US Stable"
+        },
+        {
+          "group": "@profile/notebooklm",
+          "proxyPath": "/proxies/%40profile%2Fnotebooklm",
+          "target": "DIRECT"
+        },
+        {
+          "group": "@profile/perplexity",
+          "proxyPath": "/proxies/%40profile%2Fperplexity",
+          "target": "DIRECT"
+        },
+        {
+          "group": "@profile/poe",
+          "proxyPath": "/proxies/%40profile%2Fpoe",
+          "target": "🇺🇸 US Stable"
+        },
+        {
+          "group": "@profile/windsurf",
+          "proxyPath": "/proxies/%40profile%2Fwindsurf",
+          "target": "🇺🇸 US Stable"
+        }
+      ]
+    },
+    "jp": {
+      "hiddenSelections": [
+        {
+          "group": "@profile/chatgpt",
+          "proxyPath": "/proxies/%40profile%2Fchatgpt",
+          "target": "🇯🇵 JP Stable"
+        },
+        {
+          "group": "@profile/copilot",
+          "proxyPath": "/proxies/%40profile%2Fcopilot",
+          "target": "🇯🇵 JP Stable"
+        },
+        {
+          "group": "@profile/gemini",
+          "proxyPath": "/proxies/%40profile%2Fgemini",
+          "target": "🇯🇵 JP Stable"
+        },
+        {
+          "group": "@profile/grok",
+          "proxyPath": "/proxies/%40profile%2Fgrok",
+          "target": "🇯🇵 JP Stable"
+        },
+        {
+          "group": "@profile/huggingface",
+          "proxyPath": "/proxies/%40profile%2Fhuggingface",
+          "target": "🇯🇵 JP Stable"
+        },
+        {
+          "group": "@profile/notebooklm",
+          "proxyPath": "/proxies/%40profile%2Fnotebooklm",
+          "target": "🇯🇵 JP Stable"
+        },
+        {
+          "group": "@profile/perplexity",
+          "proxyPath": "/proxies/%40profile%2Fperplexity",
+          "target": "🇯🇵 JP Stable"
+        },
+        {
+          "group": "@profile/poe",
+          "proxyPath": "/proxies/%40profile%2Fpoe",
+          "target": "🇯🇵 JP Stable"
+        },
+        {
+          "group": "@profile/windsurf",
+          "proxyPath": "/proxies/%40profile%2Fwindsurf",
+          "target": "🇯🇵 JP Stable"
+        }
+      ]
+    },
+    "sg": {
+      "hiddenSelections": [
+        {
+          "group": "@profile/chatgpt",
+          "proxyPath": "/proxies/%40profile%2Fchatgpt",
+          "target": "🇸🇬 SG Stable"
+        },
+        {
+          "group": "@profile/copilot",
+          "proxyPath": "/proxies/%40profile%2Fcopilot",
+          "target": "🇸🇬 SG Stable"
+        },
+        {
+          "group": "@profile/gemini",
+          "proxyPath": "/proxies/%40profile%2Fgemini",
+          "target": "🇸🇬 SG Stable"
+        },
+        {
+          "group": "@profile/grok",
+          "proxyPath": "/proxies/%40profile%2Fgrok",
+          "target": "🇸🇬 SG Stable"
+        },
+        {
+          "group": "@profile/huggingface",
+          "proxyPath": "/proxies/%40profile%2Fhuggingface",
+          "target": "🇸🇬 SG Stable"
+        },
+        {
+          "group": "@profile/notebooklm",
+          "proxyPath": "/proxies/%40profile%2Fnotebooklm",
+          "target": "🇸🇬 SG Stable"
+        },
+        {
+          "group": "@profile/perplexity",
+          "proxyPath": "/proxies/%40profile%2Fperplexity",
+          "target": "🇸🇬 SG Stable"
+        },
+        {
+          "group": "@profile/poe",
+          "proxyPath": "/proxies/%40profile%2Fpoe",
+          "target": "🇸🇬 SG Stable"
+        },
+        {
+          "group": "@profile/windsurf",
+          "proxyPath": "/proxies/%40profile%2Fwindsurf",
+          "target": "🇸🇬 SG Stable"
+        }
+      ]
+    },
+    "us": {
+      "hiddenSelections": [
+        {
+          "group": "@profile/chatgpt",
+          "proxyPath": "/proxies/%40profile%2Fchatgpt",
+          "target": "🇺🇸 US Stable"
+        },
+        {
+          "group": "@profile/copilot",
+          "proxyPath": "/proxies/%40profile%2Fcopilot",
+          "target": "🇺🇸 US Stable"
+        },
+        {
+          "group": "@profile/gemini",
+          "proxyPath": "/proxies/%40profile%2Fgemini",
+          "target": "🇺🇸 US Stable"
+        },
+        {
+          "group": "@profile/grok",
+          "proxyPath": "/proxies/%40profile%2Fgrok",
+          "target": "🇺🇸 US Stable"
+        },
+        {
+          "group": "@profile/huggingface",
+          "proxyPath": "/proxies/%40profile%2Fhuggingface",
+          "target": "🇺🇸 US Stable"
+        },
+        {
+          "group": "@profile/notebooklm",
+          "proxyPath": "/proxies/%40profile%2Fnotebooklm",
+          "target": "🇺🇸 US Stable"
+        },
+        {
+          "group": "@profile/perplexity",
+          "proxyPath": "/proxies/%40profile%2Fperplexity",
+          "target": "🇺🇸 US Stable"
+        },
+        {
+          "group": "@profile/poe",
+          "proxyPath": "/proxies/%40profile%2Fpoe",
+          "target": "🇺🇸 US Stable"
+        },
+        {
+          "group": "@profile/windsurf",
+          "proxyPath": "/proxies/%40profile%2Fwindsurf",
+          "target": "🇺🇸 US Stable"
+        }
+      ]
+    }
+  },
+  "accountProtected": [
+    {
+      "serviceId": "claude",
+      "visibleGroup": "🔐 Claude Account Guard",
+      "initialSelection": "REJECT",
+      "canonicalApprovedNodeIds": [
+        "US-Claude-01",
+        "US-Claude-02"
+      ],
+      "canonicalApprovedBindings": [
+        {
+          "approvedId": "US-Claude-01",
+          "provider": "provider1"
+        },
+        {
+          "approvedId": "US-Claude-02",
+          "provider": "provider1"
+        }
+      ],
+      "localMaterialization": {
+        "exactNodeFilterRequired": true,
+        "emptyFallback": "REJECT"
+      },
+      "dnsPolicyKeys": [
+        "rule-set:AI_Claude_Classical"
+      ],
+      "lockRequest": {
+        "group": "🔐 Claude Account Guard",
+        "proxyPath": "/proxies/%F0%9F%94%90%20Claude%20Account%20Guard",
+        "target": "REJECT"
+      }
+    }
+  ]
+}
