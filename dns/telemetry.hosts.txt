@@ -2,7 +2,7 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/py/generate_adblock_outputs.py
 # CATEGORY: telemetry
-# GENERATED_AT: 2026-07-24T06:06:08Z
+# GENERATED_AT: 2026-07-25T05:58:17Z
 # TOTAL: 1943
 # FORMAT: hosts
 # UPSTREAM hagezi_native_apple: 107
@@ -11,9 +11,9 @@
 # UPSTREAM hagezi_native_huawei HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_oppo_realme: 468
 # UPSTREAM hagezi_native_oppo_realme HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_samsung: 202
+# UPSTREAM hagezi_native_samsung: 201
 # UPSTREAM hagezi_native_samsung HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_tiktok: 425
+# UPSTREAM hagezi_native_tiktok: 426
 # UPSTREAM hagezi_native_tiktok HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_vivo: 227
 # UPSTREAM hagezi_native_vivo HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -41,13 +41,13 @@
 0.0.0.0 acr-in-prd.samsungcloud.tv
 0.0.0.0 acr-kr-prd.samsungcloud.tv
 0.0.0.0 acr-mx-prd.samsungcloud.tv
-0.0.0.0 acr-nz-prd.samsungcloud.tv
 0.0.0.0 acr-us-prd.samsungcloud.tv
 0.0.0.0 acr0.samsungcloudsolution.com
 0.0.0.0 activity.browser.intl.miui.com
 0.0.0.0 activity.hybrid.xiaomi.com
 0.0.0.0 ad-drcn.media.dbankcloud.cn
 0.0.0.0 ad-drcn.media.dbankcloud.ru
+0.0.0.0 ad-format-sg.tiktokv.com
 0.0.0.0 ad-growth-in.heytapmobile.com
 0.0.0.0 ad-growth-ru.heytapmobile.com
 0.0.0.0 ad-growth-sg.heytapmobile.com
@@ -1009,6 +1009,7 @@
 0.0.0.0 log19-normal-alisg.tiktokv.com
 0.0.0.0 log19-normal-useast1a.tiktokv.com
 0.0.0.0 log19-normal-useast2a.tiktokv.com
+0.0.0.0 log19-normal-useast8.tiktokv.us
 0.0.0.0 log19-normal.tiktokv.com
 0.0.0.0 log22-applog-useast1a.tiktokv.com
 0.0.0.0 log22-applog-useast2a.tiktokv.com
@@ -1470,7 +1471,6 @@
 0.0.0.0 ro-up.vivoglobal.com
 0.0.0.0 rtc-logger-i18n.tiktokv.com
 0.0.0.0 rtc-logger-ie.tiktokv.eu
-0.0.0.0 rtc-logger-ttp2.tiktokv.us
 0.0.0.0 rtc-logger-ttp2.us.tiktokv.com
 0.0.0.0 rtc-logger-va.tiktokv.com
 0.0.0.0 rtc-logger.tiktokv.com
