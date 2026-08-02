@@ -2,8 +2,8 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/py/generate_adblock_outputs.py
 # CATEGORY: telemetry
-# GENERATED_AT: 2026-08-01T06:11:04Z
-# TOTAL: 1942
+# GENERATED_AT: 2026-08-02T06:14:41Z
+# TOTAL: 1944
 # FORMAT: hosts
 # UPSTREAM hagezi_native_apple: 107
 # UPSTREAM hagezi_native_apple HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -13,7 +13,7 @@
 # UPSTREAM hagezi_native_oppo_realme HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_samsung: 201
 # UPSTREAM hagezi_native_samsung HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_tiktok: 425
+# UPSTREAM hagezi_native_tiktok: 427
 # UPSTREAM hagezi_native_tiktok HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_vivo: 227
 # UPSTREAM hagezi_native_vivo HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -48,6 +48,7 @@
 0.0.0.0 ad-drcn.media.dbankcloud.cn
 0.0.0.0 ad-drcn.media.dbankcloud.ru
 0.0.0.0 ad-format-sg.tiktokv.com
+0.0.0.0 ad-format16-normal-useastred.tiktokv.eu
 0.0.0.0 ad-growth-in.heytapmobile.com
 0.0.0.0 ad-growth-ru.heytapmobile.com
 0.0.0.0 ad-growth-sg.heytapmobile.com
@@ -1888,6 +1889,7 @@
 0.0.0.0 upu.samsungelectronics.com
 0.0.0.0 ureca.samsungapps.com
 0.0.0.0 ureca.samsungapps.com.ad.mexnet.de
+0.0.0.0 url4077.ads-service.tiktok.com
 0.0.0.0 us-report.gras.samsungdm.com
 0.0.0.0 userid.xiaomi.com
 0.0.0.0 userprofile.push.heytapmobi.com
