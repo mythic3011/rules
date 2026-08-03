@@ -1,6 +1,6 @@
 {
   "category": "telemetry",
-  "generated_at": "2026-08-02T06:14:41Z",
+  "generated_at": "2026-08-03T06:40:06Z",
   "source_config": "data/telemetry_sources.yaml",
   "custom_source_config": "data/custom_telemetry_sources.yaml",
   "allowlist": "dns/local_telemetry_allowlist.txt",
@@ -9,12 +9,12 @@
   "hosts_output": "dns/telemetry.hosts.txt",
   "clash_output": "rule/Telemetry_Lite_Domain.yaml",
   "clash_name": "Telemetry_Lite_Domain",
-  "upstream_unique_count": 1913,
+  "upstream_unique_count": 1910,
   "local_blocklist_count": 47,
   "allowlist_count": 0,
-  "merged_pre_allowlist_count": 1945,
-  "post_allowlist_count": 1945,
-  "final_domain_count": 1944,
+  "merged_pre_allowlist_count": 1942,
+  "post_allowlist_count": 1942,
+  "final_domain_count": 1941,
   "clash_seed_count": 5,
   "clash_domain_count": 46,
   "sources": [
@@ -40,7 +40,7 @@
       "priority": 30,
       "url": "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/native.oppo-realme.txt",
       "homepage": "https://github.com/hagezi/dns-blocklists",
-      "count": 468
+      "count": 463
     },
     {
       "id": "hagezi_native_samsung",
@@ -48,7 +48,7 @@
       "priority": 40,
       "url": "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/native.samsung.txt",
       "homepage": "https://github.com/hagezi/dns-blocklists",
-      "count": 201
+      "count": 202
     },
     {
       "id": "hagezi_native_tiktok",
@@ -64,7 +64,7 @@
       "priority": 60,
       "url": "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/native.vivo.txt",
       "homepage": "https://github.com/hagezi/dns-blocklists",
-      "count": 227
+      "count": 228
     },
     {
       "id": "hagezi_native_xiaomi",
