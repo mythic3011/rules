@@ -2,20 +2,20 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/py/generate_adblock_outputs.py
 # CATEGORY: telemetry
-# GENERATED_AT: 2026-08-03T06:40:06Z
-# TOTAL: 1941
+# GENERATED_AT: 2026-08-04T06:06:40Z
+# TOTAL: 1963
 # FORMAT: hosts
 # UPSTREAM hagezi_native_apple: 107
 # UPSTREAM hagezi_native_apple HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_huawei: 136
 # UPSTREAM hagezi_native_huawei HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_oppo_realme: 463
+# UPSTREAM hagezi_native_oppo_realme: 484
 # UPSTREAM hagezi_native_oppo_realme HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_samsung: 202
 # UPSTREAM hagezi_native_samsung HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_tiktok: 427
 # UPSTREAM hagezi_native_tiktok HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_vivo: 228
+# UPSTREAM hagezi_native_vivo: 229
 # UPSTREAM hagezi_native_vivo HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_xiaomi: 347
 # UPSTREAM hagezi_native_xiaomi HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -344,6 +344,7 @@
 0.0.0.0 bossadmin.pandora.xiaomi.com
 0.0.0.0 box.pandora.xiaomi.com
 0.0.0.0 bpu.samsungelectronics.com
+0.0.0.0 br-cota.vivoglobal.com
 0.0.0.0 br-p.vivoglobal.com
 0.0.0.0 browser-api-br.heytapmobile.com
 0.0.0.0 browser-api-fr.heytapmobile.com
@@ -596,6 +597,7 @@
 0.0.0.0 datacollector-drcn.dt.dbankcloud.cn
 0.0.0.0 datacollector-dre.dt.dbankcloud.cn
 0.0.0.0 dc-dragate-cn.heytapmobi.com
+0.0.0.0 dc-dragate-sg.heytapmobile.com
 0.0.0.0 dc-stat-in.heytapmobile.com
 0.0.0.0 dc.di.atlas.samsung.com
 0.0.0.0 dc.di.runestone.samsung.com
@@ -720,6 +722,7 @@
 0.0.0.0 feedbackws.fe2.apple-dns.net
 0.0.0.0 feedbackws.icloud.com
 0.0.0.0 feedbackws.icloud.com.cn
+0.0.0.0 file-intl-push.heytapdl.com
 0.0.0.0 file.cdn.mvideo.xiaomi.com
 0.0.0.0 findapi.micloud.xiaomi.net
 0.0.0.0 finosfin.com
@@ -830,7 +833,16 @@
 0.0.0.0 iadsdk.apple.com.edgekey.net
 0.0.0.0 iadworkbench.apple.com
 0.0.0.0 icosa-service-eu.allawnos.com
+0.0.0.0 icosa-service-fr-01.allawnos.com
+0.0.0.0 icosa-service-fr-02.allawnos.com
+0.0.0.0 icosa-service-fr-03.allawnos.com
+0.0.0.0 icosa-service-in-01.allawnos.com
+0.0.0.0 icosa-service-in-02.allawnos.com
+0.0.0.0 icosa-service-in-03.allawnos.com
 0.0.0.0 icosa-service-in.allawnos.com
+0.0.0.0 icosa-service-sg-01.allawnos.com
+0.0.0.0 icosa-service-sg-02.allawnos.com
+0.0.0.0 icosa-service-sg-03.allawnos.com
 0.0.0.0 icosa-service-sg.allawnos.com
 0.0.0.0 icosa-service-us.allawnos.com
 0.0.0.0 icosa-sg.coloros.com
@@ -1340,6 +1352,10 @@
 0.0.0.0 nsp-logservice-weardevice-p51-drcn.obs.cn-north-2.myhuaweicloud.com
 0.0.0.0 o2o.api.xiaomi.com
 0.0.0.0 obus-cn.dc.heytapmobi.com
+0.0.0.0 obus-conf-fr.heytapmobile.com
+0.0.0.0 obus-conf-in.heytapmobile.com
+0.0.0.0 obus-conf-sg.heytapmobile.com
+0.0.0.0 obus-conf-us.heytapmobile.com
 0.0.0.0 obus-config-cn.heytapmobi.com
 0.0.0.0 obus-dc-eu.heytapmobile.com
 0.0.0.0 obus-dc-ru.heytapmobile.com
@@ -1365,6 +1381,7 @@
 0.0.0.0 obus-dctech-sg.heytapmobile.com
 0.0.0.0 obus-dcyitai-cn.heytapmobi.com
 0.0.0.0 obus-dcyitai-in.heytapmobi.com
+0.0.0.0 obus-dcyitai-sg.heytapmobile.com
 0.0.0.0 obus-jssdk-cn.heytapmobi.com
 0.0.0.0 obus-jssdk-fr.heytapmobile.com
 0.0.0.0 obus-jssdk-in.heytapmobile.com
@@ -1674,6 +1691,7 @@
 0.0.0.0 sdk.ptqy.gitv.tv
 0.0.0.0 sdkconfig.ad.intl.xiaomi.com
 0.0.0.0 sdkconfig.ad.xiaomi.com
+0.0.0.0 sea-log-rcv.vansound.com
 0.0.0.0 seao.business.samsung.com
 0.0.0.0 search.miui.com
 0.0.0.0 searchads.apple.com
@@ -1901,6 +1919,10 @@
 0.0.0.0 vhs.wwstat.com.ctdns.cn
 0.0.0.0 vhs.wwstat.com.eo.dnse0.com
 0.0.0.0 vhs.wwstat.com.eo.unicomcdn.com.cn
+0.0.0.0 video-api-fr.heytapmobile.com
+0.0.0.0 video-api-gl.heytapmobile.com
+0.0.0.0 video-api-in.heytapmobile.com
+0.0.0.0 video-api-ru.heytapmobile.com
 0.0.0.0 video.kts.g.mi.com
 0.0.0.0 video.market.xiaomi.com
 0.0.0.0 vip-api.xmpush.global.xiaomi.com
