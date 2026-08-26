@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "repository": "mythic3011/rules",
+  "defaultChannel": "rolling",
+  "channels": {
+    "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/{path}",
+    "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/{path}",
+    "raw": "https://raw.githubusercontent.com/mythic3011/rules/main/{path}"
+  },
+  "profiles": [
+    {
+      "id": "ai-balanced",
+      "label": "AI Balanced",
+      "kind": "mihomo-profile",
+      "path": "cfg/yaml/Custom_Clash_AI.yaml",
+      "recommended": true,
+      "description": "Relaxed HK-oriented AI/service routing profile with explicit policy groups."
+    },
+    {
+      "id": "ai-strict",
+      "label": "AI Strict",
+      "kind": "mihomo-profile",
+      "path": "cfg/yaml/Custom_Clash_AI_Strict.yaml",
+      "description": "Fail-closed profile for stricter routing and account-sensitive use."
+    },
+    {
+      "id": "subconverter-ai",
+      "label": "Subconverter AI",
+      "kind": "subconverter-template",
+      "path": "cfg/Custom_Clash_AI.ini",
+      "description": "AI-aware subscription conversion template."
+    },
+    {
+      "id": "subconverter-standard",
+      "label": "Subconverter Standard",
+      "kind": "subconverter-template",
+      "path": "cfg/Custom_Clash.ini",
+      "description": "General-purpose subscription conversion template."
+    },
+    {
+      "id": "subconverter-lite",
+      "label": "Subconverter Lite",
+      "kind": "subconverter-template",
+      "path": "cfg/Custom_Clash_Lite.ini",
+      "description": "Smaller general-purpose template."
+    },
+    {
+      "id": "subconverter-gfw",
+      "label": "Subconverter GFW",
+      "kind": "subconverter-template",
+      "path": "cfg/Custom_Clash_GFW.ini",
+      "description": "Minimal GFW-oriented template."
+    },
+    {
+      "id": "subconverter-full",
+      "label": "Subconverter Full",
+      "kind": "subconverter-template",
+      "path": "cfg/Custom_Clash_Full.ini",
+      "description": "Full rule template."
+    }
+  ],
+  "publicSurfaces": {
+    "profiles": "cfg/",
+    "rules": "rule/",
+    "dns": "dns/"
+  }
+}

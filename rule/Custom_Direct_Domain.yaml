@@ -575,7 +575,7 @@ payload:
   - '+.zysou.com'
   - '+.zzz-log-upload-os.hoyoverse.com'
 
-# Managed by py/generate_ai_profiles.py: Tailscale direct routing
+# Managed by internal/python/generate_ai_profiles.py: Tailscale direct routing
 # Tailscale control-plane domains should route DIRECT.
 # fake-ip-filter only affects DNS handling. It does not force DIRECT routing.
 # Tailscale exit-node traffic still needs firewall-level TProxy bypass

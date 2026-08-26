@@ -1,0 +1,169 @@
+{
+  "schemaVersion": 1,
+  "coreGroups": {
+    "manual": "🚀 手動選擇",
+    "auto": "♻️ 自動選擇",
+    "direct": "🎯 全球直連",
+    "reject": "⛔ 拒絕",
+    "fallback": "🐟 漏網之魚",
+    "stable-session": "💳 穩定會話",
+    "high-risk-account": "🔐 高風險帳戶"
+  },
+  "otherRegionGroup": "🌐 其他／未識別節點",
+  "providerNoiseExcludeTerms": "剩余流量|剩餘流量|套餐到期|到期|流量[:：]|Traffic|Expire|Subscription|官网|官方|客服|Telegram|TG群|网址|網站|更新|失效|Invalid|USE|USED|TOTAL|EXPIRE|Panel|Channel|Author|公告|通知|邀请|邀請|返利|教程|使用说明|使用說明",
+  "aiHkExcludeTerms": "🇭🇰|香港|Hong Kong|Hong-Kong|\\bHKG\\b|\\bHK\\b",
+  "aiGuardGeosites": [],
+  "dnsResolverSets": {
+    "global-ai": [
+      "https://1.1.1.1/dns-query",
+      "https://dns.google/dns-query"
+    ],
+    "cn-direct": [
+      "https://127.0.0.1:5053/dns-query"
+    ],
+    "ads": [
+      "https://dns.adguard-dns.com/dns-query",
+      "https://1.1.1.1/dns-query"
+    ]
+  },
+  "dnsPolicies": [
+    {
+      "order": 10,
+      "selector": "geosite:private",
+      "resolverSet": "global-ai"
+    },
+    {
+      "order": 20,
+      "selector": "geosite:cn",
+      "resolverSet": "cn-direct"
+    },
+    {
+      "order": 40,
+      "selector": "geosite:bing",
+      "resolverSet": "global-ai"
+    },
+    {
+      "order": 50,
+      "selector": "geosite:category-ads-all",
+      "resolverSet": "ads"
+    }
+  ],
+  "foundationRoutes": [
+    {
+      "kind": "GEOSITE",
+      "value": "private",
+      "targetGroupKey": "direct",
+      "options": [],
+      "subconverter": true
+    },
+    {
+      "kind": "GEOIP",
+      "value": "private",
+      "targetGroupKey": "direct",
+      "options": [
+        "no-resolve"
+      ],
+      "subconverter": true
+    }
+  ],
+  "policyGroups": [
+    {
+      "id": "account-sensitive",
+      "groupKey": "stable-session",
+      "kind": "select",
+      "candidates": [
+        {
+          "kind": "builtin",
+          "value": "DIRECT"
+        },
+        {
+          "kind": "builtin",
+          "value": "REJECT"
+        }
+      ],
+      "includeProviderNodes": true,
+      "mihomoWhen": "relaxed",
+      "subconverter": true,
+      "defaultSelected": null
+    },
+    {
+      "id": "high-risk-account-kill-switch",
+      "groupKey": "high-risk-account",
+      "kind": "select",
+      "candidates": [
+        {
+          "kind": "builtin",
+          "value": "REJECT"
+        },
+        {
+          "kind": "group-ref",
+          "value": "stable-session"
+        }
+      ],
+      "includeProviderNodes": false,
+      "mihomoWhen": "relaxed",
+      "subconverter": true,
+      "defaultSelected": {
+        "kind": "builtin",
+        "value": "REJECT"
+      }
+    }
+  ],
+  "subconverterGroups": {
+    "foundation": [
+      {
+        "groupKey": "direct",
+        "candidates": [
+          {
+            "kind": "node-filter",
+            "value": "[]DIRECT"
+          }
+        ]
+      },
+      {
+        "groupKey": "reject",
+        "candidates": [
+          {
+            "kind": "node-filter",
+            "value": "[]REJECT"
+          }
+        ]
+      }
+    ],
+    "final": {
+      "groupKey": "fallback",
+      "candidates": [
+        {
+          "kind": "group-ref",
+          "value": "direct"
+        },
+        {
+          "kind": "group-ref",
+          "value": "manual"
+        },
+        {
+          "kind": "group-ref",
+          "value": "auto"
+        },
+        {
+          "kind": "group-ref",
+          "value": "other"
+        },
+        {
+          "kind": "group-ref",
+          "value": "reject"
+        }
+      ]
+    }
+  },
+  "adguardHome": {
+    "outputFile": "host.txt",
+    "upstreamSnapshotFile": "adguard-upstream.json",
+    "upstreamBaseUrl": "https://raw.githubusercontent.com/v2fly/domain-list-community/master/data",
+    "upstreamLists": [
+      "google-deepmind",
+      "category-ai-!cn",
+      "category-ai-cn"
+    ]
+  }
+}

@@ -1,143 +1,229 @@
-<div align="center">
+# mythic3011/rules
 
-> 🇭🇰 **A maintained fork optimized for Hong Kong users & AI services**
->
-> 📌 Based on: [Aethersailor/Custom_OpenClash_Rules](https://github.com/Aethersailor/Custom_OpenClash_Rules)
+OpenClash/Mihomo routing profiles, rule providers, DNS filters, regional service intelligence, and an optional self-hosted Profile Builder for generating personalized **subconverter custom-template INI** URLs.
 
-</div>
+[![Deploy Profile Builder to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/mythic3011/rules/tree/main/apps/profile-service)
+[![Built with Cloudflare](https://workers.cloudflare.com/built-with-cloudflare.svg)](https://cloudflare.com)
 
-<h1 align="center">
-  🚀 OpenClash Configuration<br>
-  &<br>
-  🛡️ Traffic Shaping Rules & Anti-Leak Templates
-</h1>
+The repository has a deliberately small consumer surface: **use the published artifacts, or deploy the Profile Builder and generate your own opaque `.ini` subscription URL.** Maintainer/compiler internals live under `internal/`.
 
-<p align="center">
- <img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/mythic3011/rules?style=flat">
- <img alt="GitHub commit activity" src="https://img.shields.io/github/commit-activity/t/mythic3011/rules?style=flat">
- <img alt="OpenClash" src="https://img.shields.io/badge/OpenClash-integrated-brightgreen?style=flat">
-</p>
+## Pick how you want to use it
 
----
+| You want | Use |
+| --- | --- |
+| AI-aware subscription conversion with no personal settings | [`cfg/Custom_Clash_AI.ini`](cfg/Custom_Clash_AI.ini) |
+| A ready-to-load balanced Mihomo/OpenClash YAML | [`cfg/yaml/Custom_Clash_AI.yaml`](cfg/yaml/Custom_Clash_AI.yaml) |
+| A fail-closed runtime profile | [`cfg/yaml/Custom_Clash_AI_Strict.yaml`](cfg/yaml/Custom_Clash_AI_Strict.yaml) |
+| Disable/prefer/limit node regions without editing generated files | **Deploy the Profile Builder** |
+| Submit a service that works only in specific regions | **Regional Service Intake** GitHub Issue Form |
 
-## 🎯 What This Fork Includes
+## Fastest OpenClash setup
 
-- **🇭🇰 Hong Kong-optimized configurations** - ISP DNS routing and local network optimizations
-- **🤖 AI service support** - Pre-configured groups for ChatGPT, Claude, Copilot, Gemini, and other AI tools
-- **🎮 Gaming optimizations** - Separate download/gaming traffic handling
-- **📊 DNS leak prevention** - Comprehensive DNS policy enforcement
-- **🔄 Auto-updating rules** - Daily automatic rule and GeoSite database updates
-- **📦 Ready-to-use templates** - Clash subscription conversion templates in `/cfg`
-- **📚 Technical documentation** - Detailed setup guides in `/doc/openclash`
+If OpenClash is converting an existing provider subscription, paste this into **Custom Template URL**:
 
----
-
-## 📖 Quick Start
-
-**See the documentation in `/doc/openclash/` for detailed setup instructions:**
-
-- `README.md` - Overview and quick reference
-- `OPENCLASH_ADD_LOCAL_PROXY_TO_ACTIVE_CONFIG.md` - Adding proxy configurations
-- `OPENCLASH_LOCAL_DNS_RECOVERY.md` - DNS troubleshooting
-- `BANIP_DOH_SETUP_AND_FIX.md` - DoH (DNS over HTTPS) setup
-- `RULE_ASSET_MATCHING_CONTRACT.md` - Rule asset specifications
-
-### Key Features
-
-1. **🧩 No plugin stacking** - All functionality via OpenClash alone
-2. **🖱️ Simple setup** - Copy-paste configuration, no manual YAML editing
-3. **🚀 Hong Kong ISP optimized** - Low latency, proper DNS resolution
-4. **📁 Rich rule groups** - AI tools, gaming, streaming, social media, and more
-5. **🌍 IPv6 compatible** - Full dual-stack support
-6. **⚡ Auto-failover** - Automatic low-latency proxy selection
-
----
-
-## 📋 Project Structure
-
-```
-├── cfg/                          # Clash configuration templates
-│   ├── Custom_Clash.ini         # Main subscription conversion template
-│   └── Custom_Clash_*.ini       # Variant templates (Lite, AI, GFW, etc.)
-├── rule/                        # YAML rule files
-│   ├── AI_*.yaml               # AI service rules
-│   ├── Custom_*.yaml           # Custom routing rules
-│   └── ...
-├── dns/                         # DNS configuration files
-│   ├── *.dnsmasq.conf          # Dnsmasq format rules
-│   └── *.hosts.txt             # Hosts format rules
-├── data/                        # Rule sources and metadata
-├── doc/                         # Technical documentation
-│   └── openclash/              # OpenClash-specific guides
-├── py/                          # Python build scripts
-└── reports/                     # Generated rule statistics
+```text
+https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/cfg/Custom_Clash_AI.ini
 ```
 
----
+That is the stable, shared AI template. Nothing local needs to be edited.
 
-## 🛠️ Usage
+For a personalized template — for example:
 
-**Subscribe to a configuration template:**
+- never use Hong Kong nodes;
+- only allow US + Singapore exits;
+- prefer Japan before Singapore;
 
-Use the subscription URL with a compatible Clash client (OpenClash on OpenWrt recommended):
+use the Profile Builder instead.
 
+## Personalized Profile Builder
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/mythic3011/rules/tree/main/apps/profile-service)
+
+The Profile Builder is an optional Cloudflare Worker + Web UI. Cloudflare can clone the isolated app, provision its D1 binding, run the migration, and deploy it from the button above.
+
+After deployment:
+
+1. Open the Worker URL in a browser.
+2. Choose the base profile.
+3. Select disabled, allowed, and preferred node regions.
+4. Preview the resolved routing plan.
+5. Create the subscription.
+6. Copy the generated URL into OpenClash **Custom Template URL**.
+
+The long-lived URL is intentionally opaque:
+
+```text
+https://<your-worker-domain>/p/<opaque-read-capability>.ini
 ```
-https://raw.githubusercontent.com/mythic3011/rules/main/cfg/Custom_Clash.ini
+
+Routing preferences are stored as a typed `ProfileSpec`; they are not encoded into the subscription query string. The read capability can fetch the generated INI but cannot edit the profile. Management uses a separate capability.
+
+```text
+Web Builder
+    │
+    ▼
+ProfileSpec
+    │
+    ▼
+Constraint Solver
+    │
+    ▼
+SubconverterPlan IR
+    │
+    ▼
+/p/<opaque-token>.ini
+    │
+    ▼
+OpenClash subscription conversion
 ```
 
-Or one of the variants:
+See [`apps/profile-service/README.md`](apps/profile-service/README.md) for deployment, API, local development, and capability details.
 
-- `Custom_Clash_AI.ini` - Enhanced AI service support
-- `Custom_Clash_Lite.ini` - Lightweight version
-- `Custom_Clash_GFW.ini` - GFW filtering focus
-- `Custom_Clash_Mainland.ini` - China mainland routing
+## Local profile generation
 
----
+Cloudflare is optional. A local clone can render the same region constraints directly:
 
-## 📚 Documentation
+```sh
+./rulesctl profile render \
+  --disable hk \
+  --prefer jp,sg \
+  -o custom.ini
+```
 
-All detailed documentation is in the `/doc/openclash/` directory. For comprehensive setup guides, troubleshooting, and advanced configurations, refer to those files.
+Closed-world example:
 
----
+```sh
+./rulesctl profile render \
+  --only us,sg \
+  --prefer sg \
+  -o custom.ini
+```
 
-## ⚠️ Disclaimer
+`--only` is enforced structurally: generic provider matching is also restricted, so nodes from unlisted regions cannot leak back through a catch-all group.
 
-> [!WARNING]
-> **Usage Notice:**
->
-> 1. This project is for technical learning and research only.
-> 2. Users must comply with applicable local laws and regulations.
-> 3. The maintainer provides no warranty or technical support guarantees.
-> 4. Users are solely responsible for their actions and compliance with local laws.
-> 5. This is a fork. See original project for upstream information.
+## Published artifacts
 
-For the complete legal disclaimer, see the original project.
+| ID | Purpose | Stable artifact |
+| --- | --- | --- |
+| `subconverter-ai` | AI-aware OpenClash subscription conversion | `cfg/Custom_Clash_AI.ini` |
+| `ai-balanced` | Recommended ready-to-load runtime profile | `cfg/yaml/Custom_Clash_AI.yaml` |
+| `ai-strict` | Fail-closed runtime profile | `cfg/yaml/Custom_Clash_AI_Strict.yaml` |
+| `subconverter-standard` | General subscription conversion | `cfg/Custom_Clash.ini` |
+| `subconverter-lite` | Smaller general template | `cfg/Custom_Clash_Lite.ini` |
+| `subconverter-gfw` | Minimal GFW-oriented template | `cfg/Custom_Clash_GFW.ini` |
+| `subconverter-full` | Full rule template | `cfg/Custom_Clash_Full.ini` |
 
----
+Machine-readable discovery is available in [`catalog.json`](catalog.json):
 
-## 📝 License
+```sh
+./rulesctl list
+./rulesctl url ai-balanced
+./rulesctl download ai-balanced -o profile.yaml
+```
 
-This fork retains the original CC-BY-SA-4.0 license from the upstream project.
+## OpenWrt installer
 
-See: [Aethersailor/Custom_OpenClash_Rules](https://github.com/Aethersailor/Custom_OpenClash_Rules)
+The installer downloads a ready-to-load profile but deliberately does **not** switch the active OpenClash profile or restart the router:
 
----
+```sh
+wget -O /tmp/mythic3011-rules-install.sh \
+  https://raw.githubusercontent.com/mythic3011/rules/main/setup/openclash/install.sh
+sh /tmp/mythic3011-rules-install.sh --profile ai-balanced --install
+```
 
-## 🙏 Credits
+Validate and activate the downloaded config in OpenClash yourself.
 
-- **Original Project**: [Aethersailor/Custom_OpenClash_Rules](https://github.com/Aethersailor/Custom_OpenClash_Rules)
-- **OpenClash**: [vernesong/OpenClash](https://github.com/vernesong/OpenClash)
-- **Core**: [MetaCubeX/mihomo](https://github.com/MetaCubeX/mihomo)
-- **Rule Sources**: Multiple community projects (see main project)
+## Regional service intake
 
----
+A service may be reachable only from specific regions. Do not patch generated INI/YAML manually.
 
-## 📊 Repository Activity
+Open the **Regional Service Intake** GitHub Issue Form instead. The form records facts rather than implementation details:
 
-<a href="https://www.star-history.com/#mythic3011/rules&Date">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=mythic3011/rules&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=mythic3011/rules&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=mythic3011/rules&type=Date" />
- </picture>
-</a>
+- service name;
+- matcher type and values;
+- confirmed working regions;
+- confirmed blocked regions;
+- up to three additional/unlisted regions.
+
+The intake pipeline validates and canonicalizes the report, reuses existing region identities where possible, updates the Service/Region registries, regenerates artifacts, runs checks, and opens a pull request. New regions can remain observation-only or be proposed as routable exits.
+
+Architecture: [`docs/architecture/service-intake.md`](docs/architecture/service-intake.md).
+
+## Stable public API
+
+Only these roots are intended as stable downstream URLs:
+
+```text
+cfg/    published profiles and subconverter templates
+rule/   published Mihomo/OpenClash rule providers
+dns/    published DNS/hosts outputs and local override inputs
+```
+
+Everything else may evolve without requiring downstream URL changes.
+
+## Repository layout
+
+```text
+.
+├── cfg/                  # stable public profiles/templates
+├── rule/                 # stable public rule providers
+├── dns/                  # stable public DNS/hosts assets
+├── setup/                # OpenClash/end-user setup helpers
+├── apps/
+│   └── profile-service/  # isolated Cloudflare Worker + Web Builder
+├── docs/                 # usage, operations, architecture
+├── internal/             # registries, compiler, generators, schemas
+├── tests/                # contract/regression tests
+├── web/                  # GitHub Pages/report sources
+├── catalog.json          # machine-readable public entrypoint
+├── rulesctl              # consumer + maintainer CLI
+└── Makefile              # maintainer shortcuts
+```
+
+Historical delivery receipts and inactive attic files are intentionally kept out of the active tree; Git history is the archive.
+
+## Maintainer workflow
+
+Python/compiler contract checks:
+
+```sh
+make check
+```
+
+Full routing suite:
+
+```sh
+npm ci
+make check-all
+```
+
+Deterministic regeneration:
+
+```sh
+make generate
+```
+
+Explicit network-backed upstream refresh:
+
+```sh
+make refresh
+```
+
+Profile Service tests can also run independently from its isolated subdirectory:
+
+```sh
+cd apps/profile-service
+npm test
+```
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for ownership rules.
+
+## Safety model
+
+Generated artifacts are outputs, not hand-edited state. User-facing HTTP inputs are schema-validated and cannot inject arbitrary raw rules, regexes, provider URLs, or renderer directives.
+
+Saved Profile Builder subscriptions use separate read and management capabilities. D1 stores capability hashes rather than plaintext tokens. Account-sensitive finance routing remains fail-closed by default, and the public router installer never silently activates a profile or restarts OpenClash.
+
+## License
+
+See [`LICENSE`](LICENSE).

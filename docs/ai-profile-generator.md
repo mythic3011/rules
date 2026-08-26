@@ -1,12 +1,12 @@
 # AI Profile Generator
 
-`py/generate_ai_profiles.py` is the source of truth for the AI profile family. It generates `cfg/yaml/Custom_Clash_AI.yaml`, `cfg/yaml/Custom_Clash_AI_Strict.yaml`, `cfg/Custom_Clash_AI.ini`, local-payload `rule/AI_*_Classical.yaml` files, the SSH companion rules, the gaming direct rules, and the optional process rule files. Generated files must not be hand-edited.
+`internal/python/generate_ai_profiles.py` is the source of truth for the AI profile family. It generates `cfg/yaml/Custom_Clash_AI.yaml`, `cfg/yaml/Custom_Clash_AI_Strict.yaml`, `cfg/Custom_Clash_AI.ini`, local-payload `rule/AI_*_Classical.yaml` files, the SSH companion rules, the gaming direct rules, and the optional process rule files. Generated files must not be hand-edited.
 
 YAML and INI outputs use different schemas and must stay separate. YAML uses top-level `rule-providers` with explicit `behavior` values that match the referenced file format. INI keeps the existing subconverter `[custom]` dialect with `ruleset=` and `custom_proxy_group=` lines only. Do not copy YAML `rule-providers:` syntax into the INI.
 
 ## INI MVP migration boundary
 
-`generated/ai-routing/hk.ini-mvp-plan.json` is a deterministic, TypeScript-owned presentation plan for the first INI migration slice. It is compiled from the canonical routing manifests plus `data/ai-routing-mihomo.yaml`; Python loads the JSON strictly and renders only the declared INI lines. Python does not parse the canonical YAML manifests or make routing-policy decisions from them.
+`internal/generated/ai-routing/hk.ini-mvp-plan.json` is a deterministic, TypeScript-owned presentation plan for the first INI migration slice. It is compiled from the canonical routing manifests plus `internal/config/ai-routing/mihomo.yaml`; Python loads the JSON strictly and renders only the declared INI lines. Python does not parse the canonical YAML manifests or make routing-policy decisions from them.
 
 The MVP is deliberately partial. It covers the HK matrix for Claude, Windsurf, and Hugging Face only; the existing legacy generator continues to own every other service and all YAML output. The INI rule order is fixed as private rules, the Claude protected provider plus its immediate terminal reject, legacy service rules excluding Claude, Windsurf and Hugging Face, AI_All, then the category-AI safety net and the pre-existing non-AI rules.
 
@@ -33,4 +33,4 @@ Provider metadata nodes must be filtered. YAML applies provider-level `exclude-f
 
 Taiwan output labels must always use `🇹🇼 台灣節點`. The old `🇼🇸` Samoa flag is only a legacy input-cleanup concern and must never appear in generated output.
 
-Process rules are data-driven and disabled by default. `ENABLE_PROCESS_RULES=false` is the router-mode default. When desktop compatibility routing is needed, update `data/process_rules.yaml`, regenerate, and keep the generated Process rule files limited to `PROCESS-NAME` entries only. The maintained source list should be refreshed manually from references such as `MetaCubeX/meta-rules-dat`, `blackmatrix7/ios_rule_script`, and `Loyalsoldier/clash-rules`, then deduplicated before emission.
+Process rules are data-driven and disabled by default. `ENABLE_PROCESS_RULES=false` is the router-mode default. When desktop compatibility routing is needed, update `internal/config/ai-routing/process-rules.yaml`, regenerate, and keep the generated Process rule files limited to `PROCESS-NAME` entries only. The maintained source list should be refreshed manually from references such as `MetaCubeX/meta-rules-dat`, `blackmatrix7/ios_rule_script`, and `Loyalsoldier/clash-rules`, then deduplicated before emission.

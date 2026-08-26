@@ -1,21 +1,21 @@
 # AI routing schema foundation (Phase 1 + compiler preview)
 
 This is a validation-only migration foundation. It does not generate, modify,
-or consume `cfg/`, `rule/`, or `py/generate_ai_profiles.py` output.
+or consume `cfg/`, `rule/`, or `internal/python/generate_ai_profiles.py` output.
 
 ## Authority boundary
 
-- `data/ai-routing/*.yaml` is the canonical declarative input for the future AI
+- `internal/config/ai-routing/*.yaml` is the canonical declarative input for the future AI
   routing compiler.
-- `src/routing/schema.ts` owns document shape and is exported to
-  `schema/routing-config.schema.json` for CI and editor support.
-- `src/routing/semantic-validator.ts` owns cross-manifest references and policy
+- `internal/typescript/routing/schema.ts` owns document shape and is exported to
+  `internal/schemas/routing-config.schema.json` for CI and editor support.
+- `internal/typescript/routing/semantic-validator.ts` owns cross-manifest references and policy
   invariants. A valid Zod document is not necessarily a safe routing policy.
 - The existing Python generator remains the authority for current generated
   OpenClash profiles until an explicit later migration connects it through an
   adapter.
-- `src/routing/compiler.ts` produces a checked, deterministic policy preview
-  only. `generated/ai-routing/hk.plan.json` is advisory and non-runtime; it
+- `internal/typescript/routing/compiler.ts` produces a checked, deterministic policy preview
+  only. `internal/generated/ai-routing/hk.plan.json` is advisory and non-runtime; it
   does not configure Mihomo, select a node, or arm an account-protected service.
 
 The loader merges top-level record sections from multiple YAML manifests and
@@ -52,7 +52,7 @@ runtime selection. The preview never performs that selection.
 
 ## Mihomo fragment projection (Phase 2b)
 
-`data/ai-routing-mihomo.yaml` is a separate, strict renderer-mechanics
+`internal/config/ai-routing/mihomo.yaml` is a separate, strict renderer-mechanics
 manifest. It owns data-labelled, pinned rule sources, normalized relative
 provider paths, external proxy-provider references, region filters, and guard
 mapping; none of those fields are canonical routing policy. Provider URLs are
@@ -60,7 +60,7 @@ constructed only as `rawBaseUrl/revision/path`, and source credentials,
 queries, fragments, missing source references, absolute paths, and dot
 segments are rejected. Rule-provider paths use a portable forward-slash grammar;
 backslashes, percent escapes, queries, and fragments are rejected before URL
-construction. The checked `generated/ai-routing/*.mihomo-fragment.yaml`
+construction. The checked `internal/generated/ai-routing/*.mihomo-fragment.yaml`
 artifacts are explicitly non-standalone:
 it contains only owned sections, names its external provider dependencies in
 provenance comments, and omits `MATCH`. The existing Python generator remains
@@ -104,7 +104,7 @@ npm ci
 npm run validate:routing
 npm run test:routing
 npm run export:routing-schema
-git diff --exit-code schema/routing-config.schema.json
+git diff --exit-code internal/schemas/routing-config.schema.json
 npm run export:routing-plan
 npm run check:routing-plan
 npm run export:mihomo-fragment
@@ -120,9 +120,9 @@ explicit export command when regeneration is intended.
 
 ## Phase 3a shadow full-profile candidate
 
-`generated/ai-routing/hk.full-profile-candidate.yaml` is a non-production
+`internal/generated/ai-routing/hk.full-profile-candidate.yaml` is a non-production
 shadow candidate only. It is formatted by
-`templates/ai-routing/full-relaxed-shadow.yaml.tpl`, whose named section slots
+`internal/templates/ai-routing/full-relaxed-shadow.yaml.tpl`, whose named section slots
 are validated strictly. The checked-in Python relaxed YAML remains the sole
 production/reference authority; no `cfg/`, `rule/`, strict YAML, INI, or
 generator authority is changed.
@@ -146,9 +146,9 @@ Neither artifact configures a router.
 
 Router-local documents are deliberately separate from canonical policy:
 
-- `examples/ai-routing/router-local/` contains non-deployable examples only;
+- `internal/examples/ai-routing/router-local/` contains non-deployable examples only;
   it has no usable node name, device identifier, address, or secret.
-- `src/routing/router-local.ts` validates a loopback controller endpoint, a
+- `internal/typescript/routing/router-local.ts` validates a loopback controller endpoint, a
   non-empty secret path, policy-version agreement, protected source boundary,
   and a one-to-one local mapping from canonical pinned IDs to locally observed
   node names.
@@ -163,7 +163,7 @@ policy/node verification; stale policy, missing, or revoked nodes produce a
 deterministic reset decision to `REJECT`. No controller function auto-selects
 an approved account node.
 
-`shell/ai-routing-controller.sh` is deliberately a non-mutating stub. Its
+`setup/openclash/scripts/ai-routing-controller.sh` is deliberately a non-mutating stub. Its
 `--dry-run` performs no API call and reads no deployment, secret, state, or
 local-egress input; `--reconcile` fails before any file or API access. A POSIX
 shell cannot safely turn mutable local plan/egress documents into an authority
@@ -214,7 +214,7 @@ It rejects example documents, placeholder secrets, unauthorized providers,
 unsafe node names, group-shape drift, and any binding which is not an exact
 canonical `approvedId → provider` projection mapping. The public candidate
 remains exactly REJECT-only. The generic, non-authoritative
-`py/local_profile_compose.py` helper blocks replacement of structurally locked
+`internal/python/local_profile_compose.py` helper blocks replacement of structurally locked
 selectors, but the validated TypeScript materializer remains the sole
 account-private writer.
 
@@ -251,7 +251,7 @@ retained in the operator diagnostic.
 This is a hermetic sequencing proof only. There is no HTTP/Mihomo wire adapter,
 no UCI/nft/procd integration, and no live firewall proof: the injected startup
 gate is an interface boundary, not evidence that an OpenWrt firewall path is
-actually closed. `shell/ai-routing-controller.sh --reconcile` remains disabled
+actually closed. `setup/openclash/scripts/ai-routing-controller.sh --reconcile` remains disabled
 before it reads router-local inputs or makes an API call.
 
 ## Phase 4e-a firewall-proof contract

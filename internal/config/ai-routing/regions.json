@@ -1,0 +1,158 @@
+{
+  "schemaVersion": 1,
+  "primaryOrder": [
+    "us",
+    "jp",
+    "sg",
+    "tw",
+    "kr"
+  ],
+  "regions": [
+    {
+      "id": "us",
+      "group": "🇺🇸 美國節點",
+      "terms": "🇺🇸|美國|美国|波特蘭|波特兰|達拉斯|达拉斯|俄勒岡|俄勒冈|鳳凰城|凤凰城|費利蒙|费利蒙|硅谷|拉斯維加斯|拉斯维加斯|洛杉磯|洛杉矶|聖何塞|圣何塞|聖克拉拉|圣克拉拉|西雅圖|西雅图|芝加哥|紐約|纽约|亞特蘭大|亚特兰大|邁阿密|迈阿密|華盛頓|华盛顿|\\bUS(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|United States|UnitedStates|USA|America|JFK|EWR|IAD|ATL|ORD|MIA|NYC|LAX|SFO|SEA|DFW|SJC",
+      "name": "United States",
+      "countryCodes": [
+        "US"
+      ],
+      "aliases": [
+        "United States",
+        "USA",
+        "America",
+        "美國",
+        "美国"
+      ],
+      "keywords": [
+        "LAX",
+        "SFO",
+        "SJC",
+        "SEA",
+        "DFW",
+        "NYC",
+        "JFK",
+        "EWR",
+        "IAD",
+        "ATL",
+        "ORD",
+        "MIA",
+        "🇺🇸"
+      ]
+    },
+    {
+      "id": "jp",
+      "group": "🇯🇵 日本節點",
+      "terms": "🇯🇵|日本|東京|东京|大阪|關西|关西|埼玉|川日|泉日|滬日|沪日|深日|\\bJP(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|Japan|JPN|NRT|HND|KIX|TYO|OSA|Kansai",
+      "name": "Japan",
+      "countryCodes": [
+        "JP"
+      ],
+      "aliases": [
+        "Japan",
+        "日本"
+      ],
+      "keywords": [
+        "Tokyo",
+        "東京",
+        "东京",
+        "Osaka",
+        "大阪",
+        "NRT",
+        "HND",
+        "KIX",
+        "TYO",
+        "OSA",
+        "Kansai",
+        "🇯🇵"
+      ]
+    },
+    {
+      "id": "sg",
+      "group": "🇸🇬 新加坡節點",
+      "terms": "🇸🇬|新加坡|獅城|狮城|\\bSG(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|Singapore|SIN",
+      "name": "Singapore",
+      "countryCodes": [
+        "SG"
+      ],
+      "aliases": [
+        "Singapore",
+        "新加坡",
+        "獅城",
+        "狮城"
+      ],
+      "keywords": [
+        "SIN",
+        "🇸🇬"
+      ]
+    },
+    {
+      "id": "tw",
+      "group": "🇹🇼 台灣節點",
+      "terms": "🇹🇼|台灣|臺灣|台湾|台北|臺北|新北|台中|臺中|高雄|彰化|\\bTW(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|Taiwan|TWN|TPE|ROC",
+      "name": "Taiwan",
+      "countryCodes": [
+        "TW"
+      ],
+      "aliases": [
+        "Taiwan",
+        "台灣",
+        "臺灣",
+        "台湾"
+      ],
+      "keywords": [
+        "TPE",
+        "台北",
+        "臺北",
+        "新北",
+        "台中",
+        "臺中",
+        "高雄",
+        "彰化",
+        "ROC",
+        "🇹🇼"
+      ]
+    },
+    {
+      "id": "kr",
+      "group": "🇰🇷 韓國節點",
+      "terms": "🇰🇷|韓國|韩国|首爾|首尔|春川|\\bKR(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|Korea|KOR|Chuncheon|ICN",
+      "name": "South Korea",
+      "countryCodes": [
+        "KR"
+      ],
+      "aliases": [
+        "South Korea",
+        "Korea",
+        "韓國",
+        "韩国"
+      ],
+      "keywords": [
+        "Seoul",
+        "首爾",
+        "首尔",
+        "ICN",
+        "Chuncheon",
+        "春川",
+        "🇰🇷"
+      ]
+    },
+    {
+      "id": "hk",
+      "group": "🇭🇰 香港節點",
+      "terms": "🇭🇰|香港|Hong Kong|HongKong|HKG|\\bHK(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b",
+      "name": "Hong Kong",
+      "countryCodes": [
+        "HK"
+      ],
+      "aliases": [
+        "Hong Kong",
+        "香港",
+        "HK"
+      ],
+      "keywords": [
+        "HKG",
+        "🇭🇰"
+      ]
+    }
+  ]
+}

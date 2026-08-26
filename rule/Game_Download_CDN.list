@@ -1,23 +1,11 @@
 # NAME: Game_Download_CDN
-# AUTHOR: Aethersailor
-# REPO: https://github.com/Aethersailor/Custom_OpenClash_Rules
-# 主流游戏平台外服下载节点规则
-# 规则数据来自 UsbEAm Hosts Editor
-# UsbEAm Hosts Editor 下载地址：https://www.dogfight360.com/blog/18627/
-# 感谢原作者 dogfight360|羽翼城 大佬！
-# 请确保你使用的订阅转换后端以及 Clash 支持正则规则！
-# 规则在本项目中可正常生效，其他使用环境下请自行排障
+# REPO: https://github.com/mythic3011/rules
+# SOURCE: https://github.com/v2fly/domain-list-community
+# GENERATED-BY: internal/python/generate_game_cdn.py
+# PURPOSE: game platform download/CDN routing compatibility list
+# NOTE: prefer geosite:category-game-platforms-download when your runtime supports it.
+# This compatibility artifact remains published because downstream consumers may use its URL.
 
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-# [重要提示]
-# 本文件已归档，仅为兼容旧订阅链接而保留。
-# 请注意：本文件将自动同步上游 eosite:category-game-platforms-download 内容。
-# 实际归档文件位置：rule/archived/Game_Download_CDN.list
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-# 本规则不再更新
-# 规则内容已合并至 v2fly/domain-list-community 
-# 建议使用 geosite:category-game-platforms-download
 # Bethesda - 客户端更新/游戏及 MOD 下载
 DOMAIN-SUFFIX,download.cdp.bethesda.net
 DOMAIN-SUFFIX,content.cdp.bethesda.net

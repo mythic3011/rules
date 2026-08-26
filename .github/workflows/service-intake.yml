@@ -1,0 +1,124 @@
+name: Service intake bot
+
+on:
+  issues:
+    types: [opened, edited, reopened]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: service-intake-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  propose:
+    if: contains(github.event.issue.labels.*.name, 'service-intake') || startsWith(github.event.issue.title, '[Service Intake]:')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Extract untrusted issue body as data
+        run: jq -r '.issue.body // ""' "$GITHUB_EVENT_PATH" > "$RUNNER_TEMP/issue-body.md"
+
+      - name: Apply intake to canonical registries
+        id: intake
+        run: |
+          python3 internal/python/ai_profiles/intake.py \
+            --issue-body-file "$RUNNER_TEMP/issue-body.md" \
+            --json | tee "$RUNNER_TEMP/intake-result.json"
+          echo "service=$(jq -r '.service' "$RUNNER_TEMP/intake-result.json")" >> "$GITHUB_OUTPUT"
+          echo "regions=$(jq -c '.regions' "$RUNNER_TEMP/intake-result.json")" >> "$GITHUB_OUTPUT"
+
+      - name: Regenerate and validate
+        run: |
+          ./rulesctl generate
+          ./rulesctl check
+          python3 internal/python/validate_generated_profiles.py
+
+      - name: Create or refresh bot branch
+        id: branch
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -eu
+          branch="bot/service-intake-${ISSUE_NUMBER}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          remote_exists=false
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+            remote_exists=true
+            git fetch origin "$branch:refs/remotes/origin/$branch"
+          fi
+
+          git checkout -B "$branch" "origin/${DEFAULT_BRANCH}"
+          git add \
+            internal/config/ai-routing/regions.json \
+            internal/config/ai-routing/services.json \
+            .github/ISSUE_TEMPLATE/service_intake.yml \
+            cfg rule dns catalog.json internal/generated
+
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "branch=$branch" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git commit -m "feat(routing): intake service ${{ steps.intake.outputs.service }}"
+          if [ "$remote_exists" = true ]; then
+            git push --force-with-lease origin HEAD:"$branch"
+          else
+            git push origin HEAD:"$branch"
+          fi
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+
+      - name: Open or update pull request
+        if: steps.branch.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          SERVICE: ${{ steps.intake.outputs.service }}
+          BRANCH: ${{ steps.branch.outputs.branch }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -eu
+          pr_number="$(gh pr list --state open --head "$BRANCH" --json number --jq '.[0].number // empty')"
+          if [ -n "$pr_number" ]; then
+            gh pr comment "$pr_number" --body "Refreshed from edited service intake #${ISSUE_NUMBER}."
+          else
+            gh pr create \
+              --title "feat(routing): intake ${SERVICE}" \
+              --body "Generated from #${ISSUE_NUMBER}.\n\nCloses #${ISSUE_NUMBER}" \
+              --head "$BRANCH" \
+              --base "$DEFAULT_BRANCH"
+          fi
+
+      - name: Comment when intake is already represented
+        if: steps.branch.outputs.changed == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          gh issue comment "$ISSUE_NUMBER" --body \
+            "The submitted service/region observation is already represented by the current registries; no new pull request change is required."
+
+      - name: Comment on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          gh issue comment "$ISSUE_NUMBER" --body \
+            "Service intake validation failed. Edit the ticket to correct the fields; edited/reopened issues are revalidated automatically. No change was merged to the default branch."

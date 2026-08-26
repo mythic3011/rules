@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 1,
+  "routes": [
+    {
+      "id": "custom-direct-domain",
+      "kind": "RULE-SET",
+      "value": "Custom_Direct_Domain",
+      "targetGroupKey": "direct",
+      "strictTargetGroupKey": null,
+      "options": [],
+      "mihomoWhen": "relaxed",
+      "provider": {
+        "behavior": "domain",
+        "file": "Custom_Direct_Domain.yaml"
+      },
+      "subconverterCluster": "custom-direct"
+    },
+    {
+      "id": "custom-direct-classical-ip",
+      "kind": "RULE-SET",
+      "value": "Custom_Direct_Classical_IP",
+      "targetGroupKey": "direct",
+      "strictTargetGroupKey": null,
+      "options": [],
+      "mihomoWhen": "relaxed",
+      "provider": {
+        "behavior": "classical",
+        "file": "Custom_Direct_Classical_IP.yaml"
+      },
+      "subconverterCluster": "custom-direct"
+    },
+    {
+      "id": "custom-proxy-domain",
+      "kind": "RULE-SET",
+      "value": "Custom_Proxy_Domain",
+      "targetGroupKey": "manual",
+      "strictTargetGroupKey": null,
+      "options": [],
+      "mihomoWhen": "relaxed",
+      "provider": {
+        "behavior": "domain",
+        "file": "Custom_Proxy_Domain.yaml"
+      },
+      "subconverterCluster": "custom-proxy"
+    },
+    {
+      "id": "custom-proxy-classical-ip",
+      "kind": "RULE-SET",
+      "value": "Custom_Proxy_Classical_IP",
+      "targetGroupKey": "manual",
+      "strictTargetGroupKey": null,
+      "options": [],
+      "mihomoWhen": "relaxed",
+      "provider": {
+        "behavior": "classical",
+        "file": "Custom_Proxy_Classical_IP.yaml"
+      },
+      "subconverterCluster": "custom-proxy"
+    },
+    {
+      "id": "hk-direct",
+      "kind": "GEOIP",
+      "value": "HK",
+      "targetGroupKey": "direct",
+      "strictTargetGroupKey": null,
+      "options": [
+        "no-resolve"
+      ],
+      "mihomoWhen": "relaxed",
+      "provider": null,
+      "subconverterCluster": "geoip-hk"
+    },
+    {
+      "id": "gaming-pc-default-direct",
+      "kind": "SRC-IP-CIDR",
+      "value": "10.0.0.11/32",
+      "targetGroupKey": "direct",
+      "strictTargetGroupKey": null,
+      "options": [],
+      "mihomoWhen": "relaxed",
+      "provider": null,
+      "subconverterCluster": null
+    },
+    {
+      "id": "final",
+      "kind": "MATCH",
+      "value": "",
+      "targetGroupKey": "fallback",
+      "strictTargetGroupKey": "reject",
+      "options": [],
+      "mihomoWhen": "always",
+      "provider": null,
+      "subconverterCluster": "final"
+    }
+  ]
+}

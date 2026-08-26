@@ -8,19 +8,21 @@
     "node": ">=22"
   },
   "scripts": {
-    "validate:routing": "node --import tsx src/routing/cli.ts validate data/ai-routing",
-    "export:routing-plan": "node --import tsx src/routing/cli.ts export-plan data/ai-routing hk generated/ai-routing/hk.plan.json",
-    "check:routing-plan": "npm run export:routing-plan && git diff --exit-code -- generated/ai-routing/hk.plan.json",
-    "export:mihomo-fragment": "node --import tsx src/routing/cli.ts export-mihomo-fragment data/ai-routing data/ai-routing-mihomo.yaml hk generated/ai-routing/hk.mihomo-fragment.yaml",
-    "check:mihomo-fragment": "npm run export:mihomo-fragment && git diff --exit-code -- generated/ai-routing/hk.mihomo-fragment.yaml",
-    "export:routing-artifacts": "node --import tsx src/routing/cli.ts export-routing-artifacts data/ai-routing data/ai-routing-mihomo.yaml generated/ai-routing",
-    "check:routing-artifacts": "node --import tsx src/routing/cli.ts check-routing-artifacts data/ai-routing data/ai-routing-mihomo.yaml generated/ai-routing",
-    "export:shadow-profile": "node --import tsx src/routing/cli.ts export-shadow-profile data/ai-routing data/ai-routing-mihomo.yaml cfg/yaml/Custom_Clash_AI.yaml data/ai-routing-parity.yaml templates/ai-routing/full-relaxed-shadow.yaml.tpl generated/ai-routing",
-    "check:shadow-profile": "node --import tsx src/routing/cli.ts check-shadow-profile data/ai-routing data/ai-routing-mihomo.yaml cfg/yaml/Custom_Clash_AI.yaml data/ai-routing-parity.yaml templates/ai-routing/full-relaxed-shadow.yaml.tpl generated/ai-routing",
-    "export:routing-schema": "node --import tsx src/routing/cli.ts export-schema schema/routing-config.schema.json",
-    "check:routing-schema": "npm run export:routing-schema && git diff --exit-code -- schema/routing-config.schema.json",
+    "validate:routing": "node --import tsx internal/typescript/routing/cli.ts validate internal/config/ai-routing",
+    "export:routing-plan": "node --import tsx internal/typescript/routing/cli.ts export-plan internal/config/ai-routing hk internal/generated/ai-routing/hk.plan.json",
+    "check:routing-plan": "npm run export:routing-plan && git diff --exit-code -- internal/generated/ai-routing/hk.plan.json",
+    "export:mihomo-fragment": "node --import tsx internal/typescript/routing/cli.ts export-mihomo-fragment internal/config/ai-routing internal/config/ai-routing/mihomo.yaml hk internal/generated/ai-routing/hk.mihomo-fragment.yaml",
+    "check:mihomo-fragment": "npm run export:mihomo-fragment && git diff --exit-code -- internal/generated/ai-routing/hk.mihomo-fragment.yaml",
+    "export:routing-artifacts": "node --import tsx internal/typescript/routing/cli.ts export-routing-artifacts internal/config/ai-routing internal/config/ai-routing/mihomo.yaml internal/generated/ai-routing",
+    "check:routing-artifacts": "node --import tsx internal/typescript/routing/cli.ts check-routing-artifacts internal/config/ai-routing internal/config/ai-routing/mihomo.yaml internal/generated/ai-routing",
+    "export:shadow-profile": "node --import tsx internal/typescript/routing/cli.ts export-shadow-profile internal/config/ai-routing internal/config/ai-routing/mihomo.yaml cfg/yaml/Custom_Clash_AI.yaml internal/config/ai-routing/parity.yaml internal/templates/ai-routing/full-relaxed-shadow.yaml.tpl internal/generated/ai-routing",
+    "check:shadow-profile": "node --import tsx internal/typescript/routing/cli.ts check-shadow-profile internal/config/ai-routing internal/config/ai-routing/mihomo.yaml cfg/yaml/Custom_Clash_AI.yaml internal/config/ai-routing/parity.yaml internal/templates/ai-routing/full-relaxed-shadow.yaml.tpl internal/generated/ai-routing",
+    "export:routing-schema": "node --import tsx internal/typescript/routing/cli.ts export-schema internal/schemas/routing-config.schema.json",
+    "check:routing-schema": "npm run export:routing-schema && git diff --exit-code -- internal/schemas/routing-config.schema.json",
     "typecheck": "tsc --noEmit",
-    "test:routing": "node --import tsx --test tests/routing/*.test.ts"
+    "test:routing": "node --import tsx --test tests/routing/*.test.ts",
+    "generate:profile-service-runtime": "python3 internal/python/generate_profile_service_runtime.py",
+    "test:profile-service": "node --test apps/profile-service/test/*.test.mjs"
   },
   "dependencies": {
     "yaml": "^2.8.0",

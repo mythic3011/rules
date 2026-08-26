@@ -13,7 +13,7 @@ WORKFLOW_PATH = ROOT / ".github" / "workflows" / "auto-generate-ai-profiles.yml"
 
 
 class AiProfileWorkflowTests(unittest.TestCase):
-    def test_pr_validation_is_read_only_and_commit_is_push_only(self) -> None:
+    def test_pr_validation_is_read_only_and_commit_is_trusted_event_only(self) -> None:
         workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
 
         self.assertEqual(workflow["permissions"], {"contents": "read"})
@@ -24,7 +24,7 @@ class AiProfileWorkflowTests(unittest.TestCase):
         self.assertEqual(validation["permissions"], {"contents": "read"})
         self.assertEqual(commit["permissions"], {"contents": "write"})
         self.assertEqual(commit["needs"], "validate-ai-profiles")
-        self.assertEqual(commit["if"], "github.event_name == 'push'")
+        self.assertEqual(commit["if"], "github.event_name == 'push' || github.event_name == 'schedule'")
 
         validation_steps = validation["steps"]
         self.assertTrue(any(step["name"] == "Validate AI routing manifests" for step in validation_steps))
@@ -33,6 +33,9 @@ class AiProfileWorkflowTests(unittest.TestCase):
 
         commit_steps = commit["steps"]
         self.assertTrue(any(step["name"] == "Regenerate managed Python outputs" for step in commit_steps))
+        scheduled_steps = [step for step in commit_steps if "on schedule" in step["name"].lower()]
+        self.assertTrue(scheduled_steps)
+        self.assertTrue(all(step.get("if") == "github.event_name == 'schedule'" for step in scheduled_steps))
         self.assertTrue(any(step["name"] == "Commit generated changes" for step in commit_steps))
         checkout = next(step for step in commit_steps if step["name"] == "Checkout pushed revision")
         self.assertEqual(checkout["with"]["ref"], "${{ github.sha }}")

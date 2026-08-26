@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { join, resolve } from "node:path";
 import test from "node:test";
 
-import { loadRoutingConfig } from "../../src/routing/loader.js";
-import { loadMihomoProjectionConfig } from "../../src/routing/mihomo-projection.js";
-import * as FirewallProof from "../../src/routing/firewall-proof.js";
+import { loadRoutingConfig } from "../../internal/typescript/routing/loader.js";
+import { loadMihomoProjectionConfig } from "../../internal/typescript/routing/mihomo-projection.js";
+import * as FirewallProof from "../../internal/typescript/routing/firewall-proof.js";
 import {
   digestControllerPlan,
   digestFirewallStaticEvidence,
@@ -15,22 +15,22 @@ import {
   type FirewallStaticEvidence,
   type SealedArtifactGeneration,
   type SealedArtifactInput,
-} from "../../src/routing/firewall-proof.js";
+} from "../../internal/typescript/routing/firewall-proof.js";
 import {
   FirewallProofAdapter,
   type FirewallEvidenceSource,
   type FirewallProofClock,
-} from "../../src/routing/firewall-proof-adapter.js";
-import { createInitialRuntimeState, type RouterDeployment } from "../../src/routing/router-local.js";
-import { compileControllerPlan, type ControllerPlan } from "../../src/routing/runtime-plan.js";
+} from "../../internal/typescript/routing/firewall-proof-adapter.js";
+import { createInitialRuntimeState, type RouterDeployment } from "../../internal/typescript/routing/router-local.js";
+import { compileControllerPlan, type ControllerPlan } from "../../internal/typescript/routing/runtime-plan.js";
 import {
   executeControllerStartup,
   StartupOrchestratorError,
   type EmergencyDeny,
   type EmergencyRejectLock,
   type FirewallGenerationAuthority,
-} from "../../src/routing/startup-orchestrator.js";
-import type { ControllerApi, StartupGate } from "../../src/routing/runtime-controller.js";
+} from "../../internal/typescript/routing/startup-orchestrator.js";
+import type { ControllerApi, StartupGate } from "../../internal/typescript/routing/runtime-controller.js";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 const ROUTING_DIRECTORY = join(ROOT, "data", "ai-routing");

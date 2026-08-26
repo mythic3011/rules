@@ -1,6 +1,6 @@
 # Node Normalization
 
-Node normalization for the AI profiles is generator-owned. `py/generate_ai_profiles.py` decides the visible group labels, provider regex filters, provider metadata suppression, and the region-group layout used by the generated YAML and INI outputs.
+Node normalization for the AI profiles is generator-owned. `internal/python/generate_ai_profiles.py` decides the visible group labels, provider regex filters, provider metadata suppression, and the region-group layout used by the generated YAML and INI outputs.
 
 Provider metadata nodes such as remaining-traffic banners, expiry notices, Telegram channels, and panel/author labels must be filtered before they leak into AI groups. YAML can do this with `proxy-providers.provider1.override.exclude-filter`. INI cannot attach the same provider-level override, so it keeps the manual group open to filtered provider nodes with a regex tail and documents the limitation instead of pretending the schemas are identical.
 

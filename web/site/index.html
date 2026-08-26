@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>mythic3011/rules</title>
+  <style>
+    :root { color-scheme: light dark; font-family: ui-sans-serif, system-ui, sans-serif; }
+    body { margin: 0; background: Canvas; color: CanvasText; }
+    main { max-width: 960px; margin: 0 auto; padding: 48px 20px 72px; }
+    h1 { font-size: clamp(2rem, 6vw, 4rem); margin: 0 0 12px; letter-spacing: -0.04em; }
+    h2 { margin-top: 42px; }
+    p { line-height: 1.65; max-width: 760px; }
+    .muted { opacity: .72; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin-top: 20px; }
+    .card { border: 1px solid color-mix(in srgb, CanvasText 18%, transparent); border-radius: 14px; padding: 18px; }
+    .card h3 { margin: 0 0 8px; }
+    .card p { margin: 0 0 16px; font-size: .95rem; }
+    a.button { display: inline-block; padding: 9px 12px; border-radius: 9px; background: CanvasText; color: Canvas; text-decoration: none; font-weight: 650; }
+    code { word-break: break-all; }
+    table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+    th, td { text-align: left; border-bottom: 1px solid color-mix(in srgb, CanvasText 16%, transparent); padding: 10px 8px; }
+    nav { display: flex; gap: 14px; flex-wrap: wrap; margin: 18px 0 0; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>mythic3011/rules</h1>
+  <p>Ready-to-use OpenClash/Mihomo profiles, AI/service routing rules, and DNS filtering assets. Consumers use the published files directly; the compiler and source-of-truth configuration stay behind the public surface.</p>
+  <nav>
+    <a href="https://github.com/mythic3011/rules">GitHub</a>
+    <a href="https://github.com/mythic3011/rules/blob/main/docs/getting-started.md">Setup guide</a>
+    <a href="./report.html?category=adblock">Filter reports</a>
+  </nav>
+
+  <h2>Start here</h2>
+  <div class="grid">
+    <section class="card">
+      <h3>AI Balanced</h3>
+      <p>Recommended relaxed OpenClash/Mihomo profile for HK-oriented AI and service routing.</p>
+      <a class="button" href="https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/cfg/yaml/Custom_Clash_AI.yaml">Download YAML</a>
+    </section>
+    <section class="card">
+      <h3>AI Strict</h3>
+      <p>Fail-closed profile for stricter routing and account-sensitive traffic.</p>
+      <a class="button" href="https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/cfg/yaml/Custom_Clash_AI_Strict.yaml">Download YAML</a>
+    </section>
+    <section class="card">
+      <h3>Subconverter AI</h3>
+      <p>AI-aware subscription-conversion template. This is an INI template, not runtime YAML.</p>
+      <a class="button" href="https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/cfg/Custom_Clash_AI.ini">Open INI</a>
+    </section>
+  </div>
+
+  <h2>Generated filtering status</h2>
+  <p class="muted">This table is loaded from the repository's generated report index. It is operational visibility, not part of the setup path.</p>
+  <table>
+    <thead><tr><th>Category</th><th>Domains</th><th>Sources</th><th>Outputs</th></tr></thead>
+    <tbody id="rows"><tr><td colspan="4">Loading…</td></tr></tbody>
+  </table>
+</main>
+<script>
+  const fmt = new Intl.NumberFormat();
+  fetch('./reports/index.json')
+    .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    .then(index => {
+      document.querySelector('#rows').innerHTML = index.categories.map(item => `
+        <tr>
+          <td><a href="./report.html?category=${encodeURIComponent(item.category)}">${item.category}</a></td>
+          <td>${fmt.format(item.final_domain_count)}</td>
+          <td>${fmt.format(item.source_count)}</td>
+          <td><a href="./${item.hosts_output}">hosts</a> · <a href="./${item.clash_output}">clash</a></td>
+        </tr>`).join('');
+    })
+    .catch(err => { document.querySelector('#rows').innerHTML = `<tr><td colspan="4">Unavailable: ${err.message}</td></tr>`; });
+</script>
+</body>
+</html>

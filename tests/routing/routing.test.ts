@@ -7,29 +7,29 @@ import test from "node:test";
 import { z } from "zod";
 import YAML from "yaml";
 
-import { RoutingConfigLoadError, loadRoutingConfig, loadRoutingConfigFromFiles } from "../../src/routing/loader.js";
-import { compileRoutingProfile, RoutingCompileError } from "../../src/routing/compiler.js";
-import { compileMihomoFragment, loadMihomoProjectionConfig, MihomoProjectionError, renderMihomoFragment } from "../../src/routing/mihomo-projection.js";
-import { compileIniMvpPlan, IniMvpPlanSchema } from "../../src/routing/ini-mvp-plan.js";
-import { compileControllerPlan, compileFirewallSemanticPlan } from "../../src/routing/runtime-plan.js";
+import { RoutingConfigLoadError, loadRoutingConfig, loadRoutingConfigFromFiles } from "../../internal/typescript/routing/loader.js";
+import { compileRoutingProfile, RoutingCompileError } from "../../internal/typescript/routing/compiler.js";
+import { compileMihomoFragment, loadMihomoProjectionConfig, MihomoProjectionError, renderMihomoFragment } from "../../internal/typescript/routing/mihomo-projection.js";
+import { compileIniMvpPlan, IniMvpPlanSchema } from "../../internal/typescript/routing/ini-mvp-plan.js";
+import { compileControllerPlan, compileFirewallSemanticPlan } from "../../internal/typescript/routing/runtime-plan.js";
 import {
   ControllerTransactionError,
   executeControllerTransaction,
   previewControllerTransaction,
   type ControllerApi,
   type StartupGate,
-} from "../../src/routing/runtime-controller.js";
-import { ApprovedEgressSchema, RouterLocalConfigError, createInitialRuntimeState, decideAccountSafety, validateAccountMaterializedGraph, validateRouterLocalConfig } from "../../src/routing/router-local.js";
-import { validateEffectiveCutover, EffectiveCutoverError } from "../../src/routing/cutover-validator.js";
-import { compileFirewallAdapterPlan, RuntimeTopologyError } from "../../src/routing/runtime-topology.js";
-import { materializePrivateProfile, PrivateMaterializerError, sha256Utf8 } from "../../src/routing/private-materializer.js";
-import { checkRoutingArtifacts, expectedRoutingArtifacts, RoutingArtifactCheckError } from "../../src/routing/routing-artifacts.js";
+} from "../../internal/typescript/routing/runtime-controller.js";
+import { ApprovedEgressSchema, RouterLocalConfigError, createInitialRuntimeState, decideAccountSafety, validateAccountMaterializedGraph, validateRouterLocalConfig } from "../../internal/typescript/routing/router-local.js";
+import { validateEffectiveCutover, EffectiveCutoverError } from "../../internal/typescript/routing/cutover-validator.js";
+import { compileFirewallAdapterPlan, RuntimeTopologyError } from "../../internal/typescript/routing/runtime-topology.js";
+import { materializePrivateProfile, PrivateMaterializerError, sha256Utf8 } from "../../internal/typescript/routing/private-materializer.js";
+import { checkRoutingArtifacts, expectedRoutingArtifacts, RoutingArtifactCheckError } from "../../internal/typescript/routing/routing-artifacts.js";
 import {
   canonicalServiceIdFromLegacy,
   canonicalServiceIdFromLegacyGroup,
-} from "../../src/routing/migration-adapter.js";
-import { RoutingConfigSchema, type RoutingConfig } from "../../src/routing/schema.js";
-import { renderShadowTemplate, ShadowTemplateError } from "../../src/routing/shadow-template.js";
+} from "../../internal/typescript/routing/migration-adapter.js";
+import { RoutingConfigSchema, type RoutingConfig } from "../../internal/typescript/routing/schema.js";
+import { renderShadowTemplate, ShadowTemplateError } from "../../internal/typescript/routing/shadow-template.js";
 import {
   composeShadowProfile,
   loadLegacyRelaxedBase,
@@ -38,8 +38,8 @@ import {
   validateShadowParityCandidate,
   validateShadowFragmentShape,
   validateCompilerGroupGraph,
-} from "../../src/routing/shadow-profile.js";
-import { validateRoutingSemantics, validateRuleOrdering } from "../../src/routing/semantic-validator.js";
+} from "../../internal/typescript/routing/shadow-profile.js";
+import { validateRoutingSemantics, validateRuleOrdering } from "../../internal/typescript/routing/semantic-validator.js";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 const VALID_DIRECTORY = join(ROOT, "data", "ai-routing");
@@ -199,7 +199,7 @@ function runRoutingCli(manifestDirectory: string): Promise<ChildResult> {
   return new Promise((resolvePromise, rejectPromise) => {
     const child = spawn(
       process.execPath,
-      ["--import", "tsx", "src/routing/cli.ts", "validate", manifestDirectory],
+      ["--import", "tsx", "internal/typescript/routing/cli.ts", "validate", manifestDirectory],
       { cwd: ROOT, stdio: ["ignore", "pipe", "pipe"] },
     );
     let stdout = "";
@@ -1595,7 +1595,7 @@ test("materialize-private CLI returns structured redacted failure output", async
     await writeFile(deployment, JSON.stringify({ ...deploymentFixture(), controller: { url: "http://127.0.0.1:9090", secretFile: secret } }));
     await writeFile(egress, JSON.stringify({ schemaVersion: 1, mode: "deployment", policyVersion: "1", services: { claude: { bindings: [{ approvedId: "US-Claude-01", node: "SENTINEL_NODE_DO_NOT_PRINT" }], revokedNodes: [] } } }));
     const result = await new Promise<ChildResult>((resolvePromise, rejectPromise) => {
-      const child = spawn(process.execPath, ["--import", "tsx", "src/routing/cli.ts", "materialize-private", "data/ai-routing", "data/ai-routing-mihomo.yaml", "generated/ai-routing/hk.full-profile-candidate.yaml", deployment, egress, output], { cwd: ROOT, stdio: ["ignore", "pipe", "pipe"] });
+      const child = spawn(process.execPath, ["--import", "tsx", "internal/typescript/routing/cli.ts", "materialize-private", "internal/config/ai-routing", "internal/config/ai-routing/mihomo.yaml", "internal/generated/ai-routing/hk.full-profile-candidate.yaml", deployment, egress, output], { cwd: ROOT, stdio: ["ignore", "pipe", "pipe"] });
       let stdout = ""; let stderr = "";
       child.stdout.setEncoding("utf8"); child.stderr.setEncoding("utf8");
       child.stdout.on("data", (chunk: string) => { stdout += chunk; }); child.stderr.on("data", (chunk: string) => { stderr += chunk; });

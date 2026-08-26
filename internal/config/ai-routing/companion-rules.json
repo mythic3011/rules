@@ -1,0 +1,317 @@
+{
+  "schemaVersion": 1,
+  "rulesets": [
+    {
+      "id": "ssh-direct",
+      "category": "ssh",
+      "providerKey": "SSH_Direct_Classical",
+      "groupKey": "direct",
+      "file": "SSH_Direct_Classical.yaml",
+      "render": {
+        "mode": "comment",
+        "bodyLines": [
+          "# Replace the exact /32 below with your real public SSH endpoint only.",
+          "# Do not use broad provider subnets and do not add global DST-PORT,22.",
+          "# Tailscale interface traffic should bypass TProxy at firewall/iptables level,",
+          "# not only at rule level, because WireGuard UDP encapsulation is not visible",
+          "# to domain-based rules.",
+          "",
+          "payload:",
+          "  # - IP-CIDR,66.154.x.x/32,no-resolve"
+        ]
+      },
+      "mihomo": true,
+      "subconverterCluster": "ssh"
+    },
+    {
+      "id": "ssh-proxy",
+      "category": "ssh",
+      "providerKey": "SSH_Proxy_Classical",
+      "groupKey": "manual",
+      "file": "SSH_Proxy_Classical.yaml",
+      "render": {
+        "mode": "comment",
+        "bodyLines": [
+          "# Use this file for intentionally proxied SSH endpoints only.",
+          "# Add narrow DOMAIN, DOMAIN-SUFFIX, or IP-CIDR entries after testing.",
+          "",
+          "payload:",
+          "  # - DOMAIN,vps.example.com",
+          "  # - IP-CIDR,203.0.113.10/32,no-resolve"
+        ]
+      },
+      "mihomo": true,
+      "subconverterCluster": "ssh"
+    },
+    {
+      "id": "ssh-process",
+      "category": "ssh",
+      "providerKey": "SSH_Process_Classical",
+      "groupKey": "direct",
+      "file": "SSH_Process_Classical.yaml",
+      "render": {
+        "mode": "comment",
+        "bodyLines": [
+          "# Desktop-only compatibility surface.",
+          "# PROCESS-NAME rules only work when Mihomo/Clash runs on the same host",
+          "# as the process. OpenClash router mode normally cannot see client",
+          "# PROCESS-NAME values from LAN devices.",
+          "",
+          "payload:",
+          "  # - PROCESS-NAME,ssh",
+          "  # - PROCESS-NAME,scp"
+        ]
+      },
+      "mihomo": false,
+      "subconverterCluster": null
+    },
+    {
+      "id": "gaming-direct",
+      "category": "gaming",
+      "providerKey": "Gaming_Direct_Classical",
+      "groupKey": "direct",
+      "file": "Gaming_Direct_Classical.yaml",
+      "render": {
+        "mode": "classical",
+        "payload": [
+          "DOMAIN-SUFFIX,steamcontent.com",
+          "DOMAIN-SUFFIX,steampipe.akamaized.net",
+          "DOMAIN-SUFFIX,steamserver.net",
+          "DOMAIN-SUFFIX,battle.net",
+          "DOMAIN-SUFFIX,blizzard.com",
+          "DOMAIN-SUFFIX,blzstatic.cn",
+          "DOMAIN-SUFFIX,origin.com",
+          "DOMAIN-SUFFIX,warframe.com",
+          "DOMAIN-SUFFIX,square-enix.com",
+          "DOMAIN-SUFFIX,finalfantasyxiv.com",
+          "DOMAIN-SUFFIX,ffxiv.com",
+          "DOMAIN-SUFFIX,nintendo.net",
+          "DOMAIN-SUFFIX,srv.nintendo.net",
+          "DOMAIN-SUFFIX,cdn.nintendo.net",
+          "DOMAIN-SUFFIX,stun.playstation.net",
+          "DOMAIN-SUFFIX,xboxlive.com",
+          "DOMAIN-SUFFIX,uu.163.com",
+          "DOMAIN-SUFFIX,n0808.com",
+          "DOMAIN-SUFFIX,sandai.net",
+          "DOMAIN-SUFFIX,epicgames.com",
+          "DOMAIN-SUFFIX,epicgamescdn.com"
+        ],
+        "comments": [
+          "# Game update CDN - direct for performance and UDP stability",
+          "# EA caution:",
+          "# Do not add DOMAIN-SUFFIX,ea.com by default.",
+          "# ea.com can include account login/auth endpoints, not only CDN traffic.",
+          "# Add narrower EA CDN/game domains only after testing your region/account behavior."
+        ]
+      },
+      "mihomo": true,
+      "subconverterCluster": "gaming"
+    },
+    {
+      "id": "huggingface-download-direct",
+      "category": "other",
+      "providerKey": "HuggingFace_Download_Direct_Classical",
+      "groupKey": "direct",
+      "file": "HuggingFace_Download_Direct_Classical.yaml",
+      "render": {
+        "mode": "classical",
+        "payload": [
+          "DOMAIN-SUFFIX,hf.co"
+        ],
+        "comments": [
+          "# Hugging Face model/dataset blobs use hf.co storage/CDN endpoints.",
+          "# Keep bulk downloads DIRECT while huggingface.co UI/API can use its service group.",
+          "# Source: official Hugging Face firewall/download documentation."
+        ]
+      },
+      "mihomo": true,
+      "subconverterCluster": "downloads"
+    },
+    {
+      "id": "cursor-download-direct",
+      "category": "other",
+      "providerKey": "Cursor_Download_Direct_Classical",
+      "groupKey": "direct",
+      "file": "Cursor_Download_Direct_Classical.yaml",
+      "render": {
+        "mode": "classical",
+        "payload": [
+          "DOMAIN-SUFFIX,cursor-cdn.com"
+        ],
+        "comments": [
+          "# Cursor documents cursor-cdn.com as application download/update traffic.",
+          "# Keep bulk update traffic DIRECT instead of sending it through the AI service group."
+        ]
+      },
+      "mihomo": true,
+      "subconverterCluster": "downloads"
+    },
+    {
+      "id": "finance-stripe-sensitive",
+      "category": "finance",
+      "providerKey": "Finance_Stripe_Classical",
+      "groupKey": "high-risk-account",
+      "file": "Finance_Stripe_Classical.yaml",
+      "render": {
+        "mode": "classical",
+        "payload": [
+          "DOMAIN-SUFFIX,stripe.com",
+          "DOMAIN-SUFFIX,stripecdn.com",
+          "DOMAIN,m.stripe.network"
+        ],
+        "comments": [
+          "# Account/payment-sensitive Stripe traffic uses the fail-closed high-risk account selector.",
+          "# Opt in to the stable-session selector, then pin DIRECT or one exact provider node; never use an automatic/url-test group.",
+          "# Stripe documents stripe.com/stripecdn.com hosts and m.stripe.network for integration traffic."
+        ]
+      },
+      "mihomo": true,
+      "subconverterCluster": "finance"
+    },
+    {
+      "id": "finance-paypal-sensitive",
+      "category": "finance",
+      "providerKey": "Finance_PayPal_Classical",
+      "groupKey": "high-risk-account",
+      "file": "Finance_PayPal_Classical.yaml",
+      "render": {
+        "mode": "classical",
+        "payload": [
+          "DOMAIN-SUFFIX,paypal.com",
+          "DOMAIN-SUFFIX,paypalobjects.com"
+        ],
+        "comments": [
+          "# Account/payment-sensitive PayPal traffic uses the fail-closed high-risk account selector.",
+          "# Opt in to the stable-session selector, then pin DIRECT or one exact provider node when session/IP consistency matters.",
+          "# Braintree/Venmo domains remain intentionally outside this PayPal core ruleset."
+        ]
+      },
+      "mihomo": true,
+      "subconverterCluster": "finance"
+    },
+    {
+      "id": "finance-wise-sensitive",
+      "category": "finance",
+      "providerKey": "Finance_Wise_Classical",
+      "groupKey": "high-risk-account",
+      "file": "Finance_Wise_Classical.yaml",
+      "render": {
+        "mode": "classical",
+        "payload": [
+          "DOMAIN-SUFFIX,wise.com",
+          "DOMAIN-SUFFIX,wise-sandbox.com",
+          "DOMAIN,api-mtls.transferwise.com"
+        ],
+        "comments": [
+          "# Account/payment-sensitive Wise traffic uses the fail-closed high-risk account selector.",
+          "# Opt in to the stable-session selector, then pin DIRECT or one exact provider node when session/IP consistency matters.",
+          "# Wise documents api.wise.com / wise.com plus wise-sandbox.com and api-mtls.transferwise.com."
+        ]
+      },
+      "mihomo": true,
+      "subconverterCluster": "finance"
+    },
+    {
+      "id": "finance-revolut-sensitive",
+      "category": "finance",
+      "providerKey": "Finance_Revolut_Classical",
+      "groupKey": "high-risk-account",
+      "file": "Finance_Revolut_Classical.yaml",
+      "render": {
+        "mode": "classical",
+        "payload": [
+          "DOMAIN-SUFFIX,revolut.com"
+        ],
+        "comments": [
+          "# Financial/account-sensitive Revolut traffic uses the fail-closed high-risk account selector.",
+          "# Opt in to the stable-session selector, then pin DIRECT or one exact provider node when session/IP consistency matters."
+        ]
+      },
+      "mihomo": true,
+      "subconverterCluster": "finance"
+    },
+    {
+      "id": "finance-ibkr-sensitive",
+      "category": "finance",
+      "providerKey": "Finance_IBKR_Classical",
+      "groupKey": "high-risk-account",
+      "file": "Finance_IBKR_Classical.yaml",
+      "render": {
+        "mode": "classical",
+        "payload": [
+          "DOMAIN,api.ibkr.com",
+          "DOMAIN-SUFFIX,interactivebrokers.com"
+        ],
+        "comments": [
+          "# Interactive Brokers account/trading traffic uses the fail-closed high-risk account selector.",
+          "# IBKR documents api.ibkr.com for Web API trading/account endpoints.",
+          "# Opt in to the stable-session selector, then pin DIRECT or one exact provider node when session/IP consistency matters."
+        ]
+      },
+      "mihomo": true,
+      "subconverterCluster": "finance"
+    },
+    {
+      "id": "finance-alpaca-sensitive",
+      "category": "finance",
+      "providerKey": "Finance_Alpaca_Classical",
+      "groupKey": "high-risk-account",
+      "file": "Finance_Alpaca_Classical.yaml",
+      "render": {
+        "mode": "classical",
+        "payload": [
+          "DOMAIN,api.alpaca.markets",
+          "DOMAIN,paper-api.alpaca.markets",
+          "DOMAIN,data.alpaca.markets",
+          "DOMAIN,stream.data.alpaca.markets",
+          "DOMAIN,broker-api.alpaca.markets",
+          "DOMAIN,authx.alpaca.markets",
+          "DOMAIN,data.sandbox.alpaca.markets",
+          "DOMAIN,stream.data.sandbox.alpaca.markets",
+          "DOMAIN,broker-api.sandbox.alpaca.markets"
+        ],
+        "comments": [
+          "# Alpaca trading/account traffic uses the fail-closed high-risk account selector.",
+          "# Hosts follow Alpaca official trading, broker, market-data, and WebSocket documentation.",
+          "# Opt in to the stable-session selector, then pin DIRECT or one exact provider node when session/IP consistency matters."
+        ]
+      },
+      "mihomo": true,
+      "subconverterCluster": "finance"
+    }
+  ],
+  "process": {
+    "warningLines": [
+      "# PROCESS-NAME rules only work when Mihomo runs on the same device as the process.",
+      "# These rules have NO EFFECT in OpenClash router transparent proxy mode.",
+      "# Enable only if deploying Mihomo directly on a desktop/server, not on a router.",
+      "# Set ENABLE_PROCESS_RULES=true in generator env to regenerate these sections."
+    ],
+    "rulesets": [
+      {
+        "key": "p2p",
+        "providerKey": "Process_P2P_Classical",
+        "file": "Process_P2P_Classical.yaml",
+        "groupKey": "direct"
+      },
+      {
+        "key": "download",
+        "providerKey": "Process_Download_Classical",
+        "file": "Process_Download_Classical.yaml",
+        "groupKey": "direct"
+      },
+      {
+        "key": "proxy_tools",
+        "providerKey": "Process_ProxyTools_Classical",
+        "file": "Process_ProxyTools_Classical.yaml",
+        "groupKey": "manual"
+      },
+      {
+        "key": "gaming",
+        "providerKey": "Process_Gaming_Classical",
+        "file": "Process_Gaming_Classical.yaml",
+        "groupKey": "direct"
+      }
+    ]
+  }
+}

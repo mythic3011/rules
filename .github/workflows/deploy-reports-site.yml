@@ -4,12 +4,13 @@ on:
   push:
     branches: ["main"]
     paths:
-      - "site/**"
-      - "reports/**"
+      - "web/site/**"
+      - "web/reports/**"
+      - "catalog.json"
       - "dns/**"
       - "rule/**"
-      - "py/generate_adblock_outputs.py"
-      - "doc/openclash/RULE_ASSET_MATCHING_CONTRACT.md"
+      - "internal/python/generate_adblock_outputs.py"
+      - "docs/guides/openclash/RULE_ASSET_MATCHING_CONTRACT.md"
       - ".github/workflows/deploy-reports-site.yml"
   workflow_dispatch:
 
@@ -40,10 +41,11 @@ jobs:
         run: |
           rm -rf _site
           mkdir -p _site/reports _site/dns _site/rule
-          cp -R site/. _site/
-          cp -R reports/. _site/reports/
+          cp -R web/site/. _site/
+          cp -R web/reports/. _site/reports/
           cp -R dns/. _site/dns/
           cp -R rule/. _site/rule/
+          cp catalog.json _site/catalog.json
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4

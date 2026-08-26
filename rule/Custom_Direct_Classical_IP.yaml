@@ -12,7 +12,7 @@ payload:
   - IP-CIDR,98.126.27.164/32,no-resolve
   - SRC-PORT,41641
 
-# Managed by py/generate_ai_profiles.py: Tailscale IP verification note
+# Managed by internal/python/generate_ai_profiles.py: Tailscale IP verification note
 # Tailscale IP ranges and DERP relay destinations change over time.
 # Do not hardcode Tailscale CIDR ranges without a dated verification step.
 # Prefer domain DIRECT rules plus firewall-level TProxy bypass for the tailscale interface.

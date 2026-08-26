@@ -5,27 +5,27 @@ on:
     paths:
       - 'cfg/**'
       - 'rule/**'
-      - 'game_rule/**'
-      - 'shell/**'
-      - 'overwrite/**'
+      - 'rule/games/**'
+      - 'setup/openclash/**'
+      - 'catalog.json'
+      - 'internal/generated/ai-routing/distribution-manifest.json'
       - '!**/archived/**'
       - '!**/README.md'
       - '!README.md'
 
   workflow_run:
     workflows:
+      - Auto generate AI profiles
+      - Auto generate adblock outputs
       - Auto generate rules
       - Auto update mainland config
       - Auto Update Game CDN Rules
-      - Sync and Modify Custom_Clash.ini
     types:
       - completed
 
   workflow_dispatch:  # 支持手动触发
-
 env:
   TARGET_BRANCH: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.head_branch) || ((github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref_name) || (vars.WORK_BRANCH != '' && vars.WORK_BRANCH) || 'main' }}
-
 jobs:
   purge-jsdelivr:
     if: |
@@ -42,7 +42,6 @@ jobs:
     defaults:
       run:
         shell: bash
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -59,13 +58,11 @@ jobs:
         run: |
           echo "Event: $EVENT_NAME"
           echo "Target branch: $TARGET_BRANCH"
-
           if ! git ls-remote --exit-code --heads origin "$TARGET_BRANCH" >/dev/null 2>&1; then
             echo "Remote branch '$TARGET_BRANCH' not found. Skipping purge."
             echo "should_purge=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-
           if [ "$EVENT_NAME" = "workflow_run" ]; then
             echo "Workflow run head SHA: $HEAD_SHA"
             echo "Fetching latest remote info..."
@@ -73,7 +70,6 @@ jobs:
             LATEST_SHA=$(git rev-parse "origin/$TARGET_BRANCH")
 
             echo "Latest Remote SHA: $LATEST_SHA"
-
             if [ "$LATEST_SHA" = "$HEAD_SHA" ]; then
               echo "No new commit since workflow completed. Skipping purge."
               echo "should_purge=false" >> "$GITHUB_OUTPUT"
@@ -84,7 +80,6 @@ jobs:
             echo "should_purge=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-
           echo "Current Commit SHA: $CURRENT_SHA"
           echo "Waiting for 60 seconds to batch multiple changes..."
 
@@ -100,7 +95,6 @@ jobs:
           echo "Fetching latest remote info..."
           git fetch origin "$TARGET_BRANCH"
           LATEST_SHA=$(git rev-parse "origin/$TARGET_BRANCH")
-
           echo "Latest Remote SHA: $LATEST_SHA"
 
           if [ "$CURRENT_SHA" != "$LATEST_SHA" ]; then
@@ -112,7 +106,6 @@ jobs:
             echo "This is still the latest commit. Proceeding with purge..."
             echo "should_purge=true" >> "$GITHUB_OUTPUT"
           fi
-
       - name: Purge jsDelivr Cache
         if: steps.debounce.outputs.should_purge == 'true'
         run: |
@@ -123,7 +116,6 @@ jobs:
             echo "Attempt $i: Purging..."
             result=$(curl -s -X GET "https://purge.jsdelivr.net/gh/${REPO}")
             echo "$result"
-
             if echo "$result" | grep -q '"status": "finished"'; then
               echo "Purge succeeded."
               break
@@ -137,3 +129,61 @@ jobs:
               exit 1
             fi
           done
+      - name: Verify jsDelivr published artifacts
+        if: steps.debounce.outputs.should_purge == 'true'
+        env:
+          TARGET_BRANCH: ${{ env.TARGET_BRANCH }}
+        run: |
+          git fetch origin "$TARGET_BRANCH"
+          git checkout --detach "origin/$TARGET_BRANCH"
+          manifest="internal/generated/ai-routing/distribution-manifest.json"
+          if [ ! -f "$manifest" ]; then
+            echo "Distribution manifest not found; skipping CDN verification."
+            exit 0
+          fi
+
+          python3 - "$manifest" <<'PY' > /tmp/jsdelivr-artifacts.tsv
+          import json
+          import sys
+
+          manifest = json.load(open(sys.argv[1], encoding="utf-8"))
+          for artifact in manifest["artifacts"]:
+              print(f'{artifact["path"]}\t{artifact["urls"]["cdn"]}')
+          PY
+
+          for attempt in {1..5}; do
+            failed=0
+            while IFS=$'\t' read -r path url; do
+              if [ ! -f "$path" ]; then
+                echo "Missing local managed artifact: $path"
+                failed=1
+                continue
+              fi
+              local_sha=$(sha256sum "$path" | awk '{print $1}')
+              tmp=$(mktemp)
+              if ! curl -fsSL --max-time 30 "$url" -o "$tmp"; then
+                echo "Fetch failed: $url"
+                rm -f "$tmp"
+                failed=1
+                continue
+              fi
+              remote_sha=$(sha256sum "$tmp" | awk '{print $1}')
+              rm -f "$tmp"
+              if [ "$local_sha" != "$remote_sha" ]; then
+                echo "CDN mismatch: $path ($local_sha != $remote_sha)"
+                failed=1
+              fi
+            done < /tmp/jsdelivr-artifacts.tsv
+
+            if [ "$failed" -eq 0 ]; then
+              echo "All managed artifacts match jsDelivr."
+              exit 0
+            fi
+            if [ "$attempt" -lt 5 ]; then
+              echo "CDN has not converged yet; retrying in 10s..."
+              sleep 10
+            fi
+          done
+
+          echo "jsDelivr verification failed after retries."
+          exit 1

@@ -6,7 +6,7 @@ import unittest
 from copy import deepcopy
 from pathlib import Path
 
-from py.local_profile_compose import (
+from internal.python.local_profile_compose import (
     LocalComposeError,
     compose_mihomo_config,
     dump_yaml,

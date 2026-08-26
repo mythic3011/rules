@@ -1,18 +1,22 @@
-site_name: Wiki
-site_url: https://aethersailor.github.io/Custom_OpenClash_Rules/
-docs_dir: wiki
+site_name: mythic3011/rules documentation
+docs_dir: docs
 nav:
   - Home: README.md
-  - 配置教程:
-      - OpenClash 设置方案: 1.OpenClash-设置方案.md
-      - OpenWrt IPv6 设置方案: 2.OpenWrt-IPv6-设置方案.md
-      - OpenClash 零碎教程: 3.OpenClash-零碎教程.md
-  - 进阶与参考:
-      - 无插件广告拦截功能设置方案: 4.无插件广告拦截功能设置方案.md
-      - 故障排除: 5.故障排除.md
-      - 关于“旁路由”的一些吐槽: 6.关于“旁路由”的一些吐槽.md
-      - 一些零碎的教程: 7.一些零碎的教程.md
-      - 其他推荐项目: 8.其他推荐项目.md
+  - Getting started: getting-started.md
+  - Repository layout: repository-layout.md
+  - Migration: migration-v2.md
+  - AI routing:
+      - Profile generator: ai-profile-generator.md
+      - Schema foundation: ai-routing-schema-foundation.md
+      - Firewall proof: ai-routing-firewall-proof.md
+      - Kill switch: kill-switch.md
+      - SSH routing: ssh-routing.md
+      - Node normalization: node-normalization.md
+  - OpenClash guides:
+      - Guide index: guides/openclash/README.md
+      - Adblock pipeline design: guides/openclash/ADBLOCK_PIPELINE_DESIGN.md
+      - Adblock operations: guides/openclash/ADBLOCK_PIPELINE_OPERATIONS.md
+      - Rule asset contract: guides/openclash/RULE_ASSET_MATCHING_CONTRACT.md
 theme:
   name: material
 plugins:
@@ -26,5 +30,3 @@ markdown_extensions:
   - footnotes
   - attr_list
   - md_in_html
-extra_javascript:
-  - assets/wiki-link-rewrite.js

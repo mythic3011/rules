@@ -1,0 +1,26 @@
+{
+  "name": "mythic-rules-profile-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Cloudflare Worker and Web Builder for opaque OpenClash subconverter INI profiles.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "dev": "npx wrangler@latest dev",
+    "db:migrate": "npx wrangler@latest d1 migrations apply DB --remote",
+    "deploy": "npm run db:migrate && npx wrangler@latest deploy"
+  },
+  "cloudflare": {
+    "bindings": {
+      "DB": {
+        "description": "D1 stores saved ProfileSpec records and hashed read/manage capabilities."
+      },
+      "PROFILE_WRITE_LIMITER": {
+        "description": "Rate-limits anonymous profile create/update/rotate operations."
+      }
+    }
+  }
+}

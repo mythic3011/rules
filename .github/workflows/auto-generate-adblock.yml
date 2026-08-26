@@ -3,20 +3,20 @@ name: Auto generate adblock outputs
 on:
   push:
     paths:
-      - "data/adblock_sources.yaml"
-      - "data/categories.yaml"
-      - "data/custom_adblock_sources.yaml"
-      - "data/tracking_sources.yaml"
-      - "data/custom_tracking_sources.yaml"
-      - "data/telemetry_sources.yaml"
-      - "data/custom_telemetry_sources.yaml"
-      - "data/malware_sources.yaml"
-      - "data/custom_malware_sources.yaml"
-      - "data/clash_lite_seed.txt"
-      - "data/tracking_lite_seed.txt"
-      - "data/telemetry_lite_seed.txt"
-      - "data/malware_lite_seed.txt"
-      - "data/domain_policies.yaml"
+      - "internal/config/filtering/sources/adblock.yaml"
+      - "internal/config/filtering/categories.yaml"
+      - "internal/config/filtering/sources/custom/adblock.yaml"
+      - "internal/config/filtering/sources/tracking.yaml"
+      - "internal/config/filtering/sources/custom/tracking.yaml"
+      - "internal/config/filtering/sources/telemetry.yaml"
+      - "internal/config/filtering/sources/custom/telemetry.yaml"
+      - "internal/config/filtering/sources/malware.yaml"
+      - "internal/config/filtering/sources/custom/malware.yaml"
+      - "internal/config/filtering/seeds/adblock-lite.txt"
+      - "internal/config/filtering/seeds/tracking-lite.txt"
+      - "internal/config/filtering/seeds/telemetry-lite.txt"
+      - "internal/config/filtering/seeds/malware-lite.txt"
+      - "internal/config/filtering/domain-policies.yaml"
       - "dns/local_allowlist.txt"
       - "dns/local_blocklist.txt"
       - "dns/local_tracking_allowlist.txt"
@@ -25,7 +25,7 @@ on:
       - "dns/local_telemetry_blocklist.txt"
       - "dns/local_malware_allowlist.txt"
       - "dns/local_malware_blocklist.txt"
-      - "py/generate_adblock_outputs.py"
+      - "internal/python/generate_adblock_outputs.py"
       - ".github/workflows/auto-generate-adblock.yml"
   workflow_dispatch:
   schedule:
@@ -50,7 +50,7 @@ jobs:
           python-version: "3.x"
 
       - name: Generate adblock outputs
-        run: python3 py/generate_adblock_outputs.py
+        run: python3 internal/python/generate_adblock_outputs.py
 
       - name: Publish workflow summary
         run: |
@@ -58,7 +58,7 @@ jobs:
           import json
           from pathlib import Path
 
-          index = json.loads(Path("reports/index.json").read_text(encoding="utf-8"))
+          index = json.loads(Path("web/reports/index.json").read_text(encoding="utf-8"))
           print("## Adblock Generation Summary")
           print("")
           print(f"- Generated at: `{index['generated_at']}`")
@@ -76,7 +76,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add dns/adblock.dnsmasq.conf dns/adblock.hosts.txt dns/tracking.dnsmasq.conf dns/tracking.hosts.txt dns/telemetry.dnsmasq.conf dns/telemetry.hosts.txt dns/malware.dnsmasq.conf dns/malware.hosts.txt rule/Ads_Lite_Domain.yaml rule/Tracking_Lite_Domain.yaml rule/Telemetry_Lite_Domain.yaml rule/Malware_Lite_Domain.yaml reports/index.json reports/*.summary.json
+          git add dns/adblock.dnsmasq.conf dns/adblock.hosts.txt dns/tracking.dnsmasq.conf dns/tracking.hosts.txt dns/telemetry.dnsmasq.conf dns/telemetry.hosts.txt dns/malware.dnsmasq.conf dns/malware.hosts.txt rule/Ads_Lite_Domain.yaml rule/Tracking_Lite_Domain.yaml rule/Telemetry_Lite_Domain.yaml rule/Malware_Lite_Domain.yaml web/reports/index.json web/reports/*.summary.json
 
           if ! git diff --cached --quiet; then
             git commit -m "chore(adblock): auto generate outputs"

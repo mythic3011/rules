@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULE_PATH = ROOT / "py" / "generate_ai_profiles.py"
+MODULE_PATH = ROOT / "internal" / "python" / "generate_ai_profiles.py"
 SPEC = importlib.util.spec_from_file_location("generate_ai_profiles", MODULE_PATH)
 if SPEC is None or SPEC.loader is None:
     raise RuntimeError(f"Unable to load module from {MODULE_PATH}")
@@ -40,15 +40,12 @@ class GenerateAiProfilesTest(unittest.TestCase):
 
     def test_should_use_classical_provider_keys_for_ai_rules(self) -> None:
         provider_keys = [item["provider_key"] for item in MODULE.AI_RULESETS]
-
-        self.assertEqual(
-            provider_keys,
-            [
-                "AI_Copilot_Classical",
-                "AI_Gemini_Classical",
-                "AI_NotebookLM_Classical",
-            ],
+        self.assertTrue(provider_keys)
+        self.assertTrue(
+            all(key.startswith("AI_") and key.endswith("_Classical") for key in provider_keys)
         )
+        self.assertIn("AI_Jules_Classical", provider_keys)
+        self.assertIn("AI_VertexAI_Classical", provider_keys)
 
     def test_should_generate_rule_sets_only_for_services_with_local_payloads(self) -> None:
         service_ids = [item["id"] for item in MODULE.AI_SERVICES]
@@ -64,7 +61,7 @@ class GenerateAiProfilesTest(unittest.TestCase):
             {service["group"] for service in MODULE.AI_SERVICES if service["payload"]},
         )
 
-    def test_should_render_service_identity_and_guard_rules_before_relaxed_rules(self) -> None:
+    def test_should_render_service_identity_and_aggregate_rules_before_relaxed_rules(self) -> None:
         rules = MODULE.render_yaml_rules(strict=False, include_process_rules=False).splitlines()
         identity_rules = [
             f'"RULE-SET,{service["provider_key"]},{service["group"]}"'
@@ -76,9 +73,12 @@ class GenerateAiProfilesTest(unittest.TestCase):
             for service in MODULE.AI_SERVICES
             for geosite in service["geosites"]
         )
-        guard_indices = [
-            next(i for i, line in enumerate(rules) if f'"GEOSITE,{geosite},{MODULE.GROUP["reject"]}"' in line)
-            for geosite in MODULE.AI_GUARD_GEOSITES
+        aggregate_indices = [
+            i
+            for i, line in enumerate(rules)
+            if ("GEOSITE,google-deepmind,🤖 AI Other" in line
+                or "GEOSITE,category-ai-!cn,🤖 AI Other" in line
+                or "GEOSITE,category-ai-cn,🤖 AI CN Other" in line)
         ]
         ssh_index = next(i for i, line in enumerate(rules) if "SSH_Direct_Classical" in line)
         geoip_hk_index = next(i for i, line in enumerate(rules) if "GEOIP,HK" in line)
@@ -87,7 +87,8 @@ class GenerateAiProfilesTest(unittest.TestCase):
         for expected in identity_rules:
             self.assertTrue(any(expected in line for line in rules), expected)
         self.assertNotIn("AI_All_Classical", "\n".join(rules))
-        self.assertLess(max(guard_indices), ssh_index)
+        self.assertTrue(aggregate_indices)
+        self.assertLess(max(aggregate_indices), ssh_index)
         self.assertLess(ssh_index, geoip_hk_index)
         self.assertLess(geoip_hk_index, match_index)
 

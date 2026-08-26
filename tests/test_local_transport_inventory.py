@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from py.local_transport_inventory import (
+from internal.python.local_transport_inventory import (
     TransportConfigError,
     compile_service_transport_plan,
     load_service_candidate_policy,

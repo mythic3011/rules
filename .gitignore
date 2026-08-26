@@ -5,5 +5,6 @@ node_modules/
 local/ai-routing/
 .codex/
 .DS_Store
-AGENTS.md
 codex_ai_profiles_remediation_spec.md
+.wrangler/
+apps/profile-service/wrangler.local.jsonc

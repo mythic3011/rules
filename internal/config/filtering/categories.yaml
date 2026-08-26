@@ -1,0 +1,44 @@
+categories:
+  adblock:
+    source_config: internal/config/filtering/sources/adblock.yaml
+    custom_source_config: internal/config/filtering/sources/custom/adblock.yaml
+    lite_seed: internal/config/filtering/seeds/adblock-lite.txt
+    allowlist: dns/local_allowlist.txt
+    blocklist: dns/local_blocklist.txt
+    dnsmasq_output: dns/adblock.dnsmasq.conf
+    hosts_output: dns/adblock.hosts.txt
+    clash_output: rule/Ads_Lite_Domain.yaml
+    clash_name: Ads_Lite_Domain
+
+  tracking:
+    source_config: internal/config/filtering/sources/tracking.yaml
+    custom_source_config: internal/config/filtering/sources/custom/tracking.yaml
+    lite_seed: internal/config/filtering/seeds/tracking-lite.txt
+    allowlist: dns/local_tracking_allowlist.txt
+    blocklist: dns/local_tracking_blocklist.txt
+    dnsmasq_output: dns/tracking.dnsmasq.conf
+    hosts_output: dns/tracking.hosts.txt
+    clash_output: rule/Tracking_Lite_Domain.yaml
+    clash_name: Tracking_Lite_Domain
+
+  telemetry:
+    source_config: internal/config/filtering/sources/telemetry.yaml
+    custom_source_config: internal/config/filtering/sources/custom/telemetry.yaml
+    lite_seed: internal/config/filtering/seeds/telemetry-lite.txt
+    allowlist: dns/local_telemetry_allowlist.txt
+    blocklist: dns/local_telemetry_blocklist.txt
+    dnsmasq_output: dns/telemetry.dnsmasq.conf
+    hosts_output: dns/telemetry.hosts.txt
+    clash_output: rule/Telemetry_Lite_Domain.yaml
+    clash_name: Telemetry_Lite_Domain
+
+  malware:
+    source_config: internal/config/filtering/sources/malware.yaml
+    custom_source_config: internal/config/filtering/sources/custom/malware.yaml
+    lite_seed: internal/config/filtering/seeds/malware-lite.txt
+    allowlist: dns/local_malware_allowlist.txt
+    blocklist: dns/local_malware_blocklist.txt
+    dnsmasq_output: dns/malware.dnsmasq.conf
+    hosts_output: dns/malware.hosts.txt
+    clash_output: rule/Malware_Lite_Domain.yaml
+    clash_name: Malware_Lite_Domain

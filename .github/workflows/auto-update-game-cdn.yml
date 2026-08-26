@@ -31,7 +31,7 @@ jobs:
       - name: Generate Game_Download_CDN.list
         run: |
           echo "::group::Running generation script"
-          python py/generate_game_cdn.py
+          python internal/python/generate_game_cdn.py
           echo "::endgroup::"
       
       - name: Check for changes

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-HK">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>OpenClash Profile Builder</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <p class="eyebrow">mythic3011/rules</p>
+      <h1>OpenClash Profile Builder</h1>
+      <p class="lede">揀地區偏好，產生一條 opaque custom template <code>.ini</code> URL。唔使手改 generated config。</p>
+    </header>
+
+    <section class="panel" aria-labelledby="base-title">
+      <h2 id="base-title">Base profile</h2>
+      <label>Profile
+        <select id="base-profile"></select>
+      </label>
+    </section>
+
+    <section class="panel" aria-labelledby="region-title">
+      <h2 id="region-title">Region routing</h2>
+      <div class="mode-row">
+        <label><input type="radio" name="region-mode" value="exclude" checked> 全部地區都可以用，排除我 tick 嘅</label>
+        <label><input type="radio" name="region-mode" value="only"> 只可以用我 tick 嘅地區</label>
+      </div>
+      <div id="region-list" class="region-grid" aria-live="polite"></div>
+      <p id="region-hint" class="hint"></p>
+    </section>
+
+    <section class="panel" aria-labelledby="prefer-title">
+      <h2 id="prefer-title">Preferred order</h2>
+      <p class="hint">Optional。只影響仍然 active 嘅 routable regions。</p>
+      <div class="prefer-add">
+        <select id="prefer-picker"></select>
+        <button id="prefer-add" type="button">加入優先</button>
+      </div>
+      <ol id="prefer-list" class="prefer-list"></ol>
+    </section>
+
+    <section class="actions">
+      <button id="preview" type="button">Preview</button>
+      <button id="save" type="button" class="primary">Create subscription</button>
+    </section>
+
+    <p class="hint">Service有地區限制但 registry 未收錄？<a href="https://github.com/mythic3011/rules/issues/new?template=service_intake.yml" target="_blank" rel="noreferrer">提交 Regional service intake</a>。</p>
+
+    <section id="status" class="panel status" hidden></section>
+
+    <section id="result" class="panel" hidden>
+      <h2>OpenClash Custom Template URL</h2>
+      <div class="copy-row">
+        <input id="subscription-url" readonly>
+        <button data-copy="subscription-url" type="button">Copy</button>
+      </div>
+      <p class="hint">將呢條 URL 貼去 OpenClash subscription conversion 嘅 Custom Template URL。</p>
+      <details>
+        <summary>Management link</summary>
+        <p class="warning">Management link可以修改 routing preference；唔好分享。</p>
+        <div class="copy-row">
+          <input id="manage-url" readonly>
+          <button data-copy="manage-url" type="button">Copy</button>
+        </div>
+      </details>
+    </section>
+
+    <section id="preview-result" class="panel" hidden>
+      <h2>Effective profile</h2>
+      <pre id="summary"></pre>
+      <details>
+        <summary>Generated INI</summary>
+        <pre id="ini-preview" class="ini"></pre>
+      </details>
+    </section>
+  </main>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

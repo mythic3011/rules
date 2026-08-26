@@ -10,5 +10,8 @@
     "declaration": false,
     "outDir": "dist"
   },
-  "include": ["src/**/*.ts", "tests/**/*.ts"]
+  "include": [
+    "internal/typescript/**/*.ts",
+    "tests/**/*.ts"
+  ]
 }
