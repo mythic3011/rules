@@ -90,6 +90,7 @@ def cmd_check(args: argparse.Namespace) -> None:
     if args.node:
         if not shutil.which("npm"):
             raise SystemExit("npm is required for --node")
+        run(["npm", "run", "validate:routing"])
         run(["npm", "run", "typecheck"])
         run(["npm", "run", "test:routing"])
 

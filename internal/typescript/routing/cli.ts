@@ -68,13 +68,13 @@ async function main(args: readonly string[]): Promise<void> {
     const config = await loadRoutingConfig(value);
     const projection = await loadMihomoProjectionConfig(third);
     const repositoryRoot = resolve(process.cwd());
-    const artifactDirectory = join(repositoryRoot, "generated", "ai-routing");
+    const artifactDirectory = join(repositoryRoot, "internal", "generated", "ai-routing");
     const canonicalCandidate = join(artifactDirectory, "hk.full-profile-candidate.yaml");
     if (resolve(fourth) !== canonicalCandidate) {
       throw new PrivateMaterializerError([{ code: "policy-invariant", path: ["candidate"], message: "materialization accepts only the canonical HK shadow candidate path" }]);
     }
-    const parity = await loadShadowParityManifest(join(repositoryRoot, "data", "ai-routing-parity.yaml"));
-    const shadow = await composeShadowProfile(config, projection, join(repositoryRoot, "cfg", "yaml", "Custom_Clash_AI.yaml"), parity, join(repositoryRoot, "templates", "ai-routing", "full-relaxed-shadow.yaml.tpl"));
+    const parity = await loadShadowParityManifest(join(repositoryRoot, "internal", "config", "ai-routing", "parity.yaml"));
+    const shadow = await composeShadowProfile(config, projection, join(repositoryRoot, "cfg", "yaml", "Custom_Clash_AI.yaml"), parity, join(repositoryRoot, "internal", "templates", "ai-routing", "full-relaxed-shadow.yaml.tpl"));
     await checkShadowArtifacts(artifactDirectory, expectedShadowArtifacts(shadow));
     const report = await materializePrivateProfile(
       fourth,

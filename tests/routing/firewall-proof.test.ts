@@ -33,8 +33,8 @@ import {
 import type { ControllerApi, StartupGate } from "../../internal/typescript/routing/runtime-controller.js";
 
 const ROOT = resolve(import.meta.dirname, "../..");
-const ROUTING_DIRECTORY = join(ROOT, "data", "ai-routing");
-const MIHOMO_PROJECTION = join(ROOT, "data", "ai-routing-mihomo.yaml");
+const ROUTING_DIRECTORY = join(ROOT, "internal", "config", "ai-routing");
+const MIHOMO_PROJECTION = join(ROUTING_DIRECTORY, "mihomo.yaml");
 const DIGEST_A = `sha256:${"a".repeat(64)}`;
 const DIGEST_B = `sha256:${"b".repeat(64)}`;
 const RULESET_DIGEST = `sha256:${"c".repeat(64)}`;

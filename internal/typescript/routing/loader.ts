@@ -18,6 +18,13 @@ export class RoutingConfigLoadError extends Error {
 }
 
 type Fragment = Record<string, unknown>;
+
+// Core RoutingConfig fragments are intentionally namespaced by a numeric prefix.
+// Sibling YAML files in the same directory (mihomo.yaml, parity.yaml,
+// process-rules.yaml, etc.) belong to independent schemas/loaders and MUST NOT
+// be parsed as RoutingConfig fragments.
+const CORE_FRAGMENT_FILE = /^\d{2}-.*\.ya?ml$/i;
+
 const RECORD_SECTIONS = new Set([
   "routeTargets",
   "protectionClasses",
@@ -151,12 +158,12 @@ export async function loadRoutingConfigFromFiles(paths: readonly string[]): Prom
 export async function loadRoutingConfig(directory: string): Promise<RoutingConfig> {
   const entries = await readdir(directory, { withFileTypes: true });
   const paths = entries
-    .filter((entry) => entry.isFile() && /\.ya?ml$/i.test(entry.name))
+    .filter((entry) => entry.isFile() && CORE_FRAGMENT_FILE.test(entry.name))
     .map((entry) => join(directory, entry.name))
     .sort();
   if (paths.length === 0) {
     throw new RoutingConfigLoadError([
-      { code: "invalid-yaml", path: [directory], message: "contains no YAML manifests" },
+      { code: "invalid-yaml", path: [directory], message: "contains no numbered routing fragments (expected NN-*.yaml)" },
     ]);
   }
   return loadRoutingConfigFromFiles(paths);

@@ -1,5 +1,22 @@
 # AI routing catalog
 
+## Manifest ownership
+
+The directory intentionally contains multiple YAML dialects. They are not one
+combined schema.
+
+- `NN-*.yaml` (`00-base.yaml` through `50-dns.yaml`) are canonical
+  `RoutingConfig` fragments consumed by `loadRoutingConfig()`.
+- `mihomo.yaml` is the Mihomo projection manifest and is validated by its own
+  projection schema/loader.
+- `parity.yaml` is the shadow-profile parity contract.
+- `process-rules.yaml` is the process-rule catalog.
+
+The core routing loader selects only numbered fragments. Do not make the core
+Zod schema permissive merely to accept sibling manifests; that would erase the
+schema boundary and hide configuration mistakes.
+
+
 The catalog declares routing policy; Python compiles it into Mihomo/OpenClash and
 subconverter outputs.
 

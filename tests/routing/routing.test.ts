@@ -42,17 +42,17 @@ import {
 import { validateRoutingSemantics, validateRuleOrdering } from "../../internal/typescript/routing/semantic-validator.js";
 
 const ROOT = resolve(import.meta.dirname, "../..");
-const VALID_DIRECTORY = join(ROOT, "data", "ai-routing");
+const VALID_DIRECTORY = join(ROOT, "internal", "config", "ai-routing");
 const INVALID_DIRECTORY = join(ROOT, "tests", "fixtures", "routing", "invalid");
-const MIHOMO_PROJECTION = join(ROOT, "data", "ai-routing-mihomo.yaml");
-const SHADOW_PARITY = join(ROOT, "data", "ai-routing-parity.yaml");
-const SHADOW_TEMPLATE = join(ROOT, "templates", "ai-routing", "full-relaxed-shadow.yaml.tpl");
+const MIHOMO_PROJECTION = join(VALID_DIRECTORY, "mihomo.yaml");
+const SHADOW_PARITY = join(VALID_DIRECTORY, "parity.yaml");
+const SHADOW_TEMPLATE = join(ROOT, "internal", "templates", "ai-routing", "full-relaxed-shadow.yaml.tpl");
 const RELAXED_BASE = join(ROOT, "cfg", "yaml", "Custom_Clash_AI.yaml");
 const SHADOW_TEMPLATE_CONTEXT = {
   header: "# shadow", "static-top-level": "port: 7890", "proxy-providers": "  provider: {}", dns: "  enable: true", "proxy-groups": "  - name: x", rules: "  - MATCH,DIRECT", "rule-providers": "  example: {}",
 } as const;
 
-async function privateMaterializeOptions(allowedOutputRoot: string, canonicalCandidate = join(ROOT, "generated", "ai-routing", "hk.full-profile-candidate.yaml")) {
+async function privateMaterializeOptions(allowedOutputRoot: string, canonicalCandidate = join(ROOT, "internal", "generated", "ai-routing", "hk.full-profile-candidate.yaml")) {
   return { allowedOutputRoot, trustedBaseRoot: dirname(dirname(allowedOutputRoot)), expectedCandidateSha256: sha256Utf8(await readFile(canonicalCandidate)) };
 }
 
@@ -557,7 +557,7 @@ test("Mihomo projection rejects missing providers and the checked fragment stays
     () => compileMihomoFragment(config, unsafeSource, "hk"),
     (error: unknown) => error instanceof MihomoProjectionError && error.issues.some((entry) => entry.path.join(".") === "sources.vpsdance.rawBaseUrl"),
   );
-  const committed = await readFile(join(ROOT, "generated", "ai-routing", "hk.mihomo-fragment.yaml"), "utf8");
+  const committed = await readFile(join(ROOT, "internal", "generated", "ai-routing", "hk.mihomo-fragment.yaml"), "utf8");
   const rendered = renderMihomoFragment(compileMihomoFragment(config, projection, "hk"));
   assert.equal(committed, rendered);
   const parsed = YAML.parse(committed) as unknown;
@@ -586,7 +586,7 @@ test("compiler rejects semantic invalidity and unknown profile references", asyn
 
 test("committed HK compiler preview is deterministic", async () => {
   const config = await loadRoutingConfig(VALID_DIRECTORY);
-  const committed = await readFile(join(ROOT, "generated", "ai-routing", "hk.plan.json"), "utf8");
+  const committed = await readFile(join(ROOT, "internal", "generated", "ai-routing", "hk.plan.json"), "utf8");
   const expected = `${JSON.stringify(compileRoutingProfile(config, "hk"), null, 2)}\n`;
   assert.equal(committed, expected);
 });
@@ -596,8 +596,8 @@ test("all canonical profiles have deterministic plan and non-standalone fragment
   const projection = await loadMihomoProjectionConfig(MIHOMO_PROJECTION);
   for (const profileId of Object.keys(config.accessProfiles).sort()) {
     assert.ok(projection.profiles[profileId] !== undefined);
-    const plan = await readFile(join(ROOT, "generated", "ai-routing", `${profileId}.plan.json`), "utf8");
-    const fragment = await readFile(join(ROOT, "generated", "ai-routing", `${profileId}.mihomo-fragment.yaml`), "utf8");
+    const plan = await readFile(join(ROOT, "internal", "generated", "ai-routing", `${profileId}.plan.json`), "utf8");
+    const fragment = await readFile(join(ROOT, "internal", "generated", "ai-routing", `${profileId}.mihomo-fragment.yaml`), "utf8");
     assert.equal(plan, `${JSON.stringify(compileRoutingProfile(config, profileId), null, 2)}\n`);
     assert.equal(fragment, renderMihomoFragment(compileMihomoFragment(config, projection, profileId)));
     assert.equal(fragment.includes("MATCH,"), false);
@@ -766,6 +766,13 @@ test("account-protected endpoint overrides fail semantically before compilation"
   );
 });
 
+test("routing config directory ignores sibling manifests owned by other schemas", async () => {
+  const config = await loadRoutingConfig(VALID_DIRECTORY);
+  assert.equal(config.schemaVersion, 1);
+  assert.ok(config.services.chatgpt !== undefined);
+  assert.ok(config.accessProfiles.hk !== undefined);
+});
+
 test("fragment loader rejects duplicate record IDs instead of overwriting", async () => {
   const directory = await mkdtemp(join(tmpdir(), "routing-config-"));
   try {
@@ -804,7 +811,7 @@ test("routing CLI exits non-zero with code, path, and message for invalid input"
   const directory = await mkdtemp(join(tmpdir(), "routing-cli-invalid-"));
   try {
     const fixture = await readFile(join(INVALID_DIRECTORY, "empty-proxy-server-nameserver.yaml"), "utf8");
-    await writeFile(join(directory, "manifest.yaml"), fixture, "utf8");
+    await writeFile(join(directory, "00-invalid.yaml"), fixture, "utf8");
     const result = await runRoutingCli(directory);
     assert.notEqual(result.exitCode, 0);
     assert.match(result.stderr, /\[policy-invariant\]/);
@@ -1491,7 +1498,7 @@ test("private materializer preserves the candidate except allowed private deltas
     assert.ok(bindings !== undefined);
     bindings[0] = { approvedId: "US-Claude-01", node: "節點 A + (safe)", provider: "provider1" };
     bindings[1] = { approvedId: "US-Claude-02", node: "node [B]?", provider: "provider1" };
-    const report = await materializePrivateProfile(join(ROOT, "generated", "ai-routing", "hk.full-profile-candidate.yaml"), output, plan, deployment, egress, options);
+    const report = await materializePrivateProfile(join(ROOT, "internal", "generated", "ai-routing", "hk.full-profile-candidate.yaml"), output, plan, deployment, egress, options);
     assert.deepEqual(report, { changedGroups: ["🔐 Claude Account Guard"], controllerChanged: true, startupGate: "still-required" });
     assert.doesNotMatch(JSON.stringify(report), /private-secret-value|節點 A/);
     assert.equal((await stat(output)).mode & 0o777, 0o600);
@@ -1505,7 +1512,7 @@ test("private materializer preserves the candidate except allowed private deltas
     assert.equal(rendered["external-controller"], "127.0.0.1:9090");
     assert.equal(rendered.secret, "private-secret-value");
     assert.ok((rendered.rules as string[]).includes("MATCH,🐟 漏網之魚"));
-    const candidate = YAML.parse(await readFile(join(ROOT, "generated", "ai-routing", "hk.full-profile-candidate.yaml"), "utf8")) as Record<string, unknown>;
+    const candidate = YAML.parse(await readFile(join(ROOT, "internal", "generated", "ai-routing", "hk.full-profile-candidate.yaml"), "utf8")) as Record<string, unknown>;
     const normalized = structuredClone(rendered);
     delete normalized["external-controller"];
     delete normalized.secret;
@@ -1519,12 +1526,12 @@ test("private materializer preserves the candidate except allowed private deltas
 
     const unauthorized = structuredClone(egress);
     ((unauthorized.services as Record<string, { bindings: Array<{ provider: string }> }>).claude?.bindings[0] as { provider: string }).provider = "other-provider";
-    await assert.rejects(() => materializePrivateProfile(join(ROOT, "generated", "ai-routing", "hk.full-profile-candidate.yaml"), output, plan, deployment, unauthorized, options), (error: unknown) => error instanceof PrivateMaterializerError && !error.message.includes("private-secret-value"));
+    await assert.rejects(() => materializePrivateProfile(join(ROOT, "internal", "generated", "ai-routing", "hk.full-profile-candidate.yaml"), output, plan, deployment, unauthorized, options), (error: unknown) => error instanceof PrivateMaterializerError && !error.message.includes("private-secret-value"));
     const unsafe = structuredClone(egress);
     ((unsafe.services as Record<string, { bindings: Array<{ node: string }> }>).claude?.bindings[0] as { node: string }).node = "bad\u0001node";
-    await assert.rejects(() => materializePrivateProfile(join(ROOT, "generated", "ai-routing", "hk.full-profile-candidate.yaml"), output, plan, deployment, unsafe, options), PrivateMaterializerError);
+    await assert.rejects(() => materializePrivateProfile(join(ROOT, "internal", "generated", "ai-routing", "hk.full-profile-candidate.yaml"), output, plan, deployment, unsafe, options), PrivateMaterializerError);
     const example = { ...deployment, mode: "example" };
-    await assert.rejects(() => materializePrivateProfile(join(ROOT, "generated", "ai-routing", "hk.full-profile-candidate.yaml"), output, plan, example, egress, options), PrivateMaterializerError);
+    await assert.rejects(() => materializePrivateProfile(join(ROOT, "internal", "generated", "ai-routing", "hk.full-profile-candidate.yaml"), output, plan, example, egress, options), PrivateMaterializerError);
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
@@ -1536,7 +1543,7 @@ test("private materializer rejects shape drift, duplicates, unsafe paths, and cl
     await chmod(local, 0o700);
     const secret = join(directory, "secret");
     await writeFile(secret, "secret"); await chmod(secret, 0o600);
-    const source = join(ROOT, "generated", "ai-routing", "hk.full-profile-candidate.yaml");
+    const source = join(ROOT, "internal", "generated", "ai-routing", "hk.full-profile-candidate.yaml");
     const candidate = join(directory, "candidate.yaml");
     const original = YAML.parse(await readFile(source, "utf8")) as Record<string, unknown>;
     const config = await loadRoutingConfig(VALID_DIRECTORY); const projection = await loadMihomoProjectionConfig(MIHOMO_PROJECTION);
@@ -1580,7 +1587,7 @@ test("private materializer rejects shape drift, duplicates, unsafe paths, and cl
     await mkdir(trusted); await chmod(trusted, 0o700); await mkdir(escapedRoot); await chmod(escapedRoot, 0o700);
     await symlink(escapedRoot, join(trusted, "local"));
     const escapedRootOptions = { ...options, allowedOutputRoot: join(trusted, "local", "ai-routing"), trustedBaseRoot: trusted };
-    await assert.rejects(() => materializePrivateProfile(join(ROOT, "generated", "ai-routing", "hk.full-profile-candidate.yaml"), join(trusted, "local", "ai-routing", "private.yaml"), plan, deployment, egress, escapedRootOptions), PrivateMaterializerError);
+    await assert.rejects(() => materializePrivateProfile(join(ROOT, "internal", "generated", "ai-routing", "hk.full-profile-candidate.yaml"), join(trusted, "local", "ai-routing", "private.yaml"), plan, deployment, egress, escapedRootOptions), PrivateMaterializerError);
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
