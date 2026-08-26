@@ -1,6 +1,6 @@
 # Generated from rule/Custom_Direct.list
-# REPO: https://github.com/Aethersailor/Custom_OpenClash_Rules
-# SOURCE: https://github.com/Aethersailor/Custom_OpenClash_Rules/blob/main/rule/Custom_Direct.list
+# REPO: https://github.com/mythic3011/rules
+# SOURCE: https://github.com/mythic3011/rules/blob/main/rule/Custom_Direct.list
 # TOTAL: 570
 
 payload:
@@ -574,13 +574,3 @@ payload:
   - '+.zuobiao.press'
   - '+.zysou.com'
   - '+.zzz-log-upload-os.hoyoverse.com'
-
-# Managed by internal/python/generate_ai_profiles.py: Tailscale direct routing
-# Tailscale control-plane domains should route DIRECT.
-# fake-ip-filter only affects DNS handling. It does not force DIRECT routing.
-# Tailscale exit-node traffic still needs firewall-level TProxy bypass
-# for the tailscale interface on router deployments.
-  - '+.tailscaled.com'
-  - 'login.tailscale.com'
-  - 'controlplane.tailscale.com'
-  - 'log.tailscale.com'
