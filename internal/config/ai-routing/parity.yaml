@@ -16,12 +16,34 @@ deltas:
       - "🤖 Gemini · 自動"
       - "🤖 NotebookLM"
       - "🤖 NotebookLM · 自動"
+      - "🤖 Jules"
+      - "🤖 Jules · 自動"
       - "🤖 Perplexity"
       - "🤖 Perplexity · 自動"
       - "🤖 Grok"
       - "🤖 Grok · 自動"
       - "🤖 Poe"
       - "🤖 Poe · 自動"
+      - "🤖 OpenRouter"
+      - "🤖 OpenRouter · 自動"
+      - "🤖 Cursor"
+      - "🤖 Cursor · 自動"
+      - "🤖 Hugging Face"
+      - "🤖 Hugging Face · 自動"
+      - "🤖 Antigravity"
+      - "🤖 Antigravity · 自動"
+      - "🤖 Google Labs"
+      - "🤖 Google Labs · 自動"
+      - "🤖 Stitch"
+      - "🤖 Stitch · 自動"
+      - "🤖 Gemini Cloud"
+      - "🤖 Gemini Cloud · 自動"
+      - "🤖 Vertex AI"
+      - "🤖 Vertex AI · 自動"
+      - "🤖 AI Other"
+      - "🤖 AI Other · 自動"
+      - "🤖 AI CN Other"
+      - "🤖 AI CN Other · 自動"
     add:
       - "🇯🇵 JP Stable"
       - "🇸🇬 SG Stable"
@@ -55,7 +77,21 @@ deltas:
   rule-providers:
     surface: rule-providers
     operation: replace-key-set
-    remove: [AI_Copilot_Classical, AI_Gemini_Classical, AI_NotebookLM_Classical]
+    remove:
+      [
+        AI_Copilot_Classical,
+        AI_Gemini_Classical,
+        AI_NotebookLM_Classical,
+        AI_Jules_Classical,
+        AI_OpenRouter_Classical,
+        AI_Cursor_Classical,
+        AI_HuggingFace_Classical,
+        AI_Antigravity_Classical,
+        AI_GoogleLabs_Classical,
+        AI_Stitch_Classical,
+        AI_GeminiCloud_Classical,
+        AI_VertexAI_Classical,
+      ]
     add:
       - AI_All_Classical
       - AI_ChatGPT_Classical
@@ -73,7 +109,8 @@ deltas:
   rules:
     surface: rules
     operation: replace-contiguous-interval
-    before: ["GEOSITE,private,🎯 全球直連", "GEOIP,private,🎯 全球直連,no-resolve"]
+    before:
+      ["GEOSITE,private,🎯 全球直連", "GEOIP,private,🎯 全球直連,no-resolve"]
     remove:
       - "GEOSITE,openai,🤖 ChatGPT"
       - "RULE-SET,AI_Copilot_Classical,🤖 Copilot"
@@ -81,11 +118,21 @@ deltas:
       - "GEOSITE,anthropic,🤖 Claude"
       - "RULE-SET,AI_Gemini_Classical,🤖 Gemini"
       - "RULE-SET,AI_NotebookLM_Classical,🤖 NotebookLM"
+      - "RULE-SET,AI_Jules_Classical,🤖 Jules"
       - "GEOSITE,perplexity,🤖 Perplexity"
       - "GEOSITE,xai,🤖 Grok"
       - "GEOSITE,poe,🤖 Poe"
-      - "GEOSITE,google-deepmind,⛔ 拒絕"
-      - "GEOSITE,category-ai-!cn,⛔ 拒絕"
+      - "RULE-SET,AI_OpenRouter_Classical,🤖 OpenRouter"
+      - "RULE-SET,AI_Cursor_Classical,🤖 Cursor"
+      - "RULE-SET,AI_HuggingFace_Classical,🤖 Hugging Face"
+      - "RULE-SET,AI_Antigravity_Classical,🤖 Antigravity"
+      - "RULE-SET,AI_GoogleLabs_Classical,🤖 Google Labs"
+      - "RULE-SET,AI_Stitch_Classical,🤖 Stitch"
+      - "RULE-SET,AI_GeminiCloud_Classical,🤖 Gemini Cloud"
+      - "RULE-SET,AI_VertexAI_Classical,🤖 Vertex AI"
+      - "GEOSITE,google-deepmind,🤖 AI Other"
+      - "GEOSITE,category-ai-!cn,🤖 AI Other"
+      - "GEOSITE,category-ai-cn,🤖 AI CN Other"
     after: "RULE-SET,SSH_Direct_Classical,🎯 全球直連"
     add:
       - "RULE-SET,AI_Claude_Classical,🔐 Claude Account Guard"

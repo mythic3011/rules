@@ -103,12 +103,62 @@ dns:
     +.perplexity.ai:
       - https://1.1.1.1/dns-query
       - https://dns.google/dns-query
+    jules.google.com:
+      - https://1.1.1.1/dns-query
+      - https://dns.google/dns-query
+    jules.googleapis.com:
+      - https://1.1.1.1/dns-query
+      - https://dns.google/dns-query
     +.x.ai:
       - https://1.1.1.1/dns-query
       - https://dns.google/dns-query
     +.poe.com:
       - https://1.1.1.1/dns-query
       - https://dns.google/dns-query
+    +.openrouter.ai:
+      - https://1.1.1.1/dns-query
+      - https://dns.google/dns-query
+    +.cursor.sh:
+      - https://1.1.1.1/dns-query
+      - https://dns.google/dns-query
+    +.cursorapi.com:
+      - https://1.1.1.1/dns-query
+      - https://dns.google/dns-query
+    +.cursorvm.com:
+      - https://1.1.1.1/dns-query
+      - https://dns.google/dns-query
+    +.huggingface.co:
+      - https://1.1.1.1/dns-query
+      - https://dns.google/dns-query
+    +.antigravity.google:
+      - https://1.1.1.1/dns-query
+      - https://dns.google/dns-query
+    +.labs.google:
+      - https://1.1.1.1/dns-query
+      - https://dns.google/dns-query
+    cloudaicompanion.googleapis.com:
+      - https://1.1.1.1/dns-query
+      - https://dns.google/dns-query
+    cloudcode-pa.googleapis.com:
+      - https://1.1.1.1/dns-query
+      - https://dns.google/dns-query
+    geminicloudassist.googleapis.com:
+      - https://1.1.1.1/dns-query
+      - https://dns.google/dns-query
+    aiplatform.googleapis.com:
+      - https://1.1.1.1/dns-query
+      - https://dns.google/dns-query
+    stitch.withgoogle.com:
+      - https://1.1.1.1/dns-query
+      - https://dns.google/dns-query
+    geosite:google-deepmind:
+      - https://1.1.1.1/dns-query
+      - https://dns.google/dns-query
+    geosite:category-ai-!cn:
+      - https://1.1.1.1/dns-query
+      - https://dns.google/dns-query
+    geosite:category-ai-cn:
+      - https://127.0.0.1:5053/dns-query
     rule-set:AI_Claude_Classical:
       - https://1.1.1.1/dns-query#🔐 Claude Account Guard
 
@@ -142,6 +192,19 @@ proxy-groups:
     interval: 300
     use:
       - provider1
+  - name: 💳 穩定會話
+    type: select
+    proxies:
+      - DIRECT
+      - REJECT
+    use:
+      - provider1
+  - name: 🔐 高風險帳戶
+    type: select
+    proxies:
+      - REJECT
+      - 💳 穩定會話
+    default-selected: REJECT
   - name: ⛔ 拒絕
     type: select
     proxies:
@@ -466,11 +529,20 @@ rules:
   - RULE-SET,SSH_Direct_Classical,🎯 全球直連
   - RULE-SET,SSH_Proxy_Classical,🚀 手動選擇
   - RULE-SET,Gaming_Direct_Classical,🎯 全球直連
+  - RULE-SET,HuggingFace_Download_Direct_Classical,🎯 全球直連
+  - RULE-SET,Cursor_Download_Direct_Classical,🎯 全球直連
+  - RULE-SET,Finance_Stripe_Classical,🔐 高風險帳戶
+  - RULE-SET,Finance_PayPal_Classical,🔐 高風險帳戶
+  - RULE-SET,Finance_Wise_Classical,🔐 高風險帳戶
+  - RULE-SET,Finance_Revolut_Classical,🔐 高風險帳戶
+  - RULE-SET,Finance_IBKR_Classical,🔐 高風險帳戶
+  - RULE-SET,Finance_Alpaca_Classical,🔐 高風險帳戶
   - RULE-SET,Custom_Direct_Domain,🎯 全球直連
   - RULE-SET,Custom_Direct_Classical_IP,🎯 全球直連
   - RULE-SET,Custom_Proxy_Domain,🚀 手動選擇
   - RULE-SET,Custom_Proxy_Classical_IP,🚀 手動選擇
   - GEOIP,HK,🎯 全球直連,no-resolve
+  - SRC-IP-CIDR,10.0.0.11/32,🎯 全球直連
   - MATCH,🐟 漏網之魚
 
 rule-providers:
@@ -515,6 +587,54 @@ rule-providers:
     interval: 10800
     type: http
     url: https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/Gaming_Direct_Classical.yaml
+    format: yaml
+  HuggingFace_Download_Direct_Classical:
+    behavior: classical
+    interval: 10800
+    type: http
+    url: https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/HuggingFace_Download_Direct_Classical.yaml
+    format: yaml
+  Cursor_Download_Direct_Classical:
+    behavior: classical
+    interval: 10800
+    type: http
+    url: https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/Cursor_Download_Direct_Classical.yaml
+    format: yaml
+  Finance_Stripe_Classical:
+    behavior: classical
+    interval: 10800
+    type: http
+    url: https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/Finance_Stripe_Classical.yaml
+    format: yaml
+  Finance_PayPal_Classical:
+    behavior: classical
+    interval: 10800
+    type: http
+    url: https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/Finance_PayPal_Classical.yaml
+    format: yaml
+  Finance_Wise_Classical:
+    behavior: classical
+    interval: 10800
+    type: http
+    url: https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/Finance_Wise_Classical.yaml
+    format: yaml
+  Finance_Revolut_Classical:
+    behavior: classical
+    interval: 10800
+    type: http
+    url: https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/Finance_Revolut_Classical.yaml
+    format: yaml
+  Finance_IBKR_Classical:
+    behavior: classical
+    interval: 10800
+    type: http
+    url: https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/Finance_IBKR_Classical.yaml
+    format: yaml
+  Finance_Alpaca_Classical:
+    behavior: classical
+    interval: 10800
+    type: http
+    url: https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/Finance_Alpaca_Classical.yaml
     format: yaml
   AI_All_Classical:
     type: http
