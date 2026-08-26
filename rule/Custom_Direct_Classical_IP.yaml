@@ -1,6 +1,6 @@
 # Generated from rule/Custom_Direct.list
-# REPO: https://github.com/Aethersailor/Custom_OpenClash_Rules
-# SOURCE: https://github.com/Aethersailor/Custom_OpenClash_Rules/blob/main/rule/Custom_Direct.list
+# REPO: https://github.com/mythic3011/rules
+# SOURCE: https://github.com/mythic3011/rules/blob/main/rule/Custom_Direct.list
 # TOTAL: 7
 
 payload:
@@ -11,9 +11,3 @@ payload:
   - IP-CIDR,5.5.5.5/32,no-resolve
   - IP-CIDR,98.126.27.164/32,no-resolve
   - SRC-PORT,41641
-
-# Managed by internal/python/generate_ai_profiles.py: Tailscale IP verification note
-# Tailscale IP ranges and DERP relay destinations change over time.
-# Do not hardcode Tailscale CIDR ranges without a dated verification step.
-# Prefer domain DIRECT rules plus firewall-level TProxy bypass for the tailscale interface.
-# Verify current official Tailscale firewall guidance before adding static IP-CIDR rules.
