@@ -2,7 +2,7 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/internal/python/generate_adblock_outputs.py
 # CATEGORY: telemetry
-# GENERATED_AT: 2026-08-23T04:04:44Z
+# GENERATED_AT: 2026-08-27T14:19:46Z
 # TOTAL: 1967
 # FORMAT: hosts
 # UPSTREAM hagezi_native_apple: 107
@@ -41,6 +41,7 @@
 0.0.0.0 acr-in-prd.samsungcloud.tv
 0.0.0.0 acr-kr-prd.samsungcloud.tv
 0.0.0.0 acr-mx-prd.samsungcloud.tv
+0.0.0.0 acr-nz-prd.samsungcloud.tv
 0.0.0.0 acr-us-prd.samsungcloud.tv
 0.0.0.0 acr0.samsungcloudsolution.com
 0.0.0.0 activity.browser.intl.miui.com
@@ -1463,7 +1464,6 @@
 0.0.0.0 puma-api.ptqy.gitv.tv
 0.0.0.0 push-dc-us.heytapmobile.com
 0.0.0.0 push.heytapmobile.com
-0.0.0.0 push.samsungosp.com.cn
 0.0.0.0 qiye.xiaomi.com
 0.0.0.0 qmds-dev-samsung.com
 0.0.0.0 qwapi.com

@@ -1,8 +1,8 @@
 {
   "category": "telemetry",
-  "generated_at": "2026-08-23T04:04:44Z",
-  "source_config": "data/telemetry_sources.yaml",
-  "custom_source_config": "data/custom_telemetry_sources.yaml",
+  "generated_at": "2026-08-27T14:19:46Z",
+  "source_config": "internal/config/filtering/sources/telemetry.yaml",
+  "custom_source_config": "internal/config/filtering/sources/custom/telemetry.yaml",
   "allowlist": "dns/local_telemetry_allowlist.txt",
   "blocklist": "dns/local_telemetry_blocklist.txt",
   "dnsmasq_output": "dns/telemetry.dnsmasq.conf",
