@@ -3,7 +3,6 @@ from __future__ import annotations
 from ..catalog import load_catalog
 from ..common import indent, yaml_string, zh_hk
 from ..compiler import (
-    compile_ai_routing_rules,
     compile_mihomo_profile,
     compile_rule_providers,
     compile_routing_entries,
@@ -87,10 +86,6 @@ def _render_routing_rule(rule: RoutingRule) -> str:
             fields.append(rule.target)
         fields.extend(rule.options)
     return f'  - "{",".join(fields)}"'
-
-
-def render_ai_yaml_rules() -> list[str]:
-    return [_render_routing_rule(rule) for rule in compile_ai_routing_rules()]
 
 
 def _render_routing_entries(entries: tuple[RoutingComment | RoutingRule, ...]) -> str:
