@@ -18,6 +18,7 @@ Source of truth:
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 import json
 import re
 import sys
@@ -322,18 +323,31 @@ def apply_policies(domains: set[str], category: str, policies: dict[str, object]
     return result
 
 
+def _fetch_and_parse_source(source: dict) -> tuple[dict, set[str]]:
+    parser_name = str(source["format"])
+    parser = PARSERS[parser_name]
+    text = fetch_text(str(source["url"]))
+    domains = parser(text)
+    return source, domains
+
+
 def collect_domains(
     config_path: Path, custom_config_path: Path | None = None
 ) -> tuple[set[str], list[dict[str, object]], dict[str, int]]:
+    sources = load_sources(config_path, custom_config_path)
+    if not sources:
+        return set(), [], {}
+
+    max_workers = min(16, len(sources))
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        results = list(executor.map(_fetch_and_parse_source, sources))
+
     all_domains: set[str] = set()
     source_entries: list[dict[str, object]] = []
     counts: dict[str, int] = {}
-    for source in load_sources(config_path, custom_config_path):
-        parser_name = source["format"]
-        parser = PARSERS[parser_name]
-        text = fetch_text(source["url"])
-        domains = parser(text)
-        counts[source["id"]] = len(domains)
+
+    for source, domains in results:
+        counts[str(source["id"])] = len(domains)
         all_domains.update(domains)
         source_entries.append(
             {
