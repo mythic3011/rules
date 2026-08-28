@@ -530,13 +530,49 @@
       ]
     },
     {
+      "id": "android-studio-ai",
+      "providerKey": "AI_AndroidStudioAI_Classical",
+      "group": "🤖 Android Studio AI",
+      "file": "AI_AndroidStudioAI_Classical.yaml",
+      "payload": [
+        "DOMAIN,cloudaicompanion.googleapis.com",
+        "DOMAIN,cloudcode-pa.googleapis.com"
+      ],
+      "regions": [
+        "us",
+        "sg",
+        "jp",
+        "tw",
+        "kr"
+      ],
+      "directRelaxed": false,
+      "dnsPolicies": [
+        {
+          "order": 122,
+          "selector": "cloudaicompanion.googleapis.com",
+          "resolverSet": "global-ai"
+        },
+        {
+          "order": 123,
+          "selector": "cloudcode-pa.googleapis.com",
+          "resolverSet": "global-ai"
+        }
+      ],
+      "subconverter": {
+        "ruleCluster": "legacy-ai-merged"
+      },
+      "upstreamRules": [],
+      "projections": [
+        "mihomo",
+        "subconverter"
+      ]
+    },
+    {
       "id": "gemini-cloud",
       "providerKey": "AI_GeminiCloud_Classical",
       "group": "🤖 Gemini Cloud",
       "file": "AI_GeminiCloud_Classical.yaml",
       "payload": [
-        "DOMAIN,cloudaicompanion.googleapis.com",
-        "DOMAIN,cloudcode-pa.googleapis.com",
         "DOMAIN,geminicloudassist.googleapis.com"
       ],
       "regions": [
@@ -548,16 +584,6 @@
       ],
       "directRelaxed": true,
       "dnsPolicies": [
-        {
-          "order": 122,
-          "selector": "cloudaicompanion.googleapis.com",
-          "resolverSet": "global-ai"
-        },
-        {
-          "order": 123,
-          "selector": "cloudcode-pa.googleapis.com",
-          "resolverSet": "global-ai"
-        },
         {
           "order": 124,
           "selector": "geminicloudassist.googleapis.com",
