@@ -101,20 +101,6 @@ class MaterializedProxy:
     password: str | None = None
     udp: bool | None = None
 
-    def as_mapping(self) -> dict[str, object]:
-        value: dict[str, object] = {
-            "name": self.name,
-            "type": self.type,
-            "server": self.server,
-            "port": self.port,
-        }
-        if self.username is not None:
-            value["username"] = self.username
-            value["password"] = self.password
-        if self.udp is not None:
-            value["udp"] = self.udp
-        return value
-
 
 @dataclass(frozen=True)
 class RedactedTransportExplanation:
