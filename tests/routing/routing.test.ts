@@ -671,6 +671,8 @@ test("INI MVP plan owns ordered rules/groups, pins providers, and keeps Claude r
   const config = await loadRoutingConfig(VALID_DIRECTORY);
   const projection = await loadMihomoProjectionConfig(MIHOMO_PROJECTION);
   const plan = compileIniMvpPlan(config, projection);
+  const vpsdance = projection.sources.vpsdance;
+  assert.ok(vpsdance !== undefined);
   assert.deepEqual(plan.migration.migratedServiceIds, [
     "claude",
     "windsurf",
@@ -691,9 +693,9 @@ test("INI MVP plan owns ordered rules/groups, pins providers, and keeps Claude r
   assert.equal(claudeReject.target, "⛔ 拒絕");
   assert.equal(claudeRule.url, claudeReject.url);
   assert.equal(claudeRule.interval, claudeReject.interval);
-  assert.match(
+  assert.equal(
     claudeRule.url,
-    /\/d07cac190c33e7914ba7adaf7e7c14298fba7024\/rules\/clash\/anthropic\.yaml$/,
+    `${vpsdance.rawBaseUrl}/${vpsdance.revision}/rules/clash/anthropic.yaml`,
   );
   assert.deepEqual(
     plan.rules.afterLegacy.map((rule) =>
@@ -934,6 +936,8 @@ test("compiler endpoint resolution honors profile endpoint, endpoint, then servi
 test("Mihomo projection renders REJECT-first filtered groups, protected rules, and pinned DNS", async () => {
   const config = await loadRoutingConfig(VALID_DIRECTORY);
   const projection = await loadMihomoProjectionConfig(MIHOMO_PROJECTION);
+  const vpsdance = projection.sources.vpsdance;
+  assert.ok(vpsdance !== undefined);
   const fragment = compileMihomoFragment(config, projection, "hk");
   const groups = fragment.groups;
   const stable = groups.find((group) => group.name === "🇺🇸 US Stable");
@@ -989,9 +993,9 @@ test("Mihomo projection renders REJECT-first filtered groups, protected rules, a
     }
   }
   assert.equal(fragment.ruleProviders.AI_Windsurf_Classical?.type, "http");
-  assert.match(
-    fragment.ruleProviders.AI_Windsurf_Classical?.url ?? "",
-    /d07cac190c33e7914ba7adaf7e7c14298fba7024\/rules\/clash\/windsurf\.yaml$/,
+  assert.equal(
+    fragment.ruleProviders.AI_Windsurf_Classical?.url,
+    `${vpsdance.rawBaseUrl}/${vpsdance.revision}/rules/clash/windsurf.yaml`,
   );
   assert.equal(renderMihomoFragment(fragment).includes("rules:\n"), true);
 });
@@ -1381,9 +1385,9 @@ test("region filters use boundary-aware codes and a source base path remains pin
   source.rawBaseUrl =
     "https://raw.githubusercontent.com/VPSDance/ai-proxy-rules/base";
   const fragment = compileMihomoFragment(config, withBasePath, "hk");
-  assert.match(
-    fragment.ruleProviders.AI_Windsurf_Classical?.url ?? "",
-    /\/base\/d07cac190c33e7914ba7adaf7e7c14298fba7024\/rules\/clash\/windsurf\.yaml$/,
+  assert.equal(
+    fragment.ruleProviders.AI_Windsurf_Classical?.url,
+    `${source.rawBaseUrl}/${source.revision}/rules/clash/windsurf.yaml`,
   );
 });
 

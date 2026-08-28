@@ -45,6 +45,28 @@ class AiProfileWorkflowTests(unittest.TestCase):
         self.assertIn('git push origin "HEAD:${TARGET_REF}"', commit_run)
         self.assertNotIn("--force", commit_run)
 
+    def test_scheduled_refresh_exports_shadow_before_routing_validation(self) -> None:
+        workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
+        steps = workflow["jobs"]["validate-ai-profiles"]["steps"]
+
+        refresh_name = "Refresh shared upstream source lock on schedule"
+        validate_name = "Validate AI routing manifests"
+        refresh_index = next((index for index, step in enumerate(steps) if step["name"] == refresh_name), -1)
+        validate_index = next((index for index, step in enumerate(steps) if step["name"] == validate_name), -1)
+        self.assertGreaterEqual(refresh_index, 0)
+        self.assertGreaterEqual(validate_index, 0)
+        self.assertLess(refresh_index, validate_index)
+
+        refresh_step = steps[refresh_index]
+        self.assertEqual(refresh_step["if"], "github.event_name == 'schedule'")
+        refresh_run = refresh_step["run"]
+        self.assertIn("npm run export:routing-artifacts", refresh_run)
+        self.assertIn("npm run export:shadow-profile", refresh_run)
+        self.assertLess(
+            refresh_run.index("npm run export:routing-artifacts"),
+            refresh_run.index("npm run export:shadow-profile"),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

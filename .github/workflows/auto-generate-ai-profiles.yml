@@ -95,6 +95,7 @@ jobs:
         run: |
           python3 internal/python/generate_ai_profiles.py --refresh-upstream-sources
           npm run export:routing-artifacts
+          npm run export:shadow-profile
 
       - name: Validate AI routing manifests
         run: |
