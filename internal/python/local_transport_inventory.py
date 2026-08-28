@@ -136,9 +136,14 @@ class CompiledTransportPlan:
 
 
 def _read_yaml(path: Path) -> object:
+    assert issubclass(_UniqueKeyLoader, yaml.SafeLoader), "_UniqueKeyLoader must derive from SafeLoader"
     try:
         with path.open("r", encoding="utf-8") as stream:
-            return yaml.load(stream, Loader=_UniqueKeyLoader)
+            loader = _UniqueKeyLoader(stream)
+            try:
+                return loader.get_single_data()
+            finally:
+                loader.dispose()
     except OSError as exc:
         raise TransportConfigError(f"cannot read configuration: {path}") from exc
     except yaml.YAMLError as exc:
