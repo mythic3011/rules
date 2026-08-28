@@ -186,14 +186,6 @@ def validate_ini_mvp_group_graph(groups: list[dict[str, object]], group_names: s
     for name in group_names:
         visit(name)
 
-def render_ini_mvp_rules(records: object) -> list[str]:
-    return [
-        f"ruleset={record['target']},clash-classic:{record['url']},{record['interval']}"
-        if record["kind"] == "remote-classical"
-        else f"ruleset={record['target']},[]GEOSITE,{record['value']}"
-        for record in validate_ini_mvp_rules(records, "render")
-    ]
-
 def render_ini_mvp_groups(records: object) -> list[str]:
     lines: list[str] = []
     for group in validate_ini_mvp_groups(records):
