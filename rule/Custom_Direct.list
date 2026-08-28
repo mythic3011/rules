@@ -11,6 +11,10 @@ DOMAIN-SUFFIX,immortalwrt.org
 
 # Tailscale
 DOMAIN-SUFFIX,tailscale.com
+DOMAIN-SUFFIX,tailscaled.com
+DOMAIN,login.tailscale.com
+DOMAIN,controlplane.tailscale.com
+DOMAIN,log.tailscale.com
 SRC-PORT,41641
 
 # Cloudflare Tunnel
