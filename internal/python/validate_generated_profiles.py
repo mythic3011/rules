@@ -132,7 +132,15 @@ def load_yaml(path: Path) -> dict[str, object]:
     return data
 
 
-def find_group(proxy_groups: list[dict[str, object]], name: str) -> dict[str, object]:
+def find_group(
+    proxy_groups: list[dict[str, object]] | dict[str, dict[str, object]],
+    name: str,
+) -> dict[str, object]:
+    if isinstance(proxy_groups, dict):
+        group = proxy_groups.get(name)
+        if group is not None:
+            return group
+        raise ValidationError(f"Missing proxy group: {name}")
     for group in proxy_groups:
         if group.get("name") == name:
             return group
@@ -194,7 +202,10 @@ def validate_manual_group(group: dict[str, object], known_group_names: set[str],
     ensure(isinstance(use_entries, list) and "provider1" in use_entries, "Manual group must expose provider1 nodes via use:")
 
 
-def validate_service_groups(proxy_groups: list[dict[str, object]], strict: bool) -> None:
+def validate_service_groups(
+    proxy_groups: list[dict[str, object]] | dict[str, dict[str, object]],
+    strict: bool,
+) -> None:
     for group_key in ("chatgpt", "copilot", "claude", "gemini", "notebooklm", "perplexity", "grok", "poe"):
         name = GROUP[group_key]
         group = find_group(proxy_groups, name)
@@ -209,7 +220,10 @@ def validate_service_groups(proxy_groups: list[dict[str, object]], strict: bool)
             ensure(GROUP["direct"] not in proxies, f"{GROUP[group_key]} must not include DIRECT in relaxed profile")
 
 
-def validate_fallback_group(proxy_groups: list[dict[str, object]], strict: bool) -> None:
+def validate_fallback_group(
+    proxy_groups: list[dict[str, object]] | dict[str, dict[str, object]],
+    strict: bool,
+) -> None:
     group = find_group(proxy_groups, GROUP["fallback"])
     proxies = group.get("proxies") or []
     ensure(isinstance(proxies, list), "Fallback group proxies must be a list")
@@ -291,10 +305,15 @@ def validate_yaml_profile(path: Path, strict: bool) -> None:
             ensure(group.get("url") == "https://cp.cloudflare.com/generate_204", f"{group.get('name')} missing explicit health-check URL")
             ensure(group.get("interval") == 300, f"{group.get('name')} missing explicit interval 300")
 
-    known_group_names = {str(group.get("name")) for group in proxy_groups}
-    validate_manual_group(find_group(proxy_groups, GROUP["manual"]), known_group_names, allow_direct=not strict)
-    validate_service_groups(proxy_groups, strict=strict)
-    validate_fallback_group(proxy_groups, strict=strict)
+    proxy_groups_map = {
+        str(group.get("name")): group
+        for group in proxy_groups
+        if isinstance(group, dict)
+    }
+    known_group_names = set(proxy_groups_map.keys())
+    validate_manual_group(find_group(proxy_groups_map, GROUP["manual"]), known_group_names, allow_direct=not strict)
+    validate_service_groups(proxy_groups_map, strict=strict)
+    validate_fallback_group(proxy_groups_map, strict=strict)
     expected_match = f"MATCH,{GROUP['reject'] if strict else GROUP['fallback']}"
     ensure(expected_match in rules, f"{path.name} missing expected MATCH rule {expected_match}")
     ensure("MATCH,DIRECT" not in rules, f"{path.name} must not contain MATCH,DIRECT")
