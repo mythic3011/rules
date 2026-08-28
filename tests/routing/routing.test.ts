@@ -3036,6 +3036,77 @@ test("private materializer preserves the candidate except allowed private deltas
   }
 });
 
+test("private materializer rejects malformed deployment or egress inputs", async () => {
+  const directory = await mkdtemp(
+    join(tmpdir(), "private-materializer-invalid-local-"),
+  );
+  try {
+    const local = join(directory, "local", "ai-routing");
+    await mkdir(local, { recursive: true });
+    await chmod(local, 0o700);
+    const secret = join(directory, "secret");
+    await writeFile(secret, "secret");
+    await chmod(secret, 0o600);
+    const config = await loadRoutingConfig(VALID_DIRECTORY);
+    const projection = await loadMihomoProjectionConfig(MIHOMO_PROJECTION);
+    const plan = compileControllerPlan(config, projection);
+    const options = await privateMaterializeOptions(local);
+    const deployment = {
+      ...deploymentFixture(),
+      controller: { url: "http://127.0.0.1:9090", secretFile: secret },
+    };
+    const egress = egressFixture();
+    const candidatePath = join(
+      ROOT,
+      "internal",
+      "generated",
+      "ai-routing",
+      "hk.full-profile-candidate.yaml",
+    );
+    const output = join(local, "private.yaml");
+
+    await assert.rejects(
+      () =>
+        materializePrivateProfile(
+          candidatePath,
+          output,
+          plan,
+          { invalid: "deployment" },
+          egress,
+          options,
+        ),
+      (error: unknown) =>
+        error instanceof PrivateMaterializerError &&
+        error.issues.some(
+          (entry) =>
+            entry.path.join(".") === "local" &&
+            entry.message === "router-local input has invalid shape",
+        ),
+    );
+
+    await assert.rejects(
+      () =>
+        materializePrivateProfile(
+          candidatePath,
+          output,
+          plan,
+          deployment,
+          { invalid: "egress" },
+          options,
+        ),
+      (error: unknown) =>
+        error instanceof PrivateMaterializerError &&
+        error.issues.some(
+          (entry) =>
+            entry.path.join(".") === "local" &&
+            entry.message === "router-local input has invalid shape",
+        ),
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("private materializer rejects shape drift, duplicates, unsafe paths, and cleans failed atomic output", async () => {
   const directory = await mkdtemp(
     join(tmpdir(), "private-materializer-reject-"),
