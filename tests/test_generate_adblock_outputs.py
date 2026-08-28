@@ -4,8 +4,10 @@ from pathlib import Path
 import tempfile
 
 from internal.python.generate_adblock_outputs import (
+    ROOT,
+    apply_policies,
+    classify_rule_asset,
     collect_domains,
-    fetch_text,
     normalize_domain,
     parse_domainswild2,
     parse_dnsmasq_conf,
@@ -13,6 +15,7 @@ from internal.python.generate_adblock_outputs import (
     parse_adblock_domains,
     parse_plain_domains,
 )
+
 
 class TestGenerateAdblockOutputs(unittest.TestCase):
     def test_normalize_domain(self):
@@ -74,6 +77,67 @@ class TestGenerateAdblockOutputs(unittest.TestCase):
             self.assertEqual(source_entries[1]["id"], "s2")
             self.assertEqual(source_entries[1]["count"], 1)
             self.assertEqual(counts, {"s1": 2, "s2": 1})
+
+    def test_classify_rule_asset_covers_dns_and_rule_layouts(self):
+        cases = {
+            "dns/adblock.hosts.txt": ("domain", "adblock_pipeline", True),
+            "dns/adblock.dnsmasq.conf": ("domain", "adblock_pipeline", True),
+            "dns/local_allowlist.txt": ("domain", "local_override", True),
+            "rule/Ads_Lite_Domain.mrs": ("unsupported", "binary_rule_provider", False),
+            "rule/Custom_Direct_Domain.yaml": ("domain", "domain_rule_provider", True),
+            "rule/Custom_Direct_IP.yaml": ("cidr", "ip_rule_provider", True),
+            "rule/Custom_Direct_Classical.yaml": ("mixed", "classical_rule_provider", True),
+            "rule/Custom_Direct_Classical_Port.yaml": ("unsupported", "port_rule_provider", False),
+            "rule/IPTVMainland_Domain.list": ("domain", "raw_rule_list", True),
+            "rule/Custom_Direct.list": ("unsupported", "raw_rule_list", False),
+        }
+        for rel, (asset_class, rule_source, searchable) in cases.items():
+            classified = classify_rule_asset(ROOT / rel)
+            self.assertEqual(classified["asset_class"], asset_class, rel)
+            self.assertEqual(classified["rule_source"], rule_source, rel)
+            self.assertEqual(classified["searchable"], searchable, rel)
+            self.assertEqual(classified["path"], rel)
+
+        unknown = classify_rule_asset(ROOT / "README.md")
+        self.assertEqual(unknown["asset_class"], "unsupported")
+        self.assertEqual(unknown["rule_source"], "unknown")
+
+    def test_apply_policies_include_overrides_exclude_and_adds_exact(self):
+        policies = {
+            "global": {
+                "include_exact": ["keep.example"],
+                "include_suffix": ["allowed.test"],
+                "include_keyword": ["keepme"],
+                "exclude_exact": ["drop.example", "keep.example"],
+                "exclude_suffix": ["blocked.test"],
+                "exclude_keyword": ["tracker"],
+            },
+            "categories": {
+                "adblock": {
+                    "include_exact": ["force.example"],
+                    "exclude_keyword": ["ads"],
+                }
+            },
+        }
+        domains = {
+            "keep.example",
+            "drop.example",
+            "ok.allowed.test",
+            "bad.blocked.test",
+            "foo-keepme.com",
+            "ads.vendor.com",
+            "clean.example",
+        }
+        result = apply_policies(domains, "adblock", policies)
+        self.assertIn("keep.example", result)
+        self.assertIn("force.example", result)
+        self.assertIn("ok.allowed.test", result)
+        self.assertIn("foo-keepme.com", result)
+        self.assertIn("clean.example", result)
+        self.assertNotIn("drop.example", result)
+        self.assertNotIn("bad.blocked.test", result)
+        self.assertNotIn("ads.vendor.com", result)
+
 
 if __name__ == "__main__":
     unittest.main()

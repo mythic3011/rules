@@ -73,6 +73,18 @@ class UpstreamHostSnapshotTest(unittest.TestCase):
                 fetch_text=lambda _: "include:provider@cn\n",
             )
 
+    def test_include_cycle_is_rejected(self) -> None:
+        documents = {
+            "https://example.test/data/a": "include:b\n",
+            "https://example.test/data/b": "include:a\n",
+        }
+        with self.assertRaisesRegex(RuntimeError, "include cycle"):
+            resolve_domain_lists(
+                base_url="https://example.test/data",
+                root_lists=("a",),
+                fetch_text=documents.__getitem__,
+            )
+
     def test_refresh_is_noop_when_materialized_coverage_is_unchanged(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             catalog_dir = Path(temp) / "ai-routing"

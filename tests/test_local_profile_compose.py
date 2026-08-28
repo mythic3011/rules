@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from copy import deepcopy
 from pathlib import Path
+from unittest.mock import patch
 
 from internal.python.local_profile_compose import (
     LocalComposeError,
@@ -133,6 +134,22 @@ class LocalProfileComposeTests(unittest.TestCase):
 
             self.assertEqual(path.read_text(encoding="utf-8"), first)
             self.assertEqual(os.stat(path).st_mode & 0o777, 0o600)
+
+    def test_write_private_yaml_rejects_directory_destination(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(LocalComposeError, "directory"):
+                write_private_yaml(directory, {"proxies": []})
+
+    def test_write_private_yaml_wraps_oserror_and_cleans_tempfile(self) -> None:
+        value = {"proxies": [{"name": "private", "type": "socks5"}]}
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "private.yaml"
+            with patch("os.replace", side_effect=OSError("disk full")):
+                with self.assertRaisesRegex(LocalComposeError, "cannot write private YAML"):
+                    write_private_yaml(path, value)
+            leftovers = list(Path(directory).glob(".private.yaml.*.tmp"))
+            self.assertEqual(leftovers, [])
+            self.assertFalse(path.exists())
 
 
 if __name__ == "__main__":

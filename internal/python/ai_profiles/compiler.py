@@ -528,29 +528,29 @@ def _compile_foundation_ini_rules(catalog: Catalog) -> tuple[IniRule, ...]:
     )
 
 
-def compile_subconverter_plan(
-    ini_mvp: IniMvpPlan,
-    *,
-    include_process_rules: bool,
-    catalog: Catalog | None = None,
-    profile_spec=None,
-) -> SubconverterPlan:
-    catalog = catalog or load_catalog()
-    legacy_replacement_ids = set(ini_mvp["migration"]["legacyReplacementIds"])
+def _compile_process_rules(catalog: Catalog, include_process_rules: bool) -> tuple[IniRule, ...]:
+    if not include_process_rules:
+        return ()
+    return tuple(project_ini_rule(_process_routing_rule(spec)) for spec in catalog.process_rulesets)
 
-    before_legacy = tuple(_normalize_ini_rule(record) for record in ini_mvp["rules"]["beforeLegacy"])
-    after_legacy = tuple(_normalize_ini_rule(record) for record in ini_mvp["rules"]["afterLegacy"])
-    stable_groups = tuple(_normalize_ini_group(group) for group in ini_mvp["groups"])
-    if len(stable_groups) < 4:
-        raise RuntimeError("INI MVP plan requires at least four groups for legacy layout projection")
 
-    process_rules: tuple[IniRule, ...] = ()
-    if include_process_rules:
-        process_rules = tuple(
-            project_ini_rule(_process_routing_rule(spec))
-            for spec in catalog.process_rulesets
-        )
+def _service_selector_candidates(
+    service: ServiceSpec, catalog: Catalog
+) -> tuple[list[str], tuple[str, ...]]:
+    fixed_candidates = service.subconverter.selector_candidates
+    if fixed_candidates is not None:
+        return list(fixed_candidates), service.subconverter.selector_comments
+    candidates: list[str] = []
+    if service.direct_relaxed:
+        candidates.append(catalog.group("direct"))
+    candidates.extend(service_region_groups(service, catalog))
+    candidates.append(catalog.group("reject"))
+    return candidates, ()
 
+
+def _compile_service_selectors(
+    catalog: Catalog, legacy_replacement_ids: set[str]
+) -> tuple[IniServiceSelector, ...]:
     selectors: list[IniServiceSelector] = []
     for service in catalog.services:
         if "subconverter" not in service.projections:
@@ -560,106 +560,135 @@ def compile_subconverter_plan(
             and not service.subconverter.emit_selector_when_legacy_replaced
         ):
             continue
-        fixed_candidates = service.subconverter.selector_candidates
-        if fixed_candidates is not None:
-            candidates = list(fixed_candidates)
-            comments = service.subconverter.selector_comments
-        else:
-            candidates = []
-            if service.direct_relaxed:
-                candidates.append(catalog.group("direct"))
-            candidates.extend(service_region_groups(service, catalog))
-            candidates.append(catalog.group("reject"))
-            comments = ()
+        candidates, comments = _service_selector_candidates(service, catalog)
         selectors.append(
             IniServiceSelector(
                 comments=comments,
                 group=IniSelectGroup(service.group, _group_refs(candidates)),
             )
         )
+    return tuple(selectors)
 
-    service_clusters = _compile_service_rule_clusters(
-        catalog.services, legacy_replacement_ids
+
+def _build_subconverter_sections(
+    catalog: Catalog,
+    *,
+    before_legacy: tuple[IniRule, ...],
+    after_legacy: tuple[IniRule, ...],
+    process_rules: tuple[IniRule, ...],
+    include_process_rules: bool,
+    selectors: tuple[IniServiceSelector, ...],
+    stable_groups: tuple[IniSelectGroup, ...],
+    service_clusters: tuple[IniRuleCluster, ...],
+    routing_tail_clusters: tuple[IniRuleCluster, ...],
+):
+    return (
+        IniRulesSection(
+            "foundation-rules",
+            rules=_compile_foundation_ini_rules(catalog),
+        ),
+        IniRulesSection("legacy-before", rules=before_legacy, leading_blank=True),
+        IniClustersSection(
+            "service-rule-clusters",
+            clusters=service_clusters,
+            blank_before_first=True,
+        ),
+        IniRulesSection("legacy-after-head", rules=after_legacy[:2], leading_blank=True),
+        IniRulesSection(
+            "process-rules",
+            rules=process_rules,
+            comments=catalog.process_rules_warning if include_process_rules else (),
+            leading_blank=True,
+            emit_if_empty=False,
+        ),
+        IniRulesSection("legacy-after-tail", rules=after_legacy[2:], leading_blank=True),
+        IniClustersSection(
+            "routing-tail-clusters",
+            clusters=routing_tail_clusters,
+            leading_blank=True,
+        ),
+        IniGroupsSection(
+            "foundation-groups",
+            groups=tuple(
+                _compile_profile_ini_group(group)
+                for group in catalog.subconverter_foundation_groups
+            ),
+            title="Level 0 — Foundation groups",
+            subtitle="Define these before anything references them",
+        ),
+        IniGroupsSection(
+            "automatic-region-groups",
+            groups=_compile_automatic_region_groups(catalog),
+            title="Level 1 — Automatic region groups",
+            blank_between_groups=True,
+        ),
+        IniGroupsSection(
+            "stable-region-groups",
+            groups=stable_groups[:3],
+            title="Level 1 — Stable manual region groups",
+            blank_between_groups=True,
+        ),
+        IniGroupsSection(
+            "shared-routing-groups",
+            groups=_compile_shared_routing_groups(catalog),
+            title="Level 2 — Shared routing selectors",
+            blank_between_groups=True,
+        ),
+        IniSelectorsSection(
+            "service-selectors",
+            selectors=selectors,
+            title="Level 3 — AI service selectors",
+            subtitle="One service = one visible group",
+        ),
+        IniGroupsSection(
+            "account-group",
+            groups=(stable_groups[3],),
+            title="Account-protected service",
+        ),
+        IniGroupsSection(
+            "stable-session-groups",
+            groups=stable_groups[4:],
+            title="Stable-session / explicitly separated AI services",
+            blank_between_groups=True,
+        ),
+        IniGroupsSection(
+            "final-group",
+            groups=(_compile_profile_ini_group(catalog.subconverter_final_group),),
+            title="Level 4 — Final catch-all selector",
+        ),
     )
-    routing_tail_clusters = (
-        *_compile_companion_rule_clusters(catalog),
-        *_compile_external_rule_clusters(catalog),
-    )
+
+
+def compile_subconverter_plan(
+    ini_mvp: IniMvpPlan,
+    *,
+    include_process_rules: bool,
+    catalog: Catalog | None = None,
+    profile_spec=None,
+) -> SubconverterPlan:
+    catalog = catalog or load_catalog()
+    legacy_replacement_ids = set(ini_mvp["migration"]["legacyReplacementIds"])
+    before_legacy = tuple(_normalize_ini_rule(record) for record in ini_mvp["rules"]["beforeLegacy"])
+    after_legacy = tuple(_normalize_ini_rule(record) for record in ini_mvp["rules"]["afterLegacy"])
+    stable_groups = tuple(_normalize_ini_group(group) for group in ini_mvp["groups"])
+    if len(stable_groups) < 4:
+        raise RuntimeError("INI MVP plan requires at least four groups for legacy layout projection")
 
     plan = SubconverterPlan(
-        sections=(
-            IniRulesSection(
-                "foundation-rules",
-                rules=_compile_foundation_ini_rules(catalog),
+        sections=_build_subconverter_sections(
+            catalog,
+            before_legacy=before_legacy,
+            after_legacy=after_legacy,
+            process_rules=_compile_process_rules(catalog, include_process_rules),
+            include_process_rules=include_process_rules,
+            selectors=_compile_service_selectors(catalog, legacy_replacement_ids),
+            stable_groups=stable_groups,
+            service_clusters=_compile_service_rule_clusters(
+                catalog.services, legacy_replacement_ids
             ),
-            IniRulesSection("legacy-before", rules=before_legacy, leading_blank=True),
-            IniClustersSection(
-                "service-rule-clusters",
-                clusters=service_clusters,
-                blank_before_first=True,
-            ),
-            IniRulesSection("legacy-after-head", rules=after_legacy[:2], leading_blank=True),
-            IniRulesSection(
-                "process-rules",
-                rules=process_rules,
-                comments=catalog.process_rules_warning if include_process_rules else (),
-                leading_blank=True,
-                emit_if_empty=False,
-            ),
-            IniRulesSection("legacy-after-tail", rules=after_legacy[2:], leading_blank=True),
-            IniClustersSection(
-                "routing-tail-clusters",
-                clusters=routing_tail_clusters,
-                leading_blank=True,
-            ),
-            IniGroupsSection(
-                "foundation-groups",
-                groups=tuple(
-                    _compile_profile_ini_group(group)
-                    for group in catalog.subconverter_foundation_groups
-                ),
-                title="Level 0 — Foundation groups",
-                subtitle="Define these before anything references them",
-            ),
-            IniGroupsSection(
-                "automatic-region-groups",
-                groups=_compile_automatic_region_groups(catalog),
-                title="Level 1 — Automatic region groups",
-                blank_between_groups=True,
-            ),
-            IniGroupsSection(
-                "stable-region-groups",
-                groups=stable_groups[:3],
-                title="Level 1 — Stable manual region groups",
-                blank_between_groups=True,
-            ),
-            IniGroupsSection(
-                "shared-routing-groups",
-                groups=_compile_shared_routing_groups(catalog),
-                title="Level 2 — Shared routing selectors",
-                blank_between_groups=True,
-            ),
-            IniSelectorsSection(
-                "service-selectors",
-                selectors=tuple(selectors),
-                title="Level 3 — AI service selectors",
-                subtitle="One service = one visible group",
-            ),
-            IniGroupsSection(
-                "account-group",
-                groups=(stable_groups[3],),
-                title="Account-protected service",
-            ),
-            IniGroupsSection(
-                "stable-session-groups",
-                groups=stable_groups[4:],
-                title="Stable-session / explicitly separated AI services",
-                blank_between_groups=True,
-            ),
-            IniGroupsSection(
-                "final-group",
-                groups=(_compile_profile_ini_group(catalog.subconverter_final_group),),
-                title="Level 4 — Final catch-all selector",
+            routing_tail_clusters=(
+                *_compile_companion_rule_clusters(catalog),
+                *_compile_external_rule_clusters(catalog),
             ),
         )
     )
