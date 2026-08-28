@@ -54,8 +54,3 @@ def migrate_custom_direct_supporting_rules() -> None:
             "# Verify current official Tailscale firewall guidance before adding static IP-CIDR rules.",
         ],
     )
-
-
-def ensure_custom_direct_supporting_rules() -> None:
-    """Deprecated compatibility alias; use explicit migration CLI for new code."""
-    migrate_custom_direct_supporting_rules()

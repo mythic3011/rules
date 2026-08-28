@@ -134,7 +134,7 @@ Do not treat a broad vendor/product family tag as product identity without a fix
 
 ### P0.4 Generator mutates user-owned `Custom_*` files
 
-`ensure_custom_direct_supporting_rules()` appends managed Tailscale entries to:
+`migrate_custom_direct_supporting_rules()` appends managed Tailscale entries to:
 
 - `rule/Custom_Direct_Domain.yaml`;
 - `rule/Custom_Direct_Classical_IP.yaml`.
