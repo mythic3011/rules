@@ -59,6 +59,33 @@ class CoverageAuditTest(unittest.TestCase):
             self.assertEqual(len(drift), 1)
             self.assertEqual(drift[0].severity, "error")
 
+    def test_missing_ini_plan_is_warning(self) -> None:
+        findings = audit_rule_coverage(
+            load_catalog(),
+            ini_plan_path=ROOT / "does-not-exist.ini-mvp-plan.json",
+        )
+        missing = [item for item in findings if item.code == "missing-ini-plan"]
+        self.assertEqual(len(missing), 1)
+        self.assertEqual(missing[0].severity, "warning")
+
+    def test_invalid_ini_plan_is_error(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            plan_path = Path(temp) / "plan.json"
+            plan_path.write_text("{not json", encoding="utf-8")
+            findings = audit_rule_coverage(load_catalog(), ini_plan_path=plan_path)
+            invalid = [item for item in findings if item.code == "invalid-ini-plan"]
+            self.assertEqual(len(invalid), 1)
+            self.assertEqual(invalid[0].severity, "error")
+
+    def test_unpinned_ini_source_is_error(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            plan_path = Path(temp) / "plan.json"
+            plan_path.write_text(json.dumps(self._plan("main")), encoding="utf-8")
+            findings = audit_rule_coverage(load_catalog(), ini_plan_path=plan_path)
+            unpinned = [item for item in findings if item.code == "unpinned-upstream-source"]
+            self.assertEqual(len(unpinned), 1)
+            self.assertEqual(unpinned[0].severity, "error")
+
 
 if __name__ == "__main__":
     unittest.main()

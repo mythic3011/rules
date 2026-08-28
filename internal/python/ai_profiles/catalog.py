@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import MappingProxyType
-from typing import Mapping
+from typing import Iterable, Mapping
 
 from .models import (
     AdGuardHomeSpec,
@@ -100,19 +100,23 @@ def _process_rule_from_decl(value: ProcessRuleDecl, groups: dict[str, str]) -> P
     )
 
 
-def _validate_companion_cluster_contiguity(rulesets: tuple[RuleFileSpec, ...]) -> None:
+def _validate_cluster_contiguity(clusters: Iterable[str | None], *, kind: str) -> None:
     closed: set[str] = set()
     active: str | None = None
-    for rule in rulesets:
-        cluster = rule.subconverter_cluster
+    for cluster in clusters:
         if cluster != active:
             if active is not None:
                 closed.add(active)
             if cluster is not None and cluster in closed:
-                raise RuntimeError(
-                    f"Companion rule subconverterCluster must be contiguous: {cluster}"
-                )
+                raise RuntimeError(f"{kind} must be contiguous: {cluster}")
             active = cluster
+
+
+def _validate_companion_cluster_contiguity(rulesets: tuple[RuleFileSpec, ...]) -> None:
+    _validate_cluster_contiguity(
+        (rule.subconverter_cluster for rule in rulesets),
+        kind="Companion rule subconverterCluster",
+    )
 
 
 
@@ -227,18 +231,10 @@ def _external_route_from_decl(value: ExternalRouteDecl, groups: dict[str, str]) 
 
 
 def _validate_external_cluster_contiguity(routes: tuple[ExternalRouteSpec, ...]) -> None:
-    closed: set[str] = set()
-    active: str | None = None
-    for route in routes:
-        cluster = route.subconverter_cluster
-        if cluster != active:
-            if active is not None:
-                closed.add(active)
-            if cluster is not None and cluster in closed:
-                raise RuntimeError(
-                    f"External routing subconverterCluster must be contiguous: {cluster}"
-                )
-            active = cluster
+    _validate_cluster_contiguity(
+        (route.subconverter_cluster for route in routes),
+        kind="External routing subconverterCluster",
+    )
 
 
 def _resolve_upstream_rules(declarations, source_manifest):
@@ -285,18 +281,9 @@ def _adguard_spec(profile) -> AdGuardHomeSpec | None:
     )
 
 
-def compile_catalog(documents: CatalogDocuments) -> Catalog:
-    """Resolve validated catalog documents into runtime routing specifications."""
-    profile = documents.profile
-    regions_doc = documents.regions
-    services_doc = documents.services
-    companion_doc = documents.companion_rules
-    external_doc = documents.external_routing
-    source_manifest = load_upstream_source_manifest(catalog_dir=documents.catalog_dir)
-
-    groups = dict(profile.core_groups)
-    groups["other"] = profile.other_region_group
-
+def _compile_regions(
+    regions_doc, groups: dict[str, str]
+) -> tuple[dict[str, RegionSpec], dict[str, str], tuple[RegionSpec, ...]]:
     region_by_id: dict[str, RegionSpec] = {}
     region_terms: dict[str, str] = {}
     for record in regions_doc.regions:
@@ -314,22 +301,19 @@ def compile_catalog(documents: CatalogDocuments) -> Catalog:
         if record.id in groups and groups[record.id] != record.group:
             raise RuntimeError(f"AI region group collides with existing group key: {record.id}")
         groups[record.id] = record.group
-
     primary_regions = tuple(region_by_id[region] for region in regions_doc.primary_order)
+    return region_by_id, region_terms, primary_regions
 
-    base_dns_policies = _resolve_dns_policies(
-        profile.dns_policies,
-        profile.dns_resolver_sets,
-    )
 
-    services: list[ServiceSpec] = []
-    known_regions = set(region_by_id)
-    routable_regions = set(regions_doc.primary_order)
-
+def _register_service_groups(services_doc, groups: dict[str, str], known_regions: set[str]) -> None:
     # Register every service group before resolving cross-service policy refs so
     # declaration order never changes which group keys are resolvable.
     for record in services_doc.services:
-        declared_regions = set(record.regions) | set(record.availability.working_regions) | set(record.availability.blocked_regions)
+        declared_regions = (
+            set(record.regions)
+            | set(record.availability.working_regions)
+            | set(record.availability.blocked_regions)
+        )
         unknown_regions = declared_regions - known_regions
         if unknown_regions:
             raise RuntimeError(
@@ -339,6 +323,32 @@ def compile_catalog(documents: CatalogDocuments) -> Catalog:
             raise RuntimeError(f"AI service group collides with existing group key: {record.id}")
         groups[record.id] = record.group
 
+
+def _service_selector(
+    record, groups: dict[str, str]
+) -> tuple[tuple[str, ...] | None, tuple[str, ...]]:
+    if record.subconverter.selector.mode != "fixed":
+        return None, ()
+    unknown_group_keys = set(record.subconverter.selector.group_keys) - set(groups)
+    if unknown_group_keys:
+        raise RuntimeError(
+            f"AI service {record.id} subconverter selector references unknown "
+            f"group keys: {sorted(unknown_group_keys)}"
+        )
+    return (
+        tuple(groups[key] for key in record.subconverter.selector.group_keys),
+        record.subconverter.selector.comments,
+    )
+
+
+def _compile_services(
+    services_doc,
+    groups: dict[str, str],
+    source_manifest,
+    profile,
+    routable_regions: set[str],
+) -> tuple[ServiceSpec, ...]:
+    services: list[ServiceSpec] = []
     closed_rule_clusters: set[str] = set()
     active_rule_cluster: str | None = None
     for record in services_doc.services:
@@ -351,21 +361,7 @@ def compile_catalog(documents: CatalogDocuments) -> Catalog:
                     f"AI service subconverter ruleCluster must be contiguous: {rule_cluster}"
                 )
             active_rule_cluster = rule_cluster
-
-        selector_candidates: tuple[str, ...] | None = None
-        selector_comments: tuple[str, ...] = ()
-        if record.subconverter.selector.mode == "fixed":
-            unknown_group_keys = set(record.subconverter.selector.group_keys) - set(groups)
-            if unknown_group_keys:
-                raise RuntimeError(
-                    f"AI service {record.id} subconverter selector references unknown "
-                    f"group keys: {sorted(unknown_group_keys)}"
-                )
-            selector_candidates = tuple(
-                groups[key] for key in record.subconverter.selector.group_keys
-            )
-            selector_comments = record.subconverter.selector.comments
-
+        selector_candidates, selector_comments = _service_selector(record, groups)
         services.append(
             ServiceSpec(
                 id=record.id,
@@ -374,7 +370,14 @@ def compile_catalog(documents: CatalogDocuments) -> Catalog:
                 file=record.file,
                 upstream_rules=_resolve_upstream_rules(record.upstream_rules, source_manifest),
                 payload=record.payload,
-                regions=(record.regions or tuple(region for region in record.availability.working_regions if region in routable_regions)),
+                regions=(
+                    record.regions
+                    or tuple(
+                        region
+                        for region in record.availability.working_regions
+                        if region in routable_regions
+                    )
+                ),
                 direct_relaxed=record.direct_relaxed,
                 availability=ServiceAvailabilitySpec(
                     working_regions=record.availability.working_regions,
@@ -395,58 +398,34 @@ def compile_catalog(documents: CatalogDocuments) -> Catalog:
                 projections=record.projections,
             )
         )
+    return tuple(services)
 
-    all_dns_policies = tuple(
-        [
-            *base_dns_policies,
-            *(policy for service in services for policy in service.dns_policies),
-        ]
-    )
-    _validate_dns_policy_space(all_dns_policies)
 
-    known_region_terms = "|".join(
-        rf"(?:{region_terms[region]})" for region in regions_doc.primary_order
-    )
-    provider_noise_pattern = rf"(?i)({profile.provider_noise_exclude_terms})"
-    provider_pool_filter = rf"(?i)^(?!.*(?:{profile.provider_noise_exclude_terms})).*$"
-    ai_pool_filter = (
-        rf"(?i)^(?!.*(?:{profile.ai_hk_exclude_terms}|"
-        rf"{profile.provider_noise_exclude_terms})).*$"
-    )
-    known_region_exclude_pattern = rf"(?i)(?:{known_region_terms})"
-    other_region_filter = (
-        rf"(?i)^(?!.*(?:{profile.provider_noise_exclude_terms}|"
-        rf"{profile.ai_hk_exclude_terms}|{known_region_terms})).*$"
-    )
+def _compile_filter_patterns(
+    profile, region_terms: dict[str, str], primary_order: tuple[str, ...]
+) -> dict[str, str]:
+    known_region_terms = "|".join(rf"(?:{region_terms[region]})" for region in primary_order)
+    return {
+        "provider_noise_pattern": rf"(?i)({profile.provider_noise_exclude_terms})",
+        "provider_pool_filter": rf"(?i)^(?!.*(?:{profile.provider_noise_exclude_terms})).*$",
+        "ai_pool_filter": (
+            rf"(?i)^(?!.*(?:{profile.ai_hk_exclude_terms}|"
+            rf"{profile.provider_noise_exclude_terms})).*$"
+        ),
+        "known_region_exclude_pattern": rf"(?i)(?:{known_region_terms})",
+        "other_region_filter": (
+            rf"(?i)^(?!.*(?:{profile.provider_noise_exclude_terms}|"
+            rf"{profile.ai_hk_exclude_terms}|{known_region_terms})).*$"
+        ),
+    }
 
-    resolved_groups = MappingProxyType(dict(groups))
-    companion_rulesets = tuple(
-        _rule_file_from_decl(item, groups) for item in companion_doc.rulesets
-    )
-    _validate_companion_cluster_contiguity(companion_rulesets)
-    process_rulesets = tuple(
-        _process_rule_from_decl(item, groups) for item in companion_doc.process_rulesets
-    )
 
-    foundation_routes = tuple(
-        _profile_route_from_decl(item, groups) for item in profile.foundation_routes
-    )
-    subconverter_foundation_groups = tuple(
-        _subconverter_group_from_decl(item, groups)
-        for item in profile.subconverter_groups.foundation
-    )
-    subconverter_final_group = _subconverter_group_from_decl(
-        profile.subconverter_groups.final, groups
-    )
-    profile_policy_groups = tuple(
-        _profile_policy_group_from_decl(item, groups) for item in profile.policy_groups
-    )
-
-    external_routes = tuple(
-        _external_route_from_decl(item, groups) for item in external_doc.routes
-    )
-    _validate_external_cluster_contiguity(external_routes)
-
+def _validate_provider_uniqueness(
+    services: tuple[ServiceSpec, ...],
+    companion_rulesets: tuple[RuleFileSpec, ...],
+    process_rulesets: tuple[ProcessRuleSpec, ...],
+    external_routes: tuple[ExternalRouteSpec, ...],
+) -> None:
     service_provider_keys = {service.provider_key for service in services}
     upstream_provider_keys = {
         source.provider_key
@@ -483,18 +462,64 @@ def compile_catalog(documents: CatalogDocuments) -> Catalog:
         raise RuntimeError("Companion static/process provider keys must not collide")
     if companion_files & process_files:
         raise RuntimeError("Companion static/process rule files must not collide")
-
     if external_provider_keys & (service_provider_keys | companion_provider_keys | process_provider_keys):
         raise RuntimeError("External routing provider keys must not collide with catalog providers")
     if external_provider_files & (service_files | companion_files | process_files):
         raise RuntimeError("External routing provider files must not collide with catalog rule files")
 
-    managed_files = frozenset({service.file for service in services} | {"AI_All_Classical.yaml"})
+
+def compile_catalog(documents: CatalogDocuments) -> Catalog:
+    """Resolve validated catalog documents into runtime routing specifications."""
+    profile = documents.profile
+    regions_doc = documents.regions
+    services_doc = documents.services
+    companion_doc = documents.companion_rules
+    external_doc = documents.external_routing
+    source_manifest = load_upstream_source_manifest(catalog_dir=documents.catalog_dir)
+
+    groups = dict(profile.core_groups)
+    groups["other"] = profile.other_region_group
+    region_by_id, region_terms, primary_regions = _compile_regions(regions_doc, groups)
+    base_dns_policies = _resolve_dns_policies(profile.dns_policies, profile.dns_resolver_sets)
+    _register_service_groups(services_doc, groups, set(region_by_id))
+    services = _compile_services(
+        services_doc,
+        groups,
+        source_manifest,
+        profile,
+        set(regions_doc.primary_order),
+    )
+    _validate_dns_policy_space(
+        tuple([*base_dns_policies, *(policy for service in services for policy in service.dns_policies)])
+    )
+    filters = _compile_filter_patterns(profile, region_terms, regions_doc.primary_order)
+
+    companion_rulesets = tuple(_rule_file_from_decl(item, groups) for item in companion_doc.rulesets)
+    _validate_companion_cluster_contiguity(companion_rulesets)
+    process_rulesets = tuple(
+        _process_rule_from_decl(item, groups) for item in companion_doc.process_rulesets
+    )
+    foundation_routes = tuple(
+        _profile_route_from_decl(item, groups) for item in profile.foundation_routes
+    )
+    subconverter_foundation_groups = tuple(
+        _subconverter_group_from_decl(item, groups)
+        for item in profile.subconverter_groups.foundation
+    )
+    subconverter_final_group = _subconverter_group_from_decl(
+        profile.subconverter_groups.final, groups
+    )
+    profile_policy_groups = tuple(
+        _profile_policy_group_from_decl(item, groups) for item in profile.policy_groups
+    )
+    external_routes = tuple(_external_route_from_decl(item, groups) for item in external_doc.routes)
+    _validate_external_cluster_contiguity(external_routes)
+    _validate_provider_uniqueness(services, companion_rulesets, process_rulesets, external_routes)
 
     return Catalog(
         catalog_dir=documents.catalog_dir,
-        groups=resolved_groups,
-        services=tuple(services),
+        groups=MappingProxyType(dict(groups)),
+        services=services,
         adguard_home=_adguard_spec(profile),
         base_dns_policies=base_dns_policies,
         regions=tuple(region_by_id.values()),
@@ -511,14 +536,14 @@ def compile_catalog(documents: CatalogDocuments) -> Catalog:
         subconverter_foundation_groups=subconverter_foundation_groups,
         subconverter_final_group=subconverter_final_group,
         profile_policy_groups=profile_policy_groups,
-        managed_ai_rule_files=managed_files,
+        managed_ai_rule_files=frozenset({service.file for service in services} | {"AI_All_Classical.yaml"}),
         provider_noise_exclude_terms=profile.provider_noise_exclude_terms,
         ai_hk_exclude_terms=profile.ai_hk_exclude_terms,
-        provider_noise_exclude_pattern=provider_noise_pattern,
-        provider_pool_filter=provider_pool_filter,
-        ai_pool_filter=ai_pool_filter,
-        known_region_exclude_pattern=known_region_exclude_pattern,
-        other_region_filter=other_region_filter,
+        provider_noise_exclude_pattern=filters["provider_noise_pattern"],
+        provider_pool_filter=filters["provider_pool_filter"],
+        ai_pool_filter=filters["ai_pool_filter"],
+        known_region_exclude_pattern=filters["known_region_exclude_pattern"],
+        other_region_filter=filters["other_region_filter"],
     )
 
 

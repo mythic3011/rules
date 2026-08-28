@@ -245,37 +245,42 @@ def _ordered_candidates(
     return tuple(result)
 
 
-def apply_profile_spec_to_subconverter_plan(
-    plan: SubconverterPlan,
+def _stable_region_groups(plan: SubconverterPlan, catalog: Catalog) -> dict[str, str]:
+    stable_region_groups: dict[str, str] = {}
+    stable_section = plan.section("stable-region-groups")
+    if not isinstance(stable_section, IniGroupsSection):
+        return stable_region_groups
+    for group in stable_section.groups:
+        if isinstance(group, IniSelectGroup):
+            region_id = _region_for_stable_group(group, catalog)
+            if region_id is not None:
+                stable_region_groups[group.name] = region_id
+    return stable_region_groups
+
+
+def _removed_groups(
     resolved: ResolvedProfileSpec,
     catalog: Catalog,
-) -> SubconverterPlan:
+    stable_region_groups: dict[str, str],
+) -> set[str]:
     region_group_to_id = _region_group_map(catalog)
     active_ids = set(resolved.active_region_ids)
-    removed_region_groups = {
+    removed = {
         group for group, region_id in region_group_to_id.items() if region_id not in active_ids
     }
     if not resolved.include_other_region:
-        removed_region_groups.add(catalog.group("other"))
-
-    stable_region_groups: dict[str, str] = {}
-    stable_section = plan.section("stable-region-groups")
-    if isinstance(stable_section, IniGroupsSection):
-        for group in stable_section.groups:
-            if isinstance(group, IniSelectGroup):
-                region_id = _region_for_stable_group(group, catalog)
-                if region_id is not None:
-                    stable_region_groups[group.name] = region_id
-
-    removed_stable_groups = {
+        removed.add(catalog.group("other"))
+    removed.update(
         group for group, region_id in stable_region_groups.items() if region_id not in active_ids
-    }
-    removed_groups = removed_region_groups | removed_stable_groups
+    )
+    return removed
 
-    # disabledNodeRegions is stronger than merely removing routable group refs:
-    # provider-node regex filters must also reject those nodes so a disabled
-    # region cannot leak through generic/manual groups.
+
+def _blocked_and_allowed_terms(
+    resolved: ResolvedProfileSpec, catalog: Catalog
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
     region_by_id = {region.id: region for region in catalog.regions}
+    active_ids = set(resolved.active_region_ids)
     disabled_effective = set(resolved.disabled_region_ids) | {
         region.id for region in catalog.primary_regions if region.id not in active_ids
     }
@@ -289,100 +294,108 @@ def apply_profile_spec_to_subconverter_plan(
         for region_id in resolved.active_region_ids
         if region_id in region_by_id
     )
+    return blocked_terms, allowed_terms
 
-    stable_group_to_primary_group = {
-        stable_group: next(
-            region.group
-            for region in catalog.primary_regions
-            if region.id == region_id
-        )
-        for stable_group, region_id in stable_region_groups.items()
-    }
-    ordering_group_map = {**region_group_to_id, **stable_region_groups}
 
-    rewritten_sections = []
-    for section in plan.sections:
-        if isinstance(section, (IniRulesSection, IniClustersSection)):
-            rewritten_sections.append(section)
-            continue
+def _rewrite_proxy_group_filter(
+    group: IniProxyGroup,
+    *,
+    catalog: Catalog,
+    resolved: ResolvedProfileSpec,
+    blocked_terms: tuple[str, ...],
+    allowed_terms: tuple[str, ...],
+) -> str | None:
+    filter_pattern = group.filter_pattern
+    # Do not rewrite the positive regex of a region-specific url-test;
+    # those groups have already been removed/kept above. Generic select
+    # and "other" groups must exclude disabled node regions.
+    if group.kind == "select":
+        if resolved.include_other_region:
+            return _negative_filter(filter_pattern, blocked_terms)
+        return _positive_filter(filter_pattern, allowed_terms)
+    if group.name == catalog.group("other"):
+        return _negative_filter(filter_pattern, blocked_terms)
+    return filter_pattern
 
-        if isinstance(section, IniSelectorsSection):
-            selectors = []
-            for selector in section.selectors:
-                candidates = _ordered_candidates(
-                    selector.group.candidates,
-                    region_group_to_id=ordering_group_map,
-                    active_order=resolved.active_region_ids,
-                    removed_groups=removed_groups,
-                )
-                selectors.append(
-                    replace(selector, group=replace(selector.group, candidates=candidates))
-                )
-            rewritten_sections.append(replace(section, selectors=tuple(selectors)))
-            continue
 
-        assert isinstance(section, IniGroupsSection)
-        groups = []
-        for group in section.groups:
-            if group.name in removed_groups:
-                continue
-
-            if isinstance(group, IniSelectGroup):
-                candidates = _ordered_candidates(
-                    group.candidates,
-                    region_group_to_id=ordering_group_map,
-                    active_order=resolved.active_region_ids,
-                    removed_groups=removed_groups,
-                )
-                groups.append(replace(group, candidates=candidates))
-                continue
-
-            assert isinstance(group, IniProxyGroup)
+def _rewrite_section(
+    section,
+    *,
+    catalog: Catalog,
+    resolved: ResolvedProfileSpec,
+    ordering_group_map: dict[str, str],
+    removed_groups: set[str],
+    blocked_terms: tuple[str, ...],
+    allowed_terms: tuple[str, ...],
+):
+    if isinstance(section, (IniRulesSection, IniClustersSection)):
+        return section
+    if isinstance(section, IniSelectorsSection):
+        selectors = []
+        for selector in section.selectors:
             candidates = _ordered_candidates(
-                group.candidates,
+                selector.group.candidates,
                 region_group_to_id=ordering_group_map,
                 active_order=resolved.active_region_ids,
                 removed_groups=removed_groups,
             )
-            filter_pattern = group.filter_pattern
-            # Do not rewrite the positive regex of a region-specific url-test;
-            # those groups have already been removed/kept above. Generic select
-            # and "other" groups must exclude disabled node regions.
-            if group.kind == "select":
-                if resolved.include_other_region:
-                    filter_pattern = _negative_filter(filter_pattern, blocked_terms)
-                else:
-                    filter_pattern = _positive_filter(filter_pattern, allowed_terms)
-            elif group.name == catalog.group("other"):
-                filter_pattern = _negative_filter(filter_pattern, blocked_terms)
-            groups.append(
-                replace(group, candidates=candidates, filter_pattern=filter_pattern)
+            selectors.append(replace(selector, group=replace(selector.group, candidates=candidates)))
+        return replace(section, selectors=tuple(selectors))
+
+    assert isinstance(section, IniGroupsSection)
+    groups = []
+    for group in section.groups:
+        if group.name in removed_groups:
+            continue
+        candidates = _ordered_candidates(
+            group.candidates,
+            region_group_to_id=ordering_group_map,
+            active_order=resolved.active_region_ids,
+            removed_groups=removed_groups,
+        )
+        if isinstance(group, IniSelectGroup):
+            groups.append(replace(group, candidates=candidates))
+            continue
+        assert isinstance(group, IniProxyGroup)
+        groups.append(
+            replace(
+                group,
+                candidates=candidates,
+                filter_pattern=_rewrite_proxy_group_filter(
+                    group,
+                    catalog=catalog,
+                    resolved=resolved,
+                    blocked_terms=blocked_terms,
+                    allowed_terms=allowed_terms,
+                ),
             )
+        )
+    return replace(section, groups=tuple(groups))
 
-        rewritten_sections.append(replace(section, groups=tuple(groups)))
 
+def _assert_no_dangling_group_refs(sections) -> None:
     # A removed stable region can be referenced by a legacy group. The generic
     # candidate pass above strips those refs, but keep a hard invariant here so
     # a renderer can never emit a dangling group reference.
     defined_groups = {
         group.name
-        for section in rewritten_sections
+        for section in sections
         if isinstance(section, IniGroupsSection)
         for group in section.groups
     } | {
         selector.group.name
-        for section in rewritten_sections
+        for section in sections
         if isinstance(section, IniSelectorsSection)
         for selector in section.selectors
     }
     foundation_names = {
         group.name
-        for section in rewritten_sections
+        for section in sections
         if isinstance(section, IniGroupsSection) and section.role == "foundation-groups"
         for group in section.groups
     }
     allowed_refs = defined_groups | foundation_names | {"DIRECT", "REJECT"}
-    for section in rewritten_sections:
+    for section in sections:
         candidate_groups = []
         if isinstance(section, IniGroupsSection):
             candidate_groups.extend(section.groups)
@@ -395,4 +408,27 @@ def apply_profile_spec_to_subconverter_plan(
                         f"Profile solver produced dangling group reference: {candidate.value}"
                     )
 
+
+def apply_profile_spec_to_subconverter_plan(
+    plan: SubconverterPlan,
+    resolved: ResolvedProfileSpec,
+    catalog: Catalog,
+) -> SubconverterPlan:
+    stable_region_groups = _stable_region_groups(plan, catalog)
+    removed_groups = _removed_groups(resolved, catalog, stable_region_groups)
+    blocked_terms, allowed_terms = _blocked_and_allowed_terms(resolved, catalog)
+    ordering_group_map = {**_region_group_map(catalog), **stable_region_groups}
+    rewritten_sections = [
+        _rewrite_section(
+            section,
+            catalog=catalog,
+            resolved=resolved,
+            ordering_group_map=ordering_group_map,
+            removed_groups=removed_groups,
+            blocked_terms=blocked_terms,
+            allowed_terms=allowed_terms,
+        )
+        for section in plan.sections
+    ]
+    _assert_no_dangling_group_refs(rewritten_sections)
     return SubconverterPlan(tuple(rewritten_sections))

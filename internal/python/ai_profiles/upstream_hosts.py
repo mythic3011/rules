@@ -73,31 +73,60 @@ def _parse_domain_record(line: str) -> tuple[SnapshotKind, str] | None:
     return "suffix", domain
 
 
+def _nonempty_lines(text: str) -> list[str]:
+    lines: list[str] = []
+    for raw in text.splitlines():
+        line = _strip_comment(raw)
+        if line:
+            lines.append(line)
+    return lines
+
+
 def resolve_domain_lists(
     *,
     base_url: str,
     root_lists: tuple[str, ...],
     fetch_text: FetchText = _default_fetch_text,
 ) -> tuple[SnapshotEntry, ...]:
-    """Recursively flatten DLC lists into AdGuard-compatible exact/suffix domains."""
+    """Flatten DLC lists into AdGuard-compatible exact/suffix domains."""
     cache: dict[str, str] = {}
     visiting: set[str] = set()
     emitted: list[SnapshotEntry] = []
     seen: set[tuple[SnapshotKind, str]] = set()
 
-    def load(list_name: str, root_list: str) -> None:
-        if list_name in visiting:
-            raise RuntimeError(f"Upstream domain-list include cycle detected: {list_name}")
-        visiting.add(list_name)
+    def fetch_list(list_name: str) -> str:
         text = cache.get(list_name)
         if text is None:
             text = fetch_text(_domain_list_url(base_url, list_name))
             cache[list_name] = text
+        return text
 
-        for raw in text.splitlines():
-            line = _strip_comment(raw)
-            if not line:
+    def emit_record(line: str, root_list: str) -> None:
+        parsed = _parse_domain_record(line)
+        if parsed is None:
+            return
+        kind, domain = parsed
+        key = (kind, domain.casefold())
+        if key in seen:
+            return
+        seen.add(key)
+        emitted.append(SnapshotEntry(kind, domain, root_list))
+
+    for root in root_lists:
+        if root in visiting:
+            raise RuntimeError(f"Upstream domain-list include cycle detected: {root}")
+        visiting.add(root)
+        stack: list[tuple[str, list[str], int, str]] = [
+            (root, _nonempty_lines(fetch_list(root)), 0, root)
+        ]
+        while stack:
+            list_name, lines, index, root_list = stack[-1]
+            if index >= len(lines):
+                visiting.remove(list_name)
+                stack.pop()
                 continue
+            stack[-1] = (list_name, lines, index + 1, root_list)
+            line = lines[index]
             token = line.split()[0]
             if token.startswith("include:"):
                 include_name = token[len("include:"):]
@@ -107,23 +136,16 @@ def resolve_domain_lists(
                     raise RuntimeError(
                         f"Attributed upstream include cannot be materialized losslessly: {token}"
                     )
-                load(include_name, root_list)
+                if include_name in visiting:
+                    raise RuntimeError(
+                        f"Upstream domain-list include cycle detected: {include_name}"
+                    )
+                visiting.add(include_name)
+                stack.append(
+                    (include_name, _nonempty_lines(fetch_list(include_name)), 0, root_list)
+                )
                 continue
-
-            parsed = _parse_domain_record(line)
-            if parsed is None:
-                continue
-            kind, domain = parsed
-            key = (kind, domain.casefold())
-            if key in seen:
-                continue
-            seen.add(key)
-            emitted.append(SnapshotEntry(kind, domain, root_list))
-
-        visiting.remove(list_name)
-
-    for root in root_lists:
-        load(root, root)
+            emit_record(line, root_list)
     return tuple(emitted)
 
 
