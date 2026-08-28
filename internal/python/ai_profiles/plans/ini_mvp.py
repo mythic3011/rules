@@ -193,10 +193,3 @@ def render_ini_mvp_rules(records: object) -> list[str]:
         else f"ruleset={record['target']},[]GEOSITE,{record['value']}"
         for record in validate_ini_mvp_rules(records, "render")
     ]
-
-def render_ini_mvp_groups(records: object) -> list[str]:
-    lines: list[str] = []
-    for group in validate_ini_mvp_groups(records):
-        fields = [f"[]{candidate['value']}" if candidate["kind"] == "group-ref" else str(candidate["value"]) for candidate in cast(list[dict[str, object]], group["candidates"])]
-        lines.append(f"custom_proxy_group={group['name']}`select`" + "`".join(fields))
-    return lines
