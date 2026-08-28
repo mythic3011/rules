@@ -49,7 +49,6 @@ class SubconverterSectionsTest(unittest.TestCase):
         )
 
     def test_legacy_plan_views_are_derived_from_sections(self) -> None:
-        self.assertIs(self.plan.foundation_rules, self.plan.section("foundation-rules").rules)
         self.assertIs(self.plan.service_selectors, self.plan.section("service-selectors").selectors)
         self.assertEqual(
             self.plan.companion_rule_clusters,

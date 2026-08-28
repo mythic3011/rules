@@ -80,8 +80,9 @@ class ProfileRoutingCatalogTest(unittest.TestCase):
             include_process_rules=False,
             catalog=self.catalog,
         )
+        foundation_rules_section = plan._rules_section("foundation-rules")
         self.assertEqual(
-            [(rule.kind, rule.value, rule.target, rule.options) for rule in plan.foundation_rules],
+            [(rule.kind, rule.value, rule.target, rule.options) for rule in foundation_rules_section.rules],
             [
                 ("geosite", "private", self.catalog.group("direct"), ()),
                 ("geoip", "private", self.catalog.group("direct"), ("no-resolve",)),
