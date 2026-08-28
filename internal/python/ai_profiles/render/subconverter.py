@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from ..catalog import load_catalog
 from ..common import zh_hk
 from ..compiler import compile_subconverter_plan
 from ..models import (
@@ -17,37 +16,6 @@ from ..models import (
 )
 from ..plans.ini_mvp import load_ini_mvp_plan
 from ..settings import ENABLE_PROCESS_RULES, REPO_URL
-
-
-def ini_group_candidates(groups: list[str]) -> str:
-    return "`".join(f"[]{group}" for group in groups)
-
-
-def render_ini_manual_group() -> str:
-    catalog = load_catalog()
-    candidates = ini_group_candidates(
-        [
-            catalog.group("auto"),
-            catalog.group("direct"),
-            *catalog.all_region_groups,
-            catalog.group("reject"),
-        ]
-    )
-    return (
-        f"custom_proxy_group={catalog.group('manual')}"
-        f"`select`{candidates}`{catalog.ai_pool_filter}"
-    )
-
-
-def render_ini_global_auto_group() -> str:
-    catalog = load_catalog()
-    candidates = ini_group_candidates(
-        [*catalog.all_region_groups, catalog.group("reject")]
-    )
-    return (
-        f"custom_proxy_group={catalog.group('auto')}"
-        f"`fallback`{candidates}`https://cp.cloudflare.com/generate_204`300,,50"
-    )
 
 
 def ini_banner(title: str, subtitle: str | None = None) -> list[str]:

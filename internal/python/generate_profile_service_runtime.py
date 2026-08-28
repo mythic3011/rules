@@ -115,8 +115,9 @@ def _section(value):
 
 def build_runtime_data() -> dict[str, object]:
     catalog = load_catalog()
+    ini_mvp_plan = load_ini_mvp_plan()
     plan = compile_subconverter_plan(
-        load_ini_mvp_plan(),
+        ini_mvp_plan,
         include_process_rules=False,
         catalog=catalog,
     )
@@ -141,7 +142,7 @@ def build_runtime_data() -> dict[str, object]:
     for name, spec in parity_specs.items():
         rendered = _render_ini(
             compile_subconverter_plan(
-                load_ini_mvp_plan(),
+                ini_mvp_plan,
                 include_process_rules=False,
                 catalog=catalog,
                 profile_spec=spec,

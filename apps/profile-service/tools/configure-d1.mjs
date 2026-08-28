@@ -1,3 +1,4 @@
+import { randomInt } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -23,7 +24,7 @@ config.d1_databases = [
     migrations_dir: "./migrations",
   },
 ];
-const randomNamespace = String(100000 + Math.floor(Math.random() * 1900000000));
+const randomNamespace = randomInt(100000, 1900100000).toString();
 config.ratelimits = [
   {
     name: "PROFILE_WRITE_LIMITER",

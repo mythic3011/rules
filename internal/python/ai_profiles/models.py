@@ -453,24 +453,8 @@ class SubconverterPlan:
 
     # Compatibility views for pre-P13 callers. New code should consume sections.
     @property
-    def foundation_rules(self) -> tuple[IniRule, ...]:
-        return self._rules_section("foundation-rules").rules
-
-    @property
-    def before_legacy(self) -> tuple[IniRule, ...]:
-        return self._rules_section("legacy-before").rules
-
-    @property
     def service_rule_clusters(self) -> tuple[IniRuleCluster, ...]:
         return self._clusters_section("service-rule-clusters").clusters
-
-    @property
-    def after_legacy_head(self) -> tuple[IniRule, ...]:
-        return self._rules_section("legacy-after-head").rules
-
-    @property
-    def after_legacy_tail(self) -> tuple[IniRule, ...]:
-        return self._rules_section("legacy-after-tail").rules
 
     @property
     def companion_rule_clusters(self) -> tuple[IniRuleCluster, ...]:

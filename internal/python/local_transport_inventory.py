@@ -101,20 +101,6 @@ class MaterializedProxy:
     password: str | None = None
     udp: bool | None = None
 
-    def as_mapping(self) -> dict[str, object]:
-        value: dict[str, object] = {
-            "name": self.name,
-            "type": self.type,
-            "server": self.server,
-            "port": self.port,
-        }
-        if self.username is not None:
-            value["username"] = self.username
-            value["password"] = self.password
-        if self.udp is not None:
-            value["udp"] = self.udp
-        return value
-
 
 @dataclass(frozen=True)
 class RedactedTransportExplanation:
@@ -136,9 +122,14 @@ class CompiledTransportPlan:
 
 
 def _read_yaml(path: Path) -> object:
+    assert issubclass(_UniqueKeyLoader, yaml.SafeLoader), "_UniqueKeyLoader must derive from SafeLoader"
     try:
         with path.open("r", encoding="utf-8") as stream:
-            return yaml.load(stream, Loader=_UniqueKeyLoader)
+            loader = _UniqueKeyLoader(stream)
+            try:
+                return loader.get_single_data()
+            finally:
+                loader.dispose()
     except OSError as exc:
         raise TransportConfigError(f"cannot read configuration: {path}") from exc
     except yaml.YAMLError as exc:

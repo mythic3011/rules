@@ -4,8 +4,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import yaml
+
 from internal.python.local_transport_inventory import (
     TransportConfigError,
+    _UniqueKeyLoader,
     compile_service_transport_plan,
     load_service_candidate_policy,
     load_transport_inventory,
@@ -56,6 +59,9 @@ class LocalTransportInventoryTests(unittest.TestCase):
             load_transport_inventory(inventory_path, SERVICES, REGIONS),
             load_service_candidate_policy(policy_path, SERVICES, REGIONS),
         )
+
+    def test_unique_key_loader_inherits_safe_loader(self) -> None:
+        self.assertTrue(issubclass(_UniqueKeyLoader, yaml.SafeLoader))
 
     def test_duplicate_transport_key_fails(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

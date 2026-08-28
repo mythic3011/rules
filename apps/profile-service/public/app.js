@@ -60,7 +60,7 @@ function renderPreferred() {
   state.preferred = state.preferred.filter((id) => active.has(id));
   const byId = new Map(state.catalog.regions.map((region) => [region.id, region]));
   const list = $("prefer-list");
-  list.innerHTML = "";
+  list.replaceChildren();
   state.preferred.forEach((id, index) => {
     const li = document.createElement("li");
     li.textContent = byId.get(id)?.name ?? id;
@@ -89,7 +89,7 @@ function renderPreferred() {
   });
 
   const picker = $("prefer-picker");
-  picker.innerHTML = "";
+  picker.replaceChildren();
   for (const region of activeRoutableRegions()) {
     if (state.preferred.includes(region.id)) continue;
     picker.add(new Option(region.name, region.id));
@@ -101,7 +101,7 @@ function renderRegions() {
   const mode = regionMode();
   const container = $("region-list");
   const previous = new Set(selectedRegions());
-  container.innerHTML = "";
+  container.replaceChildren();
   for (const region of state.catalog.regions) {
     if (mode === "only" && !region.routable) continue;
     const label = document.createElement("label");

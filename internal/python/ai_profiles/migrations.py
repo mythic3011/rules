@@ -56,6 +56,3 @@ def migrate_custom_direct_supporting_rules() -> None:
     )
 
 
-def ensure_custom_direct_supporting_rules() -> None:
-    """Deprecated compatibility alias; use explicit migration CLI for new code."""
-    migrate_custom_direct_supporting_rules()

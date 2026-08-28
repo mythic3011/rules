@@ -132,18 +132,39 @@ def load_yaml(path: Path) -> dict[str, object]:
     return data
 
 
-def find_group(proxy_groups: list[dict[str, object]], name: str) -> dict[str, object]:
+def find_group(
+    proxy_groups: list[dict[str, object]] | dict[str, dict[str, object]],
+    name: str,
+) -> dict[str, object]:
+    if isinstance(proxy_groups, dict):
+        group = proxy_groups.get(name)
+        if group is not None:
+            return group
+        raise ValidationError(f"Missing proxy group: {name}")
     for group in proxy_groups:
         if group.get("name") == name:
             return group
     raise ValidationError(f"Missing proxy group: {name}")
 
 
-def rule_index(rules: list[str], prefix: str) -> int:
+def rule_indices(rules: list[str], prefixes: list[str]) -> list[int]:
+    prefix_to_index: dict[str, int] = {}
+    remaining = set(prefixes)
     for index, rule in enumerate(rules):
-        if rule.startswith(prefix):
-            return index
-    raise ValidationError(f"Missing rule with prefix: {prefix}")
+        matched = [prefix for prefix in remaining if rule.startswith(prefix)]
+        for prefix in matched:
+            prefix_to_index[prefix] = index
+            remaining.remove(prefix)
+        if not remaining:
+            break
+    for prefix in prefixes:
+        if prefix not in prefix_to_index:
+            raise ValidationError(f"Missing rule with prefix: {prefix}")
+    return [prefix_to_index[p] for p in prefixes]
+
+
+def rule_index(rules: list[str], prefix: str) -> int:
+    return rule_indices(rules, [prefix])[0]
 
 
 def assert_provider_urls(
@@ -194,7 +215,10 @@ def validate_manual_group(group: dict[str, object], known_group_names: set[str],
     ensure(isinstance(use_entries, list) and "provider1" in use_entries, "Manual group must expose provider1 nodes via use:")
 
 
-def validate_service_groups(proxy_groups: list[dict[str, object]], strict: bool) -> None:
+def validate_service_groups(
+    proxy_groups: list[dict[str, object]] | dict[str, dict[str, object]],
+    strict: bool,
+) -> None:
     for group_key in ("chatgpt", "copilot", "claude", "gemini", "notebooklm", "perplexity", "grok", "poe"):
         name = GROUP[group_key]
         group = find_group(proxy_groups, name)
@@ -209,7 +233,10 @@ def validate_service_groups(proxy_groups: list[dict[str, object]], strict: bool)
             ensure(GROUP["direct"] not in proxies, f"{GROUP[group_key]} must not include DIRECT in relaxed profile")
 
 
-def validate_fallback_group(proxy_groups: list[dict[str, object]], strict: bool) -> None:
+def validate_fallback_group(
+    proxy_groups: list[dict[str, object]] | dict[str, dict[str, object]],
+    strict: bool,
+) -> None:
     group = find_group(proxy_groups, GROUP["fallback"])
     proxies = group.get("proxies") or []
     ensure(isinstance(proxies, list), "Fallback group proxies must be a list")
@@ -218,38 +245,61 @@ def validate_fallback_group(proxy_groups: list[dict[str, object]], strict: bool)
 
 
 def validate_ai_identity_rules(rules: list[str]) -> list[int]:
-    indices: list[int] = []
+    prefixes: list[str] = []
     for entry in compile_ai_routing_rules():
         ensure(entry.target is not None, f"AI routing entry {entry.kind},{entry.value} has no target")
-        prefix = f"{entry.kind},{entry.value},{entry.target}"
-        indices.append(rule_index(rules, prefix))
+        prefixes.append(f"{entry.kind},{entry.value},{entry.target}")
+    indices = rule_indices(rules, prefixes)
     ensure(indices == sorted(indices), "AI service identity/aggregate rules are out of compiler order")
     return indices
 
 
 def validate_yaml_rule_order(rules: list[str], strict: bool) -> None:
-    private_site = rule_index(rules, "GEOSITE,private,")
-    private_ip = rule_index(rules, "GEOIP,private,")
     ai_indices = validate_ai_identity_rules(rules)
-    match = rule_index(rules, "MATCH,")
-    ensure(private_site < private_ip < ai_indices[0], "Private rules must precede AI identity rules")
     if strict:
+        private_site, private_ip, match = rule_indices(rules, ["GEOSITE,private,", "GEOIP,private,", "MATCH,"])
+        ensure(private_site < private_ip < ai_indices[0], "Private rules must precede AI identity rules")
         forbidden = ("SSH_", "Gaming_Direct", "Custom_Direct", "Custom_Proxy", "GEOIP,HK,")
         ensure(not any(any(token in rule for token in forbidden) for rule in rules), "Strict rules must omit relaxed-only rule providers")
         ensure(ai_indices[-1] < match, "Strict AI guards must precede MATCH")
         return
-    ssh_direct = rule_index(rules, "RULE-SET,SSH_Direct_Classical,")
-    ssh_proxy = rule_index(rules, "RULE-SET,SSH_Proxy_Classical,")
-    gaming = rule_index(rules, "RULE-SET,Gaming_Direct_Classical,")
-    custom_direct_domain = rule_index(rules, "RULE-SET,Custom_Direct_Domain,")
-    custom_direct_ip = rule_index(rules, "RULE-SET,Custom_Direct_Classical_IP,")
-    custom_proxy_domain = rule_index(rules, "RULE-SET,Custom_Proxy_Domain,")
-    custom_proxy_ip = rule_index(rules, "RULE-SET,Custom_Proxy_Classical_IP,")
-    geoip_hk = rule_index(rules, "GEOIP,HK,")
+
+    prefixes = [
+        "GEOSITE,private,",
+        "GEOIP,private,",
+        "MATCH,",
+        "RULE-SET,SSH_Direct_Classical,",
+        "RULE-SET,SSH_Proxy_Classical,",
+        "RULE-SET,Gaming_Direct_Classical,",
+        "RULE-SET,Custom_Direct_Domain,",
+        "RULE-SET,Custom_Direct_Classical_IP,",
+        "RULE-SET,Custom_Proxy_Domain,",
+        "RULE-SET,Custom_Proxy_Classical_IP,",
+        "GEOIP,HK,",
+    ]
+    if ENABLE_PROCESS_RULES:
+        prefixes.extend([f"RULE-SET,{key}," for key in PROCESS_PROVIDER_KEYS])
+
+    found_indices = rule_indices(rules, prefixes)
+    (
+        private_site,
+        private_ip,
+        match,
+        ssh_direct,
+        ssh_proxy,
+        gaming,
+        custom_direct_domain,
+        custom_direct_ip,
+        custom_proxy_domain,
+        custom_proxy_ip,
+        geoip_hk,
+    ) = found_indices[:11]
+
+    ensure(private_site < private_ip < ai_indices[0], "Private rules must precede AI identity rules")
     ensure(ai_indices[-1] < ssh_direct < ssh_proxy < gaming, "AI rules must precede relaxed SSH and gaming rules")
     ensure(gaming < custom_direct_domain < custom_direct_ip < custom_proxy_domain < custom_proxy_ip < geoip_hk < match, "Relaxed custom rule order is wrong")
     if ENABLE_PROCESS_RULES:
-        process_indices = [rule_index(rules, f"RULE-SET,{key},") for key in PROCESS_PROVIDER_KEYS]
+        process_indices = found_indices[11:]
         ensure(all(gaming < index < custom_direct_domain for index in process_indices), "Process rules must sit after Gaming and before custom rules")
 
 
@@ -291,10 +341,15 @@ def validate_yaml_profile(path: Path, strict: bool) -> None:
             ensure(group.get("url") == "https://cp.cloudflare.com/generate_204", f"{group.get('name')} missing explicit health-check URL")
             ensure(group.get("interval") == 300, f"{group.get('name')} missing explicit interval 300")
 
-    known_group_names = {str(group.get("name")) for group in proxy_groups}
-    validate_manual_group(find_group(proxy_groups, GROUP["manual"]), known_group_names, allow_direct=not strict)
-    validate_service_groups(proxy_groups, strict=strict)
-    validate_fallback_group(proxy_groups, strict=strict)
+    proxy_groups_map = {
+        str(group.get("name")): group
+        for group in proxy_groups
+        if isinstance(group, dict)
+    }
+    known_group_names = set(proxy_groups_map.keys())
+    validate_manual_group(find_group(proxy_groups_map, GROUP["manual"]), known_group_names, allow_direct=not strict)
+    validate_service_groups(proxy_groups_map, strict=strict)
+    validate_fallback_group(proxy_groups_map, strict=strict)
     expected_match = f"MATCH,{GROUP['reject'] if strict else GROUP['fallback']}"
     ensure(expected_match in rules, f"{path.name} missing expected MATCH rule {expected_match}")
     ensure("MATCH,DIRECT" not in rules, f"{path.name} must not contain MATCH,DIRECT")
