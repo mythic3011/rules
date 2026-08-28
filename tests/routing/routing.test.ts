@@ -1105,6 +1105,25 @@ test("Mihomo projection rejects missing providers and the checked fragment stays
       error instanceof MihomoProjectionError &&
       error.issues.some((entry) => entry.code === "missing-reference"),
   );
+  const invalidRawUrls = [
+    "invalid_url",
+    "http://raw.githubusercontent.com/VPSDance/ai-proxy-rules",
+    "https://user:pass@raw.githubusercontent.com/VPSDance/ai-proxy-rules",
+    "https://raw.githubusercontent.com/VPSDance/ai-proxy-rules?query=1",
+    "https://raw.githubusercontent.com/VPSDance/ai-proxy-rules#fragment",
+  ] as const;
+  for (const invalidRawUrl of invalidRawUrls) {
+    const invalidUrlProjection = structuredClone(projection);
+    const source = invalidUrlProjection.sources.vpsdance;
+    if (source === undefined) throw new Error("expected vpsdance source");
+    source.rawBaseUrl = invalidRawUrl;
+    assert.throws(
+      () => compileMihomoFragment(config, invalidUrlProjection, "hk"),
+      (error: unknown) =>
+        error instanceof MihomoProjectionError &&
+        error.issues.some((entry) => entry.path.join(".") === "sources.vpsdance.rawBaseUrl"),
+    );
+  }
   const regionMismatch = structuredClone(projection);
   const us = regionMismatch.regions.us;
   assert.ok(us !== undefined);
