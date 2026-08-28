@@ -50,6 +50,3 @@ def render_comment_rule_file(body_lines: list[str]) -> str:
             *body_lines,
         ]
     )
-
-def render_custom_comment_rule_file(comment_lines: list[str]) -> str:
-    return "\n".join(comment_lines)
