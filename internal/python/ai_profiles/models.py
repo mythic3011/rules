@@ -469,10 +469,6 @@ class SubconverterPlan:
         return self._rules_section("legacy-after-head").rules
 
     @property
-    def after_legacy_tail(self) -> tuple[IniRule, ...]:
-        return self._rules_section("legacy-after-tail").rules
-
-    @property
     def companion_rule_clusters(self) -> tuple[IniRuleCluster, ...]:
         return tuple(
             cluster
