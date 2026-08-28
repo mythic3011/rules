@@ -457,10 +457,6 @@ class SubconverterPlan:
         return self._rules_section("foundation-rules").rules
 
     @property
-    def before_legacy(self) -> tuple[IniRule, ...]:
-        return self._rules_section("legacy-before").rules
-
-    @property
     def service_rule_clusters(self) -> tuple[IniRuleCluster, ...]:
         return self._clusters_section("service-rule-clusters").clusters
 
