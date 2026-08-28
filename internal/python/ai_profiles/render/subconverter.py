@@ -39,17 +39,6 @@ def render_ini_manual_group() -> str:
     )
 
 
-def render_ini_global_auto_group() -> str:
-    catalog = load_catalog()
-    candidates = ini_group_candidates(
-        [*catalog.all_region_groups, catalog.group("reject")]
-    )
-    return (
-        f"custom_proxy_group={catalog.group('auto')}"
-        f"`fallback`{candidates}`https://cp.cloudflare.com/generate_204`300,,50"
-    )
-
-
 def ini_banner(title: str, subtitle: str | None = None) -> list[str]:
     """Section banner: rule line, title, optional subtitle, rule, then one blank."""
     bar = ";" + "=" * 58
