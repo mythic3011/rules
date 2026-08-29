@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 1,
+  "doctor": {
+    "paths": [
+      "catalog.json",
+      "cfg",
+      "rule",
+      "dns",
+      "apps/profile-service",
+      "internal/config",
+      "internal/python",
+      "tests",
+      "tools",
+      "shell"
+    ],
+    "tools": ["python3", "node", "npm"]
+  },
+  "compilePaths": ["internal/python", "tests", "tools"],
+  "pipelines": {
+    "check": [
+      {
+        "argv": ["{python}", "tools/shbundle.py", "check"]
+      },
+      {
+        "argv": [
+          "{python}",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_*.py"
+        ]
+      },
+      {
+        "kind": "node-test-glob",
+        "glob": "apps/profile-service/test/*.test.mjs",
+        "requiredWhich": "node",
+        "missingMessage": "node is required for the zero-dependency profile-service contract suite"
+      }
+    ],
+    "checkNode": [
+      { "argv": ["npm", "run", "validate:routing"] },
+      { "argv": ["npm", "run", "typecheck"] },
+      { "argv": ["npm", "run", "test:routing"] }
+    ],
+    "generate": [
+      { "argv": ["{python}", "internal/python/generate_service_intake_form.py"] },
+      { "argv": ["{python}", "internal/python/generate_ai_profiles.py"] },
+      {
+        "argv": [
+          "{python}",
+          "internal/python/generate_openclash_guard_runtime.py"
+        ]
+      },
+      { "argv": ["{python}", "tools/shbundle.py", "check"] },
+      { "argv": ["{python}", "tools/shbundle.py", "build", "--all"] },
+      {
+        "when": {
+          "which": "npm",
+          "exists": "node_modules/.bin/tsx"
+        },
+        "otherwise": "skip",
+        "skipMessage": "note: Node dependencies are not installed; TypeScript-owned generated artifacts were skipped",
+        "steps": [
+          { "argv": ["npm", "run", "export:routing-artifacts"] },
+          { "argv": ["npm", "run", "export:shadow-profile"] }
+        ]
+      },
+      {
+        "argv": [
+          "{python}",
+          "internal/python/generate_profile_service_runtime.py"
+        ]
+      }
+    ],
+    "refresh": [
+      {
+        "argv": [
+          "{python}",
+          "internal/python/generate_ai_profiles.py",
+          "--refresh-upstream-sources"
+        ]
+      },
+      {
+        "argv": [
+          "{python}",
+          "internal/python/generate_ai_profiles.py",
+          "--refresh-upstream-hosts"
+        ]
+      },
+      { "argv": ["{python}", "internal/python/generate_ai_profiles.py"] },
+      {
+        "argv": [
+          "{python}",
+          "internal/python/generate_openclash_guard_runtime.py"
+        ]
+      },
+      { "argv": ["{python}", "internal/python/generate_adblock_outputs.py"] },
+      { "argv": ["{python}", "tools/shbundle.py", "build", "--all"] },
+      {
+        "when": {
+          "which": "npm",
+          "exists": "node_modules/.bin/tsx"
+        },
+        "otherwise": "skip",
+        "skipMessage": "note: Node dependencies are not installed; TypeScript-owned generated artifacts were skipped",
+        "steps": [
+          { "argv": ["npm", "run", "export:routing-artifacts"] },
+          { "argv": ["npm", "run", "export:shadow-profile"] }
+        ]
+      },
+      {
+        "argv": [
+          "{python}",
+          "internal/python/generate_profile_service_runtime.py"
+        ]
+      }
+    ]
+  }
+}

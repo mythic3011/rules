@@ -9,9 +9,27 @@ import subprocess
 import sys
 import urllib.request
 from pathlib import Path
+from typing import Any, Mapping
 
 ROOT = Path(__file__).resolve().parents[2]
 CATALOG_PATH = ROOT / "catalog.json"
+RULESCTL_CONFIG_PATH = ROOT / "internal" / "config" / "rulesctl.json"
+
+ALLOWED_TOP_KEYS = frozenset({"schemaVersion", "doctor", "compilePaths", "pipelines"})
+ALLOWED_STEP_KEYS = frozenset(
+    {
+        "argv",
+        "kind",
+        "glob",
+        "requiredWhich",
+        "missingMessage",
+        "when",
+        "otherwise",
+        "skipMessage",
+        "steps",
+    }
+)
+PIPELINE_NAMES = ("check", "checkNode", "generate", "refresh")
 
 
 def load_catalog() -> dict:
@@ -64,13 +82,146 @@ def run(command: list[str]) -> None:
     subprocess.run(command, cwd=ROOT, check=True)
 
 
+def _require_object(value: Any, label: str) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise SystemExit(f"invalid rulesctl config: {label} must be an object")
+    return value
+
+
+def _require_string_list(value: Any, label: str) -> list[str]:
+    if not isinstance(value, list) or not all(isinstance(item, str) and item for item in value):
+        raise SystemExit(f"invalid rulesctl config: {label} must be an array of strings")
+    return list(value)
+
+
+def _unknown_keys(value: Mapping[str, Any], allowed: frozenset[str], label: str) -> None:
+    extra = sorted(set(value) - allowed)
+    if extra:
+        raise SystemExit(f"invalid rulesctl config: {label} unknown keys: {', '.join(extra)}")
+
+
+def load_rulesctl_config(path: Path | None = None) -> dict[str, Any]:
+    config_path = path or RULESCTL_CONFIG_PATH
+    try:
+        raw = json.loads(config_path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise SystemExit(f"invalid rulesctl config: cannot read {config_path}: {exc}") from exc
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"invalid rulesctl config: {exc}") from exc
+    data = _require_object(raw, "root")
+    _unknown_keys(data, ALLOWED_TOP_KEYS, "root")
+    if data.get("schemaVersion") != 1:
+        raise SystemExit("invalid rulesctl config: schemaVersion must be 1")
+    doctor = _require_object(data.get("doctor", {}), "doctor")
+    _require_string_list(doctor.get("paths", []), "doctor.paths")
+    _require_string_list(doctor.get("tools", []), "doctor.tools")
+    _require_string_list(data.get("compilePaths", []), "compilePaths")
+    pipelines = _require_object(data.get("pipelines", {}), "pipelines")
+    for name in PIPELINE_NAMES:
+        if name not in pipelines:
+            raise SystemExit(f"invalid rulesctl config: missing pipelines.{name}")
+        _validate_pipeline(pipelines[name], f"pipelines.{name}")
+    extra = sorted(set(pipelines) - set(PIPELINE_NAMES))
+    if extra:
+        raise SystemExit(f"invalid rulesctl config: unknown pipelines: {', '.join(extra)}")
+    return data
+
+
+def _validate_pipeline(value: Any, label: str) -> None:
+    if not isinstance(value, list):
+        raise SystemExit(f"invalid rulesctl config: {label} must be an array")
+    for index, step in enumerate(value):
+        _validate_step(step, f"{label}[{index}]")
+
+
+def _validate_step(value: Any, label: str) -> None:
+    step = _require_object(value, label)
+    _unknown_keys(step, ALLOWED_STEP_KEYS, label)
+    if "steps" in step:
+        if step.get("otherwise") not in (None, "skip"):
+            raise SystemExit(f"invalid rulesctl config: {label}.otherwise must be skip")
+        _validate_pipeline(step["steps"], f"{label}.steps")
+        return
+    kind = step.get("kind", "argv")
+    if kind == "argv":
+        argv = step.get("argv")
+        if not isinstance(argv, list) or not argv or not all(isinstance(item, str) and item for item in argv):
+            raise SystemExit(f"invalid rulesctl config: {label}.argv must be a non-empty string array")
+        return
+    if kind == "node-test-glob":
+        if not isinstance(step.get("glob"), str) or not step["glob"]:
+            raise SystemExit(f"invalid rulesctl config: {label}.glob must be a string")
+        return
+    raise SystemExit(f"invalid rulesctl config: {label}.kind {kind!r} is not supported")
+
+
+def _expand_argv(argv: list[str]) -> list[str]:
+    mapping = {"{python}": sys.executable}
+    return [mapping.get(item, item) for item in argv]
+
+
+def _when_matches(condition: Mapping[str, Any] | None, root: Path) -> bool:
+    if not condition:
+        return True
+    required_which = condition.get("which")
+    if required_which and not shutil.which(str(required_which)):
+        return False
+    required_path = condition.get("exists")
+    if required_path and not (root / str(required_path)).exists():
+        return False
+    return True
+
+
+def _run_node_test_glob(step: Mapping[str, Any], root: Path) -> None:
+    tool = str(step.get("requiredWhich") or "node")
+    if not shutil.which(tool):
+        raise SystemExit(str(step.get("missingMessage") or f"{tool} is required"))
+    matches = sorted(path.relative_to(root).as_posix() for path in root.glob(str(step["glob"])))
+    if not matches:
+        raise SystemExit(f"no files matched {step['glob']}")
+    run([tool, "--test", *matches])
+
+
+def run_pipeline(
+    config: Mapping[str, Any],
+    name: str,
+    *,
+    root: Path | None = None,
+) -> list[str]:
+    root = root or ROOT
+    pipeline = config["pipelines"][name]
+    notes: list[str] = []
+
+    def walk(steps: list[Any]) -> None:
+        for step in steps:
+            if "steps" in step:
+                if _when_matches(step.get("when"), root):
+                    walk(step["steps"])
+                    continue
+                if step.get("otherwise") == "skip":
+                    message = str(step.get("skipMessage") or f"skipped {name} optional steps")
+                    notes.append(message)
+                    continue
+                raise SystemExit(f"rulesctl pipeline {name} condition failed")
+            kind = step.get("kind", "argv")
+            if kind == "node-test-glob":
+                _run_node_test_glob(step, root)
+                continue
+            run(_expand_argv(list(step["argv"])))
+
+    walk(pipeline)
+    return notes
+
+
 def cmd_doctor(_: argparse.Namespace) -> None:
+    config = load_rulesctl_config()
+    doctor = config["doctor"]
     failures = 0
-    for path in ("catalog.json", "cfg", "rule", "dns", "apps/profile-service", "internal/config", "internal/python", "tests"):
+    for path in doctor["paths"]:
         ok = (ROOT / path).exists()
         print(f"{'OK' if ok else 'FAIL':<4} {path}")
         failures += not ok
-    for tool in ("python3", "node", "npm"):
+    for tool in doctor["tools"]:
         resolved = shutil.which(tool)
         print(f"{'OK' if resolved else 'MISS':<4} {tool}{' -> ' + resolved if resolved else ''}")
     if failures:
@@ -78,51 +229,27 @@ def cmd_doctor(_: argparse.Namespace) -> None:
 
 
 def cmd_check(args: argparse.Namespace) -> None:
-    run([sys.executable, "-m", "compileall", "-q", "internal/python", "tests", "tools"])
-    run([sys.executable, "tools/shbundle.py", "check"])
-    run([sys.executable, "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py"])
-    if not shutil.which("node"):
-        raise SystemExit("node is required for the zero-dependency profile-service contract suite")
-    profile_service_tests = [
-        str(path.relative_to(ROOT))
-        for path in sorted((ROOT / "apps/profile-service/test").glob("*.test.mjs"))
-    ]
-    run(["node", "--test", *profile_service_tests])
+    config = load_rulesctl_config()
+    run([sys.executable, "-m", "compileall", "-q", *config["compilePaths"]])
+    run_pipeline(config, "check")
     if args.node:
         if not shutil.which("npm"):
             raise SystemExit("npm is required for --node")
-        run(["npm", "run", "validate:routing"])
-        run(["npm", "run", "typecheck"])
-        run(["npm", "run", "test:routing"])
+        run_pipeline(config, "checkNode")
 
 
 def cmd_generate(_: argparse.Namespace) -> None:
-    run([sys.executable, "internal/python/generate_service_intake_form.py"])
-    run([sys.executable, "internal/python/generate_ai_profiles.py"])
-    run([sys.executable, "internal/python/generate_openclash_guard_runtime.py"])
-    run([sys.executable, "tools/shbundle.py", "check"])
-    run([sys.executable, "tools/shbundle.py", "build", "--all"])
-    if shutil.which("npm") and (ROOT / "node_modules" / ".bin" / "tsx").exists():
-        run(["npm", "run", "export:routing-artifacts"])
-        run(["npm", "run", "export:shadow-profile"])
-    else:
-        print("note: Node dependencies are not installed; TypeScript-owned generated artifacts were skipped", file=sys.stderr)
-    run([sys.executable, "internal/python/generate_profile_service_runtime.py"])
+    config = load_rulesctl_config()
+    for note in run_pipeline(config, "generate"):
+        print(note, file=sys.stderr)
 
 
 def cmd_refresh(args: argparse.Namespace) -> None:
     if not args.yes:
         raise SystemExit("refresh moves upstream pins and fetches network data; rerun with --yes")
-    run([sys.executable, "internal/python/generate_ai_profiles.py", "--refresh-upstream-sources"])
-    run([sys.executable, "internal/python/generate_ai_profiles.py", "--refresh-upstream-hosts"])
-    run([sys.executable, "internal/python/generate_ai_profiles.py"])
-    run([sys.executable, "internal/python/generate_openclash_guard_runtime.py"])
-    run([sys.executable, "internal/python/generate_adblock_outputs.py"])
-    run([sys.executable, "tools/shbundle.py", "build", "--all"])
-    if shutil.which("npm") and (ROOT / "node_modules" / ".bin" / "tsx").exists():
-        run(["npm", "run", "export:routing-artifacts"])
-        run(["npm", "run", "export:shadow-profile"])
-    run([sys.executable, "internal/python/generate_profile_service_runtime.py"])
+    config = load_rulesctl_config()
+    for note in run_pipeline(config, "refresh"):
+        print(note, file=sys.stderr)
 
 
 def _csv_regions(value: str | None) -> tuple[str, ...]:
@@ -146,6 +273,7 @@ def cmd_profile_render(args: argparse.Namespace) -> None:
         print(args.output)
     else:
         sys.stdout.write(rendered)
+
 
 def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="rulesctl", description="Access and maintain mythic3011/rules")
