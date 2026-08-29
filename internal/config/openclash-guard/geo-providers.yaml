@@ -3,6 +3,7 @@ geoProviders:
   - id: ipwhois
     url: https://ipwho.is/
     timeoutSeconds: 3
+    cacheTtlSeconds: 300
     fields:
       ip: ip
       country: country_code
@@ -10,6 +11,7 @@ geoProviders:
   - id: ipapi-co
     url: https://ipapi.co/json/
     timeoutSeconds: 3
+    cacheTtlSeconds: 300
     fields:
       ip: ip
       country: country_code

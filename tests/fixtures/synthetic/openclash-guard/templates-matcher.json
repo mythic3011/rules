@@ -1,0 +1,167 @@
+{
+  "schemaVersion": 1,
+  "templates": {
+    "match-eq": {
+      "title": "EQ",
+      "description": "backend equals adguardhome",
+      "when": {
+        "path": "dns.backend",
+        "eq": "adguardhome"
+      },
+      "recommendation": {
+        "severity": "info",
+        "confidence": "high",
+        "reason": "eq matched",
+        "risk": "none"
+      },
+      "apply": {
+        "guard.dns_kill_switch": false
+      }
+    },
+    "match-all": {
+      "title": "ALL",
+      "description": "installed and gaming clients",
+      "when": {
+        "all": [
+          {
+            "path": "openclash.installed",
+            "eq": true
+          },
+          {
+            "path": "gaming.clients.count",
+            "gte": 1
+          }
+        ]
+      },
+      "recommendation": {
+        "severity": "high",
+        "confidence": "high",
+        "reason": "all matched",
+        "risk": "none"
+      },
+      "apply": {
+        "gaming.blanket_udp_bypass": false
+      }
+    },
+    "match-any": {
+      "title": "ANY",
+      "description": "backend is adguardhome or none",
+      "when": {
+        "any": [
+          {
+            "path": "dns.backend",
+            "eq": "adguardhome"
+          },
+          {
+            "path": "dns.backend",
+            "eq": "none"
+          }
+        ]
+      },
+      "recommendation": {
+        "severity": "info",
+        "confidence": "medium",
+        "reason": "any matched",
+        "risk": "none"
+      },
+      "apply": {
+        "dns.ownership": "preserve"
+      }
+    },
+    "match-not": {
+      "title": "NOT",
+      "description": "openclash is not installed",
+      "when": {
+        "not": {
+          "path": "openclash.installed",
+          "eq": true
+        }
+      },
+      "recommendation": {
+        "severity": "medium",
+        "confidence": "high",
+        "reason": "not matched",
+        "risk": "none"
+      },
+      "apply": {
+        "mode": "manual"
+      }
+    },
+    "match-in": {
+      "title": "IN",
+      "description": "backend in list",
+      "when": {
+        "path": "dns.backend",
+        "in": ["adguardhome", "dnsmasq"]
+      },
+      "recommendation": {
+        "severity": "info",
+        "confidence": "high",
+        "reason": "in matched",
+        "risk": "none"
+      },
+      "apply": {
+        "policy.refresh": true
+      }
+    },
+    "match-contains": {
+      "title": "CONTAINS",
+      "description": "client list contains address",
+      "when": {
+        "path": "gaming.clients.items",
+        "contains": "10.0.0.11"
+      },
+      "recommendation": {
+        "severity": "high",
+        "confidence": "high",
+        "reason": "contains matched",
+        "risk": "none"
+      },
+      "apply": {
+        "gaming.protect_udp_443": true
+      }
+    },
+    "match-exists": {
+      "title": "EXISTS",
+      "description": "direct region exists",
+      "when": {
+        "path": "network.directRegion",
+        "exists": true
+      },
+      "recommendation": {
+        "severity": "info",
+        "confidence": "low",
+        "reason": "exists matched",
+        "risk": "none"
+      },
+      "apply": {
+        "guard.kill_switch": true
+      }
+    },
+    "match-ne-lte": {
+      "title": "NE LTE",
+      "description": "not healthy and count lte 0",
+      "when": {
+        "all": [
+          {
+            "path": "openclash.healthy",
+            "ne": true
+          },
+          {
+            "path": "gaming.clients.count",
+            "lte": 0
+          }
+        ]
+      },
+      "recommendation": {
+        "severity": "medium",
+        "confidence": "high",
+        "reason": "ne/lte matched",
+        "risk": "none"
+      },
+      "apply": {
+        "guard.kill_switch": true
+      }
+    }
+  }
+}

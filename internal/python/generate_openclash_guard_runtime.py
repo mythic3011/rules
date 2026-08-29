@@ -18,6 +18,7 @@ AI_ROUTING_DIR = ROOT / "internal" / "config" / "ai-routing"
 GUARD_CONFIG_DIR = ROOT / "internal" / "config" / "openclash-guard"
 SCHEMA_PATH = ROOT / "internal" / "schemas" / "openclash-guard-runtime.schema.json"
 OUTPUT_PATH = ROOT / "cfg" / "runtime" / "openclash-guard.json"
+TEMPLATES_OUTPUT_PATH = ROOT / "cfg" / "runtime" / "openclash-guard-templates.json"
 
 SCHEMA_VERSION = 1
 PROTECTED_UDP_PORT = 443
@@ -32,6 +33,67 @@ REGION_ROUTE_KINDS = frozenset({"region-auto", "region-stable"})
 KNOWN_ROUTE_KINDS = SKIP_ROUTE_KINDS | REGION_ROUTE_KINDS | frozenset({"pinned-egress"})
 QUIC_VALUES = frozenset({"proxy-or-reject", "allow", "reject"})
 FAIL_MODES = frozenset({"reject", "allow"})
+TEMPLATE_SEVERITIES = frozenset({"info", "medium", "high"})
+TEMPLATE_CONFIDENCES = frozenset({"low", "medium", "high"})
+MATCHER_OPS = frozenset({"eq", "ne", "in", "contains", "gte", "lte", "exists"})
+MATCHER_COMBINATORS = frozenset({"all", "any", "not"})
+KNOWN_ENV_PATHS = frozenset(
+    {
+        "openclash.installed",
+        "openclash.enabled",
+        "openclash.running",
+        "openclash.healthy",
+        "dns.backend",
+        "dns.dnsmasqEnabled",
+        "dns.dnsmasqRunning",
+        "dns.adguardhomeEnabled",
+        "dns.adguardhomeRunning",
+        "dns.domainSetBackend",
+        "network.ipv6",
+        "network.directRegion",
+        "proxy.healthy",
+        "proxy.region",
+        "gaming.clients.count",
+        "gaming.clients.items",
+        "gaming.blanketUdpBypassDetected",
+        "nft.available",
+    }
+)
+KNOWN_TEMPLATE_APPLY_KEYS = frozenset(
+    {
+        "guard.kill_switch",
+        "guard.dns_kill_switch",
+        "dns.ownership",
+        "gaming.blanket_udp_bypass",
+        "gaming.protect_udp_443",
+        "mode",
+        "policy.refresh",
+    }
+)
+SERVICE_FACT_KEYS = frozenset(
+    {
+        "allowedregions",
+        "allowedroutes",
+        "domainsuffixes",
+        "geosite",
+        "matchers",
+        "protectionclass",
+        "regions",
+        "routetargets",
+        "services",
+    }
+)
+APPLY_BOOL_KEYS = frozenset(
+    {
+        "guard.kill_switch",
+        "guard.dns_kill_switch",
+        "gaming.blanket_udp_bypass",
+        "gaming.protect_udp_443",
+        "policy.refresh",
+    }
+)
+APPLY_MODE_VALUES = frozenset({"auto", "strict", "manual"})
+DEFAULT_GEO_CACHE_TTL = 300
 
 
 class DuplicateKeyError(RuntimeError):
@@ -424,6 +486,12 @@ def compile_geo_providers(spec: object) -> list[dict[str, Any]]:
         timeout = _as_int(item.get("timeoutSeconds"), f"geoProviders[{index}].timeoutSeconds")
         if timeout < 1 or timeout > 60:
             raise RuntimeError(f"geo provider {provider_id} timeoutSeconds out of range")
+        if "cacheTtlSeconds" in item:
+            cache_ttl = _as_int(item.get("cacheTtlSeconds"), f"geoProviders[{index}].cacheTtlSeconds")
+        else:
+            cache_ttl = DEFAULT_GEO_CACHE_TTL
+        if cache_ttl < 1 or cache_ttl > 86400:
+            raise RuntimeError(f"geo provider {provider_id} cacheTtlSeconds out of range")
         fields = item.get("fields")
         if not _is_mapping(fields):
             raise RuntimeError(f"geo provider {provider_id} fields must be a mapping")
@@ -445,11 +513,209 @@ def compile_geo_providers(spec: object) -> list[dict[str, Any]]:
                 "id": provider_id,
                 "url": url,
                 "timeoutSeconds": timeout,
+                "cacheTtlSeconds": cache_ttl,
                 "fields": compiled_fields,
             }
         )
     providers.sort(key=lambda item: item["id"])
     return providers
+
+
+def _refuse_service_facts(value: object, source: str, path: tuple[str, ...] = ()) -> None:
+    if isinstance(value, dict):
+        for key, item in value.items():
+            key_text = str(key)
+            here = path + (key_text,)
+            if key_text.replace("-", "").replace("_", "").lower() in SERVICE_FACT_KEYS:
+                joined = ".".join(here) or key_text
+                raise RuntimeError(f"templates must not copy service/region facts ({joined}) in {source}")
+            _refuse_service_facts(item, source, here)
+        return
+    if isinstance(value, list):
+        for index, item in enumerate(value):
+            _refuse_service_facts(item, source, path + (str(index),))
+
+
+def _require_env_path(value: object, field: str) -> str:
+    if not isinstance(value, str) or not value:
+        raise RuntimeError(f"{field} path must be a non-empty string")
+    if value not in KNOWN_ENV_PATHS:
+        raise RuntimeError(f"{field} references unknown environment path: {value}")
+    return value
+
+
+def compile_when(node: object, field: str) -> dict[str, Any]:
+    if not _is_mapping(node):
+        raise RuntimeError(f"{field} must be a mapping")
+    keys = set(node)
+    combinators = keys & MATCHER_COMBINATORS
+    if combinators:
+        extra = keys - MATCHER_COMBINATORS
+        if extra:
+            raise RuntimeError(f"{field} has extra keys: {sorted(extra)}")
+        if len(combinators) != 1:
+            raise RuntimeError(f"{field} must use exactly one of all/any/not")
+        combinator = next(iter(combinators))
+        child = node[combinator]
+        if combinator in {"all", "any"}:
+            if not isinstance(child, list) or not child:
+                raise RuntimeError(f"{field}.{combinator} must be a non-empty list")
+            return {
+                combinator: [compile_when(item, f"{field}.{combinator}[{index}]") for index, item in enumerate(child)]
+            }
+        if not _is_mapping(child):
+            raise RuntimeError(f"{field}.not must be a mapping")
+        return {"not": compile_when(child, f"{field}.not")}
+
+    if "path" not in node:
+        raise RuntimeError(f"{field} must declare path or a combinator")
+    path = _require_env_path(node.get("path"), field)
+    ops = keys & MATCHER_OPS
+    extra = keys - {"path"} - MATCHER_OPS
+    if extra:
+        raise RuntimeError(f"{field} has unknown matcher keys: {sorted(extra)}")
+    if len(ops) != 1:
+        raise RuntimeError(f"{field} must declare exactly one matcher operator")
+    op = next(iter(ops))
+    raw = node[op]
+    compiled: dict[str, Any] = {"path": path}
+    if op in {"eq", "ne"}:
+        if isinstance(raw, bool) or (isinstance(raw, (str, int)) and not isinstance(raw, bool)):
+            if isinstance(raw, str) and not raw and op == "eq":
+                compiled[op] = raw
+            elif isinstance(raw, str) or isinstance(raw, bool) or (isinstance(raw, int) and not isinstance(raw, bool)):
+                compiled[op] = raw
+            else:
+                raise RuntimeError(f"{field}.{op} must be a boolean, string, or integer")
+        else:
+            raise RuntimeError(f"{field}.{op} must be a boolean, string, or integer")
+        compiled[op] = raw
+    elif op == "in":
+        if not isinstance(raw, list) or not raw:
+            raise RuntimeError(f"{field}.in must be a non-empty list")
+        items: list[Any] = []
+        for index, item in enumerate(raw):
+            if isinstance(item, bool) or (isinstance(item, (str, int)) and not isinstance(item, bool)):
+                items.append(item)
+            else:
+                raise RuntimeError(f"{field}.in[{index}] must be a boolean, string, or integer")
+        compiled["in"] = items
+    elif op == "contains":
+        if not isinstance(raw, (str, int)) or isinstance(raw, bool):
+            if not isinstance(raw, str):
+                raise RuntimeError(f"{field}.contains must be a string or integer")
+        compiled["contains"] = raw
+    elif op in {"gte", "lte"}:
+        if isinstance(raw, bool) or not isinstance(raw, int):
+            raise RuntimeError(f"{field}.{op} must be an integer")
+        compiled[op] = raw
+    elif op == "exists":
+        if not isinstance(raw, bool):
+            raise RuntimeError(f"{field}.exists must be a boolean")
+        compiled["exists"] = raw
+    return compiled
+
+
+def compile_apply(spec: object, field: str) -> dict[str, Any]:
+    if not _is_mapping(spec) or not spec:
+        raise RuntimeError(f"{field} must be a non-empty mapping")
+    compiled: dict[str, Any] = {}
+    for key, value in spec.items():
+        apply_key = str(key)
+        if apply_key not in KNOWN_TEMPLATE_APPLY_KEYS:
+            raise RuntimeError(f"{field} has unknown apply key: {apply_key}")
+        if apply_key in compiled:
+            raise RuntimeError(f"{field} duplicate apply key: {apply_key}")
+        if apply_key in APPLY_BOOL_KEYS:
+            if not isinstance(value, bool):
+                raise RuntimeError(f"{field}.{apply_key} must be a boolean")
+            if apply_key == "gaming.blanket_udp_bypass" and value is True:
+                raise RuntimeError(f"{field}.{apply_key} cannot enable blanket UDP bypass")
+            if apply_key == "gaming.protect_udp_443" and value is False:
+                raise RuntimeError(f"{field}.{apply_key} cannot disable UDP/443 protection")
+            compiled[apply_key] = value
+            continue
+        if apply_key == "dns.ownership":
+            if value != "preserve":
+                raise RuntimeError(f"{field}.{apply_key} must be 'preserve'")
+            compiled[apply_key] = value
+            continue
+        if apply_key == "mode":
+            if value not in APPLY_MODE_VALUES:
+                raise RuntimeError(f"{field}.{apply_key} must be one of {sorted(APPLY_MODE_VALUES)}")
+            compiled[apply_key] = value
+            continue
+        raise RuntimeError(f"{field}.{apply_key} is not implemented")
+    return compiled
+
+
+def compile_templates(spec: object) -> dict[str, Any]:
+    if not _is_mapping(spec) or not spec:
+        raise RuntimeError("templates must be a non-empty mapping")
+    compiled: dict[str, Any] = {}
+    for raw_id, item in spec.items():
+        template_id = _require_id(raw_id, "template id")
+        if template_id in compiled:
+            raise RuntimeError(f"duplicate template id: {template_id}")
+        if not _is_mapping(item):
+            raise RuntimeError(f"template {template_id} must be a mapping")
+        extra = set(item) - {"title", "description", "when", "recommendation", "apply"}
+        if extra:
+            raise RuntimeError(f"template {template_id} has unknown keys: {sorted(extra)}")
+        title = item.get("title")
+        description = item.get("description")
+        if not isinstance(title, str) or not title.strip():
+            raise RuntimeError(f"template {template_id} title must be a non-empty string")
+        if not isinstance(description, str) or not description.strip():
+            raise RuntimeError(f"template {template_id} description must be a non-empty string")
+        recommendation = item.get("recommendation")
+        if not _is_mapping(recommendation):
+            raise RuntimeError(f"template {template_id} recommendation must be a mapping")
+        rec_extra = set(recommendation) - {"severity", "confidence", "reason", "risk"}
+        if rec_extra:
+            raise RuntimeError(f"template {template_id} recommendation has unknown keys: {sorted(rec_extra)}")
+        severity = recommendation.get("severity")
+        confidence = recommendation.get("confidence")
+        reason = recommendation.get("reason")
+        risk = recommendation.get("risk")
+        if severity not in TEMPLATE_SEVERITIES:
+            raise RuntimeError(f"template {template_id} has invalid severity: {severity!r}")
+        if confidence not in TEMPLATE_CONFIDENCES:
+            raise RuntimeError(f"template {template_id} has invalid confidence: {confidence!r}")
+        if not isinstance(reason, str) or not reason.strip():
+            raise RuntimeError(f"template {template_id} reason must be a non-empty string")
+        if not isinstance(risk, str) or not risk.strip():
+            raise RuntimeError(f"template {template_id} risk must be a non-empty string")
+        compiled[template_id] = {
+            "title": title.strip(),
+            "description": description.strip(),
+            "when": compile_when(item.get("when"), f"template {template_id} when"),
+            "recommendation": {
+                "severity": severity,
+                "confidence": confidence,
+                "reason": reason.strip(),
+                "risk": risk.strip(),
+            },
+            "apply": compile_apply(item.get("apply"), f"template {template_id} apply"),
+        }
+    _refuse_service_facts(compiled, "templates")
+    return compiled
+
+
+def compile_openclash_guard_templates(
+    *,
+    guard_config_dir: Path = GUARD_CONFIG_DIR,
+) -> dict[str, Any]:
+    guard = load_guard_config(guard_config_dir)
+    if "templates" not in guard:
+        raise RuntimeError(f"openclash-guard config missing templates in {guard_config_dir}")
+    document: dict[str, Any] = {
+        "schemaVersion": SCHEMA_VERSION,
+        "templates": compile_templates(guard["templates"]),
+    }
+    _refuse_secrets(document, "templates document")
+    _refuse_service_facts(document["templates"], "templates document")
+    return document
 
 
 def compile_services(
@@ -700,6 +966,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--guard-config-dir", type=Path, default=GUARD_CONFIG_DIR)
     parser.add_argument("--schema", type=Path, default=SCHEMA_PATH)
     parser.add_argument("--output", type=Path, default=OUTPUT_PATH)
+    parser.add_argument("--templates-output", type=Path, default=TEMPLATES_OUTPUT_PATH)
     args = parser.parse_args(argv)
     document = compile_openclash_guard_runtime(
         ai_routing_dir=args.ai_routing_dir,
@@ -707,11 +974,14 @@ def main(argv: list[str] | None = None) -> None:
         schema_path=args.schema,
     )
     write_runtime(args.output, document)
-    try:
-        rendered = args.output.resolve().relative_to(ROOT)
-    except ValueError:
-        rendered = args.output
-    print(rendered)
+    templates = compile_openclash_guard_templates(guard_config_dir=args.guard_config_dir)
+    write_runtime(args.templates_output, templates)
+    for path in (args.output, args.templates_output):
+        try:
+            rendered = path.resolve().relative_to(ROOT)
+        except ValueError:
+            rendered = path
+        print(rendered)
 
 
 if __name__ == "__main__":

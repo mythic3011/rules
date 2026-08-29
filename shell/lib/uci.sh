@@ -80,6 +80,11 @@ uci_add_list() {
     uci add_list "$1=$2"
 }
 
+uci_delete() {
+    _uci_require "$1" || return $?
+    uci -q delete "$1" || true
+}
+
 uci_commit_if_changed() {
     if ! command -v uci >/dev/null 2>&1; then
         printf '%s\n' "uci: command not found" >&2

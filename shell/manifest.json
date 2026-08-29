@@ -42,9 +42,13 @@
       "path": "shell/apps/openclash-guard/dns.sh",
       "depends": ["service", "env"]
     },
+    "guard-geo": {
+      "path": "shell/apps/openclash-guard/geo.sh",
+      "depends": ["json", "fetch", "file", "cli"]
+    },
     "guard-environment": {
       "path": "shell/apps/openclash-guard/environment.sh",
-      "depends": ["json", "env", "service", "uci", "nft", "guard-dns"]
+      "depends": ["json", "env", "service", "uci", "nft", "guard-dns", "guard-geo"]
     },
     "guard-policy": {
       "path": "shell/apps/openclash-guard/policy.sh",
@@ -63,6 +67,14 @@
       "path": "shell/apps/openclash-guard/migration.sh",
       "depends": ["nft", "file"]
     },
+    "guard-template": {
+      "path": "shell/apps/openclash-guard/template.sh",
+      "depends": ["json", "cli", "uci", "file", "guard-environment", "guard-policy"]
+    },
+    "guard-install": {
+      "path": "shell/apps/openclash-guard/install.sh",
+      "depends": ["cli", "file", "uci", "guard-environment", "guard-template", "guard-geo"]
+    },
     "guard-main": {
       "path": "shell/apps/openclash-guard/main.sh",
       "depends": [
@@ -75,7 +87,10 @@
         "guard-dns",
         "guard-killswitch",
         "guard-gaming",
-        "guard-migration"
+        "guard-migration",
+        "guard-geo",
+        "guard-template",
+        "guard-install"
       ]
     }
   },
@@ -97,7 +112,10 @@
         "guard-dns",
         "guard-killswitch",
         "guard-gaming",
-        "guard-migration"
+        "guard-migration",
+        "guard-geo",
+        "guard-template",
+        "guard-install"
       ],
       "output": "dist/openclash-guard.sh"
     }

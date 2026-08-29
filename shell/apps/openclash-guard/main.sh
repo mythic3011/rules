@@ -1,12 +1,12 @@
 #!/bin/sh
-# openclash-guard CLI: apply/reconcile/status/doctor/refresh/remove.
+# openclash-guard CLI: apply/reconcile/status/doctor/refresh/remove/template/install/geo.
 set -eu
 
 _GUARD_JSON=0
 _GUARD_LOCK_HELD=0
 
 guard_usage() {
-    printf '%s\n' "usage: openclash-guard apply|reconcile|status|doctor|refresh|remove|eval [--json] [--yes] [--dry-run] [--policy-file FILE]"
+    printf '%s\n' "usage: openclash-guard apply|reconcile|status|doctor|refresh|remove|eval|template|install|geo [--json] [--yes] [--dry-run] [--policy-file FILE]"
 }
 
 _guard_lock_path() {
@@ -158,6 +158,31 @@ guard_cmd_doctor() {
     cli_info "gaming bypass never matches protected UDP ports (including 443)"
 }
 
+guard_cmd_geo() {
+    _guard_geo_sub=${1:-}
+    if [ "$#" -gt 0 ]; then
+        shift
+    fi
+    case $_guard_geo_sub in
+        direct)
+            _guard_prepare || true
+            guard_geo_detect_direct
+            ;;
+        route)
+            if [ -z "${1:-}" ]; then
+                cli_error "usage: openclash-guard geo route <id>"
+                return 2
+            fi
+            _guard_prepare || true
+            guard_geo_detect_route "$1"
+            ;;
+        *)
+            printf '%s\n' "usage: openclash-guard geo direct|route <id>" >&2
+            return 2
+            ;;
+    esac
+}
+
 guard_cmd_eval() {
     _guard_ev_svc=
     _guard_ev_proto=udp
@@ -207,10 +232,31 @@ guard_cmd_eval() {
     printf '%s\n' "$_guard_ev_verdict"
 }
 
+_guard_cmd_needs_lock() {
+    case $1 in
+        status|doctor|eval|geo)
+            return 1
+            ;;
+        template)
+            case $2 in
+                apply)
+                    return 0
+                    ;;
+                *)
+                    return 1
+                    ;;
+            esac
+            ;;
+        *)
+            return 0
+            ;;
+    esac
+}
+
 main() {
     _GUARD_JSON=0
     _guard_cmd=
-    _guard_eval_args=
+    _guard_cmd_args=
     while [ "$#" -gt 0 ]
     do
         case $1 in
@@ -234,18 +280,21 @@ main() {
                 guard_usage
                 return 0
                 ;;
-            apply|reconcile|status|doctor|refresh|remove|eval)
+            apply|reconcile|status|doctor|refresh|remove|eval|template|install|geo)
                 if [ -n "$_guard_cmd" ]; then
-                    cli_die "duplicate command" 2
+                    _guard_cmd_args="$_guard_cmd_args $1"
+                    shift
+                    continue
                 fi
                 _guard_cmd=$1
                 shift
                 ;;
-            --service|--proto|--dport|--src|--dest)
-                _guard_eval_args="$_guard_eval_args $1 $2"
-                shift 2
-                ;;
             *)
+                if [ -n "$_guard_cmd" ]; then
+                    _guard_cmd_args="$_guard_cmd_args $1"
+                    shift
+                    continue
+                fi
                 cli_die "unknown argument: $1" 2
                 ;;
         esac
@@ -254,14 +303,12 @@ main() {
         guard_usage >&2
         return 2
     fi
-    case $_guard_cmd in
-        status|doctor|eval)
-            ;;
-        *)
-            _guard_lock_acquire || return $?
-            trap _guard_lock_release EXIT INT TERM
-            ;;
-    esac
+    # shellcheck disable=SC2086
+    set -- $_guard_cmd_args
+    if _guard_cmd_needs_lock "$_guard_cmd" "${1:-}"; then
+        _guard_lock_acquire || return $?
+        trap _guard_lock_release EXIT INT TERM
+    fi
     _guard_rc=0
     case $_guard_cmd in
         apply) guard_cmd_apply || _guard_rc=$? ;;
@@ -270,10 +317,10 @@ main() {
         doctor) guard_cmd_doctor || _guard_rc=$? ;;
         refresh) guard_cmd_refresh || _guard_rc=$? ;;
         remove) guard_cmd_remove || _guard_rc=$? ;;
-        eval)
-            # shellcheck disable=SC2086
-            guard_cmd_eval $_guard_eval_args || _guard_rc=$?
-            ;;
+        eval) guard_cmd_eval "$@" || _guard_rc=$? ;;
+        template) guard_cmd_template "$@" || _guard_rc=$? ;;
+        install) guard_cmd_install "$@" || _guard_rc=$? ;;
+        geo) guard_cmd_geo "$@" || _guard_rc=$? ;;
         *)
             guard_usage >&2
             _guard_rc=2

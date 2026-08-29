@@ -18,6 +18,8 @@ _GUARD_NET_DIRECT_REGION=
 _GUARD_PROXY_HEALTHY=0
 _GUARD_PROXY_REGION=
 _GUARD_GAME_CLIENTS=0
+_GUARD_GAME_CLIENT_ITEMS=
+_GUARD_GAME_BLANKET=0
 _GUARD_NFT_AVAILABLE=0
 
 _guard_env_json_bool() {
@@ -107,25 +109,41 @@ _guard_env_proxy_healthy() {
     fi
 }
 
-_guard_env_count_uci_list() {
-    _guard_env_n=0
+_guard_env_load_clients() {
+    _GUARD_GAME_CLIENTS=0
+    _GUARD_GAME_CLIENT_ITEMS=
     if ! command -v uci >/dev/null 2>&1; then
-        printf '0\n'
         return 0
     fi
     _guard_env_nl='
 '
-    _guard_env_items=$(uci -d "$_guard_env_nl" -q get "${1:-openclash_guard.udp.src_ip}" 2>/dev/null) || _guard_env_items=
-    if [ -z "$_guard_env_items" ]; then
-        printf '0\n'
-        return 0
-    fi
+    _guard_env_items=$(uci -d "$_guard_env_nl" -q get openclash_guard.udp.src_ip 2>/dev/null) || _guard_env_items=
     for _guard_env_item in $_guard_env_items
     do
         [ -n "$_guard_env_item" ] || continue
-        _guard_env_n=$((_guard_env_n + 1))
+        _GUARD_GAME_CLIENTS=$((_GUARD_GAME_CLIENTS + 1))
+        if [ -z "$_GUARD_GAME_CLIENT_ITEMS" ]; then
+            _GUARD_GAME_CLIENT_ITEMS=$_guard_env_item
+        else
+            _GUARD_GAME_CLIENT_ITEMS="$_GUARD_GAME_CLIENT_ITEMS $_guard_env_item"
+        fi
     done
-    printf '%s\n' "$_guard_env_n"
+}
+
+_guard_env_json_items() {
+    printf '['
+    _guard_env_ji_first=1
+    for _guard_env_ji in $_GUARD_GAME_CLIENT_ITEMS
+    do
+        [ -n "$_guard_env_ji" ] || continue
+        if [ "$_guard_env_ji_first" = 1 ]; then
+            _guard_env_ji_first=0
+        else
+            printf ','
+        fi
+        printf '"%s"' "$(_guard_env_json_string "$_guard_env_ji")"
+    done
+    printf ']'
 }
 
 guard_env_detect() {
@@ -147,10 +165,32 @@ guard_env_detect() {
     fi
     guard_dns_detect
     _GUARD_NET_IPV6=$(_guard_env_ipv6)
-    _GUARD_NET_DIRECT_REGION=${GUARD_DIRECT_REGION:-}
+    if [ -n "${GUARD_DIRECT_REGION:-}" ]; then
+        _GUARD_NET_DIRECT_REGION=$GUARD_DIRECT_REGION
+    else
+        _GUARD_NET_DIRECT_REGION=$(guard_geo_cached_country direct 2>/dev/null) || _GUARD_NET_DIRECT_REGION=
+    fi
     _GUARD_PROXY_HEALTHY=$(_guard_env_proxy_healthy)
-    _GUARD_PROXY_REGION=${GUARD_PROXY_REGION:-}
-    _GUARD_GAME_CLIENTS=$(_guard_env_count_uci_list openclash_guard.udp.src_ip)
+    if [ -n "${GUARD_PROXY_REGION:-}" ]; then
+        _GUARD_PROXY_REGION=$GUARD_PROXY_REGION
+    elif [ -n "${GUARD_GEO_ROUTE:-}" ]; then
+        _GUARD_PROXY_REGION=$(guard_geo_cached_country route "$GUARD_GEO_ROUTE" 2>/dev/null) || _GUARD_PROXY_REGION=
+    else
+        _GUARD_PROXY_REGION=
+    fi
+    _guard_env_load_clients
+    _GUARD_GAME_BLANKET=0
+    if command -v uci >/dev/null 2>&1; then
+        _GUARD_GAME_BLANKET=$(uci_get_bool openclash_guard.udp.blanket_udp_bypass 0 2>/dev/null) || _GUARD_GAME_BLANKET=0
+    fi
+    case ${GUARD_GAMING_BLANKET:-} in
+        1|true|TRUE|yes|YES|on|ON)
+            _GUARD_GAME_BLANKET=1
+            ;;
+        0|false|FALSE|no|NO|off|OFF)
+            _GUARD_GAME_BLANKET=0
+            ;;
+    esac
     _GUARD_NFT_AVAILABLE=0
     if command -v nft >/dev/null 2>&1; then
         _GUARD_NFT_AVAILABLE=1
@@ -174,6 +214,8 @@ guard_env_get() {
         proxy.healthy) printf '%s\n' "$_GUARD_PROXY_HEALTHY" ;;
         proxy.region) printf '%s\n' "$_GUARD_PROXY_REGION" ;;
         gaming.clients.count) printf '%s\n' "$_GUARD_GAME_CLIENTS" ;;
+        gaming.clients.items) printf '%s\n' "$_GUARD_GAME_CLIENT_ITEMS" ;;
+        gaming.blanketUdpBypassDetected) printf '%s\n' "$_GUARD_GAME_BLANKET" ;;
         nft.available) printf '%s\n' "$_GUARD_NFT_AVAILABLE" ;;
         *)
             printf '%s\n' "guard_env_get: unknown key: ${1:-}" >&2
@@ -202,7 +244,10 @@ guard_env_json() {
     printf '"proxy":{"healthy":%s,"region":"%s"},' \
         "$(_guard_env_json_bool "$_GUARD_PROXY_HEALTHY")" \
         "$(_guard_env_json_string "$_GUARD_PROXY_REGION")"
-    printf '"gaming":{"clients":{"count":%s}},' "$_GUARD_GAME_CLIENTS"
+    printf '"gaming":{"clients":{"count":%s,"items":%s},"blanketUdpBypassDetected":%s},' \
+        "$_GUARD_GAME_CLIENTS" \
+        "$(_guard_env_json_items)" \
+        "$(_guard_env_json_bool "$_GUARD_GAME_BLANKET")"
     printf '"nft":{"available":%s}' "$(_guard_env_json_bool "$_GUARD_NFT_AVAILABLE")"
     printf '}\n'
 }

@@ -1,0 +1,67 @@
+# Recommendation templates. Guard UCI knobs only; no service/region copies.
+templates:
+  agh-openclash:
+    title: AdGuard Home + OpenClash
+    description: Keep AdGuard Home as DNS owner while OpenClash handles routing.
+    when:
+      all:
+        - path: dns.backend
+          eq: adguardhome
+        - path: openclash.installed
+          eq: true
+    recommendation:
+      severity: info
+      confidence: high
+      reason: AdGuard Home is the active DNS backend.
+      risk: Enabling dnsmasq or a DNS kill-switch can steal DNS ownership from AdGuard Home.
+    apply:
+      guard.kill_switch: true
+      guard.dns_kill_switch: false
+      dns.ownership: preserve
+      policy.refresh: true
+
+  gaming-safe:
+    title: Safe Gaming UDP
+    description: Use scoped gaming bypass without allowing QUIC leakage.
+    when:
+      all:
+        - path: gaming.clients.count
+          gte: 1
+    recommendation:
+      severity: high
+      confidence: high
+      reason: Gaming client detected; blanket UDP bypass is unsafe.
+      risk: UDP/443 may carry HTTP/3/QUIC and a source-only bypass can escape service routing.
+    apply:
+      gaming.blanket_udp_bypass: false
+      gaming.protect_udp_443: true
+
+  failclosed-strict:
+    title: Strict fail-closed guard
+    description: Keep the global kill switch on so protected traffic cannot fall to DIRECT.
+    when:
+      path: openclash.installed
+      eq: true
+    recommendation:
+      severity: medium
+      confidence: high
+      reason: OpenClash is installed; fail-closed kill switch should stay enabled.
+      risk: If OpenClash stops, unprotected forwarding can leak protected sessions.
+    apply:
+      guard.kill_switch: true
+      mode: strict
+      policy.refresh: true
+
+  dns-kill-switch-off:
+    title: DNS kill-switch disabled
+    description: Do not intercept DNS with a firewall kill-switch when AdGuard Home owns DNS.
+    when:
+      path: dns.backend
+      eq: adguardhome
+    recommendation:
+      severity: info
+      confidence: high
+      reason: AdGuard Home already owns DNS; a DNS kill-switch would fight that topology.
+      risk: Blocking port 53 can break the active DNS backend instead of protecting routing.
+    apply:
+      guard.dns_kill_switch: false

@@ -13,7 +13,9 @@ if str(ROOT) not in sys.path:
 from internal.python.generate_openclash_guard_runtime import (  # noqa: E402
     OUTPUT_PATH,
     SCHEMA_PATH,
+    TEMPLATES_OUTPUT_PATH,
     compile_openclash_guard_runtime,
+    compile_openclash_guard_templates,
     dumps_runtime,
     load_schema,
     validate_runtime_document,
@@ -170,6 +172,7 @@ class SyntheticCatalogTest(unittest.TestCase):
         self.assertIn(443, document["gaming"]["protectedUdpPorts"])
         self.assertNotIn(443, document["gaming"]["udpPorts"])
         self.assertEqual(document["gaming"]["udpPorts"], [3074])
+        self.assertEqual(document["geoProviders"][0]["cacheTtlSeconds"], 300)
 
     def test_missing_protection_class_is_rejected(self) -> None:
         services = """\
@@ -329,6 +332,20 @@ class ProductionContractTest(unittest.TestCase):
         blob = json.dumps(self.checked_in)
         for needle in ("apiKey", "token", "password"):
             self.assertNotIn(f'"{needle}"', blob)
+
+    def test_geo_providers_include_cache_ttl(self) -> None:
+        self.assertTrue(self.checked_in["geoProviders"])
+        for provider in self.checked_in["geoProviders"]:
+            self.assertIn("cacheTtlSeconds", provider)
+            self.assertGreaterEqual(provider["cacheTtlSeconds"], 1)
+
+    def test_templates_catalog_is_generated(self) -> None:
+        generated = compile_openclash_guard_templates()
+        self.assertEqual(
+            TEMPLATES_OUTPUT_PATH.read_text(encoding="utf-8"),
+            dumps_runtime(generated),
+        )
+        self.assertIn("agh-openclash", generated["templates"])
 
 
 if __name__ == "__main__":

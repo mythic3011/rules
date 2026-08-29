@@ -154,7 +154,7 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "url", "timeoutSeconds", "fields"],
+        "required": ["id", "url", "timeoutSeconds", "cacheTtlSeconds", "fields"],
         "properties": {
           "id": {
             "type": "string",
@@ -168,6 +168,11 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 60
+          },
+          "cacheTtlSeconds": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 86400
           },
           "fields": {
             "type": "object",

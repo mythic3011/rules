@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "templates": {
+    "agh-openclash": {
+      "apply": {
+        "dns.ownership": "preserve",
+        "guard.dns_kill_switch": false,
+        "guard.kill_switch": true,
+        "policy.refresh": true
+      },
+      "description": "Keep AdGuard Home as DNS owner while OpenClash handles routing.",
+      "recommendation": {
+        "confidence": "high",
+        "reason": "AdGuard Home is the active DNS backend.",
+        "risk": "Enabling dnsmasq or a DNS kill-switch can steal DNS ownership from AdGuard Home.",
+        "severity": "info"
+      },
+      "title": "AdGuard Home + OpenClash",
+      "when": {
+        "all": [
+          {
+            "eq": "adguardhome",
+            "path": "dns.backend"
+          },
+          {
+            "eq": true,
+            "path": "openclash.installed"
+          }
+        ]
+      }
+    },
+    "dns-kill-switch-off": {
+      "apply": {
+        "guard.dns_kill_switch": false
+      },
+      "description": "Do not intercept DNS with a firewall kill-switch when AdGuard Home owns DNS.",
+      "recommendation": {
+        "confidence": "high",
+        "reason": "AdGuard Home already owns DNS; a DNS kill-switch would fight that topology.",
+        "risk": "Blocking port 53 can break the active DNS backend instead of protecting routing.",
+        "severity": "info"
+      },
+      "title": "DNS kill-switch disabled",
+      "when": {
+        "eq": "adguardhome",
+        "path": "dns.backend"
+      }
+    },
+    "failclosed-strict": {
+      "apply": {
+        "guard.kill_switch": true,
+        "mode": "strict",
+        "policy.refresh": true
+      },
+      "description": "Keep the global kill switch on so protected traffic cannot fall to DIRECT.",
+      "recommendation": {
+        "confidence": "high",
+        "reason": "OpenClash is installed; fail-closed kill switch should stay enabled.",
+        "risk": "If OpenClash stops, unprotected forwarding can leak protected sessions.",
+        "severity": "medium"
+      },
+      "title": "Strict fail-closed guard",
+      "when": {
+        "eq": true,
+        "path": "openclash.installed"
+      }
+    },
+    "gaming-safe": {
+      "apply": {
+        "gaming.blanket_udp_bypass": false,
+        "gaming.protect_udp_443": true
+      },
+      "description": "Use scoped gaming bypass without allowing QUIC leakage.",
+      "recommendation": {
+        "confidence": "high",
+        "reason": "Gaming client detected; blanket UDP bypass is unsafe.",
+        "risk": "UDP/443 may carry HTTP/3/QUIC and a source-only bypass can escape service routing.",
+        "severity": "high"
+      },
+      "title": "Safe Gaming UDP",
+      "when": {
+        "all": [
+          {
+            "gte": 1,
+            "path": "gaming.clients.count"
+          }
+        ]
+      }
+    }
+  }
+}

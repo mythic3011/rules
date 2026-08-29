@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "revision": "synthetic-test-geo-1",
+  "nft": {
+    "family": "inet",
+    "table": "openclash_guard",
+    "commentPrefix": "openclash-guard"
+  },
+  "protectionClasses": {
+    "stable-session": {
+      "directAllowed": false,
+      "failMode": "reject",
+      "quic": "proxy-or-reject",
+      "firewallKillSwitch": true
+    }
+  },
+  "services": {
+    "svc-proxy-only": {
+      "protectionClass": "stable-session",
+      "allowedRegions": ["aa"],
+      "matchers": {
+        "geosite": ["synthetic"],
+        "domainSuffixes": ["example.invalid"]
+      }
+    }
+  },
+  "gaming": {
+    "udpPorts": [3074],
+    "tcpPorts": [],
+    "protectedUdpPorts": [443],
+    "destinationCidrs": []
+  },
+  "geoProviders": [
+    {
+      "id": "primary",
+      "url": "https://geo.test/primary",
+      "timeoutSeconds": 2,
+      "cacheTtlSeconds": 60,
+      "fields": {
+        "ip": "ip",
+        "country": "country_code",
+        "asn": "asn"
+      }
+    },
+    {
+      "id": "fallback",
+      "url": "https://geo.test/fallback",
+      "timeoutSeconds": 2,
+      "cacheTtlSeconds": 60,
+      "fields": {
+        "ip": "ip",
+        "country": "country_code"
+      }
+    }
+  ]
+}

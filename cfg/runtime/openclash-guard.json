@@ -9,6 +9,7 @@
   },
   "geoProviders": [
     {
+      "cacheTtlSeconds": 300,
       "fields": {
         "asn": "asn",
         "country": "country_code",
@@ -19,6 +20,7 @@
       "url": "https://ipapi.co/json/"
     },
     {
+      "cacheTtlSeconds": 300,
       "fields": {
         "asn": "connection.asn",
         "country": "country_code",
@@ -60,7 +62,7 @@
       "quic": "proxy-or-reject"
     }
   },
-  "revision": "d1e4416119753749037834b93d649c97538de3f0a0de5dacd2c44293c88c0db0",
+  "revision": "a3129e636775ef5f5d18c9b93896f889ba067d9bbbd1158741f7b4a07e9f5086",
   "schemaVersion": 1,
   "services": {
     "chatgpt": {

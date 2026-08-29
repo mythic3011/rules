@@ -116,6 +116,16 @@ def main(argv):
         state["pending"][option] = items
         save(state)
         return 0
+    if cmd == "delete":
+        if not rest:
+            print("uci: missing option", file=sys.stderr)
+            return 1
+        option = rest[0]
+        found = option in state["pending"] or option in state["committed"]
+        state["pending"].pop(option, None)
+        state["committed"].pop(option, None)
+        save(state)
+        return 0 if found else 1
     if cmd == "changes":
         pkg = rest[0] if rest else ""
         for option, value in state["pending"].items():
