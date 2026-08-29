@@ -79,6 +79,7 @@ def cmd_doctor(_: argparse.Namespace) -> None:
 
 def cmd_check(args: argparse.Namespace) -> None:
     run([sys.executable, "-m", "compileall", "-q", "internal/python", "tests", "tools"])
+    run([sys.executable, "tools/shbundle.py", "check"])
     run([sys.executable, "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py"])
     if not shutil.which("node"):
         raise SystemExit("node is required for the zero-dependency profile-service contract suite")
@@ -98,6 +99,9 @@ def cmd_check(args: argparse.Namespace) -> None:
 def cmd_generate(_: argparse.Namespace) -> None:
     run([sys.executable, "internal/python/generate_service_intake_form.py"])
     run([sys.executable, "internal/python/generate_ai_profiles.py"])
+    run([sys.executable, "internal/python/generate_openclash_guard_runtime.py"])
+    run([sys.executable, "tools/shbundle.py", "check"])
+    run([sys.executable, "tools/shbundle.py", "build", "--all"])
     if shutil.which("npm") and (ROOT / "node_modules" / ".bin" / "tsx").exists():
         run(["npm", "run", "export:routing-artifacts"])
         run(["npm", "run", "export:shadow-profile"])
@@ -112,7 +116,9 @@ def cmd_refresh(args: argparse.Namespace) -> None:
     run([sys.executable, "internal/python/generate_ai_profiles.py", "--refresh-upstream-sources"])
     run([sys.executable, "internal/python/generate_ai_profiles.py", "--refresh-upstream-hosts"])
     run([sys.executable, "internal/python/generate_ai_profiles.py"])
+    run([sys.executable, "internal/python/generate_openclash_guard_runtime.py"])
     run([sys.executable, "internal/python/generate_adblock_outputs.py"])
+    run([sys.executable, "tools/shbundle.py", "build", "--all"])
     if shutil.which("npm") and (ROOT / "node_modules" / ".bin" / "tsx").exists():
         run(["npm", "run", "export:routing-artifacts"])
         run(["npm", "run", "export:shadow-profile"])
