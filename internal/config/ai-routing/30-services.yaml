@@ -153,3 +153,35 @@ services:
       service:
         ruleset: AI_HuggingFace_Classical
         session: stable
+  flow-music:
+    displayName: "Flow Music"
+    protectionClass: proxy-required
+    defaultRoute: jp-stable
+    allowedRoutes:
+      - jp-stable
+      - sg-stable
+      - us-stable
+      - reject
+    selector:
+      kind: profile-aware
+      visibleGroup: "Flow Music"
+      hiddenProfileTarget: "@profile/flow-music"
+      allowedRouteRefs:
+        - jp-stable
+        - sg-stable
+        - us-stable
+        - reject
+    upstream: { source: local-rules, provider: flow-music }
+    endpoints:
+      service: { ruleset: Flow_Music_Classical, session: stable }
+    dependencies:
+      - id: producer-media
+        host: storage.googleapis.com
+        path: /producer-app-public/
+        role: media
+        required: true
+        routePolicy: inherit
+        matcher:
+          desiredGranularity: path
+          availableGranularity: host
+          scopeExpansion: true

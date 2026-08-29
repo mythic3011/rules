@@ -29,6 +29,11 @@
           "target": "DIRECT"
         },
         {
+          "group": "@profile/flow-music",
+          "proxyPath": "/proxies/%40profile%2Fflow-music",
+          "target": "🇯🇵 JP Stable"
+        },
+        {
           "group": "@profile/gemini",
           "proxyPath": "/proxies/%40profile%2Fgemini",
           "target": "DIRECT"
@@ -75,6 +80,11 @@
         {
           "group": "@profile/copilot",
           "proxyPath": "/proxies/%40profile%2Fcopilot",
+          "target": "🇯🇵 JP Stable"
+        },
+        {
+          "group": "@profile/flow-music",
+          "proxyPath": "/proxies/%40profile%2Fflow-music",
           "target": "🇯🇵 JP Stable"
         },
         {
@@ -127,6 +137,11 @@
           "target": "🇸🇬 SG Stable"
         },
         {
+          "group": "@profile/flow-music",
+          "proxyPath": "/proxies/%40profile%2Fflow-music",
+          "target": "🇸🇬 SG Stable"
+        },
+        {
           "group": "@profile/gemini",
           "proxyPath": "/proxies/%40profile%2Fgemini",
           "target": "🇸🇬 SG Stable"
@@ -173,6 +188,11 @@
         {
           "group": "@profile/copilot",
           "proxyPath": "/proxies/%40profile%2Fcopilot",
+          "target": "🇺🇸 US Stable"
+        },
+        {
+          "group": "@profile/flow-music",
+          "proxyPath": "/proxies/%40profile%2Fflow-music",
           "target": "🇺🇸 US Stable"
         },
         {

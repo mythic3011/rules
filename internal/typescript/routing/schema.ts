@@ -109,6 +109,24 @@ export const EndpointSchema = z
   })
   .strict();
 
+const DependencySchema = z
+  .object({
+    id: IdSchema,
+    host: z.string().min(1),
+    path: z.string().regex(/^\//),
+    role: z.enum(["control", "auth", "api", "media", "storage", "cdn", "websocket", "stream", "optional"]),
+    required: z.boolean(),
+    routePolicy: z.enum(["inherit", "direct", "explicit-route", "compatible-route", "reject"]),
+    matcher: z
+      .object({
+        desiredGranularity: z.enum(["path", "host"]),
+        availableGranularity: z.enum(["path", "host"]),
+        scopeExpansion: z.boolean(),
+      })
+      .strict(),
+  })
+  .strict();
+
 export const ServiceSchema = z
   .object({
     displayName: z.string().min(1),
@@ -118,6 +136,7 @@ export const ServiceSchema = z
     selector: SelectorSchema,
     upstream: z.object({ source: IdSchema, provider: IdSchema }).strict(),
     endpoints: z.record(IdSchema, EndpointSchema).default({}),
+    dependencies: z.array(DependencySchema).default([]),
   })
   .strict();
 

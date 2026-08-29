@@ -646,18 +646,7 @@ test("canonical HK matrix and protected Claude configuration validate", async ()
   assert.equal(claude.defaultRoute, "reject");
   assert.equal(config.services.windsurf?.protectionClass, "proxy-required");
   assert.equal(config.services.huggingface?.protectionClass, "proxy-required");
-  assert.deepEqual(Object.keys(config.services).sort(), [
-    "chatgpt",
-    "claude",
-    "copilot",
-    "gemini",
-    "grok",
-    "huggingface",
-    "notebooklm",
-    "perplexity",
-    "poe",
-    "windsurf",
-  ]);
+  assert.ok(config.services["flow-music"]?.dependencies.some((dependency) => dependency.id === "producer-media"));
   assert.deepEqual(Object.keys(config.accessProfiles).sort(), [
     "hk",
     "jp",

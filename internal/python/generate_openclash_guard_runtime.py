@@ -33,6 +33,9 @@ REGION_ROUTE_KINDS = frozenset({"region-auto", "region-stable"})
 KNOWN_ROUTE_KINDS = SKIP_ROUTE_KINDS | REGION_ROUTE_KINDS | frozenset({"pinned-egress"})
 QUIC_VALUES = frozenset({"proxy-or-reject", "allow", "reject"})
 FAIL_MODES = frozenset({"reject", "allow"})
+DEPENDENCY_ROLES = frozenset({"control", "auth", "api", "media", "storage", "cdn", "websocket", "stream", "optional"})
+DEPENDENCY_ROUTE_POLICIES = frozenset({"inherit", "direct", "explicit-route", "compatible-route", "reject"})
+MATCHER_GRANULARITIES = frozenset({"path", "host"})
 TEMPLATE_SEVERITIES = frozenset({"info", "medium", "high"})
 TEMPLATE_CONFIDENCES = frozenset({"low", "medium", "high"})
 MATCHER_OPS = frozenset({"eq", "ne", "in", "contains", "gte", "lte", "exists"})
@@ -56,7 +59,8 @@ KNOWN_ENV_PATHS = frozenset(
         "gaming.clients.count",
         "gaming.clients.items",
         "gaming.blanketUdpBypassDetected",
-        "nft.available",
+    "nft.available",
+        "dependency.requiredFailure",
     }
 )
 KNOWN_TEMPLATE_APPLY_KEYS = frozenset(
@@ -435,6 +439,61 @@ def compile_matchers(record: Mapping[str, Any] | None) -> dict[str, list[str]]:
     }
 
 
+def compile_dependencies(spec: object, service_id: str) -> list[dict[str, Any]]:
+    if spec is None:
+        return []
+    if not isinstance(spec, list):
+        raise RuntimeError(f"service {service_id} dependencies must be a list")
+    compiled: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for index, item in enumerate(spec):
+        if not _is_mapping(item):
+            raise RuntimeError(f"service {service_id} dependencies[{index}] must be a mapping")
+        dependency_id = _require_id(item.get("id"), f"service {service_id} dependency id")
+        if dependency_id in seen:
+            raise RuntimeError(f"service {service_id} has duplicate dependency id: {dependency_id}")
+        seen.add(dependency_id)
+        host = item.get("host")
+        if not isinstance(host, str) or not host:
+            raise RuntimeError(f"service {service_id} dependency {dependency_id} host must be non-empty")
+        path = item.get("path", "/")
+        if not isinstance(path, str) or not path.startswith("/"):
+            raise RuntimeError(f"service {service_id} dependency {dependency_id} path must start with /")
+        role = item.get("role")
+        if role not in DEPENDENCY_ROLES:
+            raise RuntimeError(f"service {service_id} dependency {dependency_id} has invalid role: {role!r}")
+        required = item.get("required", False)
+        if not isinstance(required, bool):
+            raise RuntimeError(f"service {service_id} dependency {dependency_id} required must be boolean")
+        route_policy = item.get("routePolicy", "inherit")
+        if route_policy not in DEPENDENCY_ROUTE_POLICIES:
+            raise RuntimeError(f"service {service_id} dependency {dependency_id} has invalid routePolicy: {route_policy!r}")
+        matcher = item.get("matcher", {})
+        if not _is_mapping(matcher):
+            raise RuntimeError(f"service {service_id} dependency {dependency_id} matcher must be a mapping")
+        desired = matcher.get("desiredGranularity", "host")
+        available = matcher.get("availableGranularity", "host")
+        scope_expansion = matcher.get("scopeExpansion", desired != available)
+        if desired not in MATCHER_GRANULARITIES or available not in MATCHER_GRANULARITIES:
+            raise RuntimeError(f"service {service_id} dependency {dependency_id} has invalid matcher granularity")
+        if not isinstance(scope_expansion, bool):
+            raise RuntimeError(f"service {service_id} dependency {dependency_id} scopeExpansion must be boolean")
+        compiled.append({
+            "id": dependency_id,
+            "host": host,
+            "path": path,
+            "role": role,
+            "required": required,
+            "routePolicy": route_policy,
+            "matcher": {
+                "desiredGranularity": desired,
+                "availableGranularity": available,
+                "scopeExpansion": scope_expansion,
+            },
+        })
+    return compiled
+
+
 def compile_nft(spec: object) -> dict[str, str]:
     if not _is_mapping(spec):
         raise RuntimeError("nft config must be a mapping")
@@ -741,6 +800,7 @@ def compile_services(
                 service_id, spec.get("allowedRoutes"), route_targets
             ),
             "matchers": compile_matchers(matcher_catalog.get(service_id)),
+            "dependencies": compile_dependencies(spec.get("dependencies"), service_id),
         }
     return compiled
 

@@ -7,6 +7,7 @@ accessProfiles:
       windsurf: us-stable
       huggingface: us-stable
       poe: us-stable
+      flow-music: jp-stable
       claude: reject
     endpointOverrides: {}
   sg:

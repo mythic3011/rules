@@ -65,3 +65,17 @@ templates:
       risk: Blocking port 53 can break the active DNS backend instead of protecting routing.
     apply:
       guard.dns_kill_switch: false
+
+  flow-music-storage-compatible:
+    title: Compatible service dependency routing
+    description: Keep a required dependency on a route compatible with its parent service.
+    when:
+      path: dependency.requiredFailure
+      eq: true
+    recommendation:
+      severity: high
+      confidence: medium
+      reason: A required service dependency is unhealthy or using an incompatible route.
+      risk: Path-specific policy may require broader host routing; approve scope expansion explicitly.
+    apply:
+      policy.refresh: true

@@ -2074,6 +2074,25 @@ _GUARD_GAME_CLIENTS=0
 _GUARD_GAME_CLIENT_ITEMS=
 _GUARD_GAME_BLANKET=0
 _GUARD_NFT_AVAILABLE=0
+_GUARD_DEPENDENCY_FAILURE=0
+
+_guard_env_dependency_failed() {
+    _guard_ed_service=${GUARD_SERVICE_ID:-}
+    _guard_ed_file=${GUARD_DEPENDENCY_STATUS_FILE:-}
+    [ -n "$_guard_ed_service" ] && [ -f "$_guard_ed_file" ] || return 1
+    _guard_ed_deps=$(json_keys "$_guard_ed_file" "services.$_guard_ed_service.dependencies" 2>/dev/null) || return 1
+    for _guard_ed_dep in $_guard_ed_deps
+    do
+        _guard_ed_required=$(json_get "$_guard_ed_file" "services.$_guard_ed_service.dependencies.$_guard_ed_dep.required" 2>/dev/null) || _guard_ed_required=true
+        [ "$_guard_ed_required" = true ] || continue
+        _guard_ed_healthy=$(json_get "$_guard_ed_file" "services.$_guard_ed_service.dependencies.$_guard_ed_dep.healthy" 2>/dev/null) || _guard_ed_healthy=unknown
+        _guard_ed_compatible=$(json_get "$_guard_ed_file" "services.$_guard_ed_service.dependencies.$_guard_ed_dep.routeCompatible" 2>/dev/null) || _guard_ed_compatible=true
+        if [ "$_guard_ed_healthy" = false ] || [ "$_guard_ed_compatible" = false ]; then
+            return 0
+        fi
+    done
+    return 1
+}
 
 _guard_env_json_bool() {
     if [ "$1" = 1 ]; then
@@ -2248,6 +2267,13 @@ guard_env_detect() {
     if command -v nft >/dev/null 2>&1; then
         _GUARD_NFT_AVAILABLE=1
     fi
+    case ${GUARD_DEPENDENCY_FAILED:-} in
+        1|true|TRUE|yes|YES|on|ON) _GUARD_DEPENDENCY_FAILURE=1 ;;
+        *) _GUARD_DEPENDENCY_FAILURE=0 ;;
+    esac
+    if _guard_env_dependency_failed; then
+        _GUARD_DEPENDENCY_FAILURE=1
+    fi
 }
 
 guard_env_get() {
@@ -2270,6 +2296,7 @@ guard_env_get() {
         gaming.clients.items) printf '%s\n' "$_GUARD_GAME_CLIENT_ITEMS" ;;
         gaming.blanketUdpBypassDetected) printf '%s\n' "$_GUARD_GAME_BLANKET" ;;
         nft.available) printf '%s\n' "$_GUARD_NFT_AVAILABLE" ;;
+        dependency.requiredFailure) printf '%s\n' "$_GUARD_DEPENDENCY_FAILURE" ;;
         *)
             printf '%s\n' "guard_env_get: unknown key: ${1:-}" >&2
             return 2
@@ -2279,6 +2306,8 @@ guard_env_get() {
 
 guard_env_json() {
     printf '{'
+    printf '"dependency":{"requiredFailure":%s},' \
+        "$(_guard_env_json_bool "$_GUARD_DEPENDENCY_FAILURE")"
     printf '"openclash":{"installed":%s,"enabled":%s,"running":%s,"healthy":%s},' \
         "$(_guard_env_json_bool "$_GUARD_OC_INSTALLED")" \
         "$(_guard_env_json_bool "$_GUARD_OC_ENABLED")" \
@@ -3062,6 +3091,7 @@ guard_cmd_template_list() {
 guard_cmd_template_suggest() {
     _guard_tsg_json=0
     _guard_tsg_explain=0
+    _guard_tsg_service=
     while [ "$#" -gt 0 ]
     do
         case $1 in
@@ -3073,6 +3103,10 @@ guard_cmd_template_suggest() {
                 _guard_tsg_explain=1
                 shift
                 ;;
+            --service)
+                _guard_tsg_service=$2
+                shift 2
+                ;;
             *)
                 cli_die "unknown template suggest option: $1" 2
                 ;;
@@ -3082,6 +3116,7 @@ guard_cmd_template_suggest() {
         _guard_tsg_json=1
     fi
     _guard_template_require_catalog || return $?
+    export GUARD_SERVICE_ID=$_guard_tsg_service
     _guard_tsg_env=$(_guard_template_env_file) || return $?
     _guard_tsg_ids=$(guard_template_matches "$_GUARD_TEMPLATE_FILE" "$_guard_tsg_env") || _guard_tsg_ids=
     if [ "$_guard_tsg_json" = 1 ]; then
@@ -3671,7 +3706,7 @@ _GUARD_JSON=0
 _GUARD_LOCK_HELD=0
 
 guard_usage() {
-    printf '%s\n' "usage: openclash-guard apply|reconcile|status|doctor|refresh|remove|eval|template|install|geo [--json] [--yes] [--dry-run] [--policy-file FILE]"
+    printf '%s\n' "usage: openclash-guard apply|reconcile|status|doctor [SERVICE]|refresh|remove|eval|template|install|geo [--json] [--yes] [--dry-run] [--policy-file FILE]"
 }
 
 _guard_lock_path() {
@@ -3805,6 +3840,7 @@ guard_cmd_status() {
 }
 
 guard_cmd_doctor() {
+    _guard_doctor_service=${1:-}
     guard_cmd_status
     if [ "$_GUARD_JSON" = 1 ]; then
         return 0
@@ -3821,6 +3857,41 @@ guard_cmd_doctor() {
         cli_warn "domain-set backend unavailable; fail-closed enforcement=reject (not fail-open)"
     fi
     cli_info "gaming bypass never matches protected UDP ports (including 443)"
+    if [ -n "$_guard_doctor_service" ]; then
+        # shellcheck disable=SC2153
+        if ! json_has "$_GUARD_POLICY_FILE" "services.$_guard_doctor_service"; then
+            cli_error "unknown service: $_guard_doctor_service"
+            return 2
+        fi
+        cli_section "$_guard_doctor_service dependency check"
+        _guard_doctor_dependencies=$(json_keys "$_GUARD_POLICY_FILE" "services.$_guard_doctor_service.dependencies" 2>/dev/null) || _guard_doctor_dependencies=
+        if [ -z "$_guard_doctor_dependencies" ]; then
+            cli_info "no configured dependencies"
+            return 0
+        fi
+        for _guard_doctor_dep in $_guard_doctor_dependencies
+        do
+            _guard_doctor_base="services.$_guard_doctor_service.dependencies.$_guard_doctor_dep"
+            _guard_doctor_host=$(json_get "$_GUARD_POLICY_FILE" "$_guard_doctor_base.host") || _guard_doctor_host=
+            _guard_doctor_role=$(json_get "$_GUARD_POLICY_FILE" "$_guard_doctor_base.role") || _guard_doctor_role=
+            _guard_doctor_required=$(json_get "$_GUARD_POLICY_FILE" "$_guard_doctor_base.required") || _guard_doctor_required=false
+            _guard_doctor_route=$(json_get "$_GUARD_POLICY_FILE" "$_guard_doctor_base.routePolicy") || _guard_doctor_route=
+            _guard_doctor_path=$(json_get "$_GUARD_POLICY_FILE" "$_guard_doctor_base.path") || _guard_doctor_path=/
+            _guard_doctor_granularity=$(json_get "$_GUARD_POLICY_FILE" "$_guard_doctor_base.matcher.availableGranularity") || _guard_doctor_granularity=host
+            _guard_doctor_scope=$(json_get "$_GUARD_POLICY_FILE" "$_guard_doctor_base.matcher.scopeExpansion") || _guard_doctor_scope=false
+            _guard_doctor_status=UNKNOWN
+            if [ "$_GUARD_DEPENDENCY_FAILURE" = 0 ]; then _guard_doctor_status=PASS; fi
+            printf '  %s [%s] %s\n' "$_guard_doctor_dep" "$_guard_doctor_status" "$_guard_doctor_host"
+            cli_kv role "$_guard_doctor_role"
+            cli_kv required "$_guard_doctor_required"
+            cli_kv routePolicy "$_guard_doctor_route"
+            cli_kv path "$_guard_doctor_path"
+            cli_kv matcher "$_guard_doctor_granularity"
+            if [ "$_guard_doctor_scope" = true ]; then
+                cli_warn "host matcher broadens path scope; explicit approval required"
+            fi
+        done
+    fi
 }
 
 guard_cmd_geo() {
@@ -3979,7 +4050,7 @@ main() {
         apply) guard_cmd_apply || _guard_rc=$? ;;
         reconcile) guard_cmd_reconcile || _guard_rc=$? ;;
         status) guard_cmd_status || _guard_rc=$? ;;
-        doctor) guard_cmd_doctor || _guard_rc=$? ;;
+        doctor) guard_cmd_doctor "$@" || _guard_rc=$? ;;
         refresh) guard_cmd_refresh || _guard_rc=$? ;;
         remove) guard_cmd_remove || _guard_rc=$? ;;
         eval) guard_cmd_eval "$@" || _guard_rc=$? ;;

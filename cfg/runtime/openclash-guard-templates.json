@@ -65,6 +65,23 @@
         "path": "openclash.installed"
       }
     },
+    "flow-music-storage-compatible": {
+      "apply": {
+        "policy.refresh": true
+      },
+      "description": "Keep a required dependency on a route compatible with its parent service.",
+      "recommendation": {
+        "confidence": "medium",
+        "reason": "A required service dependency is unhealthy or using an incompatible route.",
+        "risk": "Path-specific policy may require broader host routing; approve scope expansion explicitly.",
+        "severity": "high"
+      },
+      "title": "Compatible service dependency routing",
+      "when": {
+        "eq": true,
+        "path": "dependency.requiredFailure"
+      }
+    },
     "gaming-safe": {
       "apply": {
         "gaming.blanket_udp_bypass": false,

@@ -452,6 +452,92 @@
               ],
               "additionalProperties": false
             }
+          },
+          "dependencies": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]*$"
+                },
+                "host": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "path": {
+                  "type": "string",
+                  "pattern": "^\\/"
+                },
+                "role": {
+                  "type": "string",
+                  "enum": [
+                    "control",
+                    "auth",
+                    "api",
+                    "media",
+                    "storage",
+                    "cdn",
+                    "websocket",
+                    "stream",
+                    "optional"
+                  ]
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "routePolicy": {
+                  "type": "string",
+                  "enum": [
+                    "inherit",
+                    "direct",
+                    "explicit-route",
+                    "compatible-route",
+                    "reject"
+                  ]
+                },
+                "matcher": {
+                  "type": "object",
+                  "properties": {
+                    "desiredGranularity": {
+                      "type": "string",
+                      "enum": [
+                        "path",
+                        "host"
+                      ]
+                    },
+                    "availableGranularity": {
+                      "type": "string",
+                      "enum": [
+                        "path",
+                        "host"
+                      ]
+                    },
+                    "scopeExpansion": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "desiredGranularity",
+                    "availableGranularity",
+                    "scopeExpansion"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "id",
+                "host",
+                "path",
+                "role",
+                "required",
+                "routePolicy",
+                "matcher"
+              ],
+              "additionalProperties": false
+            }
           }
         },
         "required": [
@@ -461,7 +547,8 @@
           "allowedRoutes",
           "selector",
           "upstream",
-          "endpoints"
+          "endpoints",
+          "dependencies"
         ],
         "additionalProperties": false
       }

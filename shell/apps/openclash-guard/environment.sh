@@ -21,6 +21,25 @@ _GUARD_GAME_CLIENTS=0
 _GUARD_GAME_CLIENT_ITEMS=
 _GUARD_GAME_BLANKET=0
 _GUARD_NFT_AVAILABLE=0
+_GUARD_DEPENDENCY_FAILURE=0
+
+_guard_env_dependency_failed() {
+    _guard_ed_service=${GUARD_SERVICE_ID:-}
+    _guard_ed_file=${GUARD_DEPENDENCY_STATUS_FILE:-}
+    [ -n "$_guard_ed_service" ] && [ -f "$_guard_ed_file" ] || return 1
+    _guard_ed_deps=$(json_keys "$_guard_ed_file" "services.$_guard_ed_service.dependencies" 2>/dev/null) || return 1
+    for _guard_ed_dep in $_guard_ed_deps
+    do
+        _guard_ed_required=$(json_get "$_guard_ed_file" "services.$_guard_ed_service.dependencies.$_guard_ed_dep.required" 2>/dev/null) || _guard_ed_required=true
+        [ "$_guard_ed_required" = true ] || continue
+        _guard_ed_healthy=$(json_get "$_guard_ed_file" "services.$_guard_ed_service.dependencies.$_guard_ed_dep.healthy" 2>/dev/null) || _guard_ed_healthy=unknown
+        _guard_ed_compatible=$(json_get "$_guard_ed_file" "services.$_guard_ed_service.dependencies.$_guard_ed_dep.routeCompatible" 2>/dev/null) || _guard_ed_compatible=true
+        if [ "$_guard_ed_healthy" = false ] || [ "$_guard_ed_compatible" = false ]; then
+            return 0
+        fi
+    done
+    return 1
+}
 
 _guard_env_json_bool() {
     if [ "$1" = 1 ]; then
@@ -195,6 +214,13 @@ guard_env_detect() {
     if command -v nft >/dev/null 2>&1; then
         _GUARD_NFT_AVAILABLE=1
     fi
+    case ${GUARD_DEPENDENCY_FAILED:-} in
+        1|true|TRUE|yes|YES|on|ON) _GUARD_DEPENDENCY_FAILURE=1 ;;
+        *) _GUARD_DEPENDENCY_FAILURE=0 ;;
+    esac
+    if _guard_env_dependency_failed; then
+        _GUARD_DEPENDENCY_FAILURE=1
+    fi
 }
 
 guard_env_get() {
@@ -217,6 +243,7 @@ guard_env_get() {
         gaming.clients.items) printf '%s\n' "$_GUARD_GAME_CLIENT_ITEMS" ;;
         gaming.blanketUdpBypassDetected) printf '%s\n' "$_GUARD_GAME_BLANKET" ;;
         nft.available) printf '%s\n' "$_GUARD_NFT_AVAILABLE" ;;
+        dependency.requiredFailure) printf '%s\n' "$_GUARD_DEPENDENCY_FAILURE" ;;
         *)
             printf '%s\n' "guard_env_get: unknown key: ${1:-}" >&2
             return 2
@@ -226,6 +253,8 @@ guard_env_get() {
 
 guard_env_json() {
     printf '{'
+    printf '"dependency":{"requiredFailure":%s},' \
+        "$(_guard_env_json_bool "$_GUARD_DEPENDENCY_FAILURE")"
     printf '"openclash":{"installed":%s,"enabled":%s,"running":%s,"healthy":%s},' \
         "$(_guard_env_json_bool "$_GUARD_OC_INSTALLED")" \
         "$(_guard_env_json_bool "$_GUARD_OC_ENABLED")" \

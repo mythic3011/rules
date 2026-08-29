@@ -435,6 +435,7 @@ guard_cmd_template_list() {
 guard_cmd_template_suggest() {
     _guard_tsg_json=0
     _guard_tsg_explain=0
+    _guard_tsg_service=
     while [ "$#" -gt 0 ]
     do
         case $1 in
@@ -446,6 +447,10 @@ guard_cmd_template_suggest() {
                 _guard_tsg_explain=1
                 shift
                 ;;
+            --service)
+                _guard_tsg_service=$2
+                shift 2
+                ;;
             *)
                 cli_die "unknown template suggest option: $1" 2
                 ;;
@@ -455,6 +460,7 @@ guard_cmd_template_suggest() {
         _guard_tsg_json=1
     fi
     _guard_template_require_catalog || return $?
+    export GUARD_SERVICE_ID=$_guard_tsg_service
     _guard_tsg_env=$(_guard_template_env_file) || return $?
     _guard_tsg_ids=$(guard_template_matches "$_GUARD_TEMPLATE_FILE" "$_guard_tsg_env") || _guard_tsg_ids=
     if [ "$_guard_tsg_json" = 1 ]; then

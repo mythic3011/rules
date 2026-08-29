@@ -174,6 +174,17 @@ class SyntheticCatalogTest(unittest.TestCase):
         self.assertEqual(document["gaming"]["udpPorts"], [3074])
         self.assertEqual(document["geoProviders"][0]["cacheTtlSeconds"], 300)
 
+    def test_real_flow_music_dependency_is_config_driven(self) -> None:
+        document = json.loads(OUTPUT_PATH.read_text(encoding="utf-8"))
+        flow = document["services"]["flow-music"]
+        dependency = next(item for item in flow["dependencies"] if item["id"] == "producer-media")
+        self.assertTrue(dependency["required"])
+        self.assertEqual(dependency["role"], "media")
+        self.assertEqual(dependency["routePolicy"], "inherit")
+        self.assertEqual(dependency["matcher"]["desiredGranularity"], "path")
+        self.assertEqual(dependency["matcher"]["availableGranularity"], "host")
+        self.assertTrue(dependency["matcher"]["scopeExpansion"])
+
     def test_missing_protection_class_is_rejected(self) -> None:
         services = """\
 services:

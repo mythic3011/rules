@@ -101,6 +101,23 @@ proxy-groups:
       - 🇺🇸 US Stable
       - 🇯🇵 JP Stable
       - REJECT
+  - name: "@profile/flow-music"
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - 🇸🇬 SG Stable
+      - 🇯🇵 JP Stable
+      - 🇺🇸 US Stable
+      - REJECT
+  - name: Flow Music
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - "@profile/flow-music"
+      - 🇸🇬 SG Stable
+      - 🇯🇵 JP Stable
+      - 🇺🇸 US Stable
+      - REJECT
   - name: "@profile/gemini"
     type: select
     empty-fallback: REJECT
@@ -295,6 +312,12 @@ rule-providers:
     format: yaml
     interval: 10800
     url: https://raw.githubusercontent.com/VPSDance/ai-proxy-rules/d07cac190c33e7914ba7adaf7e7c14298fba7024/rules/clash/windsurf.yaml
+  Flow_Music_Classical:
+    type: http
+    behavior: classical
+    format: yaml
+    interval: 10800
+    url: https://raw.githubusercontent.com/mythic3011/rules/0e9631339904f4a989c884781570b5756d82c9a3/rule/Flow_Music_Classical.yaml
 dns:
   respect-rules: true
   default-nameserver:
@@ -311,6 +334,7 @@ rules:
   - RULE-SET,AI_Claude_Classical,REJECT
   - RULE-SET,AI_ChatGPT_Classical,🤖 ChatGPT
   - RULE-SET,AI_Copilot_Classical,🧑‍💻 Copilot
+  - RULE-SET,Flow_Music_Classical,Flow Music
   - RULE-SET,AI_Gemini_Classical,🤖 Gemini
   - RULE-SET,AI_Grok_Classical,🤖 Grok
   - RULE-SET,AI_HuggingFace_Classical,🤗 Hugging Face

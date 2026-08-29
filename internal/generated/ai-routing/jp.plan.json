@@ -215,6 +215,61 @@
       ]
     },
     {
+      "id": "flow-music",
+      "displayName": "Flow Music",
+      "protectionClass": "proxy-required",
+      "effectiveRoute": {
+        "id": "jp-stable",
+        "kind": "region-stable",
+        "group": "🇯🇵 JP Stable",
+        "dynamic": false
+      },
+      "selector": {
+        "kind": "profile-aware",
+        "visibleGroup": "Flow Music",
+        "hiddenProfileTarget": "@profile/flow-music",
+        "choices": [
+          {
+            "id": "jp-stable",
+            "kind": "region-stable",
+            "group": "🇯🇵 JP Stable",
+            "dynamic": false
+          },
+          {
+            "id": "sg-stable",
+            "kind": "region-stable",
+            "group": "🇸🇬 SG Stable",
+            "dynamic": false
+          },
+          {
+            "id": "us-stable",
+            "kind": "region-stable",
+            "group": "🇺🇸 US Stable",
+            "dynamic": false
+          },
+          {
+            "id": "reject",
+            "kind": "reject",
+            "group": "REJECT",
+            "dynamic": false
+          }
+        ]
+      },
+      "endpoints": [
+        {
+          "id": "service",
+          "ruleset": "Flow_Music_Classical",
+          "session": "stable",
+          "effectiveRoute": {
+            "id": "jp-stable",
+            "kind": "region-stable",
+            "group": "🇯🇵 JP Stable",
+            "dynamic": false
+          }
+        }
+      ]
+    },
+    {
       "id": "gemini",
       "displayName": "🤖 Gemini",
       "protectionClass": "direct-capable",

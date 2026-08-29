@@ -62,6 +62,8 @@ deltas:
       - "🔐 Claude Account Guard"
       - "@profile/copilot"
       - "🧑‍💻 Copilot"
+      - "@profile/flow-music"
+      - "Flow Music"
       - "@profile/gemini"
       - "🤖 Gemini"
       - "@profile/grok"
@@ -110,6 +112,7 @@ deltas:
       - AI_Perplexity_Classical
       - AI_Poe_Classical
       - AI_Windsurf_Classical
+      - Flow_Music_Classical
     reason: "Replace exactly the legacy local AI provider keys with all source-pinned compiled provider definitions."
     policyReference: internal/config/ai-routing/mihomo.yaml
   rules:
@@ -147,6 +150,7 @@ deltas:
       - "RULE-SET,AI_Claude_Classical,REJECT"
       - "RULE-SET,AI_ChatGPT_Classical,🤖 ChatGPT"
       - "RULE-SET,AI_Copilot_Classical,🧑‍💻 Copilot"
+      - "RULE-SET,Flow_Music_Classical,Flow Music"
       - "RULE-SET,AI_Gemini_Classical,🤖 Gemini"
       - "RULE-SET,AI_Grok_Classical,🤖 Grok"
       - "RULE-SET,AI_HuggingFace_Classical,🤗 Hugging Face"

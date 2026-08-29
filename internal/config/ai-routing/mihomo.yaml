@@ -111,6 +111,13 @@ ruleProviders:
     interval: 10800
     source: vpsdance
     path: rules/clash/huggingface.yaml
+  Flow_Music_Classical:
+    type: http
+    behavior: classical
+    format: yaml
+    interval: 10800
+    source: local-rules
+    path: rule/Flow_Music_Classical.yaml
   AI_All_Classical:
     type: http
     behavior: classical
