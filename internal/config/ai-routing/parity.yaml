@@ -36,6 +36,8 @@ deltas:
       - "🤖 Google Labs · 自動"
       - "🤖 Stitch"
       - "🤖 Stitch · 自動"
+      - "🤖 Android Studio AI"
+      - "🤖 Android Studio AI · 自動"
       - "🤖 Gemini Cloud"
       - "🤖 Gemini Cloud · 自動"
       - "🤖 Vertex AI"
@@ -89,6 +91,7 @@ deltas:
         AI_Antigravity_Classical,
         AI_GoogleLabs_Classical,
         AI_Stitch_Classical,
+        AI_AndroidStudioAI_Classical,
         AI_GeminiCloud_Classical,
         AI_VertexAI_Classical,
       ]

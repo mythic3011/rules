@@ -38,6 +38,7 @@ export default {
     "antigravity": "🤖 Antigravity",
     "google-labs": "🤖 Google Labs",
     "stitch": "🤖 Stitch",
+    "android-studio-ai": "🤖 Android Studio AI",
     "gemini-cloud": "🤖 Gemini Cloud",
     "vertex-ai": "🤖 Vertex AI",
     "ai-other": "🤖 AI Other",
@@ -436,6 +437,14 @@ export default {
                 "kind": "remote-classical",
                 "target": "🤖 Stitch",
                 "url": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_Stitch_Classical.yaml",
+                "interval": 28800,
+                "value": null,
+                "options": []
+              },
+              {
+                "kind": "remote-classical",
+                "target": "🤖 Android Studio AI",
+                "url": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_AndroidStudioAI_Classical.yaml",
                 "interval": 28800,
                 "value": null,
                 "options": []
@@ -1555,6 +1564,43 @@ export default {
             "comments": [],
             "group": {
               "type": "select-group",
+              "name": "🤖 Android Studio AI",
+              "candidates": [
+                {
+                  "kind": "group-ref",
+                  "value": "🇺🇸 美國節點"
+                },
+                {
+                  "kind": "group-ref",
+                  "value": "🇸🇬 新加坡節點"
+                },
+                {
+                  "kind": "group-ref",
+                  "value": "🇯🇵 日本節點"
+                },
+                {
+                  "kind": "group-ref",
+                  "value": "🇹🇼 台灣節點"
+                },
+                {
+                  "kind": "group-ref",
+                  "value": "🇰🇷 韓國節點"
+                },
+                {
+                  "kind": "group-ref",
+                  "value": "🌐 其他／未識別節點"
+                },
+                {
+                  "kind": "group-ref",
+                  "value": "⛔ 拒絕"
+                }
+              ]
+            }
+          },
+          {
+            "comments": [],
+            "group": {
+              "type": "select-group",
               "name": "🤖 Gemini Cloud",
               "candidates": [
                 {
@@ -1784,7 +1830,7 @@ export default {
         "onlyNodeRegions": [],
         "preferredNodeRegions": []
       },
-      "customBodySha256": "ca1aef6cf45d94e098f92ab3c39b6ce7b0b5188603a95f6f19e52e67e520c969"
+      "customBodySha256": "7331bf38ef124982a600eb6b5a531ee8df28288ba3960d4161e2af698706ef8d"
     },
     "only-us-sg-prefer-sg": {
       "spec": {
@@ -1799,7 +1845,7 @@ export default {
           "sg"
         ]
       },
-      "customBodySha256": "ee5d0aa503955aac526b75c161451c69d63e64bca9ca7e26417a60389f1f2a2e"
+      "customBodySha256": "45084b6102f4c45625092cc248f85d6725c0f1b515fcf35cc6928b89341c0966"
     },
     "disable-hk": {
       "spec": {
@@ -1811,7 +1857,7 @@ export default {
         "onlyNodeRegions": [],
         "preferredNodeRegions": []
       },
-      "customBodySha256": "face902fb41fce2fbf67dbdf6ecaeb0ce24a39164e328fc96eb8feb98978f80b"
+      "customBodySha256": "855478eec4b7734f28ed7d5f9ba3eeaa1c707ec7c062f3ad3a8c7b68072d41de"
     }
   }
 };

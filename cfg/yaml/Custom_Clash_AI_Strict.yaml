@@ -578,6 +578,31 @@ proxy-groups:
       - "🇰🇷 韓國節點"
       - "🌐 其他／未識別節點"
       - "⛔ 拒絕"
+  - name: "🤖 Android Studio AI"
+    type: select
+    proxies:
+      - "🤖 Android Studio AI · 自動"
+      - "🚀 手動選擇"
+      - "♻️ 自動選擇"
+      - "🇺🇸 美國節點"
+      - "🇸🇬 新加坡節點"
+      - "🇯🇵 日本節點"
+      - "🇹🇼 台灣節點"
+      - "🇰🇷 韓國節點"
+      - "🌐 其他／未識別節點"
+      - "⛔ 拒絕"
+  - name: "🤖 Android Studio AI · 自動"
+    type: fallback
+    url: "https://cp.cloudflare.com/generate_204"
+    interval: 300
+    proxies:
+      - "🇺🇸 美國節點"
+      - "🇸🇬 新加坡節點"
+      - "🇯🇵 日本節點"
+      - "🇹🇼 台灣節點"
+      - "🇰🇷 韓國節點"
+      - "🌐 其他／未識別節點"
+      - "⛔ 拒絕"
   - name: "🤖 Gemini Cloud"
     type: select
     proxies:
@@ -762,6 +787,7 @@ rules:
     - "RULE-SET,AI_Antigravity_Classical,🤖 Antigravity"
     - "RULE-SET,AI_GoogleLabs_Classical,🤖 Google Labs"
     - "RULE-SET,AI_Stitch_Classical,🤖 Stitch"
+    - "RULE-SET,AI_AndroidStudioAI_Classical,🤖 Android Studio AI"
     - "RULE-SET,AI_GeminiCloud_Classical,🤖 Gemini Cloud"
     - "RULE-SET,AI_VertexAI_Classical,🤖 Vertex AI"
     - "GEOSITE,google-deepmind,🤖 AI Other"
@@ -839,6 +865,13 @@ rule-providers:
     interval: 10800
     type: http
     url: "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_Stitch_Classical.yaml"
+    format: yaml
+
+  AI_AndroidStudioAI_Classical:
+    behavior: classical
+    interval: 10800
+    type: http
+    url: "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_AndroidStudioAI_Classical.yaml"
     format: yaml
 
   AI_GeminiCloud_Classical:

@@ -32,19 +32,23 @@ class GoogleFinanceCatalogTest(unittest.TestCase):
         stitch = self.service("stitch")
         self.assertEqual(stitch.payload, ("DOMAIN,stitch.withgoogle.com",))
 
-        cloud = self.service("gemini-cloud")
+        android_studio = self.service("android-studio-ai")
         self.assertEqual(
-            cloud.payload,
+            android_studio.payload,
             (
                 "DOMAIN,cloudaicompanion.googleapis.com",
                 "DOMAIN,cloudcode-pa.googleapis.com",
-                "DOMAIN,geminicloudassist.googleapis.com",
             ),
         )
+        self.assertFalse(android_studio.direct_relaxed)
+
+        cloud = self.service("gemini-cloud")
+        self.assertEqual(cloud.payload, ("DOMAIN,geminicloudassist.googleapis.com",))
         # Shared Google auth/profile APIs must not be captured by the AI policy.
-        self.assertNotIn("DOMAIN,oauth2.googleapis.com", cloud.payload)
-        self.assertNotIn("DOMAIN,people.googleapis.com", cloud.payload)
-        self.assertNotIn("DOMAIN-SUFFIX,googleapis.com", cloud.payload)
+        for payload in (android_studio.payload, cloud.payload):
+            self.assertNotIn("DOMAIN,oauth2.googleapis.com", payload)
+            self.assertNotIn("DOMAIN,people.googleapis.com", payload)
+            self.assertNotIn("DOMAIN-SUFFIX,googleapis.com", payload)
 
         vertex = self.service("vertex-ai")
         self.assertEqual(
@@ -60,7 +64,14 @@ class GoogleFinanceCatalogTest(unittest.TestCase):
         strict = MODULE.render_yaml(strict=True)
         ini = MODULE.render_ini()
 
-        for service_id in ("antigravity", "google-labs", "stitch", "gemini-cloud", "vertex-ai"):
+        for service_id in (
+            "antigravity",
+            "google-labs",
+            "stitch",
+            "android-studio-ai",
+            "gemini-cloud",
+            "vertex-ai",
+        ):
             service = self.service(service_id)
             self.assertIn(f'name: "{service.group}"', relaxed)
             self.assertIn(service.provider_key + ":", relaxed)
@@ -163,6 +174,7 @@ class GoogleFinanceCatalogTest(unittest.TestCase):
             "rule/AI_Antigravity_Classical.yaml",
             "rule/AI_GoogleLabs_Classical.yaml",
             "rule/AI_Stitch_Classical.yaml",
+            "rule/AI_AndroidStudioAI_Classical.yaml",
             "rule/AI_GeminiCloud_Classical.yaml",
             "rule/AI_VertexAI_Classical.yaml",
             "rule/Finance_Stripe_Classical.yaml",
@@ -190,6 +202,7 @@ class GoogleFinanceCatalogTest(unittest.TestCase):
             "antigravity",
             "google-labs",
             "stitch",
+            "android-studio-ai",
             "gemini-cloud",
             "vertex-ai",
             "finance_stripe",

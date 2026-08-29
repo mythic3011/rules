@@ -121,6 +121,15 @@
       }
     },
     {
+      "path": "rule/AI_AndroidStudioAI_Classical.yaml",
+      "urls": {
+        "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_AndroidStudioAI_Classical.yaml",
+        "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_AndroidStudioAI_Classical.yaml",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/main/rule/AI_AndroidStudioAI_Classical.yaml",
+        "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/rule/AI_AndroidStudioAI_Classical.yaml"
+      }
+    },
+    {
       "path": "rule/AI_GeminiCloud_Classical.yaml",
       "urls": {
         "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_GeminiCloud_Classical.yaml",
