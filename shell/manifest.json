@@ -117,7 +117,9 @@
         "guard-template",
         "guard-install"
       ],
-      "output": "dist/openclash-guard.sh"
+      "output": "dist/openclash-guard.sh",
+      "manifest": "dist/manifest.json",
+      "checksum": "dist/openclash-guard.sha256"
     }
   }
 }

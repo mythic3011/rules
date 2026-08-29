@@ -22,6 +22,11 @@ def main() -> None:
             repository=document["repository"], version=document["defaultRef"]
         )
         lines.append(f'{variable}="{base}"')
+    lines.extend([
+        'SOURCE_GUARD_PATH="dist/openclash-guard.sh"',
+        'SOURCE_GUARD_MANIFEST="dist/manifest.json"',
+        'SOURCE_GUARD_CHECKSUM="dist/openclash-guard.sha256"',
+    ])
     lines.append(END)
     text = INSTALLER.read_text(encoding="utf-8")
     start = text.index(BEGIN)

@@ -29,6 +29,7 @@ class DistributionCatalog:
     channels: tuple[DistributionChannel, ...]
 
     def channel(self, channel_id: str) -> DistributionChannel:
+        channel_id = {"github-raw": "raw", "jsdelivr": "cdn"}.get(channel_id, channel_id)
         for channel in self.channels:
             if channel.id == channel_id:
                 return channel
@@ -52,7 +53,10 @@ class DistributionCatalog:
     def resolve(self, source_id: str = "auto") -> tuple[DistributionChannel, ...]:
         candidates = [channel for channel in self.channels if channel.enabled]
         if source_id != "auto":
-            return (self.channel(source_id),)
+            channel = self.channel(source_id)
+            if not channel.enabled:
+                raise KeyError(f"Distribution source is disabled: {source_id}")
+            return (channel,)
         return tuple(sorted(candidates, key=lambda channel: (channel.priority, channel.id)))
 
     def base_url(self, channel_id: str, *, ref: str | None = None, sha: str = "{sha}") -> str:

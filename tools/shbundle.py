@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import heapq
 import json
 import os
@@ -35,7 +36,7 @@ SIDE_EFFECT_CHECKS: tuple[tuple[str, re.Pattern[str]], ...] = (
 
 ALLOWED_TOP_KEYS = frozenset({"schemaVersion", "generatedRoot", "modules", "apps"})
 ALLOWED_MODULE_KEYS = frozenset({"path", "depends", "before", "after"})
-ALLOWED_APP_KEYS = frozenset({"entry", "depends", "output"})
+ALLOWED_APP_KEYS = frozenset({"entry", "depends", "output", "manifest", "checksum"})
 
 TOOLS_DIR = Path(__file__).resolve().parent
 DEFAULT_ROOT = TOOLS_DIR.parent
@@ -60,6 +61,8 @@ class AppSpec:
     entry: str
     depends: tuple[str, ...]
     output: str
+    manifest: str | None
+    checksum: str | None
 
 
 @dataclass(frozen=True)
@@ -259,6 +262,16 @@ def load_manifest(manifest: str | os.PathLike[str] | None = None) -> Manifest:
             entry=_declared_path(spec_obj.get("entry"), f"apps.{name}.entry"),
             depends=_string_tuple(spec_obj.get("depends"), f"apps.{name}.depends"),
             output=output,
+            manifest=(
+                _declared_path(spec_obj["manifest"], f"apps.{name}.manifest")
+                if spec_obj.get("manifest") is not None
+                else None
+            ),
+            checksum=(
+                _declared_path(spec_obj["checksum"], f"apps.{name}.checksum")
+                if spec_obj.get("checksum") is not None
+                else None
+            ),
         )
 
     loaded = Manifest(
@@ -338,6 +351,14 @@ def validate_manifest(manifest: Manifest) -> None:
             raise ShbundleError(f"output escapes generatedRoot: {app.output}")
         if not _inside(output, manifest.root):
             raise ShbundleError(f"output escapes generatedRoot: {app.output}")
+        for label, declared in (("manifest", app.manifest), ("checksum", app.checksum)):
+            if declared is None:
+                continue
+            metadata_path = (manifest.root / declared).resolve()
+            if not _inside(metadata_path, generated_root) or not _inside(metadata_path, manifest.root):
+                raise ShbundleError(f"{label} escapes generatedRoot: {declared}")
+        if (app.manifest is None) != (app.checksum is None):
+            raise ShbundleError(f"app {app.name!r} must define both manifest and checksum")
 
     if manifest.modules:
         _kahn_order(_manifest_requires(manifest))
@@ -689,7 +710,7 @@ def render_bundle(manifest: Manifest, app_name: str) -> str:
     return "\n".join(chunks)
 
 
-def atomic_write_text(path: Path, content: str) -> None:
+def atomic_write_text(path: Path, content: str, mode: int = 0o755) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(prefix=".shbundle-", suffix=".tmp", dir=str(path.parent))
     tmp_path: Path | None = Path(tmp)
@@ -698,7 +719,7 @@ def atomic_write_text(path: Path, content: str) -> None:
             handle.write(content)
             handle.flush()
             os.fsync(handle.fileno())
-        os.chmod(tmp_path, 0o755)
+        os.chmod(tmp_path, mode)
         os.replace(tmp_path, path)
         tmp_path = None
     finally:
@@ -717,6 +738,24 @@ def build_app(manifest: Manifest, app_name: str) -> Path:
     content = render_bundle(manifest, app_name)
     output = _app_output(manifest, app)
     atomic_write_text(output, content)
+    if app.manifest and app.checksum:
+        digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
+        metadata = {
+            "artifact": output.relative_to(manifest.root).as_posix(),
+            "schemaVersion": 1,
+            "buildFormat": "posix-shell-bundle",
+            "sha256": digest,
+        }
+        atomic_write_text(
+            (manifest.root / app.manifest).resolve(),
+            json.dumps(metadata, indent=2, sort_keys=True) + "\n",
+            mode=0o644,
+        )
+        atomic_write_text(
+            (manifest.root / app.checksum).resolve(),
+            f"{digest}  {output.name}\n",
+            mode=0o644,
+        )
     return output
 
 

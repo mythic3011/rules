@@ -166,15 +166,32 @@ New regions are deduplicated against existing region identities. A region can re
 
 Architecture: [`docs/architecture/service-intake.md`](docs/architecture/service-intake.md).
 
-## OpenWrt helper
+## OpenWrt distribution surfaces
 
-The installer can download a ready-to-load profile, but deliberately does **not** switch the active OpenClash profile or restart the router:
+These surfaces have separate roles:
+
+- `setup/openclash/install.sh` is the bootstrap installer.
+- `dist/openclash-guard.sh` is the generated standalone POSIX application.
+- `cfg/` contains generated OpenClash profiles and policy artifacts.
+
+Install the verified Guard build directly from either supported public source:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/mythic3011/rules/main/setup/openclash/install.sh | sh
+curl -fsSL https://cdn.jsdelivr.net/gh/mythic3011/rules@main/setup/openclash/install.sh | sh
+```
+
+The bootstrap verifies the paired checksum and manifest, then atomically installs `/usr/bin/openclash-guard` and reconciles it. It does not require Python, Node.js, git, or `shbundle` on OpenWrt.
+
+To download a ready-to-load profile instead, pass `--profile`; this deliberately does **not** switch the active OpenClash profile:
 
 ```sh
 wget -O /tmp/mythic3011-rules-install.sh \
   https://raw.githubusercontent.com/mythic3011/rules/main/setup/openclash/install.sh
 sh /tmp/mythic3011-rules-install.sh --profile ai-balanced --install
 ```
+
+Build-time commands are `python3 tools/shbundle.py build openclash-guard`, `python3 tools/shbundle.py build --all`, and `make build`.
 
 Validate and activate the downloaded config in OpenClash yourself.
 
