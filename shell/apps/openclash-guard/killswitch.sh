@@ -7,6 +7,7 @@ _GUARD_UCI_ENABLED=1
 _GUARD_UCI_MODE=auto
 _GUARD_UCI_KILL_SWITCH=1
 _GUARD_UCI_DNS_KILL_SWITCH=0
+_GUARD_NFT_TABLE_EXISTS=0
 
 _guard_kill_comment() {
     printf '%s:%s' "$_GUARD_NFT_PREFIX" "$1"
@@ -82,7 +83,11 @@ guard_kill_delete_table() {
 
 # Order: local accepts, kill/protect reject, (gaming appended later), remaining.
 guard_kill_render() {
-    printf 'add table %s %s\n' "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE"
+    if [ "${_GUARD_NFT_TABLE_EXISTS:-0}" = 1 ]; then
+        printf 'flush table %s %s\n' "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE"
+    else
+        printf 'add table %s %s\n' "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE"
+    fi
     _guard_kill_add_set lan_rfc1918 ipv4_addr lan interval
     _guard_kill_add_elements lan_rfc1918 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
     _guard_kill_add_set protected_udp inet_service protected-udp
@@ -136,6 +141,5 @@ guard_kill_apply_batch() {
         printf '%s\n' "guard_kill: nft not available" >&2
         return 1
     fi
-    guard_kill_delete_table || return $?
     nft_apply_batch "$_guard_ka_file"
 }

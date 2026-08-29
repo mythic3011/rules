@@ -73,11 +73,16 @@ guard_policy_validate_file() {
     do
         [ -n "$_guard_pv_class" ] || continue
         _guard_pv_da=$(json_get "$_guard_pv_file" "protectionClasses.${_guard_pv_class}.directAllowed") || _guard_pv_da=
+        _guard_pv_dr=$(json_get "$_guard_pv_file" "protectionClasses.${_guard_pv_class}.directRequiresSupportedRegion" 2>/dev/null) || _guard_pv_dr=false
         _guard_pv_fm=$(json_get "$_guard_pv_file" "protectionClasses.${_guard_pv_class}.failMode") || _guard_pv_fm=
         _guard_pv_quic=$(json_get "$_guard_pv_file" "protectionClasses.${_guard_pv_class}.quic") || _guard_pv_quic=
         _guard_pv_ks=$(json_get "$_guard_pv_file" "protectionClasses.${_guard_pv_class}.firewallKillSwitch") || _guard_pv_ks=
         if ! _guard_policy_is_bool "$_guard_pv_da"; then
             printf '%s\n' "guard_policy: invalid directAllowed on $_guard_pv_class" >&2
+            return 1
+        fi
+        if ! _guard_policy_is_bool "$_guard_pv_dr"; then
+            printf '%s\n' "guard_policy: invalid directRequiresSupportedRegion on $_guard_pv_class" >&2
             return 1
         fi
         case $_guard_pv_fm in
@@ -233,6 +238,19 @@ guard_policy_eval() {
         if [ "$_guard_pe_da" = false ]; then
             if [ "$_GUARD_PROXY_HEALTHY" = 1 ] && guard_policy_region_allowed "$_guard_pe_svc" "$_GUARD_PROXY_REGION"; then
                 printf '%s\n' "reject-direct"
+                return 0
+            fi
+            printf '%s\n' "reject"
+            return 0
+        fi
+        _guard_pe_direct_required=$(_guard_policy_class_field "$_guard_pe_svc" directRequiresSupportedRegion 2>/dev/null) || _guard_pe_direct_required=false
+        if [ "$_guard_pe_direct_required" = true ]; then
+            if guard_policy_region_allowed "$_guard_pe_svc" "$_GUARD_NET_DIRECT_REGION"; then
+                printf '%s\n' "allow-direct"
+                return 0
+            fi
+            if [ "$_GUARD_PROXY_HEALTHY" = 1 ] && guard_policy_region_allowed "$_guard_pe_svc" "$_GUARD_PROXY_REGION"; then
+                printf '%s\n' "allow-proxy"
                 return 0
             fi
             printf '%s\n' "reject"

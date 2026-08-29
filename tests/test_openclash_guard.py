@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import copy
 import os
 import re
 import stat
@@ -153,6 +154,7 @@ if __name__ == "__main__":
 '''
 
 FAKE_NFT = r'''#!/usr/bin/env python3
+import copy
 import json
 import os
 import re
@@ -223,7 +225,15 @@ def comment_of(text):
 
 def apply_line(state, line):
     line = line.strip()
-    if not line or line.startswith("#") or line.startswith("flush"):
+    if not line or line.startswith("#"):
+        return 0
+    if line.startswith("flush table "):
+        parts = line.split()
+        key = table_key(parts[2], parts[3])
+        if key not in state["tables"]:
+            print("Error: No such file or directory", file=sys.stderr)
+            return 1
+        state["tables"][key] = {"chains": {}, "sets": {}, "elements": {}}
         return 0
     if line.startswith("add table "):
         parts = line.split()
@@ -362,12 +372,18 @@ def main(argv):
         raw = sys.stdin.read() if file_path == "-" else Path(file_path).read_text(encoding="utf-8")
         lines = [line for line in raw.splitlines() if line.strip() and not line.strip().startswith("#")]
         state.setdefault("batches", []).append(lines)
+        if os.environ.get("NFT_FAKE_FAIL_BATCH") == "1":
+            print("nft: injected transaction failure", file=sys.stderr)
+            return 1
+        staged = copy.deepcopy(state)
         rc = 0
         for line in raw.splitlines():
-            line_rc = apply_line(state, line)
+            line_rc = apply_line(staged, line)
             if line_rc != 0:
                 rc = line_rc
                 break
+        if rc == 0:
+            state = staged
         save(state)
         return rc
     if not filtered:
@@ -838,6 +854,45 @@ class GuardAppTests(unittest.TestCase):
         comments = [rule["comment"] for rule in table["chains"]["forward"]]
         self.assertEqual(len(comments), len(set(comments)), comments)
         self.assertEqual(list(state["tables"]), ["inet openclash_guard"])
+
+    def test_failed_reconcile_preserves_existing_firewall_transaction(self) -> None:
+        self._install_service("openclash", enabled=True, running=True)
+        self._write_uci(self._default_uci())
+        extra = {"GUARD_OPENCLASH_HEALTHY": "1", "GUARD_PROXY_HEALTHY": "1"}
+        first = self.run_guard("reconcile", extra=extra)
+        self.assertEqual(first.returncode, 0, first.stderr + first.stdout)
+        before = self.load_nft_state()
+        failed = self.run_guard("reconcile", extra={**extra, "NFT_FAKE_FAIL_BATCH": "1"})
+        self.assertNotEqual(failed.returncode, 0)
+        self.assertEqual(self.load_nft_state()["tables"], before["tables"])
+
+    def test_json_remove_still_requires_yes(self) -> None:
+        self._install_service("openclash", enabled=True, running=True)
+        self._write_uci(self._default_uci())
+        applied = self.run_guard("reconcile", extra={"GUARD_OPENCLASH_HEALTHY": "1"})
+        self.assertEqual(applied.returncode, 0, applied.stderr + applied.stdout)
+        before = self.load_nft_state()
+        refused = self.run_guard("--json", "remove")
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertEqual(self.load_nft_state()["tables"], before["tables"])
+
+    def test_refresh_auto_bootstraps_without_existing_policy(self) -> None:
+        self._install_service("openclash", enabled=True, running=True)
+        self._write_uci(self._default_uci())
+        policy_dir = self.work / "fresh-policy"
+        policy_dir.mkdir()
+        destination = policy_dir / "openclash-guard.json"
+        raw_url = "https://raw.githubusercontent.com/mythic3011/rules/main/cfg/runtime/openclash-guard.json"
+        self.fetch_map.write_text(json.dumps({raw_url: {"body": POLICY.read_text(encoding="utf-8")}}) + "\n", encoding="utf-8")
+        result = self.run_guard(
+            "refresh",
+            "--source",
+            "auto",
+            extra={"GUARD_POLICY_FILE": str(destination)},
+        )
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertTrue(destination.is_file())
+        self.assertTrue(self.guard_table())
 
     def test_status_and_doctor_json_emit_normalized_env(self) -> None:
         self._install_service("adguardhome", enabled=True, running=True)

@@ -450,7 +450,7 @@ class TemplateAndInstallCliTests(unittest.TestCase):
             extra={
                 "GUARD_OPENCLASH_HEALTHY": "1",
                 "GUARD_PROXY_HEALTHY": "1",
-                "GUARD_POLICY_SOURCE": str(POLICY),
+                "GUARD_POLICY_FILE": str(POLICY),
                 "GUARD_TEMPLATES_SOURCE": str(TEMPLATES_OUTPUT_PATH),
             },
             stdin="n\n" * 20,
@@ -474,7 +474,7 @@ class TemplateAndInstallCliTests(unittest.TestCase):
             "install",
             "--mode",
             "auto",
-            extra={"GUARD_POLICY_SOURCE": str(POLICY)},
+            extra={"GUARD_POLICY_FILE": str(POLICY)},
             stdin="y\n",
         )
         self.assertNotEqual(result.returncode, 0)

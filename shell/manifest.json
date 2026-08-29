@@ -38,6 +38,10 @@
       "path": "shell/lib/json.sh",
       "depends": []
     },
+    "distribution": {
+      "path": "shell/lib/distribution.sh",
+      "depends": []
+    },
     "guard-dns": {
       "path": "shell/apps/openclash-guard/dns.sh",
       "depends": ["service", "env"]
@@ -107,6 +111,7 @@
         "service",
         "uci",
         "json",
+        "distribution",
         "guard-environment",
         "guard-policy",
         "guard-dns",

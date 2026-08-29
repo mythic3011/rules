@@ -123,7 +123,7 @@ ${_guard_ih_body}"
 
 _guard_install_policy_files() {
     _guard_ip_etc=$(_guard_install_etc)
-    _guard_ip_pol=${GUARD_POLICY_SOURCE:-}
+    _guard_ip_pol=${GUARD_POLICY_FILE:-}
     _guard_ip_tpl=${GUARD_TEMPLATES_SOURCE:-}
     if [ -z "$_guard_ip_pol" ] && [ -n "${GUARD_POLICY_FILE:-}" ] && [ -f "${GUARD_POLICY_FILE}" ]; then
         _guard_ip_pol=$GUARD_POLICY_FILE
@@ -366,6 +366,10 @@ guard_cmd_install() {
     fi
     if [ "${GUARD_DRY_RUN:-0}" = 1 ]; then
         cli_info "dry-run: install not written"
+        return 0
+    fi
+    if [ ! -f "$(_guard_policy_default_path)" ]; then
+        cli_warn "installed integration; no policy is present yet"
         return 0
     fi
     guard_cmd_reconcile

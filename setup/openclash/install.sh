@@ -54,7 +54,6 @@ case "$PROFILE" in
   ai-strict) PATH_PART="cfg/yaml/Custom_Clash_AI_Strict.yaml" ;;
   *) echo "unsupported OpenClash profile: $PROFILE" >&2; exit 2 ;;
 esac
-PATH_PART="${PATH_PART}"
 else
   PATH_PART="$SOURCE_GUARD_PATH"
 fi
@@ -127,7 +126,6 @@ TMP="${TARGET}.tmp.$$"
 trap 'rm -f "$TMP" "$TMP.manifest" "$TMP.sha256"' EXIT INT TERM
 
 downloaded=0
-selected_source=""
 for source in $SOURCES; do
   URL="$(source_url "$source")"
   if ! fetch_url "$URL" "$TMP" || [ ! -s "$TMP" ]; then
@@ -156,7 +154,6 @@ for source in $SOURCES; do
     /bin/sh -n "$TMP" || continue
   fi
   downloaded=1
-  selected_source="$source"
   break
 done
 if [ "$downloaded" -ne 1 ]; then
@@ -172,6 +169,7 @@ trap - EXIT INT TERM
 printf 'Downloaded %s -> %s\n' "$PROFILE" "$TARGET"
 if [ "$INSTALL" -eq 1 ] && [ "$PROFILE_MODE" -eq 0 ]; then
   "$TARGET" install --yes --no-refresh
+  "$TARGET" refresh --source auto
 elif [ "$INSTALL" -eq 1 ]; then
   printf 'Next: select %s in OpenClash, validate it, then activate it.\n' "$TARGET"
 fi

@@ -162,6 +162,31 @@ cli_die() {
 }
 # END MODULE: cli
 
+# BEGIN MODULE: distribution
+# Generated distribution catalog for cold-start runtime policy refresh.
+# Prefix: guard_distribution_
+set -eu
+
+# BEGIN GENERATED DISTRIBUTION CATALOG
+_GUARD_DISTRIBUTION_RAW_BASE="https://raw.githubusercontent.com/mythic3011/rules/main"
+_GUARD_DISTRIBUTION_CDN_BASE="https://cdn.jsdelivr.net/gh/mythic3011/rules@main"
+# END GENERATED DISTRIBUTION CATALOG
+
+_guard_distribution_policy_url() {
+    _guard_ds_source=${1:-}
+    _guard_ds_override=${2:-}
+    if [ -n "$_guard_ds_override" ]; then
+        printf '%s/cfg/runtime/openclash-guard.json\n' "${_guard_ds_override%/}"
+        return 0
+    fi
+    case $_guard_ds_source in
+        github-raw|raw) printf '%s/cfg/runtime/openclash-guard.json\n' "$_GUARD_DISTRIBUTION_RAW_BASE" ;;
+        jsdelivr|cdn) printf '%s/cfg/runtime/openclash-guard.json\n' "$_GUARD_DISTRIBUTION_CDN_BASE" ;;
+        *) return 1 ;;
+    esac
+}
+# END MODULE: distribution
+
 # BEGIN MODULE: env
 # Generic environment helpers (bool/int/default). Not service detection.
 # Prefix: env_
@@ -1168,11 +1193,16 @@ guard_policy_validate_file() {
     do
         [ -n "$_guard_pv_class" ] || continue
         _guard_pv_da=$(json_get "$_guard_pv_file" "protectionClasses.${_guard_pv_class}.directAllowed") || _guard_pv_da=
+        _guard_pv_dr=$(json_get "$_guard_pv_file" "protectionClasses.${_guard_pv_class}.directRequiresSupportedRegion" 2>/dev/null) || _guard_pv_dr=false
         _guard_pv_fm=$(json_get "$_guard_pv_file" "protectionClasses.${_guard_pv_class}.failMode") || _guard_pv_fm=
         _guard_pv_quic=$(json_get "$_guard_pv_file" "protectionClasses.${_guard_pv_class}.quic") || _guard_pv_quic=
         _guard_pv_ks=$(json_get "$_guard_pv_file" "protectionClasses.${_guard_pv_class}.firewallKillSwitch") || _guard_pv_ks=
         if ! _guard_policy_is_bool "$_guard_pv_da"; then
             printf '%s\n' "guard_policy: invalid directAllowed on $_guard_pv_class" >&2
+            return 1
+        fi
+        if ! _guard_policy_is_bool "$_guard_pv_dr"; then
+            printf '%s\n' "guard_policy: invalid directRequiresSupportedRegion on $_guard_pv_class" >&2
             return 1
         fi
         case $_guard_pv_fm in
@@ -1328,6 +1358,19 @@ guard_policy_eval() {
         if [ "$_guard_pe_da" = false ]; then
             if [ "$_GUARD_PROXY_HEALTHY" = 1 ] && guard_policy_region_allowed "$_guard_pe_svc" "$_GUARD_PROXY_REGION"; then
                 printf '%s\n' "reject-direct"
+                return 0
+            fi
+            printf '%s\n' "reject"
+            return 0
+        fi
+        _guard_pe_direct_required=$(_guard_policy_class_field "$_guard_pe_svc" directRequiresSupportedRegion 2>/dev/null) || _guard_pe_direct_required=false
+        if [ "$_guard_pe_direct_required" = true ]; then
+            if guard_policy_region_allowed "$_guard_pe_svc" "$_GUARD_NET_DIRECT_REGION"; then
+                printf '%s\n' "allow-direct"
+                return 0
+            fi
+            if [ "$_GUARD_PROXY_HEALTHY" = 1 ] && guard_policy_region_allowed "$_guard_pe_svc" "$_GUARD_PROXY_REGION"; then
+                printf '%s\n' "allow-proxy"
                 return 0
             fi
             printf '%s\n' "reject"
@@ -2344,6 +2387,7 @@ _GUARD_UCI_ENABLED=1
 _GUARD_UCI_MODE=auto
 _GUARD_UCI_KILL_SWITCH=1
 _GUARD_UCI_DNS_KILL_SWITCH=0
+_GUARD_NFT_TABLE_EXISTS=0
 
 _guard_kill_comment() {
     printf '%s:%s' "$_GUARD_NFT_PREFIX" "$1"
@@ -2419,7 +2463,11 @@ guard_kill_delete_table() {
 
 # Order: local accepts, kill/protect reject, (gaming appended later), remaining.
 guard_kill_render() {
-    printf 'add table %s %s\n' "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE"
+    if [ "${_GUARD_NFT_TABLE_EXISTS:-0}" = 1 ]; then
+        printf 'flush table %s %s\n' "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE"
+    else
+        printf 'add table %s %s\n' "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE"
+    fi
     _guard_kill_add_set lan_rfc1918 ipv4_addr lan interval
     _guard_kill_add_elements lan_rfc1918 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
     _guard_kill_add_set protected_udp inet_service protected-udp
@@ -2473,7 +2521,6 @@ guard_kill_apply_batch() {
         printf '%s\n' "guard_kill: nft not available" >&2
         return 1
     fi
-    guard_kill_delete_table || return $?
     nft_apply_batch "$_guard_ka_file"
 }
 # END MODULE: guard-killswitch
@@ -3449,7 +3496,7 @@ ${_guard_ih_body}"
 
 _guard_install_policy_files() {
     _guard_ip_etc=$(_guard_install_etc)
-    _guard_ip_pol=${GUARD_POLICY_SOURCE:-}
+    _guard_ip_pol=${GUARD_POLICY_FILE:-}
     _guard_ip_tpl=${GUARD_TEMPLATES_SOURCE:-}
     if [ -z "$_guard_ip_pol" ] && [ -n "${GUARD_POLICY_FILE:-}" ] && [ -f "${GUARD_POLICY_FILE}" ]; then
         _guard_ip_pol=$GUARD_POLICY_FILE
@@ -3694,6 +3741,10 @@ guard_cmd_install() {
         cli_info "dry-run: install not written"
         return 0
     fi
+    if [ ! -f "$(_guard_policy_default_path)" ]; then
+        cli_warn "installed integration; no policy is present yet"
+        return 0
+    fi
     guard_cmd_reconcile
 }
 # END MODULE: guard-install
@@ -3748,6 +3799,14 @@ _guard_prepare() {
     guard_game_read_uci
     guard_env_detect
     guard_policy_load "$(_guard_policy_default_path)" || return $?
+    if [ -z "$_GUARD_NET_DIRECT_REGION" ]; then
+        guard_geo_detect_direct >/dev/null 2>&1 || true
+        _GUARD_NET_DIRECT_REGION=$(guard_geo_cached_country direct 2>/dev/null) || _GUARD_NET_DIRECT_REGION=
+    fi
+    if [ -z "$_GUARD_PROXY_REGION" ] && [ -n "${GUARD_GEO_ROUTE:-}" ]; then
+        guard_geo_detect_route "$GUARD_GEO_ROUTE" >/dev/null 2>&1 || true
+        _GUARD_PROXY_REGION=$(guard_geo_cached_country route "$GUARD_GEO_ROUTE" 2>/dev/null) || _GUARD_PROXY_REGION=
+    fi
     guard_policy_refresh_state
 }
 
@@ -3773,6 +3832,10 @@ guard_cmd_reconcile() {
         return 0
     fi
     _guard_batch=$(file_mktemp)
+    _GUARD_NFT_TABLE_EXISTS=0
+    if nft_table_exists "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE"; then
+        _GUARD_NFT_TABLE_EXISTS=1
+    fi
     _guard_write_batch "$_guard_batch"
     guard_kill_apply_batch "$_guard_batch"
     _guard_rc=$?
@@ -3788,11 +3851,9 @@ guard_cmd_apply() {
 }
 
 guard_cmd_remove() {
-    if [ "$_GUARD_JSON" != 1 ]; then
-        if ! cli_confirm "Remove openclash-guard nft table?"; then
-            cli_warn "aborted"
-            return 1
-        fi
+    if ! cli_confirm "Remove openclash-guard nft table?"; then
+        cli_warn "aborted"
+        return 1
     fi
     guard_kill_read_uci
     guard_env_detect
@@ -3805,7 +3866,7 @@ guard_cmd_remove() {
 }
 
 guard_cmd_refresh() {
-    _guard_refresh_source=${GUARD_POLICY_SOURCE:-auto}
+    _guard_refresh_source=${GUARD_DISTRIBUTION_SOURCE:-auto}
     _guard_refresh_base=${GUARD_POLICY_BASE_URL:-}
     while [ "$#" -gt 0 ]; do
         case $1 in
@@ -3832,38 +3893,35 @@ guard_cmd_refresh() {
         _guard_refresh_sources="$_guard_refresh_source"
     fi
     if [ -z "$_guard_url" ] && [ "$_guard_refresh_source" = auto ]; then
-        _guard_refresh_sources="jsdelivr github-raw"
-        _guard_refresh_selected=$(_guard_distribution_selected 2>/dev/null) || _guard_refresh_selected=
-        if [ -n "$_guard_refresh_selected" ]; then
-            _guard_refresh_sources="$_guard_refresh_selected $_guard_refresh_sources"
-        fi
+        _guard_refresh_sources="github-raw jsdelivr"
     fi
     _guard_refresh_ok=0
+    _guard_refresh_seen=
     for _guard_refresh_item in $_guard_refresh_sources; do
+        case " $_guard_refresh_seen " in
+            *" $_guard_refresh_item "*) continue ;;
+        esac
+        _guard_refresh_seen="$_guard_refresh_seen $_guard_refresh_item"
         if [ -z "$_guard_url" ]; then
-            case $_guard_refresh_item in
-                *)
-                    _guard_source_key=$_guard_refresh_item
-                    [ "$_guard_refresh_item" = github-raw ] && _guard_source_key=raw
-                    [ "$_guard_refresh_item" = jsdelivr ] && _guard_source_key=cdn
-                    _guard_source_base=$(json_get "$_GUARD_POLICY_FILE" "distributionSources.$_guard_source_key.baseUrl" 2>/dev/null) || _guard_source_base=
-                    if [ -z "$_guard_source_base" ]; then cli_error "unsupported distribution source: $_guard_refresh_item"; return 2; fi
-                    _guard_url="$_guard_source_base/cfg/runtime/openclash-guard.json"
-                    ;;
-            esac
+            _guard_url=$(_guard_distribution_policy_url "$_guard_refresh_item" "$_guard_refresh_base") || {
+                cli_error "unsupported distribution source: $_guard_refresh_item"
+                return 2
+            }
         fi
-        if fetch_atomic "$_guard_url" "$_guard_dest" guard_policy_validate_file; then
+        _guard_candidate=$(fetch_to_temp "$_guard_url") || { _guard_url=; continue; }
+        if guard_policy_validate_file "$_guard_candidate" && GUARD_POLICY_FILE="$_guard_candidate" guard_cmd_reconcile; then
+            file_atomic_replace "$_guard_dest" "$_guard_candidate" || return $?
             _guard_refresh_ok=1
             _guard_distribution_record "$_guard_refresh_item"
             break
         fi
+        rm -f "$_guard_candidate"
         _guard_url=
     done
     if [ "$_guard_refresh_ok" != 1 ]; then
         cli_error "refresh failed; keeping last-known-good policy and firewall state"
         return 1
     fi
-    guard_cmd_reconcile
 }
 
 _guard_emit_status_json() {
@@ -3871,7 +3929,35 @@ _guard_emit_status_json() {
     _guard_sj=${_guard_sj%?}
     printf '%s,' "$_guard_sj"
     guard_policy_json_extra
+    guard_doctor_json_extra
     printf '}\n'
+}
+
+guard_doctor_json_extra() {
+    [ -n "${_guard_doctor_service:-}" ] || return 0
+    printf ',"dependencies":{'
+    _guard_dj_first=1
+    # shellcheck disable=SC2153
+    _guard_dj_deps=$(json_keys "$_GUARD_POLICY_FILE" "services.$_guard_doctor_service.dependencies" 2>/dev/null) || _guard_dj_deps=
+    for _guard_dj_dep in $_guard_dj_deps; do
+        _guard_dj_base="services.$_guard_doctor_service.dependencies.$_guard_dj_dep"
+        _guard_dj_required=$(json_get "$_GUARD_POLICY_FILE" "$_guard_dj_base.required" 2>/dev/null) || _guard_dj_required=true
+        _guard_dj_status=PASS
+        if [ "$_guard_dj_required" = true ]; then
+            _guard_dj_healthy=$(json_get "${GUARD_DEPENDENCY_STATUS_FILE:-}" "$_guard_dj_base.healthy" 2>/dev/null) || _guard_dj_healthy=unknown
+            _guard_dj_compatible=$(json_get "${GUARD_DEPENDENCY_STATUS_FILE:-}" "$_guard_dj_base.routeCompatible" 2>/dev/null) || _guard_dj_compatible=true
+            if [ "$_guard_dj_healthy" = false ] || [ "$_guard_dj_compatible" = false ]; then
+                _guard_dj_status=FAIL
+            elif [ "$_guard_dj_healthy" = unknown ]; then
+                _guard_dj_status=UNKNOWN
+            fi
+        fi
+        [ "$_guard_dj_first" = 1 ] || printf ','
+        _guard_dj_first=0
+        printf '"%s":{"status":"%s","required":%s}' \
+            "$(_guard_env_json_string "$_guard_dj_dep")" "$_guard_dj_status" "$_guard_dj_required"
+    done
+    printf '}'
 }
 
 guard_cmd_status() {
@@ -3898,7 +3984,18 @@ guard_cmd_status() {
 }
 
 guard_cmd_doctor() {
-    _guard_doctor_service=${1:-}
+    _guard_doctor_service=
+    while [ "$#" -gt 0 ]; do
+        case $1 in
+            --json) _GUARD_JSON=1; shift ;;
+            --yes) shift ;;
+            *)
+                [ -z "$_guard_doctor_service" ] || { cli_error "unknown doctor option: $1"; return 2; }
+                _guard_doctor_service=$1
+                shift
+                ;;
+        esac
+    done
     guard_cmd_status
     if [ "$_GUARD_JSON" = 1 ]; then
         return 0
@@ -3937,8 +4034,16 @@ guard_cmd_doctor() {
             _guard_doctor_path=$(json_get "$_GUARD_POLICY_FILE" "$_guard_doctor_base.path") || _guard_doctor_path=/
             _guard_doctor_granularity=$(json_get "$_GUARD_POLICY_FILE" "$_guard_doctor_base.matcher.availableGranularity") || _guard_doctor_granularity=host
             _guard_doctor_scope=$(json_get "$_GUARD_POLICY_FILE" "$_guard_doctor_base.matcher.scopeExpansion") || _guard_doctor_scope=false
-            _guard_doctor_status=UNKNOWN
-            if [ "$_GUARD_DEPENDENCY_FAILURE" = 0 ]; then _guard_doctor_status=PASS; fi
+            _guard_doctor_status=PASS
+            if [ "$_guard_doctor_required" = true ]; then
+                _guard_doctor_healthy=$(json_get "${GUARD_DEPENDENCY_STATUS_FILE:-}" "$_guard_doctor_base.healthy" 2>/dev/null) || _guard_doctor_healthy=unknown
+                _guard_doctor_compatible=$(json_get "${GUARD_DEPENDENCY_STATUS_FILE:-}" "$_guard_doctor_base.routeCompatible" 2>/dev/null) || _guard_doctor_compatible=true
+                if [ "$_guard_doctor_healthy" = false ] || [ "$_guard_doctor_compatible" = false ]; then
+                    _guard_doctor_status=FAIL
+                elif [ "$_guard_doctor_healthy" = unknown ]; then
+                    _guard_doctor_status=UNKNOWN
+                fi
+            fi
             printf '  %s [%s] %s\n' "$_guard_doctor_dep" "$_guard_doctor_status" "$_guard_doctor_host"
             cli_kv role "$_guard_doctor_role"
             cli_kv required "$_guard_doctor_required"
@@ -4066,6 +4171,7 @@ main() {
                 shift
                 ;;
             --policy-file)
+                # shellcheck disable=SC2034
                 GUARD_POLICY_FILE=$2
                 shift 2
                 ;;
