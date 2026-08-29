@@ -1,6 +1,39 @@
 {
   "schemaVersion": 1,
   "generatedRoot": "dist",
-  "modules": {},
+  "modules": {
+    "cli": {
+      "path": "shell/lib/cli.sh",
+      "depends": []
+    },
+    "env": {
+      "path": "shell/lib/env.sh",
+      "depends": []
+    },
+    "file": {
+      "path": "shell/lib/file.sh",
+      "depends": []
+    },
+    "fetch": {
+      "path": "shell/lib/fetch.sh",
+      "depends": ["file"]
+    },
+    "lock": {
+      "path": "shell/lib/lock.sh",
+      "depends": []
+    },
+    "nft": {
+      "path": "shell/lib/nft.sh",
+      "depends": []
+    },
+    "service": {
+      "path": "shell/lib/service.sh",
+      "depends": []
+    },
+    "uci": {
+      "path": "shell/lib/uci.sh",
+      "depends": []
+    }
+  },
   "apps": {}
 }
