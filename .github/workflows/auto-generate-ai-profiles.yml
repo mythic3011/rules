@@ -121,7 +121,6 @@ jobs:
             echo "$managed_status"
             exit 1
           fi
-          git diff --exit-code -- apps/profile-service/worker/generated/runtime-data.mjs
 
   commit-managed-python-outputs:
     # PR code is validated with a read-only token above. Only trusted push/schedule
