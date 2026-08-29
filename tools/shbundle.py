@@ -339,6 +339,39 @@ def validate_manifest(manifest: Manifest) -> None:
         if not _inside(output, manifest.root):
             raise ShbundleError(f"output escapes generatedRoot: {app.output}")
 
+    if manifest.modules:
+        _kahn_order(_manifest_requires(manifest))
+
+    entry_names = {
+        name
+        for app in manifest.apps.values()
+        for name in [entry_module_name(manifest, app)]
+        if name is not None
+    }
+    functions: dict[str, list[str]] = {}
+    for name, module in sorted(manifest.modules.items()):
+        source = read_module_source(manifest, module)
+        if name not in entry_names:
+            if toplevel_main_dispatch(source):
+                raise ShbundleError(
+                    f'non-entry module {name!r} invokes main "$@"'
+                )
+            effects = toplevel_side_effects(source)
+            if effects:
+                raise ShbundleError(
+                    f"top-level side effect in non-entry module {name!r}: {effects[0]}"
+                )
+        if name in entry_names:
+            continue
+        for func in exported_functions(source):
+            functions.setdefault(func, []).append(name)
+    for func, owners in sorted(functions.items()):
+        unique_owners = list(dict.fromkeys(owners))
+        if len(unique_owners) > 1:
+            raise ShbundleError(
+                f"duplicate function name {func!r} in modules: {', '.join(unique_owners)}"
+            )
+
     for app in sorted(manifest.apps, key=lambda name: name):
         validate_app(manifest, app)
 
@@ -399,6 +432,50 @@ def _requires_edges(manifest: Manifest, included: Iterable[str], entry: str) -> 
     return requires
 
 
+def _manifest_requires(manifest: Manifest) -> dict[str, set[str]]:
+    requires: dict[str, set[str]] = {name: set() for name in manifest.modules}
+    for name, module in manifest.modules.items():
+        for dep in module.depends:
+            requires[name].add(dep)
+        for other in module.after:
+            requires[name].add(other)
+        for other in module.before:
+            requires[other].add(name)
+    return requires
+
+
+def _kahn_order(requires: Mapping[str, set[str]]) -> list[str]:
+    nodes = set(requires)
+    successors: dict[str, set[str]] = {name: set() for name in nodes}
+    indegree: dict[str, int] = {name: 0 for name in nodes}
+    for name, deps in requires.items():
+        for dep in deps:
+            if dep not in nodes:
+                continue
+            if name not in successors[dep]:
+                successors[dep].add(name)
+                indegree[name] += 1
+
+    ready = [name for name, degree in indegree.items() if degree == 0]
+    heapq.heapify(ready)
+    order: list[str] = []
+    while ready:
+        name = heapq.heappop(ready)
+        order.append(name)
+        for nxt in sorted(successors[name]):
+            indegree[nxt] -= 1
+            if indegree[nxt] == 0:
+                heapq.heappush(ready, nxt)
+
+    if len(order) != len(nodes):
+        remaining = nodes - set(order)
+        cycle = _find_cycle(requires, remaining) or _find_cycle(requires, nodes)
+        if cycle:
+            raise ShbundleError(f"dependency cycle: {' -> '.join(cycle)}")
+        raise ShbundleError("unorderable modules: " + ", ".join(sorted(remaining)))
+    return order
+
+
 def _find_cycle(requires: Mapping[str, set[str]], remaining: set[str]) -> list[str] | None:
     adj = {name: sorted(requires.get(name, set()) & remaining) for name in remaining}
     visiting: dict[str, bool] = {}
@@ -434,35 +511,7 @@ def topological_order(manifest: Manifest, app_name: str) -> tuple[list[str], str
         raise ShbundleError(f"unknown app: {app_name!r}; choose one of: {known}")
     app = manifest.apps[app_name]
     included, entry = collect_included(manifest, app)
-    requires = _requires_edges(manifest, included, entry)
-
-    successors: dict[str, set[str]] = {name: set() for name in included}
-    indegree: dict[str, int] = {name: 0 for name in included}
-    for name, deps in requires.items():
-        for dep in deps:
-            if name not in successors[dep]:
-                successors[dep].add(name)
-                indegree[name] += 1
-
-    ready = [name for name, degree in indegree.items() if degree == 0]
-    heapq.heapify(ready)
-    order: list[str] = []
-    while ready:
-        name = heapq.heappop(ready)
-        order.append(name)
-        for nxt in sorted(successors[name]):
-            indegree[nxt] -= 1
-            if indegree[nxt] == 0:
-                heapq.heappush(ready, nxt)
-
-    if len(order) != len(included):
-        remaining = set(included) - set(order)
-        cycle = _find_cycle(requires, remaining) or _find_cycle(requires, included)
-        if cycle:
-            raise ShbundleError(f"dependency cycle: {' -> '.join(cycle)}")
-        raise ShbundleError(
-            "dependency cycle: " + " -> ".join(sorted(remaining) + [sorted(remaining)[0]])
-        )
+    order = _kahn_order(_requires_edges(manifest, included, entry))
     return order, entry, included
 
 
@@ -537,7 +586,19 @@ def strip_module_source(text: str) -> str:
         index += 1
     while index < len(lines) and not lines[index].strip():
         index += 1
-    kept = [line for line in lines[index:] if not MAIN_DISPATCH_RE.match(line.strip())]
+    kept: list[str] = []
+    depth = 0
+    for line in lines[index:]:
+        stripped = line.strip()
+        if depth <= 0 and MAIN_DISPATCH_RE.match(stripped):
+            depth += _brace_delta(line)
+            if depth < 0:
+                depth = 0
+            continue
+        kept.append(line)
+        depth += _brace_delta(line)
+        if depth < 0:
+            depth = 0
     return "\n".join(kept).rstrip()
 
 
@@ -637,9 +698,9 @@ def atomic_write_text(path: Path, content: str) -> None:
             handle.write(content)
             handle.flush()
             os.fsync(handle.fileno())
+        os.chmod(tmp_path, 0o755)
         os.replace(tmp_path, path)
         tmp_path = None
-        path.chmod(0o755)
     finally:
         if tmp_path is not None:
             try:

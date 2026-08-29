@@ -41,6 +41,11 @@ class PublicCatalogTest(unittest.TestCase):
         for path in ("cfg", "rule", "dns", "setup", "internal", "tests", "web"):
             self.assertTrue((ROOT / path).exists(), path)
 
+    def test_shell_source_tree_is_not_a_published_runtime(self) -> None:
+        root = ROOT / "shell"
+        self.assertTrue((root / "manifest.json").is_file())
+        self.assertEqual(list(root.glob("*.sh")), [])
+
 
 if __name__ == "__main__":
     unittest.main()

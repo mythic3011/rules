@@ -1,7 +1,9 @@
 # shell/
 
-POSIX shell **source** for bundled apps. Generated artifacts live under `dist/` and
-must not be hand-edited.
+POSIX shell **source** for bundled apps. This is not the pre-v2 published runtime
+tree (that moved to `setup/openclash/scripts/`). Do not put curl-installable
+standalone scripts here; generated artifacts live under `dist/` and must not be
+hand-edited.
 
 - `manifest.json` — module/app DAG consumed by `tools/shbundle.py`
 - `lib/` — shared libraries

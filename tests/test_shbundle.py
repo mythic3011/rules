@@ -597,6 +597,61 @@ class ShbundleTests(unittest.TestCase):
             self.assertEqual(begins, ["a", "z", "main"])
             self.assertEqual(len(begins), len(set(begins)))
 
+    def test_check_rejects_cycle_without_apps(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            base = Path(raw)
+            manifest = write_repo(
+                base,
+                modules={
+                    "a": _module("shell/lib/a.sh", depends=["b"]),
+                    "b": _module("shell/lib/b.sh", depends=["a"]),
+                },
+                apps={},
+                files={
+                    "shell/lib/a.sh": _lib("a"),
+                    "shell/lib/b.sh": _lib("b"),
+                },
+            )
+            with self.assertRaisesRegex(
+                shbundle.ShbundleError, r"dependency cycle: a -> b -> a"
+            ):
+                shbundle.load_manifest(manifest)
+
+    def test_check_rejects_side_effect_without_apps(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            base = Path(raw)
+            manifest = write_repo(
+                base,
+                modules={"nft": _module("shell/lib/nft.sh")},
+                apps={},
+                files={
+                    "shell/lib/nft.sh": "nft_fn() {\n  :\n}\n\nnft add rule inet filter input drop\n",
+                },
+            )
+            with self.assertRaisesRegex(
+                shbundle.ShbundleError,
+                r"top-level side effect in non-entry module 'nft': nft add",
+            ):
+                shbundle.load_manifest(manifest)
+
+    def test_strip_keeps_nested_main_dispatch(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            base = Path(raw)
+            manifest = write_repo(
+                base,
+                modules={"main": _module("shell/apps/demo/main.sh")},
+                apps={"demo": _app("shell/apps/demo/main.sh", "dist/demo.sh")},
+                files={
+                    "shell/apps/demo/main.sh": (
+                        'main() {\n  echo nested\n  main "$@"\n}\n\nmain "$@"\n'
+                    )
+                },
+            )
+            rendered = shbundle.render_bundle(shbundle.load_manifest(manifest), "demo")
+            self.assertEqual(rendered.count('main "$@"'), 2)
+            self.assertIn('  main "$@"', rendered)
+            self.assertTrue(rendered.endswith('main "$@"\n'))
+
     def test_build_all_empty_apps(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             base = Path(raw)

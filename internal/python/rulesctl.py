@@ -78,7 +78,7 @@ def cmd_doctor(_: argparse.Namespace) -> None:
 
 
 def cmd_check(args: argparse.Namespace) -> None:
-    run([sys.executable, "-m", "compileall", "-q", "internal/python", "tests"])
+    run([sys.executable, "-m", "compileall", "-q", "internal/python", "tests", "tools"])
     run([sys.executable, "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py"])
     if not shutil.which("node"):
         raise SystemExit("node is required for the zero-dependency profile-service contract suite")
