@@ -77,7 +77,11 @@
     },
     "guard-install": {
       "path": "shell/apps/openclash-guard/install.sh",
-      "depends": ["cli", "file", "uci", "guard-environment", "guard-template", "guard-geo"]
+      "depends": ["cli", "file", "distribution", "uci", "guard-environment", "guard-template", "guard-geo"]
+    },
+    "guard-menu": {
+      "path": "shell/apps/openclash-guard/menu.sh",
+      "depends": ["cli", "guard-environment", "guard-policy", "guard-install", "guard-template", "guard-geo"]
     },
     "guard-main": {
       "path": "shell/apps/openclash-guard/main.sh",
@@ -94,7 +98,8 @@
         "guard-migration",
         "guard-geo",
         "guard-template",
-        "guard-install"
+        "guard-install",
+        "guard-menu"
       ]
     }
   },
@@ -120,7 +125,8 @@
         "guard-migration",
         "guard-geo",
         "guard-template",
-        "guard-install"
+        "guard-install",
+        "guard-menu"
       ],
       "output": "dist/openclash-guard.sh",
       "manifest": "dist/manifest.json",

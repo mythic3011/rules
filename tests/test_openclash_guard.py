@@ -4,18 +4,25 @@ import importlib.util
 import json
 import copy
 import os
+import pty
 import re
+import select
 import stat
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from typing import Any, Mapping
 
+from ai_profiles.distribution import load_distribution
+from ai_profiles.settings import AI_DISTRIBUTION_PATH
+
 ROOT = Path(__file__).resolve().parents[1]
 SHBUNDLE_PATH = ROOT / "tools" / "shbundle.py"
-BUNDLE = ROOT / "dist" / "openclash-guard.sh"
+DISTRIBUTION = load_distribution(AI_DISTRIBUTION_PATH)
+BUNDLE = ROOT / DISTRIBUTION.artifact("guard-bundle").path
 LIB_JSON = ROOT / "shell" / "lib" / "json.sh"
 APP_DIR = ROOT / "shell" / "apps" / "openclash-guard"
 FIXTURE_DIR = ROOT / "tests" / "fixtures" / "synthetic" / "openclash-guard"
@@ -703,11 +710,83 @@ class GuardAppTests(unittest.TestCase):
             check=False,
         )
 
+    def run_guard_tty(
+        self,
+        input_text: str,
+        *args: str,
+        extra: Mapping[str, str] | None = None,
+        script_stdin: bool = False,
+    ) -> subprocess.CompletedProcess[str]:
+        source_read = source_write = -1
+        if script_stdin:
+            source_read, source_write = os.pipe()
+        command = ["/bin/sh", "-s", "--", *args] if script_stdin else ["/bin/sh", str(BUNDLE), *args]
+        pid, master = pty.fork()
+        if pid == 0:
+            if script_stdin:
+                os.close(source_write)
+                os.dup2(source_read, 0)
+                os.close(source_read)
+            os.chdir(self.work)
+            os.execve("/bin/sh", command, self.env(extra))
+        os.set_blocking(master, False)
+        if script_stdin:
+            os.close(source_read)
+            os.write(source_write, BUNDLE.read_bytes())
+            os.close(source_write)
+        chunks: list[bytes] = []
+        deadline = time.monotonic() + 12
+        input_sent = False
+        while time.monotonic() < deadline:
+            ready, _, _ = select.select([master], [], [], 0.1)
+            if ready:
+                try:
+                    chunk = os.read(master, 65536)
+                    if chunk:
+                        chunks.append(chunk)
+                except OSError:
+                    pass
+            output = b"".join(chunks)
+            if not input_sent and b"Select an action" in output:
+                os.write(master, input_text.encode("utf-8"))
+                input_sent = True
+            waited, status = os.waitpid(pid, os.WNOHANG)
+            if waited == pid:
+                return subprocess.CompletedProcess(
+                    args=command,
+                    returncode=os.waitstatus_to_exitcode(status),
+                    stdout=output.decode("utf-8", errors="replace"),
+                    stderr="",
+                )
+        os.kill(pid, 9)
+        os.waitpid(pid, 0)
+        self.fail("interactive guard command timed out")
+
     def load_nft_state(self) -> dict[str, Any]:
         return json.loads(self.nft_state.read_text(encoding="utf-8"))
 
     def guard_table(self) -> dict[str, Any] | None:
         return self.load_nft_state()["tables"].get("inet openclash_guard")
+
+    def distribution_url(self, source_id: str, path: str) -> str:
+        source = DISTRIBUTION.channel_by_type(source_id)
+        base = source.base_url.format(
+            repository=DISTRIBUTION.repository, version=DISTRIBUTION.default_ref
+        )
+        return f"{base}/{path}"
+
+    def artifact_path(self, role: str) -> str:
+        return DISTRIBUTION.artifact(role).path
+
+    def published_guard_fetch_map(self) -> dict[str, dict[str, str]]:
+        result: dict[str, dict[str, str]] = {}
+        for artifact in DISTRIBUTION.artifacts:
+            path = ROOT / artifact.path
+            if path.is_file():
+                result[self.distribution_url("github-raw", artifact.path)] = {
+                    "body": path.read_text(encoding="utf-8")
+                }
+        return result
 
     def rule_comments(self, chain: str = "forward") -> list[str]:
         table = self.guard_table()
@@ -739,6 +818,132 @@ class GuardAppTests(unittest.TestCase):
         self.assertIn("json", included)
         self.assertLess(order.index("guard-killswitch"), order.index("guard-gaming"))
         self.assertEqual(order[-1], "guard-main")
+
+    def test_no_args_without_controlling_tty_has_headless_guidance(self) -> None:
+        result = self.run_guard()
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("no controlling terminal", result.stderr)
+        self.assertIn("pass a subcommand", result.stderr)
+
+    def test_no_args_with_controlling_tty_opens_menu(self) -> None:
+        result = self.run_guard_tty("0\n")
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("OpenClash Guard", result.stdout)
+        self.assertIn("Setup / initialize", result.stdout)
+        self.assertIn("Select an action", result.stdout)
+
+    def test_piped_script_reads_menu_input_from_controlling_tty(self) -> None:
+        result = self.run_guard_tty("0\n", script_stdin=True)
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("OpenClash Guard", result.stdout)
+        self.assertIn("Select an action", result.stdout)
+
+    def test_piped_menu_setup_fetches_verified_self_and_policy(self) -> None:
+        self._install_service("openclash", enabled=True, running=True)
+        self._write_uci({})
+        prefix = self.base / "pipe-prefix"
+        destination = prefix / "etc/openclash-guard/openclash-guard.json"
+        source_state = prefix / "etc/openclash-guard/distribution-state"
+        mapping = self.published_guard_fetch_map()
+        mapping[self.distribution_url("github-raw", self.artifact_path("runtime-policy"))] = {
+            "body": POLICY.read_text(encoding="utf-8")
+        }
+        self.fetch_map.write_text(json.dumps(mapping) + "\n", encoding="utf-8")
+        result = self.run_guard_tty(
+            "1\ny\n0\n",
+            extra={
+                "GUARD_PREFIX": str(prefix),
+                "GUARD_POLICY_FILE": str(destination),
+                "GUARD_DISTRIBUTION_STATE_FILE": str(source_state),
+                "GUARD_OPENCLASH_HEALTHY": "1",
+            },
+            script_stdin=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout)
+        installed = prefix / "usr/bin/openclash-guard"
+        self.assertEqual(installed.read_bytes(), BUNDLE.read_bytes())
+        self.assertTrue(destination.is_file())
+        self.assertIn("setup complete", result.stdout)
+
+    def test_menu_status_uses_cli_status_semantics(self) -> None:
+        self._install_service("openclash", enabled=True, running=True)
+        self._write_uci(self._default_uci())
+        extra = {"GUARD_OPENCLASH_HEALTHY": "1", "GUARD_PROXY_HEALTHY": "1"}
+        cli = self.run_guard("status", extra=extra)
+        menu = self.run_guard_tty("4\n0\n", extra=extra)
+        self.assertEqual(cli.returncode, 0, cli.stderr + cli.stdout)
+        self.assertEqual(menu.returncode, 0, menu.stdout)
+        for line in cli.stdout.splitlines():
+            if ":" not in line:
+                continue
+            self.assertIn(line, cli.stdout)
+            self.assertIn(line, menu.stdout)
+
+    def test_menu_refresh_uses_cli_refresh_semantics(self) -> None:
+        self._install_service("openclash", enabled=True, running=True)
+        self._write_uci(self._default_uci())
+        policy_dir = self.work / "menu-refresh"
+        policy_dir.mkdir()
+        destination = policy_dir / "openclash-guard.json"
+        destination.write_text(POLICY.read_text(encoding="utf-8"), encoding="utf-8")
+        raw_url = self.distribution_url("github-raw", self.artifact_path("runtime-policy"))
+        self.fetch_map.write_text(
+            json.dumps({raw_url: {"body": POLICY.read_text(encoding="utf-8")}}) + "\n",
+            encoding="utf-8",
+        )
+        result = self.run_guard_tty(
+            "2\ny\n0\n",
+            extra={"GUARD_POLICY_FILE": str(destination), "GUARD_OPENCLASH_HEALTHY": "1"},
+        )
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertTrue(destination.is_file())
+        self.assertIn("reconciled table", result.stdout)
+
+    def test_menu_setup_initializes_fresh_filesystem(self) -> None:
+        self._install_service("openclash", enabled=True, running=True)
+        self._write_uci({})
+        prefix = self.base / "prefix"
+        destination = prefix / "etc/openclash-guard/openclash-guard.json"
+        source_state = prefix / "etc/openclash-guard/distribution-state"
+        raw_url = self.distribution_url("github-raw", self.artifact_path("runtime-policy"))
+        self.fetch_map.write_text(
+            json.dumps({raw_url: {"body": POLICY.read_text(encoding="utf-8")}}) + "\n",
+            encoding="utf-8",
+        )
+        result = self.run_guard_tty(
+            "1\ny\n0\n",
+            extra={
+                "GUARD_PREFIX": str(prefix),
+                "GUARD_POLICY_FILE": str(destination),
+                "GUARD_DISTRIBUTION_STATE_FILE": str(source_state),
+                "GUARD_OPENCLASH_HEALTHY": "1",
+            },
+        )
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertTrue((prefix / "usr/bin/openclash-guard").is_file())
+        self.assertTrue(destination.is_file())
+        self.assertTrue(source_state.is_file())
+        self.assertIn("setup complete", result.stdout)
+
+    def test_menu_remove_still_requires_confirmation(self) -> None:
+        self._install_service("openclash", enabled=True, running=True)
+        self._write_uci(self._default_uci())
+        applied = self.run_guard("reconcile", extra={"GUARD_OPENCLASH_HEALTHY": "1"})
+        self.assertEqual(applied.returncode, 0, applied.stderr + applied.stdout)
+        before = self.load_nft_state()["tables"]
+        result = self.run_guard_tty("8\nn\n0\n")
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertEqual(self.load_nft_state()["tables"], before)
+        self.assertIn("aborted", result.stdout)
+
+    def test_menu_is_only_a_command_dispatch_frontend(self) -> None:
+        menu_source = (APP_DIR / "menu.sh").read_text(encoding="utf-8")
+        for operation in ("install", "refresh", "reconcile", "status", "doctor", "template", "geo", "remove"):
+            self.assertIn(operation, menu_source)
+        self.assertNotIn("guard_cmd_", menu_source)
+        self.assertIn('_guard_dispatch "$@"', menu_source)
+        for implementation in ("nft ", "uci ", "fetch_http", "curl ", "wget "):
+            self.assertNotIn(implementation, menu_source)
 
     def test_sources_never_mutate_dnsmasq_lifecycle(self) -> None:
         for path in APP_DIR.glob("*.sh"):
@@ -882,7 +1087,7 @@ class GuardAppTests(unittest.TestCase):
         policy_dir = self.work / "fresh-policy"
         policy_dir.mkdir()
         destination = policy_dir / "openclash-guard.json"
-        raw_url = "https://raw.githubusercontent.com/mythic3011/rules/main/cfg/runtime/openclash-guard.json"
+        raw_url = self.distribution_url("github-raw", self.artifact_path("runtime-policy"))
         self.fetch_map.write_text(json.dumps({raw_url: {"body": POLICY.read_text(encoding="utf-8")}}) + "\n", encoding="utf-8")
         result = self.run_guard(
             "refresh",

@@ -28,11 +28,11 @@ class AiProfileWorkflowTests(unittest.TestCase):
 
         validation_steps = validation["steps"]
         self.assertTrue(any(step["name"] == "Validate AI routing manifests" for step in validation_steps))
-        self.assertTrue(any(step["name"] == "Generate AI profile outputs" for step in validation_steps))
+        self.assertTrue(any(step["name"] == "Generate repository outputs" for step in validation_steps))
         self.assertTrue(any(step["name"] == "Reject generated output drift in pull requests" for step in validation_steps))
 
         commit_steps = commit["steps"]
-        self.assertTrue(any(step["name"] == "Regenerate managed Python outputs" for step in commit_steps))
+        self.assertTrue(any(step["name"] == "Regenerate repository outputs" for step in commit_steps))
         scheduled_steps = [step for step in commit_steps if "on schedule" in step["name"].lower()]
         self.assertTrue(scheduled_steps)
         self.assertTrue(all(step.get("if") == "github.event_name == 'schedule'" for step in scheduled_steps))
@@ -60,12 +60,13 @@ class AiProfileWorkflowTests(unittest.TestCase):
         refresh_step = steps[refresh_index]
         self.assertEqual(refresh_step["if"], "github.event_name == 'schedule'")
         refresh_run = refresh_step["run"]
-        self.assertIn("npm run export:routing-artifacts", refresh_run)
-        self.assertIn("npm run export:shadow-profile", refresh_run)
-        self.assertLess(
-            refresh_run.index("npm run export:routing-artifacts"),
-            refresh_run.index("npm run export:shadow-profile"),
+        self.assertNotIn("npm run export:routing-artifacts", refresh_run)
+        self.assertNotIn("npm run export:shadow-profile", refresh_run)
+        generation_index = next(
+            index for index, step in enumerate(steps) if step["name"] == "Generate repository outputs"
         )
+        self.assertGreater(generation_index, refresh_index)
+        self.assertEqual(steps[generation_index]["run"], "make generate")
 
 
 if __name__ == "__main__":

@@ -22,10 +22,18 @@ class DistributionChannel:
 
 
 @dataclass(frozen=True, slots=True)
+class DistributionArtifact:
+    role: str
+    path: str
+
+
+@dataclass(frozen=True, slots=True)
 class DistributionCatalog:
     repository: str
     default_ref: str
+    bootstrap_alias: str
     manifest_path: str
+    artifacts: tuple[DistributionArtifact, ...]
     channels: tuple[DistributionChannel, ...]
 
     def channel(self, channel_id: str) -> DistributionChannel:
@@ -34,6 +42,18 @@ class DistributionCatalog:
             if channel.id == channel_id:
                 return channel
         raise KeyError(f"Unknown distribution channel: {channel_id}")
+
+    def artifact(self, role: str) -> DistributionArtifact:
+        for artifact in self.artifacts:
+            if artifact.role == role:
+                return artifact
+        raise KeyError(f"Unknown distribution artifact role: {role}")
+
+    def channel_by_type(self, source_type: str) -> DistributionChannel:
+        for channel in self.resolve():
+            if channel.type == source_type:
+                return channel
+        raise KeyError(f"No enabled distribution source of type: {source_type}")
 
     def url_for(
         self,
@@ -107,7 +127,7 @@ def load_distribution(path: Path) -> DistributionCatalog:
         raise RuntimeError(f"Distribution catalog is unavailable or invalid: {path}") from exc
     if not isinstance(value, dict) or value.get("schemaVersion") != 1:
         raise RuntimeError(f"Unsupported distribution catalog schema: {path}")
-    if set(value) != {"schemaVersion", "repository", "defaultRef", "manifestPath", "channels"}:
+    if set(value) != {"schemaVersion", "repository", "defaultRef", "bootstrapAlias", "manifestPath", "artifacts", "channels"}:
         raise RuntimeError(f"Distribution catalog has unknown or incomplete shape: {path}")
     raw_channels = value.get("channels")
     if not isinstance(raw_channels, list) or not raw_channels:
@@ -119,10 +139,27 @@ def load_distribution(path: Path) -> DistributionCatalog:
     required = {"rolling", "cdn", "raw", "immutable"}
     if not required.issubset(ids):
         raise RuntimeError("Distribution catalog is missing required channels")
+    raw_artifacts = value.get("artifacts")
+    if not isinstance(raw_artifacts, list) or not raw_artifacts:
+        raise RuntimeError("Distribution catalog requires artifacts")
+    artifacts: list[DistributionArtifact] = []
+    for index, item in enumerate(raw_artifacts):
+        if not isinstance(item, dict) or set(item) != {"role", "path"}:
+            raise RuntimeError(f"Distribution artifact has invalid shape: artifacts[{index}]")
+        role = _string(item.get("role"), f"artifacts[{index}].role")
+        path = _string(item.get("path"), f"artifacts[{index}].path")
+        if path.startswith("/") or ".." in path.split("/"):
+            raise RuntimeError(f"Distribution artifact path is not relative: artifacts[{index}].path")
+        artifacts.append(DistributionArtifact(role, path))
+    roles = [artifact.role for artifact in artifacts]
+    if len(roles) != len(set(roles)):
+        raise RuntimeError("Distribution artifact roles must be unique")
     return DistributionCatalog(
         repository=_string(value.get("repository"), "repository"),
         default_ref=_string(value.get("defaultRef"), "defaultRef"),
+        bootstrap_alias=_string(value.get("bootstrapAlias"), "bootstrapAlias"),
         manifest_path=_string(value.get("manifestPath"), "manifestPath"),
+        artifacts=tuple(artifacts),
         channels=channels,
     )
 
@@ -144,6 +181,7 @@ def managed_output_paths(*, include_process_rules: bool = False) -> tuple[str, .
     if include_process_rules:
         paths.extend(f"rule/{rule.file}" for rule in catalog.process_rulesets)
     paths.append(distribution.manifest_path)
+    paths.extend(("setup/openclash/install.sh", "shell/lib/distribution.sh", "README.md", "docs/openclash-guard.md"))
     # Preserve semantic declaration order while removing accidental duplicates.
     return tuple(dict.fromkeys(paths))
 
@@ -164,6 +202,7 @@ def managed_git_pathspecs(*, include_process_rules: bool = False) -> tuple[str, 
     if include_process_rules:
         specs.extend(f"rule/{rule.file}" for rule in catalog.process_rulesets)
     specs.append(distribution.manifest_path)
+    specs.extend(("setup/openclash/install.sh", "shell/lib/distribution.sh", "README.md", "docs/openclash-guard.md"))
     return tuple(dict.fromkeys(specs))
 
 

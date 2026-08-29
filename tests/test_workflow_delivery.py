@@ -19,13 +19,24 @@ class WorkflowDeliveryTest(unittest.TestCase):
     def test_purge_workflow_follows_ai_generator_workflow_run(self) -> None:
         workflow = (ROOT / ".github/workflows/purge-jsdelivr.yml").read_text(encoding="utf-8")
         self.assertIn("- Auto generate AI profiles", workflow)
-        self.assertIn("internal/generated/ai-routing/distribution-manifest.json", workflow)
+        self.assertIn("./rulesctl distribution-manifest-path", workflow)
 
     def test_purge_workflow_verifies_cdn_from_generated_manifest(self) -> None:
         workflow = (ROOT / ".github/workflows/purge-jsdelivr.yml").read_text(encoding="utf-8")
         self.assertIn("Verify jsDelivr published artifacts", workflow)
         self.assertIn('artifact["urls"]["cdn"]', workflow)
         self.assertIn("sha256sum", workflow)
+
+    def test_bootstrap_alias_smoke_is_external_and_catalog_driven(self) -> None:
+        workflow = (ROOT / ".github/workflows/check-bootstrap-alias.yml").read_text(
+            encoding="utf-8"
+        )
+        checker = (ROOT / "internal/python/check_bootstrap_alias.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("make check-bootstrap-alias", workflow)
+        self.assertNotIn("analytics.mythic3011.com", workflow)
+        self.assertIn("catalog.bootstrap_alias", checker)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-.PHONY: help bootstrap doctor check check-all check-profile-service generate build ci refresh
+.PHONY: help bootstrap doctor check check-all check-profile-service check-bootstrap-alias generate build ci refresh
 
 help:
 	@printf '%s\n' \
@@ -7,6 +7,7 @@ help:
 	  'make check      - core Python + profile-service contracts' \
 	  'make check-all  - Python + TypeScript checks' \
 	  'make check-profile-service - Worker solver/renderer tests' \
+	  'make check-bootstrap-alias - smoke-test the public Guard bootstrap alias' \
 	  'make generate   - deterministic local generation' \
 	  'make build      - build standalone OpenClash Guard distribution' \
 	  'make ci         - run CI validation and generated-output drift checks' \
@@ -23,6 +24,8 @@ check-all:
 	./rulesctl check --node
 check-profile-service:
 	npm run test:profile-service
+check-bootstrap-alias:
+	python3 internal/python/check_bootstrap_alias.py
 generate:
 	./rulesctl generate
 	python3 tools/shbundle.py build --all

@@ -8,7 +8,7 @@
       "urls": {
         "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/cfg/Custom_Clash_AI.ini",
         "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/cfg/Custom_Clash_AI.ini",
-        "raw": "https://raw.githubusercontent.com/mythic3011/rules/main/cfg/Custom_Clash_AI.ini",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/cfg/Custom_Clash_AI.ini",
         "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/cfg/Custom_Clash_AI.ini"
       }
     },
@@ -17,7 +17,7 @@
       "urls": {
         "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/cfg/yaml/Custom_Clash_AI.yaml",
         "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/cfg/yaml/Custom_Clash_AI.yaml",
-        "raw": "https://raw.githubusercontent.com/mythic3011/rules/main/cfg/yaml/Custom_Clash_AI.yaml",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/cfg/yaml/Custom_Clash_AI.yaml",
         "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/cfg/yaml/Custom_Clash_AI.yaml"
       }
     },
@@ -26,7 +26,7 @@
       "urls": {
         "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/cfg/yaml/Custom_Clash_AI_Strict.yaml",
         "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/cfg/yaml/Custom_Clash_AI_Strict.yaml",
-        "raw": "https://raw.githubusercontent.com/mythic3011/rules/main/cfg/yaml/Custom_Clash_AI_Strict.yaml",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/cfg/yaml/Custom_Clash_AI_Strict.yaml",
         "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/cfg/yaml/Custom_Clash_AI_Strict.yaml"
       }
     },
@@ -35,7 +35,7 @@
       "urls": {
         "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_Copilot_Classical.yaml",
         "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_Copilot_Classical.yaml",
-        "raw": "https://raw.githubusercontent.com/mythic3011/rules/main/rule/AI_Copilot_Classical.yaml",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/rule/AI_Copilot_Classical.yaml",
         "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/rule/AI_Copilot_Classical.yaml"
       }
     },
@@ -44,7 +44,7 @@
       "urls": {
         "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_Gemini_Classical.yaml",
         "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_Gemini_Classical.yaml",
-        "raw": "https://raw.githubusercontent.com/mythic3011/rules/main/rule/AI_Gemini_Classical.yaml",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/rule/AI_Gemini_Classical.yaml",
         "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/rule/AI_Gemini_Classical.yaml"
       }
     },
@@ -53,7 +53,7 @@
       "urls": {
         "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_NotebookLM_Classical.yaml",
         "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_NotebookLM_Classical.yaml",
-        "raw": "https://raw.githubusercontent.com/mythic3011/rules/main/rule/AI_NotebookLM_Classical.yaml",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/rule/AI_NotebookLM_Classical.yaml",
         "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/rule/AI_NotebookLM_Classical.yaml"
       }
     },
@@ -62,7 +62,7 @@
       "urls": {
         "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_Jules_Classical.yaml",
         "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_Jules_Classical.yaml",
-        "raw": "https://raw.githubusercontent.com/mythic3011/rules/main/rule/AI_Jules_Classical.yaml",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/rule/AI_Jules_Classical.yaml",
         "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/rule/AI_Jules_Classical.yaml"
       }
     },
@@ -71,7 +71,7 @@
       "urls": {
         "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_OpenRouter_Classical.yaml",
         "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_OpenRouter_Classical.yaml",
-        "raw": "https://raw.githubusercontent.com/mythic3011/rules/main/rule/AI_OpenRouter_Classical.yaml",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/rule/AI_OpenRouter_Classical.yaml",
         "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/rule/AI_OpenRouter_Classical.yaml"
       }
     },
@@ -80,7 +80,7 @@
       "urls": {
         "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_Cursor_Classical.yaml",
         "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_Cursor_Classical.yaml",
-        "raw": "https://raw.githubusercontent.com/mythic3011/rules/main/rule/AI_Cursor_Classical.yaml",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/rule/AI_Cursor_Classical.yaml",
         "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/rule/AI_Cursor_Classical.yaml"
       }
     },
@@ -89,7 +89,7 @@
       "urls": {
         "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_HuggingFace_Classical.yaml",
         "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_HuggingFace_Classical.yaml",
-        "raw": "https://raw.githubusercontent.com/mythic3011/rules/main/rule/AI_HuggingFace_Classical.yaml",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/rule/AI_HuggingFace_Classical.yaml",
         "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/rule/AI_HuggingFace_Classical.yaml"
       }
     },
@@ -98,7 +98,7 @@
       "urls": {
         "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_Mirasim_Classical.yaml",
         "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_Mirasim_Classical.yaml",
-        "raw": "https://raw.githubusercontent.com/mythic3011/rules/main/rule/AI_Mirasim_Classical.yaml",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/rule/AI_Mirasim_Classical.yaml",
         "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/rule/AI_Mirasim_Classical.yaml"
       }
     },
@@ -107,7 +107,7 @@
       "urls": {
         "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_Antigravity_Classical.yaml",
         "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_Antigravity_Classical.yaml",
-        "raw": "https://raw.githubusercontent.com/mythic3011/rules/main/rule/AI_Antigravity_Classical.yaml",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/rule/AI_Antigravity_Classical.yaml",
         "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/rule/AI_Antigravity_Classical.yaml"
       }
     },
@@ -116,7 +116,7 @@
       "urls": {
         "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_GoogleLabs_Classical.yaml",
         "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_GoogleLabs_Classical.yaml",
-        "raw": "https://raw.githubusercontent.com/mythic3011/rules/main/rule/AI_GoogleLabs_Classical.yaml",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/rule/AI_GoogleLabs_Classical.yaml",
         "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/rule/AI_GoogleLabs_Classical.yaml"
       }
     },
@@ -125,7 +125,7 @@
       "urls": {
         "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_Stitch_Classical.yaml",
         "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_Stitch_Classical.yaml",
-        "raw": "https://raw.githubusercontent.com/mythic3011/rules/main/rule/AI_Stitch_Classical.yaml",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/rule/AI_Stitch_Classical.yaml",
         "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/rule/AI_Stitch_Classical.yaml"
       }
     },
@@ -134,7 +134,7 @@
       "urls": {
         "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_AndroidStudioAI_Classical.yaml",
         "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_AndroidStudioAI_Classical.yaml",
-        "raw": "https://raw.githubusercontent.com/mythic3011/rules/main/rule/AI_AndroidStudioAI_Classical.yaml",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/rule/AI_AndroidStudioAI_Classical.yaml",
         "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/rule/AI_AndroidStudioAI_Classical.yaml"
       }
     },
@@ -143,7 +143,7 @@
       "urls": {
         "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_GeminiCloud_Classical.yaml",
         "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_GeminiCloud_Classical.yaml",
-        "raw": "https://raw.githubusercontent.com/mythic3011/rules/main/rule/AI_GeminiCloud_Classical.yaml",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/rule/AI_GeminiCloud_Classical.yaml",
         "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/rule/AI_GeminiCloud_Classical.yaml"
       }
     },
@@ -152,7 +152,7 @@
       "urls": {
         "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_VertexAI_Classical.yaml",
         "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_VertexAI_Classical.yaml",
-        "raw": "https://raw.githubusercontent.com/mythic3011/rules/main/rule/AI_VertexAI_Classical.yaml",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/rule/AI_VertexAI_Classical.yaml",
         "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/rule/AI_VertexAI_Classical.yaml"
       }
     },
@@ -161,7 +161,7 @@
       "urls": {
         "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/SSH_Direct_Classical.yaml",
         "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/rule/SSH_Direct_Classical.yaml",
-        "raw": "https://raw.githubusercontent.com/mythic3011/rules/main/rule/SSH_Direct_Classical.yaml",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/rule/SSH_Direct_Classical.yaml",
         "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/rule/SSH_Direct_Classical.yaml"
       }
     },
@@ -170,7 +170,7 @@
       "urls": {
         "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/SSH_Proxy_Classical.yaml",
         "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/rule/SSH_Proxy_Classical.yaml",
-        "raw": "https://raw.githubusercontent.com/mythic3011/rules/main/rule/SSH_Proxy_Classical.yaml",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/rule/SSH_Proxy_Classical.yaml",
         "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/rule/SSH_Proxy_Classical.yaml"
       }
     },
@@ -179,7 +179,7 @@
       "urls": {
         "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/SSH_Process_Classical.yaml",
         "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/rule/SSH_Process_Classical.yaml",
-        "raw": "https://raw.githubusercontent.com/mythic3011/rules/main/rule/SSH_Process_Classical.yaml",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/rule/SSH_Process_Classical.yaml",
         "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/rule/SSH_Process_Classical.yaml"
       }
     },
@@ -188,7 +188,7 @@
       "urls": {
         "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/Gaming_Direct_Classical.yaml",
         "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/rule/Gaming_Direct_Classical.yaml",
-        "raw": "https://raw.githubusercontent.com/mythic3011/rules/main/rule/Gaming_Direct_Classical.yaml",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/rule/Gaming_Direct_Classical.yaml",
         "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/rule/Gaming_Direct_Classical.yaml"
       }
     },
@@ -197,7 +197,7 @@
       "urls": {
         "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/HuggingFace_Download_Direct_Classical.yaml",
         "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/rule/HuggingFace_Download_Direct_Classical.yaml",
-        "raw": "https://raw.githubusercontent.com/mythic3011/rules/main/rule/HuggingFace_Download_Direct_Classical.yaml",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/rule/HuggingFace_Download_Direct_Classical.yaml",
         "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/rule/HuggingFace_Download_Direct_Classical.yaml"
       }
     },
@@ -206,7 +206,7 @@
       "urls": {
         "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/Cursor_Download_Direct_Classical.yaml",
         "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/rule/Cursor_Download_Direct_Classical.yaml",
-        "raw": "https://raw.githubusercontent.com/mythic3011/rules/main/rule/Cursor_Download_Direct_Classical.yaml",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/rule/Cursor_Download_Direct_Classical.yaml",
         "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/rule/Cursor_Download_Direct_Classical.yaml"
       }
     },
@@ -215,7 +215,7 @@
       "urls": {
         "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/Finance_Stripe_Classical.yaml",
         "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/rule/Finance_Stripe_Classical.yaml",
-        "raw": "https://raw.githubusercontent.com/mythic3011/rules/main/rule/Finance_Stripe_Classical.yaml",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/rule/Finance_Stripe_Classical.yaml",
         "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/rule/Finance_Stripe_Classical.yaml"
       }
     },
@@ -224,7 +224,7 @@
       "urls": {
         "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/Finance_PayPal_Classical.yaml",
         "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/rule/Finance_PayPal_Classical.yaml",
-        "raw": "https://raw.githubusercontent.com/mythic3011/rules/main/rule/Finance_PayPal_Classical.yaml",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/rule/Finance_PayPal_Classical.yaml",
         "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/rule/Finance_PayPal_Classical.yaml"
       }
     },
@@ -233,7 +233,7 @@
       "urls": {
         "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/Finance_Wise_Classical.yaml",
         "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/rule/Finance_Wise_Classical.yaml",
-        "raw": "https://raw.githubusercontent.com/mythic3011/rules/main/rule/Finance_Wise_Classical.yaml",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/rule/Finance_Wise_Classical.yaml",
         "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/rule/Finance_Wise_Classical.yaml"
       }
     },
@@ -242,7 +242,7 @@
       "urls": {
         "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/Finance_Revolut_Classical.yaml",
         "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/rule/Finance_Revolut_Classical.yaml",
-        "raw": "https://raw.githubusercontent.com/mythic3011/rules/main/rule/Finance_Revolut_Classical.yaml",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/rule/Finance_Revolut_Classical.yaml",
         "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/rule/Finance_Revolut_Classical.yaml"
       }
     },
@@ -251,7 +251,7 @@
       "urls": {
         "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/Finance_IBKR_Classical.yaml",
         "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/rule/Finance_IBKR_Classical.yaml",
-        "raw": "https://raw.githubusercontent.com/mythic3011/rules/main/rule/Finance_IBKR_Classical.yaml",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/rule/Finance_IBKR_Classical.yaml",
         "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/rule/Finance_IBKR_Classical.yaml"
       }
     },
@@ -260,7 +260,7 @@
       "urls": {
         "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/Finance_Alpaca_Classical.yaml",
         "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/rule/Finance_Alpaca_Classical.yaml",
-        "raw": "https://raw.githubusercontent.com/mythic3011/rules/main/rule/Finance_Alpaca_Classical.yaml",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/rule/Finance_Alpaca_Classical.yaml",
         "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/rule/Finance_Alpaca_Classical.yaml"
       }
     },
@@ -269,8 +269,44 @@
       "urls": {
         "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/internal/generated/ai-routing/distribution-manifest.json",
         "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/internal/generated/ai-routing/distribution-manifest.json",
-        "raw": "https://raw.githubusercontent.com/mythic3011/rules/main/internal/generated/ai-routing/distribution-manifest.json",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/internal/generated/ai-routing/distribution-manifest.json",
         "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/internal/generated/ai-routing/distribution-manifest.json"
+      }
+    },
+    {
+      "path": "setup/openclash/install.sh",
+      "urls": {
+        "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/setup/openclash/install.sh",
+        "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/setup/openclash/install.sh",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/setup/openclash/install.sh",
+        "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/setup/openclash/install.sh"
+      }
+    },
+    {
+      "path": "shell/lib/distribution.sh",
+      "urls": {
+        "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/shell/lib/distribution.sh",
+        "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/shell/lib/distribution.sh",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/shell/lib/distribution.sh",
+        "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/shell/lib/distribution.sh"
+      }
+    },
+    {
+      "path": "README.md",
+      "urls": {
+        "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/README.md",
+        "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/README.md",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/README.md",
+        "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/README.md"
+      }
+    },
+    {
+      "path": "docs/openclash-guard.md",
+      "urls": {
+        "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/docs/openclash-guard.md",
+        "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/docs/openclash-guard.md",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/docs/openclash-guard.md",
+        "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/docs/openclash-guard.md"
       }
     }
   ]

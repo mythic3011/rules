@@ -12,6 +12,7 @@ Active automation is intentionally limited to generation, publishing, security, 
 | `auto-update-mainland.yml` | derive the Mainland subconverter template |
 | `deploy-reports-site.yml` | publish the consumer landing page and reports to GitHub Pages |
 | `purge-jsdelivr.yml` | purge/verify CDN artifacts after managed generation |
+| `check-bootstrap-alias.yml` | externally verify the human-facing Guard bootstrap redirect |
 | `codeql.yml` | CodeQL security analysis |
 | `dependabot-auto-merge.yml` | labeled Dependabot automation |
 

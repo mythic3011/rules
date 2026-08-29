@@ -7,6 +7,28 @@ cli_is_tty() {
     [ -t 1 ]
 }
 
+cli_tty_path() {
+    printf '%s\n' "${CLI_TTY_PATH:-/dev/tty}"
+}
+
+cli_has_controlling_tty() {
+    _cli_ht_path=$(cli_tty_path)
+    if (exec 9<>"$_cli_ht_path") 2>/dev/null; then
+        return 0
+    fi
+    [ -t 0 ]
+}
+
+cli_read_tty() {
+    _cli_rt_path=$(cli_tty_path)
+    if (exec 9<>"$_cli_rt_path") 2>/dev/null; then
+        IFS= read -r _cli_rt_value < "$_cli_rt_path" || return 1
+    else
+        IFS= read -r _cli_rt_value || return 1
+    fi
+    printf '%s\n' "$_cli_rt_value"
+}
+
 cli_color_enabled() {
     [ -z "${NO_COLOR:-}" ] && [ -t 1 ]
 }
@@ -125,11 +147,11 @@ cli_confirm() {
     if _cli_assume_yes; then
         return 0
     fi
-    if [ ! -t 0 ]; then
+    if ! cli_has_controlling_tty; then
         return 1
     fi
     printf '%s [y/N] ' "${1:-Continue?}" >&2
-    IFS= read -r _cli_confirm_ans || return 1
+    _cli_confirm_ans=$(cli_read_tty) || return 1
     case $_cli_confirm_ans in
         y|Y|yes|YES|Yes)
             return 0

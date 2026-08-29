@@ -272,6 +272,13 @@ def cmd_managed_paths(_: argparse.Namespace) -> None:
     print("\n".join(dict.fromkeys(paths)))
 
 
+def cmd_distribution_manifest(_: argparse.Namespace) -> None:
+    from ai_profiles.distribution import load_distribution
+    from ai_profiles.settings import AI_DISTRIBUTION_PATH
+
+    print(load_distribution(AI_DISTRIBUTION_PATH).manifest_path)
+
+
 def cmd_ci(_: argparse.Namespace) -> None:
     config = load_rulesctl_config()
     run([sys.executable, "-m", "compileall", "-q", *config["compilePaths"]])
@@ -328,6 +335,7 @@ def parser() -> argparse.ArgumentParser:
     r.add_argument("--yes", action="store_true", help="confirm network-backed refresh")
     r.set_defaults(func=cmd_refresh)
     sub.add_parser("managed-paths", help="print generated paths from repository manifests").set_defaults(func=cmd_managed_paths)
+    sub.add_parser("distribution-manifest-path", help="print the canonical distribution manifest path").set_defaults(func=cmd_distribution_manifest)
     sub.add_parser("ci", help="run repository CI validation and generated-output drift checks").set_defaults(func=cmd_ci)
 
     profile = sub.add_parser("profile", help="resolve parameterized OpenClash custom templates")

@@ -17,7 +17,7 @@
       "type": "cdn"
     },
     "raw": {
-      "baseUrl": "https://raw.githubusercontent.com/mythic3011/rules/main",
+      "baseUrl": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main",
       "enabled": true,
       "healthCheck": "https://raw.githubusercontent.com",
       "immutableRevisionSupport": true,
@@ -96,7 +96,7 @@
       "quic": "proxy-or-reject"
     }
   },
-  "revision": "46a7dbca84b60b27bf416dde8f25c25e11ff20234e9f9c9c476248a7a63e0d34",
+  "revision": "80f2245ef8461533ba18a709563a6f6651e5146804bab1a5cd2258c641bffcbf",
   "schemaVersion": 1,
   "services": {
     "chatgpt": {

@@ -67,8 +67,17 @@ _guard_install_self() {
         return 0
     fi
     mkdir -p "$(dirname "$_guard_is_dest")"
-    cp "$0" "$_guard_is_dest"
-    chmod 0755 "$_guard_is_dest"
+    _guard_is_source=${GUARD_SELF_PATH:-$0}
+    if [ -f "$_guard_is_source" ] && guard_distribution_validate_bundle "$_guard_is_source"; then
+        file_atomic_replace "$_guard_is_dest" "$_guard_is_source" || return $?
+        chmod 0755 "$_guard_is_dest"
+        return 0
+    fi
+    cli_info "script is running from stdin; fetching the verified published bundle"
+    if ! guard_distribution_fetch_bundle "$_guard_is_dest" auto; then
+        cli_error "unable to install a verified OpenClash Guard bundle"
+        return 1
+    fi
 }
 
 _guard_install_shebang() {

@@ -10,7 +10,7 @@ BASE_URL=""
 PROFILE_MODE=0
 # BEGIN GENERATED DISTRIBUTION SOURCES
 SOURCE_CDN_BASE="https://cdn.jsdelivr.net/gh/mythic3011/rules@main"
-SOURCE_GITHUB_RAW_BASE="https://raw.githubusercontent.com/mythic3011/rules/main"
+SOURCE_GITHUB_RAW_BASE="https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main"
 SOURCE_GUARD_PATH="dist/openclash-guard.sh"
 SOURCE_GUARD_MANIFEST="dist/manifest.json"
 SOURCE_GUARD_CHECKSUM="dist/openclash-guard.sha256"

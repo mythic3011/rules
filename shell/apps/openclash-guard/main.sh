@@ -401,9 +401,45 @@ _guard_cmd_needs_lock() {
     esac
 }
 
+_guard_dispatch() {
+    _guard_dispatch_cmd=${1:-}
+    [ -n "$_guard_dispatch_cmd" ] || return 2
+    shift
+    if _guard_cmd_needs_lock "$_guard_dispatch_cmd" "${1:-}"; then
+        _guard_lock_acquire || return $?
+        trap _guard_lock_release EXIT INT TERM
+    fi
+    _guard_dispatch_rc=0
+    case $_guard_dispatch_cmd in
+        apply) guard_cmd_apply || _guard_dispatch_rc=$? ;;
+        reconcile) guard_cmd_reconcile || _guard_dispatch_rc=$? ;;
+        status) guard_cmd_status || _guard_dispatch_rc=$? ;;
+        doctor) guard_cmd_doctor "$@" || _guard_dispatch_rc=$? ;;
+        refresh) guard_cmd_refresh "$@" || _guard_dispatch_rc=$? ;;
+        remove) guard_cmd_remove || _guard_dispatch_rc=$? ;;
+        eval) guard_cmd_eval "$@" || _guard_dispatch_rc=$? ;;
+        template) guard_cmd_template "$@" || _guard_dispatch_rc=$? ;;
+        install) guard_cmd_install "$@" || _guard_dispatch_rc=$? ;;
+        geo) guard_cmd_geo "$@" || _guard_dispatch_rc=$? ;;
+        *) guard_usage >&2; _guard_dispatch_rc=2 ;;
+    esac
+    _guard_lock_release
+    trap - EXIT INT TERM
+    return "$_guard_dispatch_rc"
+}
+
 main() {
     _GUARD_JSON=0
     _guard_cmd=
+    if [ "$#" -eq 0 ]; then
+        if cli_has_controlling_tty; then
+            guard_menu
+            return $?
+        fi
+        cli_error "no controlling terminal; pass a subcommand for headless use"
+        guard_usage >&2
+        return 2
+    fi
     while [ "$#" -gt 0 ]
     do
         case $1 in
@@ -443,30 +479,7 @@ main() {
         guard_usage >&2
         return 2
     fi
-    if _guard_cmd_needs_lock "$_guard_cmd" "${1:-}"; then
-        _guard_lock_acquire || return $?
-        trap _guard_lock_release EXIT INT TERM
-    fi
-    _guard_rc=0
-    case $_guard_cmd in
-        apply) guard_cmd_apply || _guard_rc=$? ;;
-        reconcile) guard_cmd_reconcile || _guard_rc=$? ;;
-        status) guard_cmd_status || _guard_rc=$? ;;
-        doctor) guard_cmd_doctor "$@" || _guard_rc=$? ;;
-        refresh) guard_cmd_refresh "$@" || _guard_rc=$? ;;
-        remove) guard_cmd_remove || _guard_rc=$? ;;
-        eval) guard_cmd_eval "$@" || _guard_rc=$? ;;
-        template) guard_cmd_template "$@" || _guard_rc=$? ;;
-        install) guard_cmd_install "$@" || _guard_rc=$? ;;
-        geo) guard_cmd_geo "$@" || _guard_rc=$? ;;
-        *)
-            guard_usage >&2
-            _guard_rc=2
-            ;;
-    esac
-    _guard_lock_release
-    trap - EXIT INT TERM
-    return "$_guard_rc"
+    _guard_dispatch "$_guard_cmd" "$@"
 }
 
 main "$@"

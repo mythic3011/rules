@@ -8,7 +8,6 @@ on:
       - 'rule/games/**'
       - 'setup/openclash/**'
       - 'catalog.json'
-      - 'internal/generated/ai-routing/distribution-manifest.json'
       - '!**/archived/**'
       - '!**/README.md'
       - '!README.md'
@@ -136,7 +135,7 @@ jobs:
         run: |
           git fetch origin "$TARGET_BRANCH"
           git checkout --detach "origin/$TARGET_BRANCH"
-          manifest="internal/generated/ai-routing/distribution-manifest.json"
+          manifest="$(./rulesctl distribution-manifest-path)"
           if [ ! -f "$manifest" ]; then
             echo "Distribution manifest not found; skipping CDN verification."
             exit 0

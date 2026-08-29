@@ -92,10 +92,7 @@ jobs:
 
       - name: Refresh shared upstream source lock on schedule
         if: github.event_name == 'schedule'
-        run: |
-          python3 internal/python/generate_ai_profiles.py --refresh-upstream-sources
-          npm run export:routing-artifacts
-          npm run export:shadow-profile
+        run: python3 internal/python/generate_ai_profiles.py --refresh-upstream-sources
 
       - name: Validate AI routing manifests
         run: |
@@ -105,8 +102,8 @@ jobs:
         if: github.event_name == 'schedule'
         run: python3 internal/python/generate_ai_profiles.py --refresh-upstream-hosts
 
-      - name: Generate AI profile outputs
-        run: python3 internal/python/generate_ai_profiles.py
+      - name: Generate repository outputs
+        run: make generate
 
       - name: Validate generated outputs
         run: python3 internal/python/validate_generated_profiles.py
@@ -157,23 +154,14 @@ jobs:
 
       - name: Refresh shared upstream source lock on schedule
         if: github.event_name == 'schedule'
-        run: |
-          python3 internal/python/generate_ai_profiles.py --refresh-upstream-sources
-          npm run export:routing-artifacts
+        run: python3 internal/python/generate_ai_profiles.py --refresh-upstream-sources
 
       - name: Refresh upstream AI host snapshot on schedule
         if: github.event_name == 'schedule'
         run: python3 internal/python/generate_ai_profiles.py --refresh-upstream-hosts
 
-      - name: Regenerate managed Python outputs
-        run: python3 internal/python/generate_ai_profiles.py
-
-      - name: Regenerate shadow profile on schedule
-        if: github.event_name == 'schedule'
-        run: npm run export:shadow-profile
-
-      - name: Regenerate profile service runtime
-        run: python3 internal/python/generate_profile_service_runtime.py
+      - name: Regenerate repository outputs
+        run: make generate
 
       - name: Test profile service solver
         run: npm run test:profile-service
@@ -191,9 +179,6 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           mapfile -t managed_paths < <(./rulesctl managed-paths)
           git add -A -- "${managed_paths[@]}"
-          if [ "$GITHUB_EVENT_NAME" = "schedule" ]; then
-            git add -A -- "${managed_paths[@]}"
-          fi
           if ! git diff --cached --quiet; then
             git commit -m "chore(ai): auto generate AI profiles"
             git push origin "HEAD:${TARGET_REF}"

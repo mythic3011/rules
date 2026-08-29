@@ -2,7 +2,14 @@
   "schemaVersion": 1,
   "repository": "mythic3011/rules",
   "defaultRef": "main",
+  "bootstrapAlias": "https://analytics.mythic3011.com/q/qdf9961KN",
   "manifestPath": "internal/generated/ai-routing/distribution-manifest.json",
+  "artifacts": [
+    {"role": "guard-bundle", "path": "dist/openclash-guard.sh"},
+    {"role": "guard-manifest", "path": "dist/manifest.json"},
+    {"role": "guard-checksum", "path": "dist/openclash-guard.sha256"},
+    {"role": "runtime-policy", "path": "cfg/runtime/openclash-guard.json"}
+  ],
   "channels": [
     {
       "id": "rolling",
@@ -27,7 +34,7 @@
     {
       "id": "raw",
       "type": "github-raw",
-      "baseUrl": "https://raw.githubusercontent.com/{repository}/{version}",
+      "baseUrl": "https://raw.githubusercontent.com/{repository}/refs/heads/{version}",
       "priority": 30,
       "enabled": true,
       "healthCheck": "https://raw.githubusercontent.com",
