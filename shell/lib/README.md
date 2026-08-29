@@ -18,6 +18,7 @@ POSIX shell has no namespaces. Exported functions use a prefix:
 | `file.sh` | `file_` |
 | `fetch.sh` | `fetch_` |
 | `lock.sh` | `lock_` |
+| `json.sh` | `json_` |
 
 Implementation notes:
 

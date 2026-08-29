@@ -1,0 +1,2610 @@
+#!/bin/sh
+set -eu
+
+# GENERATED FILE — DO NOT EDIT
+# App: openclash-guard
+# Manifest: shell/manifest.json
+
+# BEGIN MODULE: cli
+# POSIX CLI helpers for TTY, color, and confirmation.
+# Prefix: cli_
+set -eu
+
+cli_is_tty() {
+    [ -t 1 ]
+}
+
+cli_color_enabled() {
+    [ -z "${NO_COLOR:-}" ] && [ -t 1 ]
+}
+
+_cli_color_on_fd() {
+    [ -z "${NO_COLOR:-}" ] && [ -t "$1" ]
+}
+
+cli_set_assume_yes() {
+    case ${1:-1} in
+        0|false|FALSE|False|no|NO|off|OFF|n|N)
+            _CLI_ASSUME_YES=0
+            ;;
+        *)
+            _CLI_ASSUME_YES=1
+            ;;
+    esac
+}
+
+_cli_assume_yes() {
+    if [ -n "${_CLI_ASSUME_YES:-}" ]; then
+        [ "$_CLI_ASSUME_YES" = "1" ]
+        return $?
+    fi
+    case ${CLI_ASSUME_YES:-0} in
+        1|true|TRUE|True|yes|YES|on|ON|y|Y)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+cli_info() {
+    if _cli_color_on_fd 1; then
+        printf '\033[36minfo:\033[0m %s\n' "$*"
+    else
+        printf 'info: %s\n' "$*"
+    fi
+}
+
+cli_warn() {
+    if _cli_color_on_fd 2; then
+        printf '\033[33mwarn:\033[0m %s\n' "$*" >&2
+    else
+        printf 'warn: %s\n' "$*" >&2
+    fi
+}
+
+cli_error() {
+    if _cli_color_on_fd 2; then
+        printf '\033[31merror:\033[0m %s\n' "$*" >&2
+    else
+        printf 'error: %s\n' "$*" >&2
+    fi
+}
+
+cli_success() {
+    if _cli_color_on_fd 1; then
+        printf '\033[32mok:\033[0m %s\n' "$*"
+    else
+        printf 'ok: %s\n' "$*"
+    fi
+}
+
+cli_section() {
+    if _cli_color_on_fd 1; then
+        printf '\033[1m== %s ==\033[0m\n' "$*"
+    else
+        printf '== %s ==\n' "$*"
+    fi
+}
+
+cli_kv() {
+    _cli_kv_key=$1
+    shift
+    printf '%s: %s\n' "$_cli_kv_key" "$*"
+}
+
+cli_step() {
+    printf '[%s/%s] %s\n' "$1" "$2" "$3"
+}
+
+cli_table() {
+    awk -F '\t' '
+        {
+            n = NF
+            if (n > nf) {
+                nf = n
+            }
+            for (i = 1; i <= n; i++) {
+                cell[NR, i] = $i
+                l = length($i)
+                if (l > w[i]) {
+                    w[i] = l
+                }
+            }
+            rows = NR
+        }
+        END {
+            for (r = 1; r <= rows; r++) {
+                for (i = 1; i <= nf; i++) {
+                    printf "%-*s", w[i], cell[r, i]
+                    if (i < nf) {
+                        printf "  "
+                    }
+                }
+                printf "\n"
+            }
+        }
+    '
+}
+
+cli_confirm() {
+    if _cli_assume_yes; then
+        return 0
+    fi
+    if [ ! -t 0 ]; then
+        return 1
+    fi
+    printf '%s [y/N] ' "${1:-Continue?}" >&2
+    IFS= read -r _cli_confirm_ans || return 1
+    case $_cli_confirm_ans in
+        y|Y|yes|YES|Yes)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+cli_die() {
+    _cli_die_code=1
+    _cli_die_msg=$*
+    case ${2:-} in
+        [0-9]|[1-9][0-9]|[1-9][0-9][0-9])
+            _cli_die_msg=$1
+            _cli_die_code=$2
+            ;;
+    esac
+    [ -n "$_cli_die_msg" ] || _cli_die_msg="aborted"
+    cli_error "$_cli_die_msg"
+    exit "$_cli_die_code"
+}
+# END MODULE: cli
+
+# BEGIN MODULE: env
+# Generic environment helpers (bool/int/default). Not service detection.
+# Prefix: env_
+set -eu
+
+_env_valid_name() {
+    case $1 in
+        ''|*[!A-Za-z0-9_]*|[0-9]*)
+            printf '%s\n' "env: invalid variable name: $1" >&2
+            return 2
+            ;;
+    esac
+}
+
+env_is_set() {
+    _env_valid_name "$1" || return $?
+    eval "[ \"\${$1+set}\" = set ]"
+}
+
+env_get() {
+    _env_get_name=$1
+    _env_valid_name "$_env_get_name" || return $?
+    if eval "[ \"\${$_env_get_name+set}\" = set ]"; then
+        eval "printf '%s\\n' \"\${$_env_get_name}\""
+        return 0
+    fi
+    if [ "$#" -ge 2 ]; then
+        printf '%s\n' "$2"
+        return 0
+    fi
+    return 1
+}
+
+env_default() {
+    _env_def_name=$1
+    _env_def_default=$2
+    _env_valid_name "$_env_def_name" || return $?
+    eval "_env_def_val=\${$_env_def_name:-}"
+    if [ -n "$_env_def_val" ]; then
+        printf '%s\n' "$_env_def_val"
+    else
+        printf '%s\n' "$_env_def_default"
+    fi
+}
+
+_env_parse_bool() {
+    case $1 in
+        1|true|TRUE|True|yes|YES|Yes|on|ON|On|y|Y)
+            printf '1\n'
+            ;;
+        0|false|FALSE|False|no|NO|No|off|OFF|Off|n|N|'')
+            printf '0\n'
+            ;;
+        *)
+            printf '%s\n' "env: invalid bool: $1" >&2
+            return 1
+            ;;
+    esac
+}
+
+env_bool() {
+    _env_bool_name=$1
+    _env_valid_name "$_env_bool_name" || return $?
+    if eval "[ \"\${$_env_bool_name+set}\" = set ]"; then
+        eval "_env_bool_raw=\${$_env_bool_name}"
+        _env_parse_bool "$_env_bool_raw"
+        return $?
+    fi
+    if [ "$#" -ge 2 ]; then
+        _env_parse_bool "$2"
+        return $?
+    fi
+    return 1
+}
+
+_env_is_int() {
+    case $1 in
+        ''|'-'|'+')
+            return 1
+            ;;
+        [+-]*)
+            _env_int_rest=$(printf '%s' "$1" | cut -c2-)
+            case $_env_int_rest in
+                ''|*[!0-9]*)
+                    return 1
+                    ;;
+            esac
+            ;;
+        *[!0-9]*)
+            return 1
+            ;;
+    esac
+    return 0
+}
+
+env_int() {
+    _env_int_name=$1
+    _env_valid_name "$_env_int_name" || return $?
+    if eval "[ \"\${$_env_int_name+set}\" = set ]"; then
+        eval "_env_int_raw=\${$_env_int_name}"
+        if ! _env_is_int "$_env_int_raw"; then
+            printf '%s\n' "env: invalid int: $_env_int_raw" >&2
+            return 1
+        fi
+        printf '%s\n' "$_env_int_raw"
+        return 0
+    fi
+    if [ "$#" -ge 2 ]; then
+        if ! _env_is_int "$2"; then
+            printf '%s\n' "env: invalid int: $2" >&2
+            return 1
+        fi
+        printf '%s\n' "$2"
+        return 0
+    fi
+    return 1
+}
+# END MODULE: env
+
+# BEGIN MODULE: file
+# File helpers: temp files, checksums, atomic replace.
+# Prefix: file_
+set -eu
+
+file_mktemp() {
+    _file_mk_dir=${1:-${TMPDIR:-/tmp}}
+    if [ ! -d "$_file_mk_dir" ]; then
+        printf '%s\n' "file_mktemp: not a directory: $_file_mk_dir" >&2
+        return 1
+    fi
+    if command -v mktemp >/dev/null 2>&1; then
+        mktemp "$_file_mk_dir/shlib.XXXXXX"
+        return $?
+    fi
+    _file_mk_i=0
+    while [ "$_file_mk_i" -lt 100 ]
+    do
+        _file_mk_path="$_file_mk_dir/shlib.$$.$_file_mk_i"
+        if (umask 077; set -C; : > "$_file_mk_path") 2>/dev/null; then
+            printf '%s\n' "$_file_mk_path"
+            return 0
+        fi
+        _file_mk_i=$((_file_mk_i + 1))
+    done
+    printf '%s\n' "file_mktemp: unable to create temp file" >&2
+    return 1
+}
+
+file_sha256() {
+    if [ -z "${1:-}" ] || [ ! -f "$1" ]; then
+        printf '%s\n' "file_sha256: not a file: ${1:-}" >&2
+        return 1
+    fi
+    _file_sha_path=$1
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$_file_sha_path" | awk '{print $1}'
+        return $?
+    fi
+    if command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$_file_sha_path" | awk '{print $1}'
+        return $?
+    fi
+    if command -v openssl >/dev/null 2>&1; then
+        openssl dgst -sha256 "$_file_sha_path" | awk '{print $NF}'
+        return $?
+    fi
+    printf '%s\n' "file_sha256: no sha256 tool found" >&2
+    return 127
+}
+
+file_atomic_replace() {
+    _file_ar_target=${1:-}
+    _file_ar_source=${2:-}
+    if [ -z "$_file_ar_target" ] || [ -z "$_file_ar_source" ]; then
+        printf '%s\n' "file_atomic_replace: usage: file_atomic_replace TARGET SOURCE" >&2
+        return 2
+    fi
+    if [ ! -f "$_file_ar_source" ]; then
+        printf '%s\n' "file_atomic_replace: source not a file: $_file_ar_source" >&2
+        return 1
+    fi
+    _file_ar_dir=$(dirname "$_file_ar_target")
+    if [ ! -d "$_file_ar_dir" ]; then
+        printf '%s\n' "file_atomic_replace: destination directory missing: $_file_ar_dir" >&2
+        return 1
+    fi
+    _file_ar_tmp=$(file_mktemp "$_file_ar_dir") || return 1
+    if ! cp "$_file_ar_source" "$_file_ar_tmp"; then
+        rm -f "$_file_ar_tmp"
+        return 1
+    fi
+    if ! mv -f "$_file_ar_tmp" "$_file_ar_target"; then
+        rm -f "$_file_ar_tmp"
+        return 1
+    fi
+}
+# END MODULE: file
+
+# BEGIN MODULE: fetch
+# HTTP fetch with temp + optional validate + atomic replace.
+# Failed fetches leave the last-known-good destination untouched.
+# Prefix: fetch_
+set -eu
+
+_fetch_timeout_secs() {
+    _fetch_to=${1:-${FETCH_TIMEOUT:-30}}
+    case $_fetch_to in
+        ''|*[!0-9]*)
+            printf '%s\n' "fetch: invalid timeout: $_fetch_to" >&2
+            return 2
+            ;;
+    esac
+    printf '%s\n' "$_fetch_to"
+}
+
+_fetch_http_curl() {
+    _fetch_c_url=$1
+    _fetch_c_out=$2
+    _fetch_c_timeout=$3
+    curl -fLSs --connect-timeout "$_fetch_c_timeout" --max-time "$_fetch_c_timeout" -o "$_fetch_c_out" "$_fetch_c_url"
+}
+
+_fetch_http_wget() {
+    _fetch_w_url=$1
+    _fetch_w_out=$2
+    _fetch_w_timeout=$3
+    wget -q -O "$_fetch_w_out" -T "$_fetch_w_timeout" "$_fetch_w_url"
+}
+
+fetch_http() {
+    _fetch_http_url=${1:-}
+    _fetch_http_out=${2:-}
+    if [ -z "$_fetch_http_url" ] || [ -z "$_fetch_http_out" ]; then
+        printf '%s\n' "fetch_http: usage: fetch_http URL OUTPUT [TIMEOUT]" >&2
+        return 2
+    fi
+    _fetch_http_timeout=$(_fetch_timeout_secs "${3:-}") || return $?
+    _fetch_http_dir=$(dirname "$_fetch_http_out")
+    _fetch_http_tmp=$(file_mktemp "$_fetch_http_dir") || return 1
+    _fetch_http_rc=0
+    if command -v curl >/dev/null 2>&1; then
+        _fetch_http_curl "$_fetch_http_url" "$_fetch_http_tmp" "$_fetch_http_timeout" || _fetch_http_rc=$?
+    elif command -v wget >/dev/null 2>&1; then
+        _fetch_http_wget "$_fetch_http_url" "$_fetch_http_tmp" "$_fetch_http_timeout" || _fetch_http_rc=$?
+    else
+        rm -f "$_fetch_http_tmp"
+        printf '%s\n' "fetch_http: curl or wget is required" >&2
+        return 127
+    fi
+    if [ "$_fetch_http_rc" -ne 0 ]; then
+        rm -f "$_fetch_http_tmp"
+        printf '%s\n' "fetch_http: download failed: $_fetch_http_url" >&2
+        return "$_fetch_http_rc"
+    fi
+    if [ ! -s "$_fetch_http_tmp" ]; then
+        rm -f "$_fetch_http_tmp"
+        printf '%s\n' "fetch_http: empty response: $_fetch_http_url" >&2
+        return 1
+    fi
+    if ! mv -f "$_fetch_http_tmp" "$_fetch_http_out"; then
+        rm -f "$_fetch_http_tmp"
+        return 1
+    fi
+}
+
+fetch_to_temp() {
+    _fetch_tt_url=${1:-}
+    if [ -z "$_fetch_tt_url" ]; then
+        printf '%s\n' "fetch_to_temp: missing URL" >&2
+        return 2
+    fi
+    _fetch_tt_tmp=$(file_mktemp) || return 1
+    if fetch_http "$_fetch_tt_url" "$_fetch_tt_tmp" "${2:-}"; then
+        printf '%s\n' "$_fetch_tt_tmp"
+        return 0
+    fi
+    rm -f "$_fetch_tt_tmp"
+    return 1
+}
+
+fetch_atomic() {
+    _fetch_at_url=${1:-}
+    _fetch_at_dest=${2:-}
+    _fetch_at_validator=${3:-}
+    if [ -z "$_fetch_at_url" ] || [ -z "$_fetch_at_dest" ]; then
+        printf '%s\n' "fetch_atomic: usage: fetch_atomic URL DEST [VALIDATOR]" >&2
+        return 2
+    fi
+    _fetch_at_dir=$(dirname "$_fetch_at_dest")
+    if [ ! -d "$_fetch_at_dir" ]; then
+        printf '%s\n' "fetch_atomic: destination directory missing: $_fetch_at_dir" >&2
+        return 1
+    fi
+    _fetch_at_tmp=$(file_mktemp "$_fetch_at_dir") || return 1
+    if ! fetch_http "$_fetch_at_url" "$_fetch_at_tmp" "${4:-}"; then
+        rm -f "$_fetch_at_tmp"
+        return 1
+    fi
+    if [ -n "$_fetch_at_validator" ]; then
+        if ! "$_fetch_at_validator" "$_fetch_at_tmp"; then
+            rm -f "$_fetch_at_tmp"
+            printf '%s\n' "fetch_atomic: validation failed" >&2
+            return 1
+        fi
+    fi
+    if ! file_atomic_replace "$_fetch_at_dest" "$_fetch_at_tmp"; then
+        rm -f "$_fetch_at_tmp"
+        return 1
+    fi
+    rm -f "$_fetch_at_tmp"
+}
+# END MODULE: fetch
+
+# BEGIN MODULE: json
+# Restricted JSON get/keys/list. Prefers jsonfilter; POSIX awk fallback.
+# Prefix: json_
+set -eu
+
+_json_normalize_path() {
+    printf '%s\n' "$1" | sed -e 's/^\$\.//' -e 's/^@\.//' -e 's/^\.//' -e 's/\[\([0-9][0-9]*\)\]/.\1/g'
+}
+
+_json_require_file() {
+    if [ -z "${1:-}" ] || [ ! -f "$1" ]; then
+        printf '%s\n' "json: not a file: ${1:-}" >&2
+        return 1
+    fi
+}
+
+_json_path_simple() {
+    case $1 in
+        ''|*[!A-Za-z0-9._]*)
+            return 1
+            ;;
+        .*)
+            return 1
+            ;;
+    esac
+    return 0
+}
+
+_json_flatten_awk() {
+    awk '
+        {
+            src = src $0 "\n"
+        }
+        function peek() {
+            return substr(src, pos, 1)
+        }
+        function skip(    c) {
+            while (pos <= n) {
+                c = substr(src, pos, 1)
+                if (c == " " || c == "\t" || c == "\n" || c == "\r") {
+                    pos++
+                } else {
+                    break
+                }
+            }
+        }
+        function fail(msg) {
+            printf "json: %s\n", msg > "/dev/stderr"
+            bad = 1
+            exit 2
+        }
+        function emit(path, val) {
+            if (path == "") {
+                return
+            }
+            print path "\t" val
+        }
+        function parse_string(    c, out) {
+            if (peek() != "\"") {
+                fail("expected string")
+            }
+            pos++
+            out = ""
+            while (pos <= n) {
+                c = substr(src, pos, 1)
+                pos++
+                if (c == "\"") {
+                    return out
+                }
+                if (c == "\\") {
+                    if (pos > n) {
+                        fail("unterminated string")
+                    }
+                    c = substr(src, pos, 1)
+                    pos++
+                    if (c == "n") {
+                        out = out "\n"
+                    } else if (c == "t") {
+                        out = out "\t"
+                    } else if (c == "r") {
+                        out = out "\r"
+                    } else if (c == "b") {
+                        out = out "\b"
+                    } else if (c == "f") {
+                        out = out "\f"
+                    } else if (c == "u") {
+                        out = out "\\u" substr(src, pos, 4)
+                        pos += 4
+                    } else {
+                        out = out c
+                    }
+                    continue
+                }
+                out = out c
+            }
+            fail("unterminated string")
+        }
+        function parse_literal(    c, start, raw) {
+            start = pos
+            while (pos <= n) {
+                c = substr(src, pos, 1)
+                if (c ~ /[0-9A-Za-z.+-]/) {
+                    pos++
+                } else {
+                    break
+                }
+            }
+            raw = substr(src, start, pos - start)
+            if (raw == "") {
+                fail("expected value")
+            }
+            return raw
+        }
+        function parse_object(prefix,    key, child, c, nkeys) {
+            if (peek() != "{") {
+                fail("expected object")
+            }
+            pos++
+            skip()
+            nkeys = 0
+            if (peek() == "}") {
+                pos++
+                if (prefix != "") {
+                    emit(prefix, "{}")
+                }
+                return
+            }
+            while (pos <= n) {
+                skip()
+                key = parse_string()
+                skip()
+                if (peek() != ":") {
+                    fail("expected colon")
+                }
+                pos++
+                skip()
+                if (prefix == "") {
+                    child = key
+                } else {
+                    child = prefix "." key
+                }
+                parse_value(child)
+                nkeys++
+                skip()
+                c = peek()
+                if (c == ",") {
+                    pos++
+                    continue
+                }
+                if (c == "}") {
+                    pos++
+                    return
+                }
+                fail("expected comma or }")
+            }
+            fail("unterminated object")
+        }
+        function parse_array(prefix,    i, child, c) {
+            if (peek() != "[") {
+                fail("expected array")
+            }
+            pos++
+            skip()
+            i = 0
+            if (peek() == "]") {
+                pos++
+                if (prefix != "") {
+                    emit(prefix, "[]")
+                }
+                return
+            }
+            while (pos <= n) {
+                skip()
+                child = prefix "." i
+                parse_value(child)
+                i++
+                skip()
+                c = peek()
+                if (c == ",") {
+                    pos++
+                    continue
+                }
+                if (c == "]") {
+                    pos++
+                    return
+                }
+                fail("expected comma or ]")
+            }
+            fail("unterminated array")
+        }
+        function parse_value(prefix,    c) {
+            skip()
+            c = peek()
+            if (c == "{") {
+                parse_object(prefix)
+                return
+            }
+            if (c == "[") {
+                parse_array(prefix)
+                return
+            }
+            if (c == "\"") {
+                emit(prefix, parse_string())
+                return
+            }
+            emit(prefix, parse_literal())
+        }
+        END {
+            n = length(src)
+            pos = 1
+            bad = 0
+            skip()
+            if (pos > n) {
+                fail("empty JSON")
+            }
+            parse_value("")
+            skip()
+            if (pos <= n && peek() != "") {
+                fail("trailing JSON content")
+            }
+        }
+    ' "$1"
+}
+
+_JSON_FLAT_PATH=
+_JSON_FLAT_DATA=
+
+json_load() {
+    _json_require_file "${1:-}" || return $?
+    if [ "$1" = "$_JSON_FLAT_PATH" ] && [ -n "$_JSON_FLAT_DATA" ]; then
+        return 0
+    fi
+    _JSON_FLAT_PATH=
+    _JSON_FLAT_DATA=
+    _JSON_FLAT_DATA=$(_json_flatten_awk "$1") || {
+        _JSON_FLAT_DATA=
+        return 1
+    }
+    _JSON_FLAT_PATH=$1
+}
+
+_json_flat() {
+    json_load "$1" || return $?
+    printf '%s\n' "$_JSON_FLAT_DATA"
+}
+
+json_get() {
+    _json_jg_file=${1:-}
+    _json_jg_path=${2:-}
+    _json_require_file "$_json_jg_file" || return $?
+    if [ -z "$_json_jg_path" ]; then
+        printf '%s\n' "json_get: missing path" >&2
+        return 2
+    fi
+    _json_jg_path=$(_json_normalize_path "$_json_jg_path")
+    if [ -z "${JSON_FORCE_AWK:-}" ] && command -v jsonfilter >/dev/null 2>&1 && _json_path_simple "$_json_jg_path"; then
+        _json_jg_out=$(jsonfilter -i "$_json_jg_file" -e "@.$_json_jg_path" 2>/dev/null) || _json_jg_out=
+        if [ -n "$_json_jg_out" ]; then
+            printf '%s\n' "$_json_jg_out"
+            return 0
+        fi
+    fi
+    _json_flat "$_json_jg_file" | awk -F '\t' -v q="$_json_jg_path" '
+        $1 == q {
+            sub(/^[^\t]*\t/, "")
+            print
+            found = 1
+            exit 0
+        }
+        END {
+            if (!found) {
+                exit 1
+            }
+        }
+    '
+}
+
+json_has() {
+    _json_jh_file=${1:-}
+    _json_jh_path=${2:-}
+    _json_require_file "$_json_jh_file" || return $?
+    if [ -z "$_json_jh_path" ]; then
+        return 2
+    fi
+    _json_jh_path=$(_json_normalize_path "$_json_jh_path")
+    _json_flat "$_json_jh_file" | awk -F '\t' -v q="$_json_jh_path" '
+        $1 == q { found = 1; exit 0 }
+        index($1, q ".") == 1 { found = 1; exit 0 }
+        END { if (!found) exit 1 }
+    '
+}
+
+json_keys() {
+    _json_jk_file=${1:-}
+    _json_jk_path=${2:-}
+    _json_require_file "$_json_jk_file" || return $?
+    _json_jk_path=$(_json_normalize_path "$_json_jk_path")
+    _json_flat "$_json_jk_file" | awk -F '\t' -v p="$_json_jk_path" '
+        {
+            key = $1
+            if (p == "") {
+                rest = key
+            } else if (key == p) {
+                next
+            } else if (index(key, p ".") == 1) {
+                rest = substr(key, length(p) + 2)
+            } else {
+                next
+            }
+            split(rest, parts, ".")
+            child = parts[1]
+            if (child == "" || seen[child]++) {
+                next
+            }
+            print child
+        }
+    '
+}
+
+json_list() {
+    _json_jl_file=${1:-}
+    _json_jl_path=${2:-}
+    _json_require_file "$_json_jl_file" || return $?
+    if [ -z "$_json_jl_path" ]; then
+        printf '%s\n' "json_list: missing path" >&2
+        return 2
+    fi
+    _json_jl_path=$(_json_normalize_path "$_json_jl_path")
+    _json_flat "$_json_jl_file" | awk -F '\t' -v p="$_json_jl_path" '
+        $1 == p && $2 == "[]" { empty = 1; next }
+        {
+            prefix = p "."
+            if (index($1, prefix) != 1) {
+                next
+            }
+            rest = substr($1, length(prefix) + 1)
+            if (rest ~ /^[0-9]+$/) {
+                val = $0
+                sub(/^[^\t]*\t/, "", val)
+                items[rest + 0] = val
+                if (rest + 0 > max) {
+                    max = rest + 0
+                }
+                found = 1
+            }
+        }
+        END {
+            if (empty && !found) {
+                exit 0
+            }
+            if (!found) {
+                exit 1
+            }
+            for (i = 0; i <= max; i++) {
+                if (i in items) {
+                    print items[i]
+                }
+            }
+        }
+    '
+}
+# END MODULE: json
+
+# BEGIN MODULE: guard-policy
+# Load/validate runtime policy JSON and decide path verdicts.
+# Prefix: guard_policy_
+set -eu
+
+_GUARD_POLICY_FILE=
+_GUARD_NFT_FAMILY=inet
+_GUARD_NFT_TABLE=openclash_guard
+_GUARD_NFT_PREFIX=openclash-guard
+_GUARD_POLICY_REVISION=
+_GUARD_POLICY_STATE=disabled
+_GUARD_POLICY_ENFORCEMENT=reject
+
+_guard_policy_default_path() {
+    if [ -n "${GUARD_POLICY_FILE:-}" ]; then
+        printf '%s\n' "$GUARD_POLICY_FILE"
+        return 0
+    fi
+    printf '%s\n' "/etc/openclash-guard/openclash-guard.json"
+}
+
+_guard_policy_is_bool() {
+    case $1 in
+        true|false)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+_guard_policy_class_field() {
+    _guard_pc_svc=$1
+    _guard_pc_field=$2
+    _guard_pc_class=$(json_get "$_GUARD_POLICY_FILE" "services.${_guard_pc_svc}.protectionClass") || return 1
+    json_get "$_GUARD_POLICY_FILE" "protectionClasses.${_guard_pc_class}.${_guard_pc_field}"
+}
+
+guard_policy_validate_file() {
+    _guard_pv_file=${1:-}
+    if [ -z "$_guard_pv_file" ] || [ ! -f "$_guard_pv_file" ]; then
+        printf '%s\n' "guard_policy: missing policy file: ${_guard_pv_file:-}" >&2
+        return 1
+    fi
+    if ! json_load "$_guard_pv_file"; then
+        printf '%s\n' "guard_policy: invalid JSON: $_guard_pv_file" >&2
+        return 1
+    fi
+    _guard_pv_ver=$(json_get "$_guard_pv_file" schemaVersion) || _guard_pv_ver=
+    if [ "$_guard_pv_ver" != 1 ]; then
+        printf '%s\n' "guard_policy: unsupported schemaVersion: ${_guard_pv_ver:-missing}" >&2
+        return 1
+    fi
+    for _guard_pv_key in nft.family nft.table nft.commentPrefix
+    do
+        _guard_pv_val=$(json_get "$_guard_pv_file" "$_guard_pv_key") || _guard_pv_val=
+        if [ -z "$_guard_pv_val" ]; then
+            printf '%s\n' "guard_policy: missing $_guard_pv_key" >&2
+            return 1
+        fi
+    done
+    if ! json_has "$_guard_pv_file" protectionClasses; then
+        printf '%s\n' "guard_policy: missing protectionClasses" >&2
+        return 1
+    fi
+    if ! json_has "$_guard_pv_file" services; then
+        printf '%s\n' "guard_policy: missing services" >&2
+        return 1
+    fi
+    _guard_pv_classes=$(json_keys "$_guard_pv_file" protectionClasses)
+    for _guard_pv_class in $_guard_pv_classes
+    do
+        [ -n "$_guard_pv_class" ] || continue
+        _guard_pv_da=$(json_get "$_guard_pv_file" "protectionClasses.${_guard_pv_class}.directAllowed") || _guard_pv_da=
+        _guard_pv_fm=$(json_get "$_guard_pv_file" "protectionClasses.${_guard_pv_class}.failMode") || _guard_pv_fm=
+        _guard_pv_quic=$(json_get "$_guard_pv_file" "protectionClasses.${_guard_pv_class}.quic") || _guard_pv_quic=
+        _guard_pv_ks=$(json_get "$_guard_pv_file" "protectionClasses.${_guard_pv_class}.firewallKillSwitch") || _guard_pv_ks=
+        if ! _guard_policy_is_bool "$_guard_pv_da"; then
+            printf '%s\n' "guard_policy: invalid directAllowed on $_guard_pv_class" >&2
+            return 1
+        fi
+        case $_guard_pv_fm in
+            reject|drop)
+                ;;
+            *)
+                printf '%s\n' "guard_policy: invalid failMode on $_guard_pv_class" >&2
+                return 1
+                ;;
+        esac
+        case $_guard_pv_quic in
+            proxy-or-reject|reject|allow)
+                ;;
+            *)
+                printf '%s\n' "guard_policy: invalid quic on $_guard_pv_class" >&2
+                return 1
+                ;;
+        esac
+        if ! _guard_policy_is_bool "$_guard_pv_ks"; then
+            printf '%s\n' "guard_policy: invalid firewallKillSwitch on $_guard_pv_class" >&2
+            return 1
+        fi
+    done
+    _guard_pv_svcs=$(json_keys "$_guard_pv_file" services)
+    for _guard_pv_svc in $_guard_pv_svcs
+    do
+        [ -n "$_guard_pv_svc" ] || continue
+        _guard_pv_cls=$(json_get "$_guard_pv_file" "services.${_guard_pv_svc}.protectionClass") || _guard_pv_cls=
+        if [ -z "$_guard_pv_cls" ]; then
+            printf '%s\n' "guard_policy: service $_guard_pv_svc missing protectionClass" >&2
+            return 1
+        fi
+        if ! json_has "$_guard_pv_file" "protectionClasses.${_guard_pv_cls}"; then
+            printf '%s\n' "guard_policy: service $_guard_pv_svc references unknown class $_guard_pv_cls" >&2
+            return 1
+        fi
+    done
+    if ! json_has "$_guard_pv_file" gaming; then
+        printf '%s\n' "guard_policy: missing gaming" >&2
+        return 1
+    fi
+    return 0
+}
+
+guard_policy_load() {
+    _guard_pl_path=${1:-$(_guard_policy_default_path)}
+    guard_policy_validate_file "$_guard_pl_path" || return $?
+    _GUARD_POLICY_FILE=$_guard_pl_path
+    _GUARD_NFT_FAMILY=$(json_get "$_GUARD_POLICY_FILE" nft.family)
+    _GUARD_NFT_TABLE=$(json_get "$_GUARD_POLICY_FILE" nft.table)
+    _GUARD_NFT_PREFIX=$(json_get "$_GUARD_POLICY_FILE" nft.commentPrefix)
+    _GUARD_POLICY_REVISION=$(json_get "$_GUARD_POLICY_FILE" revision 2>/dev/null) || _GUARD_POLICY_REVISION=
+}
+
+guard_policy_needs_failclosed() {
+    _guard_nf_svcs=$(json_keys "$_GUARD_POLICY_FILE" services) || _guard_nf_svcs=
+    for _guard_nf_svc in $_guard_nf_svcs
+    do
+        [ -n "$_guard_nf_svc" ] || continue
+        _guard_nf_ks=$(_guard_policy_class_field "$_guard_nf_svc" firewallKillSwitch) || _guard_nf_ks=false
+        _guard_nf_da=$(_guard_policy_class_field "$_guard_nf_svc" directAllowed) || _guard_nf_da=true
+        if [ "$_guard_nf_ks" = true ] || [ "$_guard_nf_da" = false ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+guard_policy_refresh_state() {
+    _GUARD_POLICY_STATE=ok
+    _GUARD_POLICY_ENFORCEMENT=allow-proxy
+    if [ "${_GUARD_UCI_ENABLED:-1}" = 0 ]; then
+        _GUARD_POLICY_STATE=disabled
+        _GUARD_POLICY_ENFORCEMENT=disabled
+        return 0
+    fi
+    _guard_ps_failclosed=0
+    if guard_policy_needs_failclosed; then
+        _guard_ps_failclosed=1
+    fi
+    if [ "$_guard_ps_failclosed" = 1 ] && [ "$_GUARD_DNS_DOMAIN_SET" = unavailable ]; then
+        _GUARD_POLICY_STATE=degraded
+        _GUARD_POLICY_ENFORCEMENT=reject
+    fi
+    if [ "$_GUARD_OC_HEALTHY" != 1 ]; then
+        if [ "${_GUARD_UCI_KILL_SWITCH:-1}" = 1 ] || [ "$_guard_ps_failclosed" = 1 ]; then
+            _GUARD_POLICY_ENFORCEMENT=reject
+            if [ "$_GUARD_POLICY_STATE" = ok ]; then
+                _GUARD_POLICY_STATE=degraded
+            fi
+        fi
+    fi
+}
+
+guard_policy_port_in_list() {
+    _guard_pil_port=$1
+    _guard_pil_path=$2
+    _guard_pil_items=$(json_list "$_GUARD_POLICY_FILE" "$_guard_pil_path" 2>/dev/null) || _guard_pil_items=
+    for _guard_pil_item in $_guard_pil_items
+    do
+        if [ "$_guard_pil_item" = "$_guard_pil_port" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+guard_policy_region_allowed() {
+    _guard_pra_svc=$1
+    _guard_pra_region=$2
+    if [ -z "$_guard_pra_region" ]; then
+        return 1
+    fi
+    _guard_pra_items=$(json_list "$_GUARD_POLICY_FILE" "services.${_guard_pra_svc}.allowedRegions" 2>/dev/null) || _guard_pra_items=
+    for _guard_pra_item in $_guard_pra_items
+    do
+        if [ "$_guard_pra_item" = "$_guard_pra_region" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Verdict: allow-proxy | reject-direct | reject | allow-direct
+# UDP/443 and other protected UDP ports are never classified as gaming.
+guard_policy_eval() {
+    _guard_pe_svc=${1:-}
+    _guard_pe_proto=${2:-}
+    _guard_pe_dport=${3:-}
+    _guard_pe_src=${4:-}
+    _guard_pe_dest=${5:-}
+    _guard_pe_gaming=0
+    if [ -n "$_guard_pe_dport" ] && guard_policy_port_in_list "$_guard_pe_dport" gaming.protectedUdpPorts; then
+        _guard_pe_gaming=0
+    elif guard_game_flow_eligible "$_guard_pe_proto" "$_guard_pe_dport" "$_guard_pe_src" "$_guard_pe_dest"; then
+        _guard_pe_gaming=1
+    fi
+    if [ "$_GUARD_POLICY_ENFORCEMENT" = reject ] || [ "$_GUARD_OC_HEALTHY" != 1 ]; then
+        if [ -n "$_guard_pe_svc" ]; then
+            _guard_pe_ks=$(_guard_policy_class_field "$_guard_pe_svc" firewallKillSwitch 2>/dev/null) || _guard_pe_ks=false
+            if [ "$_guard_pe_ks" = true ] || [ "${_GUARD_UCI_KILL_SWITCH:-1}" = 1 ]; then
+                printf '%s\n' "reject"
+                return 0
+            fi
+        else
+            printf '%s\n' "reject"
+            return 0
+        fi
+    fi
+    if [ -n "$_guard_pe_svc" ]; then
+        _guard_pe_da=$(_guard_policy_class_field "$_guard_pe_svc" directAllowed) || _guard_pe_da=false
+        _guard_pe_fm=$(_guard_policy_class_field "$_guard_pe_svc" failMode) || _guard_pe_fm=reject
+        if [ "$_guard_pe_da" = false ]; then
+            if [ "$_GUARD_PROXY_HEALTHY" = 1 ] && guard_policy_region_allowed "$_guard_pe_svc" "$_GUARD_PROXY_REGION"; then
+                printf '%s\n' "reject-direct"
+                return 0
+            fi
+            printf '%s\n' "reject"
+            return 0
+        fi
+        if [ "$_guard_pe_gaming" = 1 ]; then
+            printf '%s\n' "allow-direct"
+            return 0
+        fi
+        if [ "$_GUARD_PROXY_HEALTHY" = 1 ] && guard_policy_region_allowed "$_guard_pe_svc" "$_GUARD_PROXY_REGION"; then
+            printf '%s\n' "allow-proxy"
+            return 0
+        fi
+        printf '%s\n' "$_guard_pe_fm"
+        return 0
+    fi
+    if [ "$_guard_pe_gaming" = 1 ]; then
+        printf '%s\n' "allow-direct"
+        return 0
+    fi
+    printf '%s\n' "allow-proxy"
+}
+
+guard_policy_json_extra() {
+    printf '"state":"%s","enforcement":"%s","policyRevision":"%s"' \
+        "$(_guard_env_json_string "$_GUARD_POLICY_STATE")" \
+        "$(_guard_env_json_string "$_GUARD_POLICY_ENFORCEMENT")" \
+        "$(_guard_env_json_string "$_GUARD_POLICY_REVISION")"
+}
+# END MODULE: guard-policy
+
+# BEGIN MODULE: lock
+# Directory lock with timeout. mkdir is the atomic primitive (no flock).
+# Prefix: lock_
+set -eu
+
+_lock_refuse_path() {
+    case $1 in
+        ''|/|.|..|/tmp|/var|/var/lock|/etc|/usr|/home|/root)
+            printf '%s\n' "lock: refused path: ${1:-<empty>}" >&2
+            return 2
+            ;;
+    esac
+}
+
+_lock_timeout_secs() {
+    _lock_to=${1:-30}
+    case $_lock_to in
+        ''|*[!0-9]*)
+            printf '%s\n' "lock: invalid timeout: $_lock_to" >&2
+            return 2
+            ;;
+    esac
+    printf '%s\n' "$_lock_to"
+}
+
+_lock_try_steal() {
+    _lock_st_path=$1
+    [ -d "$_lock_st_path" ] || return 1
+    if [ ! -f "$_lock_st_path/pid" ]; then
+        rmdir "$_lock_st_path" 2>/dev/null && return 0
+        return 1
+    fi
+    _lock_st_pid=$(cat "$_lock_st_path/pid" 2>/dev/null) || _lock_st_pid=
+    case $_lock_st_pid in
+        ''|*[!0-9]*)
+            rm -f "$_lock_st_path/pid"
+            rmdir "$_lock_st_path" 2>/dev/null && return 0
+            return 1
+            ;;
+    esac
+    if kill -0 "$_lock_st_pid" 2>/dev/null; then
+        return 1
+    fi
+    rm -f "$_lock_st_path/pid"
+    rmdir "$_lock_st_path" 2>/dev/null && return 0
+    return 1
+}
+
+_lock_claim() {
+    _lock_cl_path=$1
+    if mkdir "$_lock_cl_path" 2>/dev/null; then
+        printf '%s\n' "$$" > "$_lock_cl_path/pid" || {
+            rmdir "$_lock_cl_path" 2>/dev/null || true
+            return 1
+        }
+        return 0
+    fi
+    return 1
+}
+
+lock_acquire() {
+    _lock_aq_path=${1:-}
+    _lock_refuse_path "$_lock_aq_path" || return $?
+    _lock_aq_timeout=$(_lock_timeout_secs "${2:-30}") || return $?
+    _lock_aq_elapsed=0
+    while :
+    do
+        if _lock_claim "$_lock_aq_path"; then
+            return 0
+        fi
+        _lock_try_steal "$_lock_aq_path" || true
+        if _lock_claim "$_lock_aq_path"; then
+            return 0
+        fi
+        if [ "$_lock_aq_elapsed" -ge "$_lock_aq_timeout" ]; then
+            printf '%s\n' "lock_acquire: timeout waiting for $_lock_aq_path" >&2
+            return 1
+        fi
+        sleep 1
+        _lock_aq_elapsed=$((_lock_aq_elapsed + 1))
+    done
+}
+
+lock_release() {
+    _lock_rl_path=${1:-}
+    _lock_refuse_path "$_lock_rl_path" || return $?
+    if [ ! -d "$_lock_rl_path" ]; then
+        return 0
+    fi
+    _lock_rl_pid=
+    if [ -f "$_lock_rl_path/pid" ]; then
+        _lock_rl_pid=$(cat "$_lock_rl_path/pid" 2>/dev/null) || _lock_rl_pid=
+    fi
+    if [ -n "$_lock_rl_pid" ] && [ "$_lock_rl_pid" != "$$" ]; then
+        printf '%s\n' "lock_release: lock owned by pid $_lock_rl_pid" >&2
+        return 1
+    fi
+    rm -f "$_lock_rl_path/pid"
+    rmdir "$_lock_rl_path" 2>/dev/null || true
+}
+
+lock_is_held() {
+    _lock_ih_path=${1:-}
+    _lock_refuse_path "$_lock_ih_path" || return $?
+    [ -d "$_lock_ih_path" ] || return 1
+    [ -f "$_lock_ih_path/pid" ] || return 1
+    _lock_ih_pid=$(cat "$_lock_ih_path/pid" 2>/dev/null) || return 1
+    case $_lock_ih_pid in
+        ''|*[!0-9]*)
+            return 1
+            ;;
+    esac
+    kill -0 "$_lock_ih_pid" 2>/dev/null
+}
+# END MODULE: lock
+
+# BEGIN MODULE: nft
+# nftables helpers that only touch objects owned by a caller-supplied prefix.
+# Prefix: nft_
+set -eu
+
+_nft_require() {
+    if ! command -v nft >/dev/null 2>&1; then
+        printf '%s\n' "nft: command not found" >&2
+        return 127
+    fi
+}
+
+_nft_require_prefix() {
+    if [ -z "${1:-}" ]; then
+        printf '%s\n' "nft: refusing empty ownership prefix" >&2
+        return 2
+    fi
+}
+
+_nft_parse_comment_handles() {
+    awk '
+        {
+            comment = ""
+            handle = ""
+            if (match($0, /comment "[^"]*"/)) {
+                comment = substr($0, RSTART + 9, RLENGTH - 10)
+            }
+            if (match($0, /# handle [0-9]+/)) {
+                handle = substr($0, RSTART + 9)
+                gsub(/[^0-9].*/, "", handle)
+            } else if (match($0, /handle [0-9]+/)) {
+                handle = substr($0, RSTART + 7)
+                gsub(/[^0-9].*/, "", handle)
+            }
+            if (comment != "" && handle != "") {
+                print handle "\t" comment
+            }
+        }
+    '
+}
+
+_nft_comment_owned() {
+    case $1 in
+        "$2"|"$2"*)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+nft_table_exists() {
+    _nft_require || return $?
+    nft list table "$1" "$2" >/dev/null 2>&1
+}
+
+nft_chain_exists() {
+    _nft_require || return $?
+    nft list chain "$1" "$2" "$3" >/dev/null 2>&1
+}
+
+nft_set_exists() {
+    _nft_require || return $?
+    nft list set "$1" "$2" "$3" >/dev/null 2>&1
+}
+
+nft_rule_handles_by_comment() {
+    _nft_require || return $?
+    _nft_require_prefix "${4:-}" || return $?
+    _nft_rh_family=$1
+    _nft_rh_table=$2
+    _nft_rh_chain=$3
+    _nft_rh_prefix=$4
+    nft -a list chain "$_nft_rh_family" "$_nft_rh_table" "$_nft_rh_chain" 2>/dev/null |
+        _nft_parse_comment_handles |
+        while IFS="$(printf '\t')" read -r _nft_rh_handle _nft_rh_comment
+        do
+            [ -n "$_nft_rh_handle" ] || continue
+            if _nft_comment_owned "$_nft_rh_comment" "$_nft_rh_prefix"; then
+                printf '%s\n' "$_nft_rh_handle"
+            fi
+        done
+}
+
+nft_delete_rules_by_comment() {
+    _nft_require || return $?
+    _nft_require_prefix "${4:-}" || return $?
+    _nft_dr_family=$1
+    _nft_dr_table=$2
+    _nft_dr_chain=$3
+    _nft_dr_prefix=$4
+    _nft_dr_handles=$(nft_rule_handles_by_comment "$_nft_dr_family" "$_nft_dr_table" "$_nft_dr_chain" "$_nft_dr_prefix") || return $?
+    [ -n "$_nft_dr_handles" ] || return 0
+    _nft_dr_rev=
+    for _nft_dr_handle in $_nft_dr_handles
+    do
+        _nft_dr_rev="$_nft_dr_handle $_nft_dr_rev"
+    done
+    for _nft_dr_handle in $_nft_dr_rev
+    do
+        [ -n "$_nft_dr_handle" ] || continue
+        nft delete rule "$_nft_dr_family" "$_nft_dr_table" "$_nft_dr_chain" handle "$_nft_dr_handle" || return $?
+    done
+}
+
+nft_delete_owned_set() {
+    _nft_require || return $?
+    _nft_require_prefix "${4:-}" || return $?
+    _nft_ds_family=$1
+    _nft_ds_table=$2
+    _nft_ds_set=$3
+    _nft_ds_prefix=$4
+    case $_nft_ds_set in
+        "$_nft_ds_prefix"|"$_nft_ds_prefix"*)
+            ;;
+        *)
+            printf '%s\n' "nft: refusing to delete unowned set: $_nft_ds_set" >&2
+            return 2
+            ;;
+    esac
+    if ! nft_set_exists "$_nft_ds_family" "$_nft_ds_table" "$_nft_ds_set"; then
+        return 0
+    fi
+    nft delete set "$_nft_ds_family" "$_nft_ds_table" "$_nft_ds_set"
+}
+
+nft_apply_batch() {
+    _nft_require || return $?
+    _nft_ab_file=${1:-}
+    if [ -z "$_nft_ab_file" ]; then
+        printf '%s\n' "nft_apply_batch: missing batch file" >&2
+        return 2
+    fi
+    if [ "$_nft_ab_file" = "-" ]; then
+        nft -f -
+        return $?
+    fi
+    if [ ! -f "$_nft_ab_file" ]; then
+        printf '%s\n' "nft_apply_batch: not a file: $_nft_ab_file" >&2
+        return 1
+    fi
+    nft -f "$_nft_ab_file"
+}
+
+nft_dump_owned_state() {
+    _nft_require || return $?
+    _nft_require_prefix "${3:-}" || return $?
+    _nft_do_family=$1
+    _nft_do_table=$2
+    _nft_do_prefix=$3
+    nft -a list table "$_nft_do_family" "$_nft_do_table" 2>/dev/null |
+        _nft_parse_comment_handles |
+        while IFS="$(printf '\t')" read -r _nft_do_handle _nft_do_comment
+        do
+            [ -n "$_nft_do_handle" ] || continue
+            if _nft_comment_owned "$_nft_do_comment" "$_nft_do_prefix"; then
+                printf 'rule\t%s\t%s\n' "$_nft_do_handle" "$_nft_do_comment"
+            fi
+        done
+    nft -a list table "$_nft_do_family" "$_nft_do_table" 2>/dev/null |
+        awk '
+            $1 == "set" {
+                name = $2
+                gsub(/\{/, "", name)
+                print name
+            }
+        ' |
+        while IFS= read -r _nft_do_set
+        do
+            [ -n "$_nft_do_set" ] || continue
+            case $_nft_do_set in
+                "$_nft_do_prefix"|"$_nft_do_prefix"*)
+                    printf 'set\t%s\n' "$_nft_do_set"
+                    ;;
+            esac
+        done
+}
+# END MODULE: nft
+
+# BEGIN MODULE: guard-migration
+# Remove stale project-owned nft/dnsmasq artifacts from apply_ai_failclosed.sh.
+# Prefix: guard_migrate_
+set -eu
+
+_GUARD_STALE_COMMENT=rules-ai-failclosed
+_GUARD_STALE_CHAIN=rules_ai_failclosed
+_GUARD_STALE_SET_PREFIX=rules_ai
+_GUARD_STALE_CONF=rules-ai-failclosed.conf
+_GUARD_STALE_PROVIDERS="chatgpt copilot claude gemini notebooklm perplexity grok poe"
+
+_guard_migrate_conf_dirs() {
+    if [ -n "${GUARD_STALE_CONF_DIRS:-}" ]; then
+        printf '%s\n' $GUARD_STALE_CONF_DIRS
+        return 0
+    fi
+    printf '%s\n' /tmp/dnsmasq.d /etc/dnsmasq.d
+    if [ -d /tmp ]; then
+        for _guard_md_dir in /tmp/dnsmasq.*.d
+        do
+            if [ -d "$_guard_md_dir" ]; then
+                printf '%s\n' "$_guard_md_dir"
+            fi
+        done
+    fi
+}
+
+guard_migrate_dnsmasq_conf() {
+    _guard_mdc_dirs=$(_guard_migrate_conf_dirs)
+    for _guard_mdc_dir in $_guard_mdc_dirs
+    do
+        [ -n "$_guard_mdc_dir" ] || continue
+        _guard_mdc_file="$_guard_mdc_dir/$_GUARD_STALE_CONF"
+        if [ -f "$_guard_mdc_file" ]; then
+            rm -f "$_guard_mdc_file"
+        fi
+    done
+    # Never restart/enable dnsmasq after cleanup.
+}
+
+guard_migrate_nft() {
+    if [ "$_GUARD_NFT_AVAILABLE" != 1 ]; then
+        return 0
+    fi
+    if nft_chain_exists inet fw4 forward 2>/dev/null; then
+        nft_delete_rules_by_comment inet fw4 forward "$_GUARD_STALE_COMMENT" 2>/dev/null || true
+    fi
+    if nft_chain_exists inet fw4 "$_GUARD_STALE_CHAIN" 2>/dev/null; then
+        nft delete chain inet fw4 "$_GUARD_STALE_CHAIN" 2>/dev/null || true
+    fi
+    for _guard_mn_prov in $_GUARD_STALE_PROVIDERS
+    do
+        nft_delete_owned_set inet fw4 "${_GUARD_STALE_SET_PREFIX}_${_guard_mn_prov}_v4" "$_GUARD_STALE_SET_PREFIX" 2>/dev/null || true
+        nft_delete_owned_set inet fw4 "${_GUARD_STALE_SET_PREFIX}_${_guard_mn_prov}_v6" "$_GUARD_STALE_SET_PREFIX" 2>/dev/null || true
+    done
+}
+
+guard_migrate_stale() {
+    guard_migrate_nft
+    guard_migrate_dnsmasq_conf
+}
+# END MODULE: guard-migration
+
+# BEGIN MODULE: service
+# OpenWrt init.d observation helpers. Lifecycle mutation requires --mutate.
+# Prefix: svc_
+set -eu
+
+_svc_dir() {
+    printf '%s\n' "${SVC_INITD_DIR:-/etc/init.d}"
+}
+
+_svc_path() {
+    printf '%s/%s\n' "$(_svc_dir)" "$1"
+}
+
+_svc_require_name() {
+    case $1 in
+        ''|*/*|.*)
+            printf '%s\n' "svc: invalid service name: $1" >&2
+            return 2
+            ;;
+    esac
+    case $1 in
+        *..*)
+            printf '%s\n' "svc: invalid service name: $1" >&2
+            return 2
+            ;;
+    esac
+}
+
+svc_exists() {
+    _svc_require_name "$1" || return $?
+    _svc_exists_path=$(_svc_path "$1")
+    [ -x "$_svc_exists_path" ]
+}
+
+svc_enabled() {
+    svc_exists "$1" || return 1
+    _svc_en_path=$(_svc_path "$1")
+    "$_svc_en_path" enabled >/dev/null 2>&1
+}
+
+svc_running() {
+    svc_exists "$1" || return 1
+    _svc_rn_path=$(_svc_path "$1")
+    if "$_svc_rn_path" running >/dev/null 2>&1; then
+        return 0
+    fi
+    _svc_rn_rc=0
+    _svc_rn_out=$("$_svc_rn_path" status 2>/dev/null) || _svc_rn_rc=$?
+    case $_svc_rn_out in
+        *"not running"*|*"inactive"*|*"stopped"*)
+            return 1
+            ;;
+        *"running"*|*"active"*)
+            return 0
+            ;;
+    esac
+    [ "$_svc_rn_rc" -eq 0 ]
+}
+
+svc_status() {
+    _svc_require_name "$1" || return $?
+    if ! svc_exists "$1"; then
+        printf '%s\n' "missing"
+        return 1
+    fi
+    if svc_running "$1"; then
+        printf '%s\n' "running"
+        return 0
+    fi
+    printf '%s\n' "stopped"
+    return 0
+}
+
+_svc_require_mutate() {
+    if [ "${1:-}" != "--mutate" ]; then
+        printf '%s\n' "svc: refusing to change service lifecycle without --mutate" >&2
+        return 2
+    fi
+}
+
+svc_restart() {
+    _svc_require_mutate "${1:-}" || return $?
+    shift
+    _svc_rs_name=${1:-}
+    if ! svc_exists "$_svc_rs_name"; then
+        printf '%s\n' "svc: service not found: $_svc_rs_name" >&2
+        return 1
+    fi
+    _svc_rs_path=$(_svc_path "$_svc_rs_name")
+    "$_svc_rs_path" restart
+}
+
+svc_enable() {
+    _svc_require_mutate "${1:-}" || return $?
+    shift
+    _svc_el_name=${1:-}
+    if ! svc_exists "$_svc_el_name"; then
+        printf '%s\n' "svc: service not found: $_svc_el_name" >&2
+        return 1
+    fi
+    _svc_el_path=$(_svc_path "$_svc_el_name")
+    "$_svc_el_path" enable
+}
+# END MODULE: service
+
+# BEGIN MODULE: guard-dns
+# DNS backend detection. Never starts, enables, or restarts dnsmasq.
+# Prefix: guard_dns_
+set -eu
+
+_GUARD_DNS_NAMES="adguardhome AdGuardHome adguard-home"
+
+guard_dns_agh_name() {
+    _guard_dns_agh=
+    for _guard_dns_cand in $_GUARD_DNS_NAMES
+    do
+        if svc_exists "$_guard_dns_cand"; then
+            _guard_dns_agh=$_guard_dns_cand
+            break
+        fi
+    done
+    if [ -n "$_guard_dns_agh" ]; then
+        printf '%s\n' "$_guard_dns_agh"
+        return 0
+    fi
+    return 1
+}
+
+guard_dns_dnsmasq_port() {
+    _guard_dns_port=
+    if command -v uci >/dev/null 2>&1; then
+        _guard_dns_port=$(uci -q get dhcp.@dnsmasq[0].port 2>/dev/null) || _guard_dns_port=
+        if [ -z "$_guard_dns_port" ]; then
+            _guard_dns_port=$(uci -q get dhcp.dnsmasq.port 2>/dev/null) || _guard_dns_port=
+        fi
+    fi
+    if [ -z "$_guard_dns_port" ]; then
+        _guard_dns_port=53
+    fi
+    printf '%s\n' "$_guard_dns_port"
+}
+
+guard_dns_backend() {
+    _guard_dns_agh_en=0
+    _guard_dns_agh_run=0
+    if _guard_dns_agh=$(guard_dns_agh_name 2>/dev/null); then
+        if svc_enabled "$_guard_dns_agh"; then
+            _guard_dns_agh_en=1
+        fi
+        if svc_running "$_guard_dns_agh"; then
+            _guard_dns_agh_run=1
+        fi
+    fi
+    if [ "$_guard_dns_agh_en" = 1 ] && [ "$_guard_dns_agh_run" = 1 ]; then
+        printf '%s\n' "adguardhome"
+        return 0
+    fi
+    _guard_dns_msq_en=0
+    _guard_dns_msq_run=0
+    if svc_exists dnsmasq; then
+        if svc_enabled dnsmasq; then
+            _guard_dns_msq_en=1
+        fi
+        if svc_running dnsmasq; then
+            _guard_dns_msq_run=1
+        fi
+    fi
+    if [ "$_guard_dns_msq_en" = 1 ] && [ "$_guard_dns_msq_run" = 1 ]; then
+        _guard_dns_port=$(guard_dns_dnsmasq_port)
+        if [ "$_guard_dns_port" != 0 ]; then
+            printf '%s\n' "dnsmasq"
+            return 0
+        fi
+    fi
+    printf '%s\n' "none"
+}
+
+guard_dns_domain_set_backend() {
+    _guard_dns_be=${1:-}
+    if [ -z "$_guard_dns_be" ]; then
+        _guard_dns_be=$(guard_dns_backend)
+    fi
+    case $_guard_dns_be in
+        dnsmasq)
+            printf '%s\n' "dnsmasq-nftset"
+            ;;
+        adguardhome)
+            # resolver-sync is not implemented; do not claim dest-set protection.
+            printf '%s\n' "unavailable"
+            ;;
+        *)
+            printf '%s\n' "unavailable"
+            ;;
+    esac
+}
+
+guard_dns_detect() {
+    _GUARD_DNS_BACKEND=$(guard_dns_backend)
+    _GUARD_DNS_AGH_ENABLED=0
+    _GUARD_DNS_AGH_RUNNING=0
+    _GUARD_DNS_MSQ_ENABLED=0
+    _GUARD_DNS_MSQ_RUNNING=0
+    if _guard_dns_agh=$(guard_dns_agh_name 2>/dev/null); then
+        if svc_enabled "$_guard_dns_agh"; then
+            _GUARD_DNS_AGH_ENABLED=1
+        fi
+        if svc_running "$_guard_dns_agh"; then
+            _GUARD_DNS_AGH_RUNNING=1
+        fi
+    fi
+    if svc_exists dnsmasq; then
+        if svc_enabled dnsmasq; then
+            _GUARD_DNS_MSQ_ENABLED=1
+        fi
+        if svc_running dnsmasq; then
+            _GUARD_DNS_MSQ_RUNNING=1
+        fi
+    fi
+    _GUARD_DNS_DOMAIN_SET=$(guard_dns_domain_set_backend "$_GUARD_DNS_BACKEND")
+}
+
+# Guard never resurrects DNS daemons; detection is observation-only.
+# END MODULE: guard-dns
+
+# BEGIN MODULE: uci
+# Thin UCI wrappers. Get/set do not commit; failures that affect state are not hidden.
+# Prefix: uci_
+set -eu
+
+_uci_require() {
+    if ! command -v uci >/dev/null 2>&1; then
+        printf '%s\n' "uci: command not found" >&2
+        return 127
+    fi
+    if [ -z "${1:-}" ]; then
+        printf '%s\n' "uci: missing option" >&2
+        return 2
+    fi
+}
+
+uci_get() {
+    _uci_require "$1" || return $?
+    uci get "$1"
+}
+
+uci_get_default() {
+    _uci_require "$1" || return $?
+    _uci_gd_opt=$1
+    _uci_gd_default=${2:-}
+    if _uci_gd_val=$(uci -q get "$_uci_gd_opt"); then
+        printf '%s\n' "$_uci_gd_val"
+        return 0
+    fi
+    printf '%s\n' "$_uci_gd_default"
+}
+
+uci_get_bool() {
+    _uci_require "$1" || return $?
+    _uci_gb_opt=$1
+    _uci_gb_raw=
+    if _uci_gb_raw=$(uci -q get "$_uci_gb_opt"); then
+        :
+    elif [ "$#" -ge 2 ]; then
+        _uci_gb_raw=$2
+    else
+        return 1
+    fi
+    case $_uci_gb_raw in
+        1|true|TRUE|True|yes|YES|on|ON|enabled|ENABLED)
+            printf '1\n'
+            ;;
+        0|false|FALSE|False|no|NO|off|OFF|disabled|DISABLED|'')
+            printf '0\n'
+            ;;
+        *)
+            printf '%s\n' "uci: invalid bool for $_uci_gb_opt: $_uci_gb_raw" >&2
+            return 1
+            ;;
+    esac
+}
+
+uci_get_list() {
+    _uci_require "$1" || return $?
+    _uci_gl_nl='
+'
+    uci -d "$_uci_gl_nl" get "$1"
+}
+
+uci_set() {
+    _uci_require "$1" || return $?
+    if [ "$#" -lt 2 ]; then
+        printf '%s\n' "uci_set: missing value" >&2
+        return 2
+    fi
+    uci set "$1=$2"
+}
+
+uci_add_list() {
+    _uci_require "$1" || return $?
+    if [ "$#" -lt 2 ]; then
+        printf '%s\n' "uci_add_list: missing value" >&2
+        return 2
+    fi
+    uci add_list "$1=$2"
+}
+
+uci_commit_if_changed() {
+    if ! command -v uci >/dev/null 2>&1; then
+        printf '%s\n' "uci: command not found" >&2
+        return 127
+    fi
+    _uci_cif_pkg=${1:-}
+    if [ -n "$_uci_cif_pkg" ]; then
+        _uci_cif_changes=$(uci changes "$_uci_cif_pkg") || return $?
+    else
+        _uci_cif_changes=$(uci changes) || return $?
+    fi
+    if [ -z "$_uci_cif_changes" ]; then
+        return 0
+    fi
+    if [ -n "$_uci_cif_pkg" ]; then
+        uci commit "$_uci_cif_pkg"
+    else
+        uci commit
+    fi
+}
+# END MODULE: uci
+
+# BEGIN MODULE: guard-environment
+# Read-only normalized environment model for openclash-guard.
+# Prefix: guard_env_
+set -eu
+
+_GUARD_OC_INSTALLED=0
+_GUARD_OC_ENABLED=0
+_GUARD_OC_RUNNING=0
+_GUARD_OC_HEALTHY=0
+_GUARD_DNS_BACKEND=none
+_GUARD_DNS_MSQ_ENABLED=0
+_GUARD_DNS_MSQ_RUNNING=0
+_GUARD_DNS_AGH_ENABLED=0
+_GUARD_DNS_AGH_RUNNING=0
+_GUARD_DNS_DOMAIN_SET=unavailable
+_GUARD_NET_IPV6=0
+_GUARD_NET_DIRECT_REGION=
+_GUARD_PROXY_HEALTHY=0
+_GUARD_PROXY_REGION=
+_GUARD_GAME_CLIENTS=0
+_GUARD_NFT_AVAILABLE=0
+
+_guard_env_json_bool() {
+    if [ "$1" = 1 ]; then
+        printf 'true'
+    else
+        printf 'false'
+    fi
+}
+
+_guard_env_json_string() {
+    printf '%s' "$1" | awk '
+        BEGIN { ORS = "" }
+        {
+            gsub(/\\/, "\\\\")
+            gsub(/"/, "\\\"")
+            gsub(/\t/, "\\t")
+            print
+        }
+    '
+}
+
+_guard_env_oc_probe_healthy() {
+    case ${GUARD_OPENCLASH_HEALTHY:-} in
+        1|true|TRUE|yes|YES|on|ON)
+            return 0
+            ;;
+        0|false|FALSE|no|NO|off|OFF)
+            return 1
+            ;;
+    esac
+    _guard_env_pidf=${GUARD_OPENCLASH_PID_FILE:-/tmp/etc/openclash/clash.pid}
+    if [ -f "$_guard_env_pidf" ]; then
+        _guard_env_pid=$(cat "$_guard_env_pidf" 2>/dev/null) || _guard_env_pid=
+        case $_guard_env_pid in
+            ''|*[!0-9]*)
+                ;;
+            *)
+                if kill -0 "$_guard_env_pid" 2>/dev/null; then
+                    return 0
+                fi
+                ;;
+        esac
+    fi
+    for _guard_env_if in ${GUARD_OPENCLASH_TUN_IFACES:-utun Meta tun0 utun0}
+    do
+        if [ -e "/sys/class/net/$_guard_env_if" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+_guard_env_ipv6() {
+    case ${GUARD_IPV6:-} in
+        1|true|TRUE|yes|YES|on|ON)
+            printf '1\n'
+            return 0
+            ;;
+        0|false|FALSE|no|NO|off|OFF)
+            printf '0\n'
+            return 0
+            ;;
+    esac
+    if [ -s /proc/net/if_inet6 ]; then
+        printf '1\n'
+        return 0
+    fi
+    printf '0\n'
+}
+
+_guard_env_proxy_healthy() {
+    case ${GUARD_PROXY_HEALTHY:-} in
+        1|true|TRUE|yes|YES|on|ON)
+            printf '1\n'
+            return 0
+            ;;
+        0|false|FALSE|no|NO|off|OFF)
+            printf '0\n'
+            return 0
+            ;;
+    esac
+    if [ "$_GUARD_OC_HEALTHY" = 1 ]; then
+        printf '1\n'
+    else
+        printf '0\n'
+    fi
+}
+
+_guard_env_count_uci_list() {
+    _guard_env_n=0
+    if ! command -v uci >/dev/null 2>&1; then
+        printf '0\n'
+        return 0
+    fi
+    _guard_env_nl='
+'
+    _guard_env_items=$(uci -d "$_guard_env_nl" -q get "${1:-openclash_guard.udp.src_ip}" 2>/dev/null) || _guard_env_items=
+    if [ -z "$_guard_env_items" ]; then
+        printf '0\n'
+        return 0
+    fi
+    for _guard_env_item in $_guard_env_items
+    do
+        [ -n "$_guard_env_item" ] || continue
+        _guard_env_n=$((_guard_env_n + 1))
+    done
+    printf '%s\n' "$_guard_env_n"
+}
+
+guard_env_detect() {
+    _GUARD_OC_INSTALLED=0
+    _GUARD_OC_ENABLED=0
+    _GUARD_OC_RUNNING=0
+    _GUARD_OC_HEALTHY=0
+    if svc_exists openclash; then
+        _GUARD_OC_INSTALLED=1
+        if svc_enabled openclash; then
+            _GUARD_OC_ENABLED=1
+        fi
+        if svc_running openclash; then
+            _GUARD_OC_RUNNING=1
+        fi
+    fi
+    if [ "$_GUARD_OC_RUNNING" = 1 ] && _guard_env_oc_probe_healthy; then
+        _GUARD_OC_HEALTHY=1
+    fi
+    guard_dns_detect
+    _GUARD_NET_IPV6=$(_guard_env_ipv6)
+    _GUARD_NET_DIRECT_REGION=${GUARD_DIRECT_REGION:-}
+    _GUARD_PROXY_HEALTHY=$(_guard_env_proxy_healthy)
+    _GUARD_PROXY_REGION=${GUARD_PROXY_REGION:-}
+    _GUARD_GAME_CLIENTS=$(_guard_env_count_uci_list openclash_guard.udp.src_ip)
+    _GUARD_NFT_AVAILABLE=0
+    if command -v nft >/dev/null 2>&1; then
+        _GUARD_NFT_AVAILABLE=1
+    fi
+}
+
+guard_env_get() {
+    case ${1:-} in
+        openclash.installed) printf '%s\n' "$_GUARD_OC_INSTALLED" ;;
+        openclash.enabled) printf '%s\n' "$_GUARD_OC_ENABLED" ;;
+        openclash.running) printf '%s\n' "$_GUARD_OC_RUNNING" ;;
+        openclash.healthy) printf '%s\n' "$_GUARD_OC_HEALTHY" ;;
+        dns.backend) printf '%s\n' "$_GUARD_DNS_BACKEND" ;;
+        dns.dnsmasqEnabled) printf '%s\n' "$_GUARD_DNS_MSQ_ENABLED" ;;
+        dns.dnsmasqRunning) printf '%s\n' "$_GUARD_DNS_MSQ_RUNNING" ;;
+        dns.adguardhomeEnabled) printf '%s\n' "$_GUARD_DNS_AGH_ENABLED" ;;
+        dns.adguardhomeRunning) printf '%s\n' "$_GUARD_DNS_AGH_RUNNING" ;;
+        dns.domainSetBackend) printf '%s\n' "$_GUARD_DNS_DOMAIN_SET" ;;
+        network.ipv6) printf '%s\n' "$_GUARD_NET_IPV6" ;;
+        network.directRegion) printf '%s\n' "$_GUARD_NET_DIRECT_REGION" ;;
+        proxy.healthy) printf '%s\n' "$_GUARD_PROXY_HEALTHY" ;;
+        proxy.region) printf '%s\n' "$_GUARD_PROXY_REGION" ;;
+        gaming.clients.count) printf '%s\n' "$_GUARD_GAME_CLIENTS" ;;
+        nft.available) printf '%s\n' "$_GUARD_NFT_AVAILABLE" ;;
+        *)
+            printf '%s\n' "guard_env_get: unknown key: ${1:-}" >&2
+            return 2
+            ;;
+    esac
+}
+
+guard_env_json() {
+    printf '{'
+    printf '"openclash":{"installed":%s,"enabled":%s,"running":%s,"healthy":%s},' \
+        "$(_guard_env_json_bool "$_GUARD_OC_INSTALLED")" \
+        "$(_guard_env_json_bool "$_GUARD_OC_ENABLED")" \
+        "$(_guard_env_json_bool "$_GUARD_OC_RUNNING")" \
+        "$(_guard_env_json_bool "$_GUARD_OC_HEALTHY")"
+    printf '"dns":{"backend":"%s","dnsmasqEnabled":%s,"dnsmasqRunning":%s,"adguardhomeEnabled":%s,"adguardhomeRunning":%s,"domainSetBackend":"%s"},' \
+        "$(_guard_env_json_string "$_GUARD_DNS_BACKEND")" \
+        "$(_guard_env_json_bool "$_GUARD_DNS_MSQ_ENABLED")" \
+        "$(_guard_env_json_bool "$_GUARD_DNS_MSQ_RUNNING")" \
+        "$(_guard_env_json_bool "$_GUARD_DNS_AGH_ENABLED")" \
+        "$(_guard_env_json_bool "$_GUARD_DNS_AGH_RUNNING")" \
+        "$(_guard_env_json_string "$_GUARD_DNS_DOMAIN_SET")"
+    printf '"network":{"ipv6":%s,"directRegion":"%s"},' \
+        "$(_guard_env_json_bool "$_GUARD_NET_IPV6")" \
+        "$(_guard_env_json_string "$_GUARD_NET_DIRECT_REGION")"
+    printf '"proxy":{"healthy":%s,"region":"%s"},' \
+        "$(_guard_env_json_bool "$_GUARD_PROXY_HEALTHY")" \
+        "$(_guard_env_json_string "$_GUARD_PROXY_REGION")"
+    printf '"gaming":{"clients":{"count":%s}},' "$_GUARD_GAME_CLIENTS"
+    printf '"nft":{"available":%s}' "$(_guard_env_json_bool "$_GUARD_NFT_AVAILABLE")"
+    printf '}\n'
+}
+# END MODULE: guard-environment
+
+# BEGIN MODULE: guard-killswitch
+# Persistent inet table independent of disposable OpenClash/fw4 chains.
+# Prefix: guard_kill_
+set -eu
+
+_GUARD_UCI_ENABLED=1
+_GUARD_UCI_MODE=auto
+_GUARD_UCI_KILL_SWITCH=1
+_GUARD_UCI_DNS_KILL_SWITCH=0
+
+_guard_kill_comment() {
+    printf '%s:%s' "$_GUARD_NFT_PREFIX" "$1"
+}
+
+guard_kill_read_uci() {
+    _GUARD_UCI_ENABLED=1
+    _GUARD_UCI_MODE=auto
+    _GUARD_UCI_KILL_SWITCH=1
+    _GUARD_UCI_DNS_KILL_SWITCH=0
+    if command -v uci >/dev/null 2>&1; then
+        _GUARD_UCI_ENABLED=$(uci_get_bool openclash_guard.main.enabled 1 2>/dev/null) || _GUARD_UCI_ENABLED=1
+        _GUARD_UCI_MODE=$(uci_get_default openclash_guard.main.mode auto 2>/dev/null) || _GUARD_UCI_MODE=auto
+        _GUARD_UCI_KILL_SWITCH=$(uci_get_bool openclash_guard.main.kill_switch 1 2>/dev/null) || _GUARD_UCI_KILL_SWITCH=1
+        _GUARD_UCI_DNS_KILL_SWITCH=$(uci_get_bool openclash_guard.main.dns_kill_switch 0 2>/dev/null) || _GUARD_UCI_DNS_KILL_SWITCH=0
+    fi
+}
+
+_guard_kill_csv_set() {
+    _guard_ks_out=
+    _guard_ks_first=1
+    for _guard_ks_item in "$@"
+    do
+        [ -n "$_guard_ks_item" ] || continue
+        if [ "$_guard_ks_first" = 1 ]; then
+            _guard_ks_out=$_guard_ks_item
+            _guard_ks_first=0
+        else
+            _guard_ks_out="$_guard_ks_out, $_guard_ks_item"
+        fi
+    done
+    printf '%s' "$_guard_ks_out"
+}
+
+_guard_kill_add_set() {
+    _guard_as_name=$1
+    _guard_as_type=$2
+    _guard_as_tag=$3
+    _guard_as_flags=${4:-}
+    _guard_as_extra=
+    if [ -n "$_guard_as_flags" ]; then
+        _guard_as_extra=" flags $_guard_as_flags;"
+    fi
+    printf 'add set %s %s %s { type %s;%s comment "%s"; }\n' \
+        "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE" "$_guard_as_name" "$_guard_as_type" \
+        "$_guard_as_extra" "$(_guard_kill_comment "$_guard_as_tag")"
+}
+
+_guard_kill_add_elements() {
+    _guard_ae_name=$1
+    shift
+    _guard_ae_csv=$(_guard_kill_csv_set "$@")
+    if [ -z "$_guard_ae_csv" ]; then
+        return 0
+    fi
+    printf 'add element %s %s %s { %s }\n' \
+        "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE" "$_guard_ae_name" "$_guard_ae_csv"
+}
+
+_guard_kill_add_rule() {
+    printf 'add rule %s %s %s %s comment "%s"\n' \
+        "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE" "$1" "$2" "$(_guard_kill_comment "$3")"
+}
+
+guard_kill_delete_table() {
+    if [ "$_GUARD_NFT_AVAILABLE" != 1 ]; then
+        return 0
+    fi
+    if nft_table_exists "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE"; then
+        nft delete table "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE"
+    fi
+}
+
+# Order: local accepts, kill/protect reject, (gaming appended later), remaining.
+guard_kill_render() {
+    printf 'add table %s %s\n' "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE"
+    _guard_kill_add_set lan_rfc1918 ipv4_addr lan interval
+    _guard_kill_add_elements lan_rfc1918 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
+    _guard_kill_add_set protected_udp inet_service protected-udp
+    _guard_ku_ports=$(json_list "$_GUARD_POLICY_FILE" gaming.protectedUdpPorts 2>/dev/null) || _guard_ku_ports=
+    _guard_ku_has443=0
+    for _guard_ku_port in $_guard_ku_ports
+    do
+        if [ "$_guard_ku_port" = 443 ]; then
+            _guard_ku_has443=1
+            break
+        fi
+    done
+    if [ "$_guard_ku_has443" != 1 ]; then
+        _guard_ku_ports="$_guard_ku_ports 443"
+    fi
+    # shellcheck disable=SC2086
+    _guard_kill_add_elements protected_udp $_guard_ku_ports
+
+    printf 'add chain %s %s input { type filter hook input priority -150; policy accept; }\n' \
+        "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE"
+    printf 'add chain %s %s forward { type filter hook forward priority -150; policy accept; }\n' \
+        "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE"
+
+    _guard_kill_add_rule input 'ct state established,related accept' est-in
+    if [ "$_GUARD_UCI_DNS_KILL_SWITCH" = 1 ]; then
+        _guard_kill_add_rule input 'iifname != "lo" udp dport 53 reject' dns-ks
+        _guard_kill_add_rule input 'iifname != "lo" tcp dport 53 reject' dns-ks-tcp
+    fi
+
+    _guard_kill_add_rule forward 'ct state established,related accept' est
+    _guard_kill_add_rule forward 'iifname "lo" accept' lo
+    _guard_kill_add_rule forward 'udp dport { 67, 68 } accept' dhcp
+    _guard_kill_add_rule forward 'ip daddr @lan_rfc1918 accept' lan-dst
+    _guard_kill_add_rule forward 'udp dport @protected_udp reject' protected-udp
+    if [ "$_GUARD_POLICY_ENFORCEMENT" = reject ]; then
+        _guard_kill_add_rule forward reject kill-switch
+    fi
+}
+
+guard_kill_apply_batch() {
+    _guard_ka_file=${1:-}
+    if [ -z "$_guard_ka_file" ] || [ ! -f "$_guard_ka_file" ]; then
+        printf '%s\n' "guard_kill_apply_batch: missing batch" >&2
+        return 2
+    fi
+    if [ "${GUARD_DRY_RUN:-0}" = 1 ]; then
+        cat "$_guard_ka_file"
+        return 0
+    fi
+    if [ "$_GUARD_NFT_AVAILABLE" != 1 ]; then
+        printf '%s\n' "guard_kill: nft not available" >&2
+        return 1
+    fi
+    guard_kill_delete_table || return $?
+    nft_apply_batch "$_guard_ka_file"
+}
+# END MODULE: guard-killswitch
+
+# BEGIN MODULE: guard-gaming
+# Scoped gaming exceptions. Never saddr+any-UDP. Never UDP/443 blanket.
+# Prefix: guard_game_
+set -eu
+
+_GUARD_GAME_ENABLED=1
+
+guard_game_read_uci() {
+    _GUARD_GAME_ENABLED=1
+    if command -v uci >/dev/null 2>&1; then
+        _GUARD_GAME_ENABLED=$(uci_get_bool openclash_guard.udp.enabled 1 2>/dev/null) || _GUARD_GAME_ENABLED=1
+    fi
+}
+
+guard_game_src_ips() {
+    if ! command -v uci >/dev/null 2>&1; then
+        return 0
+    fi
+    _guard_gs_nl='
+'
+    uci -d "$_guard_gs_nl" -q get openclash_guard.udp.src_ip 2>/dev/null || true
+}
+
+_guard_game_ip_in() {
+    _guard_gi_ip=$1
+    shift
+    for _guard_gi_item in "$@"
+    do
+        if [ "$_guard_gi_item" = "$_guard_gi_ip" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Prefix match for /8 /16 /24 plus exact host. Sufficient for the contract schema.
+_guard_game_dest_ok() {
+    _guard_gd_dest=$1
+    if [ -z "$_guard_gd_dest" ]; then
+        return 1
+    fi
+    _guard_gd_cidrs=$(json_list "$_GUARD_POLICY_FILE" gaming.destinationCidrs 2>/dev/null) || _guard_gd_cidrs=
+    if [ -z "$_guard_gd_cidrs" ]; then
+        return 0
+    fi
+    for _guard_gd_cidr in $_guard_gd_cidrs
+    do
+        [ -n "$_guard_gd_cidr" ] || continue
+        case $_guard_gd_cidr in
+            */8)
+                _guard_gd_net=${_guard_gd_cidr%/*}
+                _guard_gd_pfx=${_guard_gd_net%%.*}.
+                case $_guard_gd_dest in
+                    "$_guard_gd_pfx"*)
+                        return 0
+                        ;;
+                esac
+                ;;
+            */16)
+                _guard_gd_net=${_guard_gd_cidr%/*}
+                _guard_gd_a=${_guard_gd_net%%.*}
+                _guard_gd_rest=${_guard_gd_net#*.}
+                _guard_gd_b=${_guard_gd_rest%%.*}
+                _guard_gd_pfx="${_guard_gd_a}.${_guard_gd_b}."
+                case $_guard_gd_dest in
+                    "$_guard_gd_pfx"*)
+                        return 0
+                        ;;
+                esac
+                ;;
+            */24)
+                _guard_gd_net=${_guard_gd_cidr%/*}
+                _guard_gd_pfx=${_guard_gd_net%.*}.
+                case $_guard_gd_dest in
+                    "$_guard_gd_pfx"*)
+                        return 0
+                        ;;
+                esac
+                ;;
+            */*)
+                _guard_gd_net=${_guard_gd_cidr%/*}
+                if [ "$_guard_gd_dest" = "$_guard_gd_net" ]; then
+                    return 0
+                fi
+                ;;
+            *)
+                if [ "$_guard_gd_dest" = "$_guard_gd_cidr" ]; then
+                    return 0
+                fi
+                ;;
+        esac
+    done
+    return 1
+}
+
+guard_game_flow_eligible() {
+    _guard_gf_proto=$1
+    _guard_gf_dport=$2
+    _guard_gf_src=$3
+    _guard_gf_dest=$4
+    if [ "$_GUARD_GAME_ENABLED" != 1 ]; then
+        return 1
+    fi
+    case $_guard_gf_proto in
+        udp|UDP)
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+    if [ -z "$_guard_gf_dport" ] || guard_policy_port_in_list "$_guard_gf_dport" gaming.protectedUdpPorts; then
+        return 1
+    fi
+    if ! guard_policy_port_in_list "$_guard_gf_dport" gaming.udpPorts; then
+        return 1
+    fi
+    _guard_gf_srcs=$(guard_game_src_ips)
+    if [ -z "$_guard_gf_srcs" ]; then
+        return 1
+    fi
+    if ! _guard_game_ip_in "$_guard_gf_src" $_guard_gf_srcs; then
+        return 1
+    fi
+    if json_has "$_GUARD_POLICY_FILE" gaming.destinationCidrs; then
+        _guard_gf_any=$(json_list "$_GUARD_POLICY_FILE" gaming.destinationCidrs 2>/dev/null) || _guard_gf_any=
+        if [ -n "$_guard_gf_any" ]; then
+            _guard_game_dest_ok "$_guard_gf_dest" || return 1
+        fi
+    fi
+    return 0
+}
+
+# Gaming runs AFTER kill/protect. Skipped entirely when enforcement=reject
+# so it cannot override the global kill switch or directAllowed=false.
+guard_game_render() {
+    if [ "$_GUARD_GAME_ENABLED" != 1 ]; then
+        return 0
+    fi
+    if [ "$_GUARD_POLICY_ENFORCEMENT" = reject ]; then
+        return 0
+    fi
+    _guard_gr_srcs=$(guard_game_src_ips)
+    if [ -z "$_guard_gr_srcs" ]; then
+        return 0
+    fi
+    _guard_gr_ports=$(json_list "$_GUARD_POLICY_FILE" gaming.udpPorts 2>/dev/null) || _guard_gr_ports=
+    _guard_gr_keep=
+    for _guard_gr_port in $_guard_gr_ports
+    do
+        [ -n "$_guard_gr_port" ] || continue
+        if guard_policy_port_in_list "$_guard_gr_port" gaming.protectedUdpPorts; then
+            continue
+        fi
+        _guard_gr_keep="$_guard_gr_keep $_guard_gr_port"
+    done
+    if [ -z "$_guard_gr_keep" ]; then
+        return 0
+    fi
+    _guard_kill_add_set gaming_src ipv4_addr gaming-src interval
+    # shellcheck disable=SC2086
+    _guard_kill_add_elements gaming_src $_guard_gr_srcs
+    _guard_kill_add_set gaming_udp inet_service gaming-udp
+    # shellcheck disable=SC2086
+    _guard_kill_add_elements gaming_udp $_guard_gr_keep
+    _guard_gr_cidrs=$(json_list "$_GUARD_POLICY_FILE" gaming.destinationCidrs 2>/dev/null) || _guard_gr_cidrs=
+    if [ -n "$_guard_gr_cidrs" ]; then
+        _guard_kill_add_set gaming_dst ipv4_addr gaming-dst interval
+        # shellcheck disable=SC2086
+        _guard_kill_add_elements gaming_dst $_guard_gr_cidrs
+        _guard_kill_add_rule forward 'ip saddr @gaming_src ip daddr @gaming_dst udp dport @gaming_udp accept' game-udp
+    else
+        _guard_kill_add_rule forward 'ip saddr @gaming_src udp dport @gaming_udp accept' game-udp
+    fi
+}
+# END MODULE: guard-gaming
+
+# BEGIN MODULE: guard-main
+# openclash-guard CLI: apply/reconcile/status/doctor/refresh/remove.
+set -eu
+
+_GUARD_JSON=0
+_GUARD_LOCK_HELD=0
+
+guard_usage() {
+    printf '%s\n' "usage: openclash-guard apply|reconcile|status|doctor|refresh|remove|eval [--json] [--yes] [--dry-run] [--policy-file FILE]"
+}
+
+_guard_lock_path() {
+    printf '%s\n' "${GUARD_LOCK_PATH:-/var/lock/openclash-guard.lock}"
+}
+
+_guard_lock_acquire() {
+    _guard_lp=$(_guard_lock_path)
+    lock_acquire "$_guard_lp" "${GUARD_LOCK_TIMEOUT:-30}" || return $?
+    _GUARD_LOCK_HELD=1
+}
+
+_guard_lock_release() {
+    if [ "$_GUARD_LOCK_HELD" = 1 ]; then
+        lock_release "$(_guard_lock_path)" || true
+        _GUARD_LOCK_HELD=0
+    fi
+}
+
+_guard_prepare() {
+    guard_kill_read_uci
+    guard_game_read_uci
+    guard_env_detect
+    guard_policy_load "$(_guard_policy_default_path)" || return $?
+    guard_policy_refresh_state
+}
+
+_guard_write_batch() {
+    _guard_wb=$1
+    : > "$_guard_wb"
+    {
+        guard_kill_render
+        guard_game_render
+    } >> "$_guard_wb"
+}
+
+guard_cmd_reconcile() {
+    _guard_prepare || return $?
+    if [ "$_GUARD_NFT_AVAILABLE" != 1 ]; then
+        cli_error "nft is required"
+        return 1
+    fi
+    guard_migrate_stale
+    if [ "$_GUARD_UCI_ENABLED" != 1 ]; then
+        guard_kill_delete_table
+        cli_info "openclash-guard disabled"
+        return 0
+    fi
+    _guard_batch=$(file_mktemp)
+    _guard_write_batch "$_guard_batch"
+    guard_kill_apply_batch "$_guard_batch"
+    _guard_rc=$?
+    rm -f "$_guard_batch"
+    if [ "$_guard_rc" -ne 0 ]; then
+        return "$_guard_rc"
+    fi
+    cli_info "reconciled table $_GUARD_NFT_FAMILY $_GUARD_NFT_TABLE (state=$_GUARD_POLICY_STATE enforcement=$_GUARD_POLICY_ENFORCEMENT)"
+}
+
+guard_cmd_apply() {
+    guard_cmd_reconcile
+}
+
+guard_cmd_remove() {
+    if [ "$_GUARD_JSON" != 1 ]; then
+        if ! cli_confirm "Remove openclash-guard nft table?"; then
+            cli_warn "aborted"
+            return 1
+        fi
+    fi
+    guard_kill_read_uci
+    guard_env_detect
+    if [ -f "$(_guard_policy_default_path)" ]; then
+        guard_policy_load "$(_guard_policy_default_path)" 2>/dev/null || true
+    fi
+    guard_migrate_stale
+    guard_kill_delete_table
+    cli_info "removed openclash-guard table"
+}
+
+guard_cmd_refresh() {
+    _guard_url=${GUARD_POLICY_URL:-}
+    if [ -z "$_guard_url" ] && command -v uci >/dev/null 2>&1; then
+        _guard_url=$(uci_get_default openclash_guard.main.policy_url "" 2>/dev/null) || _guard_url=
+    fi
+    if [ -z "$_guard_url" ]; then
+        cli_error "no policy URL (set GUARD_POLICY_URL or openclash_guard.main.policy_url)"
+        return 1
+    fi
+    _guard_dest=$(_guard_policy_default_path)
+    _guard_dir=$(dirname "$_guard_dest")
+    if [ ! -d "$_guard_dir" ]; then
+        cli_error "policy directory missing: $_guard_dir"
+        return 1
+    fi
+    if ! fetch_atomic "$_guard_url" "$_guard_dest" guard_policy_validate_file; then
+        cli_error "refresh failed; keeping last-known-good policy and firewall state"
+        return 1
+    fi
+    guard_cmd_reconcile
+}
+
+_guard_emit_status_json() {
+    _guard_sj=$(guard_env_json)
+    _guard_sj=${_guard_sj%?}
+    printf '%s,' "$_guard_sj"
+    guard_policy_json_extra
+    printf '}\n'
+}
+
+guard_cmd_status() {
+    _guard_prepare || true
+    if [ "$_GUARD_JSON" = 1 ]; then
+        _guard_emit_status_json
+        return 0
+    fi
+    cli_section "openclash-guard status"
+    cli_kv openclash.installed "$(guard_env_get openclash.installed)"
+    cli_kv openclash.enabled "$(guard_env_get openclash.enabled)"
+    cli_kv openclash.running "$(guard_env_get openclash.running)"
+    cli_kv openclash.healthy "$(guard_env_get openclash.healthy)"
+    cli_kv dns.backend "$(guard_env_get dns.backend)"
+    cli_kv dns.domainSetBackend "$(guard_env_get dns.domainSetBackend)"
+    cli_kv network.directRegion "$(guard_env_get network.directRegion)"
+    cli_kv proxy.region "$(guard_env_get proxy.region)"
+    cli_kv proxy.healthy "$(guard_env_get proxy.healthy)"
+    cli_kv gaming.clients.count "$(guard_env_get gaming.clients.count)"
+    cli_kv nft.available "$(guard_env_get nft.available)"
+    cli_kv state "$_GUARD_POLICY_STATE"
+    cli_kv enforcement "$_GUARD_POLICY_ENFORCEMENT"
+}
+
+guard_cmd_doctor() {
+    guard_cmd_status
+    if [ "$_GUARD_JSON" = 1 ]; then
+        return 0
+    fi
+    cli_section "doctor"
+    cli_kv dns.dnsmasqEnabled "$(guard_env_get dns.dnsmasqEnabled)"
+    cli_kv dns.dnsmasqRunning "$(guard_env_get dns.dnsmasqRunning)"
+    cli_kv dns.adguardhomeEnabled "$(guard_env_get dns.adguardhomeEnabled)"
+    cli_kv dns.adguardhomeRunning "$(guard_env_get dns.adguardhomeRunning)"
+    if [ "$_GUARD_DNS_BACKEND" = adguardhome ]; then
+        cli_info "AdGuard Home owns DNS; dnsmasq will not be enabled, started, or restarted"
+    fi
+    if [ "$_GUARD_DNS_DOMAIN_SET" = unavailable ] && guard_policy_needs_failclosed 2>/dev/null; then
+        cli_warn "domain-set backend unavailable; fail-closed enforcement=reject (not fail-open)"
+    fi
+    cli_info "gaming bypass never matches protected UDP ports (including 443)"
+}
+
+guard_cmd_eval() {
+    _guard_ev_svc=
+    _guard_ev_proto=udp
+    _guard_ev_dport=
+    _guard_ev_src=
+    _guard_ev_dest=
+    while [ "$#" -gt 0 ]
+    do
+        case $1 in
+            --service)
+                _guard_ev_svc=$2
+                shift 2
+                ;;
+            --proto)
+                _guard_ev_proto=$2
+                shift 2
+                ;;
+            --dport)
+                _guard_ev_dport=$2
+                shift 2
+                ;;
+            --src)
+                _guard_ev_src=$2
+                shift 2
+                ;;
+            --dest)
+                _guard_ev_dest=$2
+                shift 2
+                ;;
+            *)
+                cli_die "unknown eval option: $1" 2
+                ;;
+        esac
+    done
+    _guard_prepare || return $?
+    _guard_ev_verdict=$(guard_policy_eval "$_guard_ev_svc" "$_guard_ev_proto" "$_guard_ev_dport" "$_guard_ev_src" "$_guard_ev_dest")
+    if [ "$_GUARD_JSON" = 1 ]; then
+        printf '{"verdict":"%s","service":"%s","proto":"%s","dport":"%s","src":"%s","dest":"%s"}\n' \
+            "$(_guard_env_json_string "$_guard_ev_verdict")" \
+            "$(_guard_env_json_string "$_guard_ev_svc")" \
+            "$(_guard_env_json_string "$_guard_ev_proto")" \
+            "$(_guard_env_json_string "$_guard_ev_dport")" \
+            "$(_guard_env_json_string "$_guard_ev_src")" \
+            "$(_guard_env_json_string "$_guard_ev_dest")"
+        return 0
+    fi
+    printf '%s\n' "$_guard_ev_verdict"
+}
+
+main() {
+    _GUARD_JSON=0
+    _guard_cmd=
+    _guard_eval_args=
+    while [ "$#" -gt 0 ]
+    do
+        case $1 in
+            --json)
+                _GUARD_JSON=1
+                shift
+                ;;
+            --yes|-y)
+                cli_set_assume_yes 1
+                shift
+                ;;
+            --dry-run)
+                GUARD_DRY_RUN=1
+                shift
+                ;;
+            --policy-file)
+                GUARD_POLICY_FILE=$2
+                shift 2
+                ;;
+            -h|--help)
+                guard_usage
+                return 0
+                ;;
+            apply|reconcile|status|doctor|refresh|remove|eval)
+                if [ -n "$_guard_cmd" ]; then
+                    cli_die "duplicate command" 2
+                fi
+                _guard_cmd=$1
+                shift
+                ;;
+            --service|--proto|--dport|--src|--dest)
+                _guard_eval_args="$_guard_eval_args $1 $2"
+                shift 2
+                ;;
+            *)
+                cli_die "unknown argument: $1" 2
+                ;;
+        esac
+    done
+    if [ -z "$_guard_cmd" ]; then
+        guard_usage >&2
+        return 2
+    fi
+    case $_guard_cmd in
+        status|doctor|eval)
+            ;;
+        *)
+            _guard_lock_acquire || return $?
+            trap _guard_lock_release EXIT INT TERM
+            ;;
+    esac
+    _guard_rc=0
+    case $_guard_cmd in
+        apply) guard_cmd_apply || _guard_rc=$? ;;
+        reconcile) guard_cmd_reconcile || _guard_rc=$? ;;
+        status) guard_cmd_status || _guard_rc=$? ;;
+        doctor) guard_cmd_doctor || _guard_rc=$? ;;
+        refresh) guard_cmd_refresh || _guard_rc=$? ;;
+        remove) guard_cmd_remove || _guard_rc=$? ;;
+        eval)
+            # shellcheck disable=SC2086
+            guard_cmd_eval $_guard_eval_args || _guard_rc=$?
+            ;;
+        *)
+            guard_usage >&2
+            _guard_rc=2
+            ;;
+    esac
+    _guard_lock_release
+    trap - EXIT INT TERM
+    return "$_guard_rc"
+}
+# END MODULE: guard-main
+
+main "$@"

@@ -1181,12 +1181,17 @@ cli_info hello-from-source
             code = shbundle.main(["check"])
         stdout, stderr = buf_out.getvalue(), buf_err.getvalue()
         self.assertEqual(code, 0, stderr)
-        self.assertIn("8 modules", stdout)
-        self.assertIn("0 apps", stdout)
-
         manifest = shbundle.load_manifest(ROOT / "shell" / "manifest.json")
+        self.assertIn(f"{len(manifest.modules)} modules", stdout)
+        self.assertIn(f"{len(manifest.apps)} apps", stdout)
+        entry_names = {
+            shbundle.entry_module_name(manifest, app)
+            for app in manifest.apps.values()
+        }
         for name, module in manifest.modules.items():
             source = shbundle.read_module_source(manifest, module)
+            if name in entry_names:
+                continue
             self.assertEqual(
                 shbundle.toplevel_side_effects(source), [], name
             )
