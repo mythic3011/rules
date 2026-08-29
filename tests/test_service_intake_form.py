@@ -6,6 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 FORM = ROOT / ".github/ISSUE_TEMPLATE/service_intake.yml"
+LEGACY_FORM = ROOT / ".github/ISSUE_TEMPLATE/rule_add_request.yml"
 
 
 class ServiceIntakeFormTests(unittest.TestCase):
@@ -38,9 +39,12 @@ class ServiceIntakeFormTests(unittest.TestCase):
 
     def test_intake_workflow_reprocesses_edits_without_duplicate_prs(self):
         text = (ROOT / ".github/workflows/service-intake.yml").read_text(encoding="utf-8")
-        self.assertIn("types: [opened, edited, reopened]", text)
+        self.assertIn("types: [opened, edited, reopened, labeled]", text)
         self.assertIn("gh pr list", text)
         self.assertIn("--force-with-lease", text)
+
+    def test_legacy_rule_request_form_is_retired(self):
+        self.assertFalse(LEGACY_FORM.exists())
 
 
 if __name__ == "__main__":

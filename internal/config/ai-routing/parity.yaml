@@ -30,6 +30,8 @@ deltas:
       - "🤖 Cursor · 自動"
       - "🤖 Hugging Face"
       - "🤖 Hugging Face · 自動"
+      - "🤖 Mirasim"
+      - "🤖 Mirasim · 自動"
       - "🤖 Antigravity"
       - "🤖 Antigravity · 自動"
       - "🤖 Google Labs"
@@ -88,6 +90,7 @@ deltas:
         AI_OpenRouter_Classical,
         AI_Cursor_Classical,
         AI_HuggingFace_Classical,
+        AI_Mirasim_Classical,
         AI_Antigravity_Classical,
         AI_GoogleLabs_Classical,
         AI_Stitch_Classical,
@@ -128,6 +131,7 @@ deltas:
       - "RULE-SET,AI_OpenRouter_Classical,🤖 OpenRouter"
       - "RULE-SET,AI_Cursor_Classical,🤖 Cursor"
       - "RULE-SET,AI_HuggingFace_Classical,🤖 Hugging Face"
+      - "RULE-SET,AI_Mirasim_Classical,🤖 Mirasim"
       - "RULE-SET,AI_Antigravity_Classical,🤖 Antigravity"
       - "RULE-SET,AI_GoogleLabs_Classical,🤖 Google Labs"
       - "RULE-SET,AI_Stitch_Classical,🤖 Stitch"

@@ -94,6 +94,15 @@
       }
     },
     {
+      "path": "rule/AI_Mirasim_Classical.yaml",
+      "urls": {
+        "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_Mirasim_Classical.yaml",
+        "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_Mirasim_Classical.yaml",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/main/rule/AI_Mirasim_Classical.yaml",
+        "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/rule/AI_Mirasim_Classical.yaml"
+      }
+    },
+    {
       "path": "rule/AI_Antigravity_Classical.yaml",
       "urls": {
         "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_Antigravity_Classical.yaml",

@@ -146,6 +146,9 @@ dns:
     "+.huggingface.co":
       - https://1.1.1.1/dns-query
       - https://dns.google/dns-query
+    "+.mirasim.ai":
+      - https://1.1.1.1/dns-query
+      - https://dns.google/dns-query
     "+.antigravity.google":
       - https://1.1.1.1/dns-query
       - https://dns.google/dns-query
@@ -523,6 +526,32 @@ proxy-groups:
       - "🇰🇷 韓國節點"
       - "🌐 其他／未識別節點"
       - "⛔ 拒絕"
+  - name: "🤖 Mirasim"
+    type: select
+    proxies:
+      - "🤖 Mirasim · 自動"
+      - "🚀 手動選擇"
+      - "♻️ 自動選擇"
+      - "🎯 全球直連"
+      - "🇺🇸 美國節點"
+      - "🇸🇬 新加坡節點"
+      - "🇯🇵 日本節點"
+      - "🇹🇼 台灣節點"
+      - "🇰🇷 韓國節點"
+      - "🌐 其他／未識別節點"
+      - "⛔ 拒絕"
+  - name: "🤖 Mirasim · 自動"
+    type: fallback
+    url: "https://cp.cloudflare.com/generate_204"
+    interval: 300
+    proxies:
+      - "🇺🇸 美國節點"
+      - "🇸🇬 新加坡節點"
+      - "🇯🇵 日本節點"
+      - "🇹🇼 台灣節點"
+      - "🇰🇷 韓國節點"
+      - "🌐 其他／未識別節點"
+      - "⛔ 拒絕"
   - name: "🤖 Antigravity"
     type: select
     proxies:
@@ -812,6 +841,7 @@ rules:
     - "RULE-SET,AI_OpenRouter_Classical,🤖 OpenRouter"
     - "RULE-SET,AI_Cursor_Classical,🤖 Cursor"
     - "RULE-SET,AI_HuggingFace_Classical,🤖 Hugging Face"
+    - "RULE-SET,AI_Mirasim_Classical,🤖 Mirasim"
     - "RULE-SET,AI_Antigravity_Classical,🤖 Antigravity"
     - "RULE-SET,AI_GoogleLabs_Classical,🤖 Google Labs"
     - "RULE-SET,AI_Stitch_Classical,🤖 Stitch"
@@ -994,6 +1024,13 @@ rule-providers:
     interval: 10800
     type: http
     url: "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_HuggingFace_Classical.yaml"
+    format: yaml
+
+  AI_Mirasim_Classical:
+    behavior: classical
+    interval: 10800
+    type: http
+    url: "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_Mirasim_Classical.yaml"
     format: yaml
 
   AI_Antigravity_Classical:

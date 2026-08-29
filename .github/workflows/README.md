@@ -5,6 +5,7 @@ Active automation is intentionally limited to generation, publishing, security, 
 | Workflow | Responsibility |
 | --- | --- |
 | `auto-generate-ai-profiles.yml` | validate/generate AI routing artifacts and scheduled upstream locks |
+| `service-intake.yml` | validate labeled service-intake issues and propose canonical registry changes by pull request |
 | `auto-generate-adblock.yml` | refresh filtering sources and publish DNS/Clash outputs |
 | `auto-generate-rules.yml` | derive YAML/MRS files from public `.list` rules |
 | `auto-update-game-cdn.yml` | refresh the game download CDN list |

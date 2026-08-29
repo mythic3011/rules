@@ -3,7 +3,12 @@ from __future__ import annotations
 import unittest
 
 from ai_profiles.catalog import load_catalog
-from ai_profiles.compiler import compile_routing_entries, compile_rule_providers
+from ai_profiles.compiler import (
+    compile_routing_entries,
+    compile_rule_providers,
+    compile_subconverter_plan,
+)
+from ai_profiles.plans.ini_mvp import load_ini_mvp_plan
 from ai_profiles_test_support import load_generator
 
 
@@ -55,20 +60,29 @@ class RelatedServicesCatalogTest(unittest.TestCase):
         self.assertEqual(download.payload, ("DOMAIN-SUFFIX,hf.co",))
         self.assertTrue(download.mihomo)
 
-    def test_new_services_project_without_named_service_code(self) -> None:
+    def test_catalog_declared_services_project_without_named_service_code(self) -> None:
         relaxed = MODULE.render_yaml(strict=False)
         strict = MODULE.render_yaml(strict=True)
         ini = MODULE.render_ini()
 
-        for service_id in ("openrouter", "cursor", "huggingface"):
-            service = self.service(service_id)
+        for service in self.catalog.services:
+            if "mihomo" not in service.projections:
+                continue
             self.assertIn(f'name: "{service.group}"', relaxed)
-            self.assertIn(service.provider_key + ":", relaxed)
-            self.assertIn(f"custom_proxy_group={service.group}`select`", ini)
+            if service.payload:
+                self.assertIn(service.provider_key + ":", relaxed)
             strict_block = strict.split(f'- name: "{service.group}"', 1)[1].split(
                 f'- name: "{service.group} · 自動"', 1
             )[0]
             self.assertNotIn(MODULE.GROUP["direct"], strict_block)
+
+        subconverter_plan = compile_subconverter_plan(
+            load_ini_mvp_plan(),
+            include_process_rules=False,
+            catalog=self.catalog,
+        )
+        for selector in subconverter_plan.service_selectors:
+            self.assertIn(f"custom_proxy_group={selector.group.name}`select`", ini)
 
         routing = compile_routing_entries(
             strict=False,
@@ -82,13 +96,16 @@ class RelatedServicesCatalogTest(unittest.TestCase):
         )
         values = {getattr(rule, "value", None) for rule in routing}
         provider_names = {provider.name for provider in providers}
-        for provider_key in (
-            "AI_OpenRouter_Classical",
-            "AI_Cursor_Classical",
-            "AI_HuggingFace_Classical",
-            "HuggingFace_Download_Direct_Classical",
-            "Cursor_Download_Direct_Classical",
-        ):
+        expected_provider_keys = {
+            service.provider_key
+            for service in self.catalog.services
+            if "mihomo" in service.projections and service.payload
+        } | {
+            ruleset.provider_key
+            for ruleset in self.catalog.companion_rulesets
+            if ruleset.mihomo
+        }
+        for provider_key in expected_provider_keys:
             self.assertIn(provider_key, values)
             self.assertIn(provider_key, provider_names)
 
@@ -98,13 +115,17 @@ class RelatedServicesCatalogTest(unittest.TestCase):
             catalog=self.catalog,
         )
         strict_values = {getattr(rule, "value", None) for rule in strict_routing}
-        self.assertNotIn("HuggingFace_Download_Direct_Classical", strict_values)
-        self.assertNotIn("Cursor_Download_Direct_Classical", strict_values)
+        companion_provider_keys = {
+            ruleset.provider_key
+            for ruleset in self.catalog.companion_rulesets
+            if ruleset.mihomo
+        }
+        self.assertTrue(companion_provider_keys.isdisjoint(strict_values))
 
-    def test_runtime_mechanisms_do_not_name_new_services(self) -> None:
+    def test_runtime_mechanisms_do_not_name_catalog_payload_services(self) -> None:
         from ai_profiles_test_support import ROOT
 
-        names = ("openrouter", "cursor", "huggingface")
+        names = tuple(service.id for service in self.catalog.services if service.payload)
         for relative in (
             "internal/python/ai_profiles/compiler.py",
             "internal/python/ai_profiles/routing_ir.py",

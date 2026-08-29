@@ -2,7 +2,7 @@ name: Service intake bot
 
 on:
   issues:
-    types: [opened, edited, reopened]
+    types: [opened, edited, reopened, labeled]
 
 permissions:
   contents: write

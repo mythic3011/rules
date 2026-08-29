@@ -35,6 +35,7 @@ export default {
     "openrouter": "🤖 OpenRouter",
     "cursor": "🤖 Cursor",
     "huggingface": "🤖 Hugging Face",
+    "mirasim": "🤖 Mirasim",
     "antigravity": "🤖 Antigravity",
     "google-labs": "🤖 Google Labs",
     "stitch": "🤖 Stitch",
@@ -413,6 +414,14 @@ export default {
                 "kind": "remote-classical",
                 "target": "🤖 Hugging Face",
                 "url": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_HuggingFace_Classical.yaml",
+                "interval": 28800,
+                "value": null,
+                "options": []
+              },
+              {
+                "kind": "remote-classical",
+                "target": "🤖 Mirasim",
+                "url": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_Mirasim_Classical.yaml",
                 "interval": 28800,
                 "value": null,
                 "options": []
@@ -1441,6 +1450,47 @@ export default {
             "comments": [],
             "group": {
               "type": "select-group",
+              "name": "🤖 Mirasim",
+              "candidates": [
+                {
+                  "kind": "group-ref",
+                  "value": "🎯 全球直連"
+                },
+                {
+                  "kind": "group-ref",
+                  "value": "🇺🇸 美國節點"
+                },
+                {
+                  "kind": "group-ref",
+                  "value": "🇸🇬 新加坡節點"
+                },
+                {
+                  "kind": "group-ref",
+                  "value": "🇯🇵 日本節點"
+                },
+                {
+                  "kind": "group-ref",
+                  "value": "🇹🇼 台灣節點"
+                },
+                {
+                  "kind": "group-ref",
+                  "value": "🇰🇷 韓國節點"
+                },
+                {
+                  "kind": "group-ref",
+                  "value": "🌐 其他／未識別節點"
+                },
+                {
+                  "kind": "group-ref",
+                  "value": "⛔ 拒絕"
+                }
+              ]
+            }
+          },
+          {
+            "comments": [],
+            "group": {
+              "type": "select-group",
               "name": "🤖 Antigravity",
               "candidates": [
                 {
@@ -1830,7 +1880,7 @@ export default {
         "onlyNodeRegions": [],
         "preferredNodeRegions": []
       },
-      "customBodySha256": "7331bf38ef124982a600eb6b5a531ee8df28288ba3960d4161e2af698706ef8d"
+      "customBodySha256": "58de4c797293fc2571aa29dfa3d2442ad0baa4ae5bd290ec8b7c0a8e9ae9749c"
     },
     "only-us-sg-prefer-sg": {
       "spec": {
@@ -1845,7 +1895,7 @@ export default {
           "sg"
         ]
       },
-      "customBodySha256": "45084b6102f4c45625092cc248f85d6725c0f1b515fcf35cc6928b89341c0966"
+      "customBodySha256": "4e817302f327369a0009a169d6daf02c220da31c9d4bcec551cae92b9bcb0edb"
     },
     "disable-hk": {
       "spec": {
@@ -1857,7 +1907,7 @@ export default {
         "onlyNodeRegions": [],
         "preferredNodeRegions": []
       },
-      "customBodySha256": "855478eec4b7734f28ed7d5f9ba3eeaa1c707ec7c062f3ad3a8c7b68072d41de"
+      "customBodySha256": "3441ff74980fe6d837827a6f7770f3d91b393bb4180a53d2f020c7965fcf4662"
     }
   }
 };

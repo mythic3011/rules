@@ -434,6 +434,38 @@
       ]
     },
     {
+      "id": "mirasim",
+      "providerKey": "AI_Mirasim_Classical",
+      "group": "🤖 Mirasim",
+      "file": "AI_Mirasim_Classical.yaml",
+      "payload": [
+        "DOMAIN-SUFFIX,mirasim.ai"
+      ],
+      "regions": [
+        "us",
+        "sg",
+        "jp",
+        "tw",
+        "kr"
+      ],
+      "directRelaxed": true,
+      "dnsPolicies": [
+        {
+          "order": 111,
+          "selector": "+.mirasim.ai",
+          "resolverSet": "global-ai"
+        }
+      ],
+      "subconverter": {
+        "ruleCluster": "legacy-ai-merged"
+      },
+      "upstreamRules": [],
+      "projections": [
+        "mihomo",
+        "subconverter"
+      ]
+    },
+    {
       "id": "antigravity",
       "providerKey": "AI_Antigravity_Classical",
       "group": "🤖 Antigravity",

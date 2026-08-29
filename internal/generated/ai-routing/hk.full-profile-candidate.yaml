@@ -130,6 +130,9 @@ dns:
     +.huggingface.co:
       - https://1.1.1.1/dns-query
       - https://dns.google/dns-query
+    +.mirasim.ai:
+      - https://1.1.1.1/dns-query
+      - https://dns.google/dns-query
     +.antigravity.google:
       - https://1.1.1.1/dns-query
       - https://dns.google/dns-query
