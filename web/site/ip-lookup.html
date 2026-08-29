@@ -6,148 +6,75 @@
     <title>IP Lookup Beta</title>
     <link rel="icon" href="./favicon.ico" sizes="any" />
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
     <style>
       :root {
-        --bg: #f7f2e8;
-        --ink: #1f1b18;
-        --muted: #6d6258;
-        --accent: #0f766e;
-        --accent-2: #b45309;
-        --panel: rgba(255, 252, 246, 0.86);
-        --line: rgba(31, 27, 24, 0.12);
-        --shadow: 0 18px 50px rgba(35, 28, 20, 0.12);
-        --error: #8a1c1c;
-      }
-
-      * { box-sizing: border-box; }
-      body {
-        margin: 0;
-        font-family: Georgia, "Times New Roman", serif;
-        color: var(--ink);
-        background:
-          radial-gradient(circle at top left, rgba(15, 118, 110, 0.18), transparent 28%),
-          radial-gradient(circle at top right, rgba(180, 83, 9, 0.16), transparent 26%),
-          linear-gradient(180deg, #f7f2e8 0%, #efe7d7 100%);
-      }
-      a { color: inherit; }
-      .wrap {
-        width: min(1120px, calc(100vw - 32px));
-        margin: 0 auto;
-        padding: 32px 0 64px;
+        --pico-font-family: system-ui, -apple-system, sans-serif;
       }
       .back {
         display: inline-flex;
         align-items: center;
         gap: 8px;
         margin-bottom: 18px;
-        color: var(--muted);
         text-decoration: none;
       }
-      .hero { display: grid; gap: 14px; margin-bottom: 24px; }
       .eyebrow {
         font-size: 12px;
         letter-spacing: 0.16em;
         text-transform: uppercase;
-        color: var(--accent);
-      }
-      h1 {
-        margin: 0;
-        font-size: clamp(34px, 6vw, 72px);
-        line-height: 0.95;
-        max-width: 10ch;
-      }
-      .lead {
-        margin: 0;
-        max-width: 70ch;
-        color: var(--muted);
-        line-height: 1.7;
+        color: var(--pico-primary);
+        font-weight: bold;
       }
       .notice {
-        border-left: 4px solid var(--accent-2);
-        background: rgba(255,255,255,0.55);
+        border-left: 4px solid var(--pico-secondary);
+        background: var(--pico-card-background-color);
         padding: 14px 16px;
-        border-radius: 14px;
-        color: var(--muted);
-      }
-      .panel {
-        background: var(--panel);
-        border: 1px solid var(--line);
-        border-radius: 24px;
-        box-shadow: var(--shadow);
-        padding: 18px;
-        margin-top: 18px;
+        border-radius: 8px;
+        margin-bottom: 12px;
+        font-size: 14px;
       }
       .controls {
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto;
         gap: 12px;
       }
-      input {
-        width: 100%;
-        padding: 14px 16px;
-        border-radius: 14px;
-        border: 1px solid var(--line);
-        background: #fffdfa;
-        color: var(--ink);
-        font: inherit;
-      }
-      button {
-        border: 0;
-        border-radius: 14px;
-        padding: 14px 18px;
-        background: var(--accent);
-        color: #f7f2e8;
-        font: inherit;
-        cursor: pointer;
-      }
-      .grid {
+      .grid-cards {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
         gap: 16px;
         margin-top: 18px;
-      }
-      .card {
-        background: rgba(255,255,255,0.48);
-        border: 1px solid var(--line);
-        border-radius: 18px;
-        padding: 16px;
       }
       .kicker {
         margin: 0 0 10px;
         font-size: 12px;
         letter-spacing: 0.14em;
         text-transform: uppercase;
-        color: var(--accent-2);
+        color: var(--pico-secondary);
       }
-      .value { margin: 0; font-size: 38px; line-height: 1; }
-      .label { margin: 8px 0 0; color: var(--muted); }
+      .value {
+        margin: 0;
+        font-size: 34px;
+        font-weight: bold;
+        line-height: 1;
+      }
+      .label {
+        margin: 8px 0 0;
+        font-size: 14px;
+        color: var(--pico-muted-color);
+      }
       .mono {
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
         font-size: 13px;
         word-break: break-all;
       }
-      table {
-        width: 100%;
-        border-collapse: collapse;
+      .error {
+        color: var(--pico-del-color, #e53e3e);
+        font-weight: bold;
       }
-      th, td {
-        text-align: left;
-        padding: 12px 0;
-        border-bottom: 1px solid var(--line);
-        vertical-align: top;
-      }
-      th {
-        font-size: 12px;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        color: var(--muted);
-      }
-      tbody tr:last-child td { border-bottom: 0; }
-      .error { color: var(--error); }
     </style>
   </head>
   <body>
-    <main class="wrap">
+    <main class="container">
       <a class="back" href="./index.html">← Back to dashboard</a>
 
       <section class="hero">
@@ -167,16 +94,16 @@
         </div>
       </section>
 
-      <section class="panel">
+      <article class="panel">
         <div class="controls">
           <input id="query" type="text" placeholder="Enter IPv4, e.g. 1.1.1.1" />
           <button id="run">Lookup</button>
         </div>
-      </section>
+      </article>
 
-      <section class="grid" id="summary"></section>
+      <section class="grid-cards" id="summary"></section>
 
-      <section class="panel">
+      <article class="panel">
         <h2>Matches</h2>
         <table>
           <thead>
@@ -191,9 +118,9 @@
             <tr><td colspan="4" class="mono">No query yet.</td></tr>
           </tbody>
         </table>
-      </section>
+      </article>
 
-      <section class="panel">
+      <article class="panel">
         <h2>Skipped Assets</h2>
         <table>
           <thead>
@@ -207,7 +134,7 @@
             <tr><td colspan="3" class="mono">No query yet.</td></tr>
           </tbody>
         </table>
-      </section>
+      </article>
     </main>
 
     <script>
@@ -277,50 +204,131 @@
           ["Searched", result.searched_assets, "CIDR-capable assets scanned"],
           ["Skipped", result.skipped_assets.length, "Assets explicitly not searched"],
         ];
-        summaryEl.innerHTML = cards.map(([k, v, label]) => `
-          <article class="card">
-            <p class="kicker">${k}</p>
-            <p class="value ${k === "Query" ? "mono" : ""}">${typeof v === "number" ? fmt(v) : v}</p>
-            <p class="label">${label}</p>
-          </article>
-        `).join("");
+        summaryEl.replaceChildren(
+          ...cards.map(([k, v, label]) => {
+            const article = document.createElement("article");
+            article.className = "card";
+
+            const kicker = document.createElement("p");
+            kicker.className = "kicker";
+            kicker.textContent = k;
+
+            const val = document.createElement("p");
+            val.className = `value ${k === "Query" ? "mono" : ""}`;
+            val.textContent = typeof v === "number" ? fmt(v) : String(v);
+
+            const lbl = document.createElement("p");
+            lbl.className = "label";
+            lbl.textContent = label;
+
+            article.append(kicker, val, lbl);
+            return article;
+          })
+        );
       }
 
       function renderMatches(matches) {
         if (!matches.length) {
-          matchesEl.innerHTML = `<tr><td colspan="4" class="mono">No matches.</td></tr>`;
+          const tr = document.createElement("tr");
+          const td = document.createElement("td");
+          td.colSpan = 4;
+          td.className = "mono";
+          td.textContent = "No matches.";
+          tr.appendChild(td);
+          matchesEl.replaceChildren(tr);
           return;
         }
-        matchesEl.innerHTML = matches.map((match) => `
-          <tr>
-            <td class="mono">${match.rule_source}</td>
-            <td class="mono">${match.matched_by}</td>
-            <td class="mono">${match.matched_network}</td>
-            <td class="mono">${match.priority}</td>
-          </tr>
-        `).join("");
+        matchesEl.replaceChildren(
+          ...matches.map((match) => {
+            const tr = document.createElement("tr");
+
+            const tdSource = document.createElement("td");
+            tdSource.className = "mono";
+            tdSource.textContent = match.rule_source;
+
+            const tdBy = document.createElement("td");
+            tdBy.className = "mono";
+            tdBy.textContent = match.matched_by;
+
+            const tdNet = document.createElement("td");
+            tdNet.className = "mono";
+            tdNet.textContent = match.matched_network;
+
+            const tdPrio = document.createElement("td");
+            tdPrio.className = "mono";
+            tdPrio.textContent = String(match.priority);
+
+            tr.append(tdSource, tdBy, tdNet, tdPrio);
+            return tr;
+          })
+        );
       }
 
       function renderSkipped(skipped) {
         if (!skipped.length) {
-          skippedEl.innerHTML = `<tr><td colspan="3" class="mono">No skipped assets.</td></tr>`;
+          const tr = document.createElement("tr");
+          const td = document.createElement("td");
+          td.colSpan = 3;
+          td.className = "mono";
+          td.textContent = "No skipped assets.";
+          tr.appendChild(td);
+          skippedEl.replaceChildren(tr);
           return;
         }
-        skippedEl.innerHTML = skipped.map((item) => `
-          <tr>
-            <td class="mono">${item.asset_path}</td>
-            <td class="mono">${item.asset_type}</td>
-            <td class="mono">${item.reason}</td>
-          </tr>
-        `).join("");
+        skippedEl.replaceChildren(
+          ...skipped.map((item) => {
+            const tr = document.createElement("tr");
+
+            const tdPath = document.createElement("td");
+            tdPath.className = "mono";
+            tdPath.textContent = item.asset_path;
+
+            const tdType = document.createElement("td");
+            tdType.className = "mono";
+            tdType.textContent = item.asset_type;
+
+            const tdReason = document.createElement("td");
+            tdReason.className = "mono";
+            tdReason.textContent = item.reason;
+
+            tr.append(tdPath, tdType, tdReason);
+            return tr;
+          })
+        );
       }
 
       async function runLookup() {
         const query = queryEl.value.trim();
         if (!isIPv4(query)) {
-          summaryEl.innerHTML = `<article class="card"><p class="kicker">Error</p><p class="value error">Invalid</p><p class="label">IPv4 input required for this beta.</p></article>`;
-          matchesEl.innerHTML = `<tr><td colspan="4" class="error mono">Only IPv4 is supported in this first CIDR-only beta.</td></tr>`;
-          skippedEl.innerHTML = `<tr><td colspan="3" class="mono">No lookup performed.</td></tr>`;
+          const card = document.createElement("article");
+          card.className = "card";
+          const kicker = document.createElement("p");
+          kicker.className = "kicker";
+          kicker.textContent = "Error";
+          const val = document.createElement("p");
+          val.className = "value error";
+          val.textContent = "Invalid";
+          const lbl = document.createElement("p");
+          lbl.className = "label";
+          lbl.textContent = "IPv4 input required for this beta.";
+          card.append(kicker, val, lbl);
+          summaryEl.replaceChildren(card);
+
+          const trMatch = document.createElement("tr");
+          const tdMatch = document.createElement("td");
+          tdMatch.colSpan = 4;
+          tdMatch.className = "error mono";
+          tdMatch.textContent = "Only IPv4 is supported in this first CIDR-only beta.";
+          trMatch.appendChild(tdMatch);
+          matchesEl.replaceChildren(trMatch);
+
+          const trSkip = document.createElement("tr");
+          const tdSkip = document.createElement("td");
+          tdSkip.colSpan = 3;
+          tdSkip.className = "mono";
+          tdSkip.textContent = "No lookup performed.";
+          trSkip.appendChild(tdSkip);
+          skippedEl.replaceChildren(trSkip);
           return;
         }
 
@@ -371,8 +379,27 @@
 
       runEl.addEventListener("click", () => {
         runLookup().catch((error) => {
-          summaryEl.innerHTML = `<article class="card"><p class="kicker">Error</p><p class="value error">Failed</p><p class="label">${error.message}</p></article>`;
-          matchesEl.innerHTML = `<tr><td colspan="4" class="error mono">${error.message}</td></tr>`;
+          const card = document.createElement("article");
+          card.className = "card";
+          const kicker = document.createElement("p");
+          kicker.className = "kicker";
+          kicker.textContent = "Error";
+          const val = document.createElement("p");
+          val.className = "value error";
+          val.textContent = "Failed";
+          const lbl = document.createElement("p");
+          lbl.className = "label";
+          lbl.textContent = error.message;
+          card.append(kicker, val, lbl);
+          summaryEl.replaceChildren(card);
+
+          const tr = document.createElement("tr");
+          const td = document.createElement("td");
+          td.colSpan = 4;
+          td.className = "error mono";
+          td.textContent = error.message;
+          tr.appendChild(td);
+          matchesEl.replaceChildren(tr);
         });
       });
 
@@ -384,4 +411,4 @@
       });
     </script>
   </body>
-  </html>
+</html>
