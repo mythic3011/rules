@@ -44,7 +44,7 @@ class ExternalRoutingCatalogTest(unittest.TestCase):
     def test_schema_rejects_provider_on_non_ruleset_route(self) -> None:
         with tempfile.TemporaryDirectory() as raw_tmp:
             catalog_dir = copy_catalog(Path(raw_tmp))
-            path = catalog_dir / "external-routing.json"
+            path = catalog_dir / "catalogs" / "external-routing.json"
             value = read_json(path)
             hk = next(route for route in value["routes"] if route["id"] == "hk-direct")
             hk["provider"] = {"behavior": "classical", "file": "HK.yaml"}
@@ -55,7 +55,7 @@ class ExternalRoutingCatalogTest(unittest.TestCase):
     def test_catalog_rejects_unknown_external_group_after_schema_passes(self) -> None:
         with tempfile.TemporaryDirectory() as raw_tmp:
             catalog_dir = copy_catalog(Path(raw_tmp))
-            path = catalog_dir / "external-routing.json"
+            path = catalog_dir / "catalogs" / "external-routing.json"
             value = read_json(path)
             value["routes"][0]["targetGroupKey"] = "missing"
             write_json(path, value)

@@ -46,6 +46,7 @@
       { "argv": ["npm", "run", "test:routing"] }
     ],
     "generate": [
+      { "argv": ["{python}", "internal/python/generate_distribution_bootstrap.py"] },
       { "argv": ["{python}", "internal/python/generate_service_intake_form.py"] },
       { "argv": ["{python}", "internal/python/generate_ai_profiles.py"] },
       {

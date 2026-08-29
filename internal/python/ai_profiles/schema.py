@@ -1035,8 +1035,8 @@ def load_catalog_documents(catalog_dir: Path) -> CatalogDocuments:
     return CatalogDocuments(
         catalog_dir=catalog_dir,
         profile=load_profile_document(catalog_dir / "profile.json"),
-        regions=load_regions_document(catalog_dir / "regions.json"),
-        services=load_services_document(catalog_dir / "services.json"),
-        companion_rules=load_companion_rules_document(catalog_dir / "companion-rules.json"),
-        external_routing=load_external_routing_document(catalog_dir / "external-routing.json"),
+        regions=load_regions_document(catalog_dir / "catalogs" / "regions.json"),
+        services=load_services_document(catalog_dir / "catalogs" / "services.json"),
+        companion_rules=load_companion_rules_document(catalog_dir / "catalogs" / "companion-rules.json"),
+        external_routing=load_external_routing_document(catalog_dir / "catalogs" / "external-routing.json"),
     )

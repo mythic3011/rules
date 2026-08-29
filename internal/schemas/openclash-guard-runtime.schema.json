@@ -12,6 +12,7 @@
     "services",
     "gaming",
     "geoProviders"
+    ,"distributionSources"
   ],
   "properties": {
     "schemaVersion": {
@@ -220,6 +221,23 @@
               }
             }
           }
+        }
+      }
+    },
+    "distributionSources": {
+      "type": "object",
+      "propertyNames": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type", "baseUrl", "priority", "enabled", "healthCheck", "immutableRevisionSupport"],
+        "properties": {
+          "type": { "type": "string", "enum": ["cdn", "github-raw", "mirror"] },
+          "baseUrl": { "type": "string", "pattern": "^https://" },
+          "priority": { "type": "integer", "minimum": 0 },
+          "enabled": { "type": "boolean" },
+          "healthCheck": { "type": ["string", "null"] },
+          "immutableRevisionSupport": { "type": "boolean" }
         }
       }
     }

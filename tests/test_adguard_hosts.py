@@ -72,7 +72,7 @@ class AdGuardHostsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             catalog_dir = Path(temp) / "ai-routing"
             shutil.copytree(ROOT / "internal" / "config" / "ai-routing", catalog_dir)
-            services_path = catalog_dir / "services.json"
+            services_path = catalog_dir / "catalogs" / "services.json"
             document = json.loads(services_path.read_text(encoding="utf-8"))
             jules = next(service for service in document["services"] if service["id"] == "jules")
             jules["payload"].append("DOMAIN,jules.google.com")

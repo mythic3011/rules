@@ -19,7 +19,7 @@ class CatalogSchemaTest(unittest.TestCase):
     def test_schema_rejects_unknown_service_fields(self) -> None:
         with tempfile.TemporaryDirectory() as raw_tmp:
             catalog_dir = copy_catalog(Path(raw_tmp))
-            path = catalog_dir / "services.json"
+            path = catalog_dir / "catalogs" / "services.json"
             value = read_json(path)
             value["services"][0]["typoField"] = True
             write_json(path, value)
@@ -30,7 +30,7 @@ class CatalogSchemaTest(unittest.TestCase):
     def test_schema_rejects_duplicate_service_provider_keys(self) -> None:
         with tempfile.TemporaryDirectory() as raw_tmp:
             catalog_dir = copy_catalog(Path(raw_tmp))
-            path = catalog_dir / "services.json"
+            path = catalog_dir / "catalogs" / "services.json"
             value = read_json(path)
             value["services"][1]["providerKey"] = value["services"][0]["providerKey"]
             write_json(path, value)
@@ -41,7 +41,7 @@ class CatalogSchemaTest(unittest.TestCase):
     def test_catalog_rejects_unknown_region_reference_after_schema_passes(self) -> None:
         with tempfile.TemporaryDirectory() as raw_tmp:
             catalog_dir = copy_catalog(Path(raw_tmp))
-            path = catalog_dir / "services.json"
+            path = catalog_dir / "catalogs" / "services.json"
             value = read_json(path)
             value["services"][0]["regions"][0] = "moon"
             write_json(path, value)
@@ -54,7 +54,7 @@ class CatalogSchemaTest(unittest.TestCase):
     def test_catalog_rejects_unknown_dns_resolver_after_schema_passes(self) -> None:
         with tempfile.TemporaryDirectory() as raw_tmp:
             catalog_dir = copy_catalog(Path(raw_tmp))
-            path = catalog_dir / "services.json"
+            path = catalog_dir / "catalogs" / "services.json"
             value = read_json(path)
             value["services"][0]["dnsPolicies"][0]["resolverSet"] = "missing"
             write_json(path, value)
@@ -70,7 +70,7 @@ class CatalogSchemaTest(unittest.TestCase):
     def test_catalog_rejects_duplicate_dns_order_globally(self) -> None:
         with tempfile.TemporaryDirectory() as raw_tmp:
             catalog_dir = copy_catalog(Path(raw_tmp))
-            path = catalog_dir / "services.json"
+            path = catalog_dir / "catalogs" / "services.json"
             value = read_json(path)
             jules = next(service for service in value["services"] if service["id"] == "jules")
             jules["dnsPolicies"][0]["order"] = 30
@@ -82,7 +82,7 @@ class CatalogSchemaTest(unittest.TestCase):
     def test_schema_rejects_unknown_subconverter_selector_mode(self) -> None:
         with tempfile.TemporaryDirectory() as raw_tmp:
             catalog_dir = copy_catalog(Path(raw_tmp))
-            path = catalog_dir / "services.json"
+            path = catalog_dir / "catalogs" / "services.json"
             value = read_json(path)
             value["services"][0]["subconverter"]["selector"] = {
                 "mode": "magic",
@@ -95,7 +95,7 @@ class CatalogSchemaTest(unittest.TestCase):
     def test_catalog_rejects_unknown_fixed_selector_group_key(self) -> None:
         with tempfile.TemporaryDirectory() as raw_tmp:
             catalog_dir = copy_catalog(Path(raw_tmp))
-            path = catalog_dir / "services.json"
+            path = catalog_dir / "catalogs" / "services.json"
             value = read_json(path)
             value["services"][0]["subconverter"]["selector"]["groupKeys"] = ["missing"]
             write_json(path, value)
@@ -105,7 +105,7 @@ class CatalogSchemaTest(unittest.TestCase):
     def test_catalog_rejects_noncontiguous_subconverter_rule_cluster(self) -> None:
         with tempfile.TemporaryDirectory() as raw_tmp:
             catalog_dir = copy_catalog(Path(raw_tmp))
-            path = catalog_dir / "services.json"
+            path = catalog_dir / "catalogs" / "services.json"
             value = read_json(path)
             value["services"][0]["subconverter"]["ruleCluster"] = "split"
             value["services"][2]["subconverter"] = {"ruleCluster": "split"}

@@ -64,8 +64,8 @@ jobs:
 
           git checkout -B "$branch" "origin/${DEFAULT_BRANCH}"
           git add \
-            internal/config/ai-routing/regions.json \
-            internal/config/ai-routing/services.json \
+            internal/config/ai-routing/catalogs/regions.json \
+            internal/config/ai-routing/catalogs/services.json \
             .github/ISSUE_TEMPLATE/service_intake.yml \
             cfg rule dns catalog.json internal/generated
 

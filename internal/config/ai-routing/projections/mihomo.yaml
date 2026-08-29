@@ -1,5 +1,5 @@
 schemaVersion: 1
-upstreamSourceManifest: upstream-sources.json
+upstreamSourceManifest: ../sources/upstream-sources.json
 sources:
   vpsdance:
     manifestSource: vpsdance

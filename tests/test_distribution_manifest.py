@@ -57,12 +57,32 @@ class DistributionManifestTest(unittest.TestCase):
 
     def test_schema_rejects_unknown_distribution_strategy(self) -> None:
         value = json.loads(AI_DISTRIBUTION_PATH.read_text(encoding="utf-8"))
-        value["channels"][0]["kind"] = "magic"
+        value["channels"][0]["type"] = "magic"
         with tempfile.TemporaryDirectory() as raw_tmp:
             path = Path(raw_tmp) / "distribution.json"
             path.write_text(json.dumps(value), encoding="utf-8")
-            with self.assertRaisesRegex(RuntimeError, "Unknown distribution strategy"):
+            with self.assertRaisesRegex(RuntimeError, "Unknown distribution source type"):
                 load_distribution(path)
+
+    def test_source_resolver_generates_raw_and_cdn_urls_from_catalog(self) -> None:
+        catalog = load_distribution(AI_DISTRIBUTION_PATH)
+        path = "cfg/yaml/Custom_Clash_AI.yaml"
+        raw = catalog.url_for("raw", path)
+        cdn = catalog.url_for("cdn", path)
+        for source_id, url in (("raw", raw), ("cdn", cdn)):
+            source = catalog.channel(source_id)
+            expected_base = source.base_url.format(repository=catalog.repository, version=catalog.default_ref)
+            self.assertTrue(url.startswith(expected_base + "/"), url)
+            self.assertTrue(url.endswith("/" + path), url)
+        self.assertEqual([source.id for source in catalog.resolve()], ["rolling", "cdn", "raw", "immutable"])
+
+    def test_bootstrap_installer_sources_match_catalog(self) -> None:
+        catalog = load_distribution(AI_DISTRIBUTION_PATH)
+        installer = (Path(__file__).parents[1] / "setup" / "openclash" / "install.sh").read_text(encoding="utf-8")
+        for source_id, variable in (("cdn", "SOURCE_CDN_BASE"), ("raw", "SOURCE_GITHUB_RAW_BASE")):
+            source = catalog.channel(source_id)
+            expected = source.base_url.format(repository=catalog.repository, version=catalog.default_ref)
+            self.assertIn(f'{variable}="{expected}"', installer)
 
     def test_default_managed_output_paths_exclude_optional_process_rules(self) -> None:
         paths = managed_output_paths()

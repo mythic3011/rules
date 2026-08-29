@@ -8,10 +8,10 @@ import { loadMihomoProjectionConfig } from "../../internal/typescript/routing/mi
 
 test("Mihomo projection resolves external upstream sources from the shared lock manifest", async () => {
   const projection = await loadMihomoProjectionConfig(
-    "internal/config/ai-routing/mihomo.yaml",
+    "internal/config/ai-routing/projections/mihomo.yaml",
   );
   const manifest = JSON.parse(
-    await readFile("internal/config/ai-routing/upstream-sources.json", "utf8"),
+    await readFile("internal/config/ai-routing/sources/upstream-sources.json", "utf8"),
   ) as {
     sources: Record<
       string,
@@ -34,11 +34,11 @@ test("Mihomo projection resolves external upstream sources from the shared lock 
 });
 
 test("VPSDance revision is declared once in the shared manifest, not inline in Mihomo YAML", async () => {
-  const text = await readFile("internal/config/ai-routing/mihomo.yaml", "utf8");
+  const text = await readFile("internal/config/ai-routing/projections/mihomo.yaml", "utf8");
   const document = YAML.parse(text) as {
     sources: Record<string, unknown>;
     upstreamSourceManifest?: string;
   };
-  assert.equal(document.upstreamSourceManifest, "upstream-sources.json");
+  assert.equal(document.upstreamSourceManifest, "../sources/upstream-sources.json");
   assert.deepEqual(document.sources.vpsdance, { manifestSource: "vpsdance" });
 });

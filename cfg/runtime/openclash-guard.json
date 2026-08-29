@@ -1,4 +1,38 @@
 {
+  "distributionSources": {
+    "cdn": {
+      "baseUrl": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main",
+      "enabled": true,
+      "healthCheck": "https://cdn.jsdelivr.net",
+      "immutableRevisionSupport": true,
+      "priority": 20,
+      "type": "cdn"
+    },
+    "immutable": {
+      "baseUrl": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main",
+      "enabled": true,
+      "healthCheck": "https://cdn.jsdelivr.net",
+      "immutableRevisionSupport": true,
+      "priority": 40,
+      "type": "cdn"
+    },
+    "raw": {
+      "baseUrl": "https://raw.githubusercontent.com/mythic3011/rules/main",
+      "enabled": true,
+      "healthCheck": "https://raw.githubusercontent.com",
+      "immutableRevisionSupport": true,
+      "priority": 30,
+      "type": "github-raw"
+    },
+    "rolling": {
+      "baseUrl": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main",
+      "enabled": true,
+      "healthCheck": "https://testingcf.jsdelivr.net",
+      "immutableRevisionSupport": false,
+      "priority": 10,
+      "type": "cdn"
+    }
+  },
   "gaming": {
     "destinationCidrs": [],
     "protectedUdpPorts": [
@@ -62,7 +96,7 @@
       "quic": "proxy-or-reject"
     }
   },
-  "revision": "df072cfaeebffb9b3e634f50eb37587deecf781539953956379cb7706f3e3a2e",
+  "revision": "46a7dbca84b60b27bf416dde8f25c25e11ff20234e9f9c9c476248a7a63e0d34",
   "schemaVersion": 1,
   "services": {
     "chatgpt": {

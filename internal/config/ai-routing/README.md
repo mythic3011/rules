@@ -5,14 +5,14 @@
 The directory intentionally contains multiple YAML dialects. They are not one
 combined schema.
 
-- `NN-*.yaml` (`00-base.yaml` through `50-dns.yaml`) are canonical
+- `core/NN-*.yaml` (`00-base.yaml` through `50-dns.yaml`) are canonical
   `RoutingConfig` fragments consumed by `loadRoutingConfig()`.
-- `mihomo.yaml` is the Mihomo projection manifest and is validated by its own
+- `projections/mihomo.yaml` is the Mihomo projection manifest and is validated by its own
   projection schema/loader.
-- `parity.yaml` is the shadow-profile parity contract.
-- `process-rules.yaml` is the process-rule catalog.
+- `projections/parity.yaml` is the shadow-profile parity contract.
+- `catalogs/process-rules.yaml` is the process-rule catalog.
 
-The core routing loader selects only numbered fragments. Do not make the core
+The core routing loader selects only numbered fragments in `core/`. Do not make the core
 Zod schema permissive merely to accept sibling manifests; that would erase the
 schema boundary and hide configuration mistakes.
 
@@ -89,7 +89,7 @@ routing.
 ## Shared upstream source lock
 
 External rule repositories that are consumed by the TypeScript routing projection
-must not carry independent commit pins in `internal/config/ai-routing/mihomo.yaml`.
+must not carry independent commit pins in `internal/config/ai-routing/projections/mihomo.yaml`.
 `upstream-sources.json` is the single reproducibility lock for those sources.
 The Mihomo projection references a source by `manifestSource`; its loader resolves
 that reference before compiling rule-provider URLs.

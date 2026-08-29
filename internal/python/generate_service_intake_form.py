@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-REGIONS = ROOT / "internal/config/ai-routing/regions.json"
+REGIONS = ROOT / "internal/config/ai-routing/catalogs/regions.json"
 OUTPUT = ROOT / ".github/ISSUE_TEMPLATE/service_intake.yml"
 MAX_ADDITIONAL_REGIONS = 3
 

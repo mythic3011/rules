@@ -5,7 +5,7 @@ or consume `cfg/`, `rule/`, or `internal/python/generate_ai_profiles.py` output.
 
 ## Authority boundary
 
-- `internal/config/ai-routing/*.yaml` is the canonical declarative input for the future AI
+- `internal/config/ai-routing/core/*.yaml` is the canonical declarative input for the future AI
   routing compiler.
 - `internal/typescript/routing/schema.ts` owns document shape and is exported to
   `internal/schemas/routing-config.schema.json` for CI and editor support.
@@ -52,7 +52,7 @@ runtime selection. The preview never performs that selection.
 
 ## Mihomo fragment projection (Phase 2b)
 
-`internal/config/ai-routing/mihomo.yaml` is a separate, strict renderer-mechanics
+`internal/config/ai-routing/projections/mihomo.yaml` is a separate, strict renderer-mechanics
 manifest. It owns data-labelled, pinned rule sources, normalized relative
 provider paths, external proxy-provider references, region filters, and guard
 mapping; none of those fields are canonical routing policy. Provider URLs are

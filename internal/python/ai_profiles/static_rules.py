@@ -25,7 +25,7 @@ ZH_HK_TERMS = {
     "分组": "分組",
 }
 
-# Companion SSH/Gaming/Process declarations live in internal/config/ai-routing/companion-rules.json.
+# Companion SSH/Gaming/Process declarations live in internal/config/ai-routing/catalogs/companion-rules.json.
 
 MANAGED_TAILSCALE_DOMAIN_MARKER = "# Managed by internal/python/generate_ai_profiles.py: Tailscale direct routing"
 MANAGED_TAILSCALE_IP_MARKER = "# Managed by internal/python/generate_ai_profiles.py: Tailscale IP verification note"

@@ -46,7 +46,7 @@ Maintainers should review:
 - whether a newly submitted region should be routable or observation-only;
 - generated diff size and CI results.
 
-`internal/config/ai-routing/regions.json` is the Region Registry. `regions` may
+`internal/config/ai-routing/catalogs/regions.json` is the Region Registry. `regions` may
 contain observation-only regions, while `primaryOrder` is the explicit set/order
 of routable exits.
 

@@ -221,8 +221,8 @@ jobs:
           git add -A -- apps/profile-service/worker/generated/runtime-data.mjs
           if [ "$GITHUB_EVENT_NAME" = "schedule" ]; then
             git add -A -- \
-              internal/config/ai-routing/adguard-upstream.json \
-              internal/config/ai-routing/upstream-sources.json \
+              internal/config/ai-routing/sources/adguard-upstream.json \
+              internal/config/ai-routing/sources/upstream-sources.json \
               internal/generated/ai-routing
           fi
           if ! git diff --cached --quiet; then

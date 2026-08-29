@@ -73,7 +73,7 @@ async function main(args: readonly string[]): Promise<void> {
     if (resolve(fourth) !== canonicalCandidate) {
       throw new PrivateMaterializerError([{ code: "policy-invariant", path: ["candidate"], message: "materialization accepts only the canonical HK shadow candidate path" }]);
     }
-    const parity = await loadShadowParityManifest(join(repositoryRoot, "internal", "config", "ai-routing", "parity.yaml"));
+    const parity = await loadShadowParityManifest(join(repositoryRoot, "internal", "config", "ai-routing", "projections", "parity.yaml"));
     const shadow = await composeShadowProfile(config, projection, join(repositoryRoot, "cfg", "yaml", "Custom_Clash_AI.yaml"), parity, join(repositoryRoot, "internal", "templates", "ai-routing", "full-relaxed-shadow.yaml.tpl"));
     await checkShadowArtifacts(artifactDirectory, expectedShadowArtifacts(shadow));
     const report = await materializePrivateProfile(

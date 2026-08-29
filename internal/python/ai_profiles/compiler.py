@@ -165,7 +165,7 @@ def compile_adguard_home_plan(catalog: Catalog | None = None) -> AdGuardHomePlan
     if catalog.adguard_home.upstream_snapshot_file:
         from .upstream_hosts import load_upstream_host_snapshot, snapshot_to_adguard_rules
         snapshot = load_upstream_host_snapshot(
-            catalog.catalog_dir / catalog.adguard_home.upstream_snapshot_file
+            catalog.catalog_dir / "sources" / catalog.adguard_home.upstream_snapshot_file
         )
         snapshot_refreshed_at = snapshot.refreshed_at or None
         for rule in snapshot_to_adguard_rules(snapshot):

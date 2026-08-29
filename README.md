@@ -32,6 +32,19 @@ That is the shared AI-aware template. It is generated and published by this repo
 
 If you need personal routing preferences, use the Profile Builder instead.
 
+## OpenClash Guard
+
+Install the unified guard from either public source:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/mythic3011/rules/main/setup/openclash/install.sh | sh
+curl -fsSL https://cdn.jsdelivr.net/gh/mythic3011/rules@main/setup/openclash/install.sh | sh
+```
+
+After installation, use `openclash-guard refresh` for automatic source
+selection and validated fallback. Manual controls include `--source
+auto|github-raw|jsdelivr`, `--base-url URL`, and `--policy-url URL`.
+
 ## Personalized Profile Builder
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/mythic3011/rules/tree/main/apps/profile-service)
@@ -243,7 +256,7 @@ Full routing validation:
 make check-all
 ```
 
-`make check-all` includes `npm run validate:routing` before TypeScript typecheck/tests. The core routing validator reads only numbered canonical fragments under `internal/config/ai-routing/`:
+`make check-all` includes `npm run validate:routing` before TypeScript typecheck/tests. The core routing validator reads only numbered canonical fragments under `internal/config/ai-routing/core/`:
 
 ```text
 00-*.yaml

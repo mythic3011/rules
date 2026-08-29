@@ -44,8 +44,8 @@ class ServiceIntakeTests(unittest.TestCase):
         root = Path(self.tmp.name)
         self.regions = root / "regions.json"
         self.services = root / "services.json"
-        self.regions.write_text((CATALOG_DIR / "regions.json").read_text(encoding="utf-8"), encoding="utf-8")
-        self.services.write_text((CATALOG_DIR / "services.json").read_text(encoding="utf-8"), encoding="utf-8")
+        self.regions.write_text((CATALOG_DIR / "catalogs" / "regions.json").read_text(encoding="utf-8"), encoding="utf-8")
+        self.services.write_text((CATALOG_DIR / "catalogs" / "services.json").read_text(encoding="utf-8"), encoding="utf-8")
         self.patchers = [
             patch.object(intake, "REGIONS_PATH", self.regions),
             patch.object(intake, "SERVICES_PATH", self.services),
@@ -216,7 +216,7 @@ class RegionAvailabilitySchemaTests(unittest.TestCase):
             target = Path(td) / "catalog"
             import shutil
             shutil.copytree(CATALOG_DIR, target)
-            path = target / "services.json"
+            path = target / "catalogs" / "services.json"
             doc = json.loads(path.read_text(encoding="utf-8"))
             service = doc["services"][0]
             service.pop("regions")

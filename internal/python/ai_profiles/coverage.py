@@ -82,7 +82,7 @@ def _audit_adguard_snapshot(catalog: Catalog) -> list[CoverageFinding]:
     spec = catalog.adguard_home
     if not spec or not spec.upstream_snapshot_file:
         return []
-    snapshot_path = catalog.catalog_dir / spec.upstream_snapshot_file
+    snapshot_path = catalog.catalog_dir / "sources" / spec.upstream_snapshot_file
     snapshot = load_upstream_host_snapshot(snapshot_path)
     if snapshot.refreshed_at:
         return []

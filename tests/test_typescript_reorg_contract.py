@@ -10,7 +10,7 @@ ROUTING = ROOT / "internal" / "config" / "ai-routing"
 
 class TypeScriptReorgContractTests(unittest.TestCase):
     def test_core_fragments_are_namespaced_away_from_sibling_yaml_dialects(self):
-        core = sorted(path.name for path in ROUTING.glob("[0-9][0-9]-*.yaml"))
+        core = sorted(path.name for path in (ROUTING / "core").glob("[0-9][0-9]-*.yaml"))
         self.assertEqual(
             core,
             [
@@ -22,8 +22,9 @@ class TypeScriptReorgContractTests(unittest.TestCase):
                 "50-dns.yaml",
             ],
         )
-        for sibling in ("mihomo.yaml", "parity.yaml", "process-rules.yaml"):
-            self.assertTrue((ROUTING / sibling).is_file())
+        for sibling in ("mihomo.yaml", "parity.yaml"):
+            self.assertTrue((ROUTING / "projections" / sibling).is_file())
+        self.assertTrue((ROUTING / "catalogs" / "process-rules.yaml").is_file())
 
         loader = (ROOT / "internal" / "typescript" / "routing" / "loader.ts").read_text()
         self.assertIn("CORE_FRAGMENT_FILE", loader)

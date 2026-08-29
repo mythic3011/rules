@@ -99,10 +99,10 @@ import {
 } from "../../internal/typescript/routing/semantic-validator.js";
 
 const ROOT = resolve(import.meta.dirname, "../..");
-const VALID_DIRECTORY = join(ROOT, "internal", "config", "ai-routing");
+const VALID_DIRECTORY = join(ROOT, "internal", "config", "ai-routing", "core");
 const INVALID_DIRECTORY = join(ROOT, "tests", "fixtures", "routing", "invalid");
-const MIHOMO_PROJECTION = join(VALID_DIRECTORY, "mihomo.yaml");
-const SHADOW_PARITY = join(VALID_DIRECTORY, "parity.yaml");
+const MIHOMO_PROJECTION = join(ROOT, "internal", "config", "ai-routing", "projections", "mihomo.yaml");
+const SHADOW_PARITY = join(ROOT, "internal", "config", "ai-routing", "projections", "parity.yaml");
 const SHADOW_TEMPLATE = join(
   ROOT,
   "internal",
@@ -3384,8 +3384,8 @@ test("materialize-private CLI returns structured redacted failure output", async
             "tsx",
             "internal/typescript/routing/cli.ts",
             "materialize-private",
-            "internal/config/ai-routing",
-            "internal/config/ai-routing/mihomo.yaml",
+            "internal/config/ai-routing/core",
+            "internal/config/ai-routing/projections/mihomo.yaml",
             "internal/generated/ai-routing/hk.full-profile-candidate.yaml",
             deployment,
             egress,

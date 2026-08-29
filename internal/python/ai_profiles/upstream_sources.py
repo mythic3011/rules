@@ -8,7 +8,7 @@ from typing import Callable
 from urllib.parse import quote, urlparse
 from urllib.request import Request, urlopen
 
-from .settings import AI_CATALOG_DIR
+from .settings import AI_CATALOG_DIR, AI_SOURCES_DIR
 
 _REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 _COMMIT = re.compile(r"^[0-9a-f]{40}$")
@@ -53,7 +53,7 @@ def _valid_raw_base_url(value: str) -> bool:
 
 
 def _manifest_path(catalog_dir: Path) -> Path:
-    return catalog_dir / "upstream-sources.json"
+    return catalog_dir / "sources" / "upstream-sources.json"
 
 
 def load_upstream_source_manifest(
@@ -61,7 +61,7 @@ def load_upstream_source_manifest(
     *,
     catalog_dir: Path = AI_CATALOG_DIR,
 ) -> UpstreamSourceManifest:
-    manifest_path = path or _manifest_path(catalog_dir)
+    manifest_path = path or (AI_SOURCES_DIR if catalog_dir == AI_CATALOG_DIR else catalog_dir / "sources") / "upstream-sources.json"
     try:
         value = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:

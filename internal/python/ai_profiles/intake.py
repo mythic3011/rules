@@ -16,8 +16,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 CONFIG_DIR = ROOT / "internal/config/ai-routing"
-REGIONS_PATH = CONFIG_DIR / "regions.json"
-SERVICES_PATH = CONFIG_DIR / "services.json"
+REGIONS_PATH = CONFIG_DIR / "catalogs" / "regions.json"
+SERVICES_PATH = CONFIG_DIR / "catalogs" / "services.json"
 
 MATCHER_TYPES = {"DOMAIN", "DOMAIN-SUFFIX", "DOMAIN-KEYWORD", "IP-CIDR", "PROCESS-NAME", "PROCESS-PATH"}
 DOMAIN_RE = re.compile(r"^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$")

@@ -79,7 +79,7 @@ deltas:
       - "@profile/windsurf"
       - "🌊 Windsurf"
     reason: "Replace only the closed legacy AI selector set with compiled selectors and shared stable routes."
-    policyReference: internal/config/ai-routing/30-services.yaml
+    policyReference: internal/config/ai-routing/core/30-services.yaml
   rule-providers:
     surface: rule-providers
     operation: replace-key-set
@@ -114,7 +114,7 @@ deltas:
       - AI_Windsurf_Classical
       - Flow_Music_Classical
     reason: "Replace exactly the legacy local AI provider keys with all source-pinned compiled provider definitions."
-    policyReference: internal/config/ai-routing/mihomo.yaml
+    policyReference: internal/config/ai-routing/projections/mihomo.yaml
   rules:
     surface: rules
     operation: replace-contiguous-interval
@@ -162,7 +162,7 @@ deltas:
       - "GEOSITE,google-deepmind,DIRECT"
       - "GEOSITE,category-ai-!cn,DIRECT"
     reason: "The exact AI interval becomes source-pinned service identities, a locked Claude pair, and relaxed HK direct guards."
-    policyReference: internal/config/ai-routing/mihomo.yaml#profiles.hk
+    policyReference: internal/config/ai-routing/projections/mihomo.yaml#profiles.hk
   dns:
     surface: dns
     operation: add-map-entry
@@ -170,4 +170,4 @@ deltas:
     key: rule-set:AI_Claude_Classical
     value: ["https://1.1.1.1/dns-query#🔐 Claude Account Guard"]
     reason: "Claude DNS is unavailable unless the same explicit account selector is armed."
-    policyReference: internal/config/ai-routing/20-protection-classes.yaml
+    policyReference: internal/config/ai-routing/core/20-protection-classes.yaml

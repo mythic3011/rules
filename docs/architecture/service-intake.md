@@ -35,7 +35,7 @@ and refreshes the same deterministic bot branch/PR.
 
 ## Region Registry
 
-`internal/config/ai-routing/regions.json` has two separate concepts:
+`internal/config/ai-routing/catalogs/regions.json` has two separate concepts:
 
 - `regions`: every region that observations may reference.
 - `primaryOrder`: regions that may be used as routing exits.

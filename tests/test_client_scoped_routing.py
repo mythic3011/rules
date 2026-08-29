@@ -110,7 +110,7 @@ class ClientScopedRoutingTest(unittest.TestCase):
     def test_schema_rejects_subconverter_projection_for_source_ip_route(self) -> None:
         with tempfile.TemporaryDirectory() as raw_tmp:
             catalog_dir = copy_catalog(Path(raw_tmp))
-            path = catalog_dir / "external-routing.json"
+            path = catalog_dir / "catalogs" / "external-routing.json"
             value = read_json(path)
             route = next(
                 route for route in value["routes"]

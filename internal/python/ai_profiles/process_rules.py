@@ -1,18 +1,18 @@
 from __future__ import annotations
 
 from .catalog import load_catalog
-from .settings import AI_CATALOG_DIR, ENABLE_PROCESS_RULES
+from .settings import AI_CATALOGS_DIR, ENABLE_PROCESS_RULES
 
 
 def load_process_rule_source() -> dict[str, list[str]]:
     if not ENABLE_PROCESS_RULES:
         return {}
 
-    source_path = AI_CATALOG_DIR / "process-rules.yaml"
+    source_path = AI_CATALOGS_DIR / "process-rules.yaml"
     if not source_path.exists():
         raise FileNotFoundError(
             f"Missing process rules source: {source_path}. "
-            "Create internal/config/ai-routing/process-rules.yaml before enabling process rules."
+            "Create internal/config/ai-routing/catalogs/process-rules.yaml before enabling process rules."
         )
 
     categories: dict[str, list[str]] = {}

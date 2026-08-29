@@ -28,7 +28,7 @@ class UpstreamSourceManifestTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             catalog_dir = Path(temp) / "ai-routing"
             shutil.copytree(ROOT / "internal" / "config" / "ai-routing", catalog_dir)
-            path = catalog_dir / "upstream-sources.json"
+            path = catalog_dir / "sources" / "upstream-sources.json"
             before = json.loads(path.read_text(encoding="utf-8"))
             new_sha = "1" * 40
             refresh_upstream_source_manifest(
@@ -45,7 +45,7 @@ class UpstreamSourceManifestTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             catalog_dir = Path(temp) / "ai-routing"
             shutil.copytree(ROOT / "internal" / "config" / "ai-routing", catalog_dir)
-            path = catalog_dir / "upstream-sources.json"
+            path = catalog_dir / "sources" / "upstream-sources.json"
             first = path.read_bytes()
             current = load_upstream_source_manifest(catalog_dir=catalog_dir).by_id()["vpsdance"].revision
             refresh_upstream_source_manifest(
@@ -72,7 +72,7 @@ class UpstreamSourceManifestTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             catalog_dir = Path(temp) / "ai-routing"
             shutil.copytree(ROOT / "internal" / "config" / "ai-routing", catalog_dir)
-            services_path = catalog_dir / "services.json"
+            services_path = catalog_dir / "catalogs" / "services.json"
             services = json.loads(services_path.read_text(encoding="utf-8"))
             services["services"][0]["upstreamRules"] = [
                 {
@@ -100,7 +100,7 @@ class UpstreamSourceManifestTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             catalog_dir = Path(temp) / "ai-routing"
             shutil.copytree(ROOT / "internal" / "config" / "ai-routing", catalog_dir)
-            path = catalog_dir / "upstream-sources.json"
+            path = catalog_dir / "sources" / "upstream-sources.json"
             value = json.loads(path.read_text(encoding="utf-8"))
             value["sources"]["vpsdance"]["rawBaseUrl"] = "https://token@example.com/raw"
             path.write_text(json.dumps(value), encoding="utf-8")

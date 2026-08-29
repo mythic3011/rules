@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "repository": "mythic3011/rules",
+  "defaultRef": "main",
+  "manifestPath": "internal/generated/ai-routing/distribution-manifest.json",
+  "channels": [
+    {
+      "id": "rolling",
+      "type": "cdn",
+      "baseUrl": "https://testingcf.jsdelivr.net/gh/{repository}@{version}",
+      "priority": 10,
+      "enabled": true,
+      "healthCheck": "https://testingcf.jsdelivr.net",
+      "immutableRevisionSupport": false,
+      "version": "ref"
+    },
+    {
+      "id": "cdn",
+      "type": "cdn",
+      "baseUrl": "https://cdn.jsdelivr.net/gh/{repository}@{version}",
+      "priority": 20,
+      "enabled": true,
+      "healthCheck": "https://cdn.jsdelivr.net",
+      "immutableRevisionSupport": true,
+      "version": "ref"
+    },
+    {
+      "id": "raw",
+      "type": "github-raw",
+      "baseUrl": "https://raw.githubusercontent.com/{repository}/{version}",
+      "priority": 30,
+      "enabled": true,
+      "healthCheck": "https://raw.githubusercontent.com",
+      "immutableRevisionSupport": true,
+      "version": "ref"
+    },
+    {
+      "id": "immutable",
+      "type": "cdn",
+      "baseUrl": "https://cdn.jsdelivr.net/gh/{repository}@{version}",
+      "priority": 40,
+      "enabled": true,
+      "healthCheck": "https://cdn.jsdelivr.net",
+      "immutableRevisionSupport": true,
+      "version": "sha"
+    }
+  ]
+}

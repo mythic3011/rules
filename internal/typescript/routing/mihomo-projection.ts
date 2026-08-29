@@ -80,7 +80,7 @@ export async function loadMihomoProjectionConfig(path: string): Promise<MihomoPr
     if (raw.upstreamSourceManifest === undefined) {
       throw new MihomoProjectionError([issue("missing-reference", ["upstreamSourceManifest"], "manifest-backed sources require upstreamSourceManifest")]);
     }
-    if (!validRelativePath(raw.upstreamSourceManifest)) {
+    if (!validManifestPath(raw.upstreamSourceManifest)) {
       throw new MihomoProjectionError([issue("policy-invariant", ["upstreamSourceManifest"], "upstream source manifest path must be normalized and relative")]);
     }
     const manifestPath = resolve(dirname(path), raw.upstreamSourceManifest);
@@ -144,9 +144,20 @@ function validRawBaseUrl(raw: string): boolean {
 }
 
 function validRelativePath(path: string): boolean {
+  return validPathSegments(path, false);
+}
+
+function validManifestPath(path: string): boolean {
+  return validPathSegments(path, true);
+}
+
+function validPathSegments(path: string, allowSingleParent: boolean): boolean {
   if (path.startsWith("/") || /[\\%?#]/.test(path)) return false;
   const segments = path.split("/");
-  return segments.length > 0 && segments.every((segment) => segment !== "" && segment !== "." && segment !== ".." && !segment.startsWith("."));
+  if (segments.length === 0) return false;
+  const parent = allowSingleParent && segments[0] === "..";
+  const body = parent ? segments.slice(1) : segments;
+  return body.length > 0 && body.every((segment) => segment !== "" && segment !== "." && segment !== ".." && !segment.startsWith("."));
 }
 
 function sourceProviderUrl(source: z.infer<typeof SourceSchema>, path: string): string {

@@ -3,40 +3,22 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Protocol
+from typing import Literal
 
 DistributionKind = Literal["jsdelivr-github", "github-raw"]
 VersionSource = Literal["ref", "sha"]
 
 
-class DistributionStrategy(Protocol):
-    def url_for(self, path: str, *, repository: str, ref: str, sha: str) -> str: ...
-
-
-@dataclass(frozen=True, slots=True)
-class JsDelivrGitHubStrategy:
-    host: str
-    version_source: VersionSource
-
-    def url_for(self, path: str, *, repository: str, ref: str, sha: str) -> str:
-        version = ref if self.version_source == "ref" else sha
-        return f"https://{self.host}/gh/{repository}@{version}/{path}"
-
-
-@dataclass(frozen=True, slots=True)
-class GitHubRawStrategy:
-    host: str
-    version_source: VersionSource
-
-    def url_for(self, path: str, *, repository: str, ref: str, sha: str) -> str:
-        version = ref if self.version_source == "ref" else sha
-        return f"https://{self.host}/{repository}/{version}/{path}"
-
-
 @dataclass(frozen=True, slots=True)
 class DistributionChannel:
     id: str
-    strategy: DistributionStrategy
+    type: str
+    base_url: str
+    priority: int
+    enabled: bool
+    health_check: str | None
+    immutable_revision_support: bool
+    version_source: VersionSource
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,12 +42,18 @@ class DistributionCatalog:
         ref: str | None = None,
         sha: str = "{sha}",
     ) -> str:
-        return self.channel(channel_id).strategy.url_for(
-            path,
-            repository=self.repository,
-            ref=ref or self.default_ref,
-            sha=sha,
-        )
+        channel = self.channel(channel_id)
+        if not channel.enabled:
+            raise KeyError(f"Distribution source is disabled: {channel_id}")
+        version = (ref or self.default_ref) if channel.version_source == "ref" else sha
+        base = channel.base_url.format(repository=self.repository, version=version)
+        return f"{base.rstrip('/')}/{path.lstrip('/')}"
+
+    def resolve(self, source_id: str = "auto") -> tuple[DistributionChannel, ...]:
+        candidates = [channel for channel in self.channels if channel.enabled]
+        if source_id != "auto":
+            return (self.channel(source_id),)
+        return tuple(sorted(candidates, key=lambda channel: (channel.priority, channel.id)))
 
     def base_url(self, channel_id: str, *, ref: str | None = None, sha: str = "{sha}") -> str:
         marker = "__artifact__"
@@ -80,21 +68,32 @@ def _string(value: object, field: str) -> str:
 
 
 def _channel(record: object, field: str) -> DistributionChannel:
-    if not isinstance(record, dict) or set(record) != {"id", "kind", "host", "version"}:
+    required = {"id", "type", "baseUrl", "priority", "enabled", "healthCheck", "immutableRevisionSupport", "version"}
+    if not isinstance(record, dict) or set(record) != required:
         raise RuntimeError(f"Distribution channel has invalid shape: {field}")
     channel_id = _string(record.get("id"), f"{field}.id")
-    host = _string(record.get("host"), f"{field}.host")
-    kind = record.get("kind")
+    source_type = _string(record.get("type"), f"{field}.type")
+    base_url = _string(record.get("baseUrl"), f"{field}.baseUrl")
+    if not base_url.startswith("https://") or "{repository}" not in base_url or "{version}" not in base_url:
+        raise RuntimeError(f"Distribution source has invalid URL template: {field}.baseUrl")
+    priority = record.get("priority")
+    if type(priority) is not int or priority < 0:
+        raise RuntimeError(f"Distribution source priority must be a non-negative integer: {field}.priority")
+    enabled = record.get("enabled")
+    if type(enabled) is not bool:
+        raise RuntimeError(f"Distribution source enabled must be boolean: {field}.enabled")
+    health_check = record.get("healthCheck")
+    if health_check is not None and (not isinstance(health_check, str) or not health_check.startswith("https://")):
+        raise RuntimeError(f"Distribution source healthCheck must use HTTPS: {field}.healthCheck")
+    immutable = record.get("immutableRevisionSupport")
+    if type(immutable) is not bool:
+        raise RuntimeError(f"Distribution source immutableRevisionSupport must be boolean: {field}.immutableRevisionSupport")
     version = record.get("version")
     if version not in {"ref", "sha"}:
         raise RuntimeError(f"Unknown distribution version source: {field}.version")
-    if kind == "jsdelivr-github":
-        strategy: DistributionStrategy = JsDelivrGitHubStrategy(host, version)
-    elif kind == "github-raw":
-        strategy = GitHubRawStrategy(host, version)
-    else:
-        raise RuntimeError(f"Unknown distribution strategy: {field}.kind")
-    return DistributionChannel(channel_id, strategy)
+    if source_type not in {"cdn", "github-raw", "mirror"}:
+        raise RuntimeError(f"Unknown distribution source type: {field}.type")
+    return DistributionChannel(channel_id, source_type, base_url, priority, enabled, health_check, immutable, version)
 
 
 def load_distribution(path: Path) -> DistributionCatalog:

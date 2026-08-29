@@ -1089,10 +1089,6 @@ export default {
               "candidates": [
                 {
                   "kind": "group-ref",
-                  "value": "🎯 全球直連"
-                },
-                {
-                  "kind": "group-ref",
                   "value": "🇸🇬 新加坡節點"
                 },
                 {
@@ -1696,10 +1692,6 @@ export default {
               "candidates": [
                 {
                   "kind": "group-ref",
-                  "value": "🎯 全球直連"
-                },
-                {
-                  "kind": "group-ref",
                   "value": "🇺🇸 美國節點"
                 },
                 {
@@ -1880,7 +1872,7 @@ export default {
         "onlyNodeRegions": [],
         "preferredNodeRegions": []
       },
-      "customBodySha256": "58de4c797293fc2571aa29dfa3d2442ad0baa4ae5bd290ec8b7c0a8e9ae9749c"
+      "customBodySha256": "97aa62f497208bb244739e2f008ce9d5bad13777b67de0948d2ebc23bc834aae"
     },
     "only-us-sg-prefer-sg": {
       "spec": {
@@ -1895,7 +1887,7 @@ export default {
           "sg"
         ]
       },
-      "customBodySha256": "4e817302f327369a0009a169d6daf02c220da31c9d4bcec551cae92b9bcb0edb"
+      "customBodySha256": "5471a75a67597873fb07d74b3a56e02494aeedbe616985382cc2142e3c5e7a48"
     },
     "disable-hk": {
       "spec": {
@@ -1907,7 +1899,7 @@ export default {
         "onlyNodeRegions": [],
         "preferredNodeRegions": []
       },
-      "customBodySha256": "3441ff74980fe6d837827a6f7770f3d91b393bb4180a53d2f020c7965fcf4662"
+      "customBodySha256": "eb00b6608e84f3ffe5345d7c18ce87db5e7a9c65fea828afca743ef4af6cfa4b"
     }
   }
 };

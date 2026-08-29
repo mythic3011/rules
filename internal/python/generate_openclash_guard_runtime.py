@@ -14,11 +14,13 @@ from typing import Any, Iterable, Mapping
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
-AI_ROUTING_DIR = ROOT / "internal" / "config" / "ai-routing"
+AI_ROUTING_DIR = ROOT / "internal" / "config" / "ai-routing" / "core"
+AI_CATALOGS_DIR = ROOT / "internal" / "config" / "ai-routing" / "catalogs"
 GUARD_CONFIG_DIR = ROOT / "internal" / "config" / "openclash-guard"
 SCHEMA_PATH = ROOT / "internal" / "schemas" / "openclash-guard-runtime.schema.json"
 OUTPUT_PATH = ROOT / "cfg" / "runtime" / "openclash-guard.json"
 TEMPLATES_OUTPUT_PATH = ROOT / "cfg" / "runtime" / "openclash-guard-templates.json"
+DISTRIBUTION_PATH = ROOT / "internal" / "config" / "ai-routing" / "catalogs" / "distribution.json"
 
 SCHEMA_VERSION = 1
 PROTECTED_UDP_PORT = 443
@@ -580,6 +582,38 @@ def compile_geo_providers(spec: object) -> list[dict[str, Any]]:
     return providers
 
 
+def compile_distribution_sources(path: Path = DISTRIBUTION_PATH) -> dict[str, dict[str, Any]]:
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"unable to read distribution catalog: {path}") from exc
+    channels = document.get("channels") if _is_mapping(document) else None
+    if not isinstance(channels, list):
+        raise RuntimeError("distribution catalog channels must be a list")
+    repository = document.get("repository")
+    default_ref = document.get("defaultRef")
+    if not isinstance(repository, str) or not isinstance(default_ref, str):
+        raise RuntimeError("distribution catalog repository/defaultRef must be strings")
+    sources: dict[str, dict[str, Any]] = {}
+    for item in channels:
+        if not _is_mapping(item):
+            raise RuntimeError("distribution catalog source must be a mapping")
+        source_id = item.get("id")
+        if not isinstance(source_id, str) or not source_id:
+            raise RuntimeError("distribution catalog source id must be non-empty")
+        if source_id in sources:
+            raise RuntimeError(f"duplicate distribution source id: {source_id}")
+        sources[source_id] = {
+            "type": item.get("type"),
+            "baseUrl": str(item.get("baseUrl", "")).replace("{repository}", repository).replace("{version}", default_ref),
+            "priority": item.get("priority"),
+            "enabled": item.get("enabled"),
+            "healthCheck": item.get("healthCheck"),
+            "immutableRevisionSupport": item.get("immutableRevisionSupport"),
+        }
+    return dict(sorted(sources.items()))
+
+
 def _refuse_service_facts(value: object, source: str, path: tuple[str, ...] = ()) -> None:
     if isinstance(value, dict):
         for key, item in value.items():
@@ -990,7 +1024,8 @@ def compile_openclash_guard_runtime(
     schema_path: Path = SCHEMA_PATH,
 ) -> dict[str, Any]:
     route_targets, protection_classes, services = load_ai_routing(ai_routing_dir)
-    matcher_catalog = load_services_json(ai_routing_dir / "services.json")
+    catalog_dir = ai_routing_dir.parent / "catalogs" if ai_routing_dir.name == "core" else ai_routing_dir
+    matcher_catalog = load_services_json(catalog_dir / "services.json")
     guard = load_guard_config(guard_config_dir)
 
     compiled_classes = {
@@ -1005,6 +1040,7 @@ def compile_openclash_guard_runtime(
         "services": compile_services(services, compiled_classes, route_targets, matcher_catalog),
         "gaming": compile_gaming(guard["gaming"]),
         "geoProviders": compile_geo_providers(guard["geoProviders"]),
+        "distributionSources": compile_distribution_sources(),
     }
     document["revision"] = _content_revision(document)
     validate_runtime_document(document, load_schema(schema_path))

@@ -50,7 +50,7 @@ class CompanionRulesCatalogTest(unittest.TestCase):
     def test_schema_rejects_unknown_companion_render_mode(self) -> None:
         with tempfile.TemporaryDirectory() as raw_tmp:
             catalog_dir = copy_catalog(Path(raw_tmp))
-            path = catalog_dir / "companion-rules.json"
+            path = catalog_dir / "catalogs" / "companion-rules.json"
             value = read_json(path)
             value["rulesets"][0]["render"] = {"mode": "magic"}
             write_json(path, value)
@@ -60,7 +60,7 @@ class CompanionRulesCatalogTest(unittest.TestCase):
     def test_catalog_rejects_unknown_companion_group_after_schema_passes(self) -> None:
         with tempfile.TemporaryDirectory() as raw_tmp:
             catalog_dir = copy_catalog(Path(raw_tmp))
-            path = catalog_dir / "companion-rules.json"
+            path = catalog_dir / "catalogs" / "companion-rules.json"
             value = read_json(path)
             value["rulesets"][0]["groupKey"] = "missing"
             write_json(path, value)

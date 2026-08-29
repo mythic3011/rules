@@ -167,7 +167,7 @@ def refresh_upstream_host_snapshot(
         root_lists=spec.upstream_lists,
         fetch_text=fetch_text,
     )
-    path = catalog_dir / spec.upstream_snapshot_file
+    path = catalog_dir / "sources" / spec.upstream_snapshot_file
     existing = load_upstream_host_snapshot(path)
     if (
         existing.base_url == spec.upstream_base_url

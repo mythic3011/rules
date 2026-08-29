@@ -3726,6 +3726,23 @@ _guard_lock_release() {
     fi
 }
 
+_guard_distribution_state_path() {
+    printf '%s\n' "${GUARD_DISTRIBUTION_STATE_FILE:-/etc/openclash-guard/distribution-state}"
+}
+
+_guard_distribution_selected() {
+    _guard_ds_file=$(_guard_distribution_state_path)
+    [ -f "$_guard_ds_file" ] || return 1
+    sed -n 's/^selectedSource=//p' "$_guard_ds_file" | head -n 1
+}
+
+_guard_distribution_record() {
+    [ "${GUARD_DRY_RUN:-0}" = 1 ] && return 0
+    _guard_dr_file=$(_guard_distribution_state_path)
+    mkdir -p "$(dirname "$_guard_dr_file")"
+    printf 'selectedSource=%s\nlastRefresh=%s\n' "$1" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$_guard_dr_file"
+}
+
 _guard_prepare() {
     guard_kill_read_uci
     guard_game_read_uci
@@ -3788,21 +3805,61 @@ guard_cmd_remove() {
 }
 
 guard_cmd_refresh() {
-    _guard_url=${GUARD_POLICY_URL:-}
+    _guard_refresh_source=${GUARD_POLICY_SOURCE:-auto}
+    _guard_refresh_base=${GUARD_POLICY_BASE_URL:-}
+    while [ "$#" -gt 0 ]; do
+        case $1 in
+            --source) _guard_refresh_source=$2; shift 2 ;;
+            --base-url) _guard_refresh_base=$2; shift 2 ;;
+            --policy-url) _guard_refresh_url=$2; shift 2 ;;
+            *) cli_error "unknown refresh option: $1"; return 2 ;;
+        esac
+    done
+    _guard_url=${_guard_refresh_url:-${GUARD_POLICY_URL:-}}
     if [ -z "$_guard_url" ] && command -v uci >/dev/null 2>&1; then
         _guard_url=$(uci_get_default openclash_guard.main.policy_url "" 2>/dev/null) || _guard_url=
     fi
-    if [ -z "$_guard_url" ]; then
-        cli_error "no policy URL (set GUARD_POLICY_URL or openclash_guard.main.policy_url)"
-        return 1
-    fi
+    if [ -z "$_guard_url" ] && [ -n "$_guard_refresh_base" ]; then _guard_url=${_guard_refresh_base%/}/cfg/runtime/openclash-guard.json; fi
     _guard_dest=$(_guard_policy_default_path)
     _guard_dir=$(dirname "$_guard_dest")
     if [ ! -d "$_guard_dir" ]; then
         cli_error "policy directory missing: $_guard_dir"
         return 1
     fi
-    if ! fetch_atomic "$_guard_url" "$_guard_dest" guard_policy_validate_file; then
+    if [ -n "$_guard_url" ]; then
+        _guard_refresh_sources=override
+    else
+        _guard_refresh_sources="$_guard_refresh_source"
+    fi
+    if [ -z "$_guard_url" ] && [ "$_guard_refresh_source" = auto ]; then
+        _guard_refresh_sources="jsdelivr github-raw"
+        _guard_refresh_selected=$(_guard_distribution_selected 2>/dev/null) || _guard_refresh_selected=
+        if [ -n "$_guard_refresh_selected" ]; then
+            _guard_refresh_sources="$_guard_refresh_selected $_guard_refresh_sources"
+        fi
+    fi
+    _guard_refresh_ok=0
+    for _guard_refresh_item in $_guard_refresh_sources; do
+        if [ -z "$_guard_url" ]; then
+            case $_guard_refresh_item in
+                *)
+                    _guard_source_key=$_guard_refresh_item
+                    [ "$_guard_refresh_item" = github-raw ] && _guard_source_key=raw
+                    [ "$_guard_refresh_item" = jsdelivr ] && _guard_source_key=cdn
+                    _guard_source_base=$(json_get "$_GUARD_POLICY_FILE" "distributionSources.$_guard_source_key.baseUrl" 2>/dev/null) || _guard_source_base=
+                    if [ -z "$_guard_source_base" ]; then cli_error "unsupported distribution source: $_guard_refresh_item"; return 2; fi
+                    _guard_url="$_guard_source_base/cfg/runtime/openclash-guard.json"
+                    ;;
+            esac
+        fi
+        if fetch_atomic "$_guard_url" "$_guard_dest" guard_policy_validate_file; then
+            _guard_refresh_ok=1
+            _guard_distribution_record "$_guard_refresh_item"
+            break
+        fi
+        _guard_url=
+    done
+    if [ "$_guard_refresh_ok" != 1 ]; then
         cli_error "refresh failed; keeping last-known-good policy and firewall state"
         return 1
     fi
@@ -3837,6 +3894,7 @@ guard_cmd_status() {
     cli_kv nft.available "$(guard_env_get nft.available)"
     cli_kv state "$_GUARD_POLICY_STATE"
     cli_kv enforcement "$_GUARD_POLICY_ENFORCEMENT"
+    cli_kv distribution.selectedSource "$(_guard_distribution_selected 2>/dev/null || printf 'none')"
 }
 
 guard_cmd_doctor() {
@@ -3992,7 +4050,6 @@ _guard_cmd_needs_lock() {
 main() {
     _GUARD_JSON=0
     _guard_cmd=
-    _guard_cmd_args=
     while [ "$#" -gt 0 ]
     do
         case $1 in
@@ -4017,20 +4074,12 @@ main() {
                 return 0
                 ;;
             apply|reconcile|status|doctor|refresh|remove|eval|template|install|geo)
-                if [ -n "$_guard_cmd" ]; then
-                    _guard_cmd_args="$_guard_cmd_args $1"
-                    shift
-                    continue
-                fi
+                [ -z "$_guard_cmd" ] || break
                 _guard_cmd=$1
                 shift
                 ;;
             *)
-                if [ -n "$_guard_cmd" ]; then
-                    _guard_cmd_args="$_guard_cmd_args $1"
-                    shift
-                    continue
-                fi
+                [ -n "$_guard_cmd" ] && break
                 cli_die "unknown argument: $1" 2
                 ;;
         esac
@@ -4039,8 +4088,6 @@ main() {
         guard_usage >&2
         return 2
     fi
-    # shellcheck disable=SC2086
-    set -- $_guard_cmd_args
     if _guard_cmd_needs_lock "$_guard_cmd" "${1:-}"; then
         _guard_lock_acquire || return $?
         trap _guard_lock_release EXIT INT TERM
@@ -4051,7 +4098,7 @@ main() {
         reconcile) guard_cmd_reconcile || _guard_rc=$? ;;
         status) guard_cmd_status || _guard_rc=$? ;;
         doctor) guard_cmd_doctor "$@" || _guard_rc=$? ;;
-        refresh) guard_cmd_refresh || _guard_rc=$? ;;
+        refresh) guard_cmd_refresh "$@" || _guard_rc=$? ;;
         remove) guard_cmd_remove || _guard_rc=$? ;;
         eval) guard_cmd_eval "$@" || _guard_rc=$? ;;
         template) guard_cmd_template "$@" || _guard_rc=$? ;;
