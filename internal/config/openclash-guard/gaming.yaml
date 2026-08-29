@@ -1,0 +1,6 @@
+# Gaming bypass ports. UDP/443 is never a bypass candidate.
+gaming:
+  udpPorts: []
+  tcpPorts: []
+  protectedUdpPorts: [443]
+  destinationCidrs: []

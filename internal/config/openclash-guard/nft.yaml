@@ -1,0 +1,5 @@
+# Guard-owned nftables names. No secrets.
+nft:
+  family: inet
+  table: openclash_guard
+  commentPrefix: openclash-guard

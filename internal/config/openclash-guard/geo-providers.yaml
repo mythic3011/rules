@@ -1,0 +1,16 @@
+# Public HTTPS geo lookup templates. Do not add credentials.
+geoProviders:
+  - id: ipwhois
+    url: https://ipwho.is/
+    timeoutSeconds: 3
+    fields:
+      ip: ip
+      country: country_code
+      asn: connection.asn
+  - id: ipapi-co
+    url: https://ipapi.co/json/
+    timeoutSeconds: 3
+    fields:
+      ip: ip
+      country: country_code
+      asn: asn

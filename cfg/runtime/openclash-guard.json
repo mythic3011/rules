@@ -1,0 +1,212 @@
+{
+  "gaming": {
+    "destinationCidrs": [],
+    "protectedUdpPorts": [
+      443
+    ],
+    "tcpPorts": [],
+    "udpPorts": []
+  },
+  "geoProviders": [
+    {
+      "fields": {
+        "asn": "asn",
+        "country": "country_code",
+        "ip": "ip"
+      },
+      "id": "ipapi-co",
+      "timeoutSeconds": 3,
+      "url": "https://ipapi.co/json/"
+    },
+    {
+      "fields": {
+        "asn": "connection.asn",
+        "country": "country_code",
+        "ip": "ip"
+      },
+      "id": "ipwhois",
+      "timeoutSeconds": 3,
+      "url": "https://ipwho.is/"
+    }
+  ],
+  "nft": {
+    "commentPrefix": "openclash-guard",
+    "family": "inet",
+    "table": "openclash_guard"
+  },
+  "protectionClasses": {
+    "account-protected": {
+      "directAllowed": false,
+      "failMode": "reject",
+      "firewallKillSwitch": true,
+      "quic": "proxy-or-reject"
+    },
+    "direct-capable": {
+      "directAllowed": true,
+      "failMode": "allow",
+      "firewallKillSwitch": false,
+      "quic": "allow"
+    },
+    "proxy-required": {
+      "directAllowed": false,
+      "failMode": "reject",
+      "firewallKillSwitch": false,
+      "quic": "proxy-or-reject"
+    },
+    "stable-session": {
+      "directAllowed": false,
+      "failMode": "reject",
+      "firewallKillSwitch": false,
+      "quic": "proxy-or-reject"
+    }
+  },
+  "revision": "d1e4416119753749037834b93d649c97538de3f0a0de5dacd2c44293c88c0db0",
+  "schemaVersion": 1,
+  "services": {
+    "chatgpt": {
+      "allowedRegions": [
+        "us",
+        "sg",
+        "jp"
+      ],
+      "matchers": {
+        "domainSuffixes": [],
+        "geosite": [
+          "openai"
+        ]
+      },
+      "protectionClass": "stable-session"
+    },
+    "claude": {
+      "allowedRegions": [],
+      "matchers": {
+        "domainSuffixes": [],
+        "geosite": [
+          "anthropic"
+        ]
+      },
+      "protectionClass": "account-protected"
+    },
+    "copilot": {
+      "allowedRegions": [
+        "us",
+        "sg",
+        "jp"
+      ],
+      "matchers": {
+        "domainSuffixes": [
+          "copilot.com",
+          "copilot.microsoft.com",
+          "copilot.cloud.microsoft"
+        ],
+        "geosite": [
+          "github-copilot"
+        ]
+      },
+      "protectionClass": "direct-capable"
+    },
+    "gemini": {
+      "allowedRegions": [
+        "us",
+        "sg",
+        "jp"
+      ],
+      "matchers": {
+        "domainSuffixes": [
+          "gemini.google",
+          "ai.google.dev",
+          "ai.studio",
+          "aistudio.google.com",
+          "gemini.gstatic.com",
+          "generativeai.google",
+          "makersuite.google.com"
+        ],
+        "geosite": []
+      },
+      "protectionClass": "direct-capable"
+    },
+    "grok": {
+      "allowedRegions": [
+        "us",
+        "sg",
+        "jp"
+      ],
+      "matchers": {
+        "domainSuffixes": [],
+        "geosite": [
+          "xai"
+        ]
+      },
+      "protectionClass": "direct-capable"
+    },
+    "huggingface": {
+      "allowedRegions": [
+        "us",
+        "sg",
+        "jp"
+      ],
+      "matchers": {
+        "domainSuffixes": [
+          "huggingface.co"
+        ],
+        "geosite": []
+      },
+      "protectionClass": "proxy-required"
+    },
+    "notebooklm": {
+      "allowedRegions": [
+        "us",
+        "sg",
+        "jp"
+      ],
+      "matchers": {
+        "domainSuffixes": [
+          "notebooklm.google.com",
+          "notebooklm.google"
+        ],
+        "geosite": []
+      },
+      "protectionClass": "direct-capable"
+    },
+    "perplexity": {
+      "allowedRegions": [
+        "us",
+        "sg",
+        "jp"
+      ],
+      "matchers": {
+        "domainSuffixes": [],
+        "geosite": [
+          "perplexity"
+        ]
+      },
+      "protectionClass": "direct-capable"
+    },
+    "poe": {
+      "allowedRegions": [
+        "us",
+        "sg",
+        "jp"
+      ],
+      "matchers": {
+        "domainSuffixes": [],
+        "geosite": [
+          "poe"
+        ]
+      },
+      "protectionClass": "stable-session"
+    },
+    "windsurf": {
+      "allowedRegions": [
+        "us",
+        "sg",
+        "jp"
+      ],
+      "matchers": {
+        "domainSuffixes": [],
+        "geosite": []
+      },
+      "protectionClass": "proxy-required"
+    }
+  }
+}
