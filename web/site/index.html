@@ -4,52 +4,52 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>mythic3011/rules</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
   <style>
-    :root { color-scheme: light dark; font-family: ui-sans-serif, system-ui, sans-serif; }
-    body { margin: 0; background: Canvas; color: CanvasText; }
-    main { max-width: 960px; margin: 0 auto; padding: 48px 20px 72px; }
+    :root {
+      --pico-font-family: system-ui, -apple-system, sans-serif;
+    }
     h1 { font-size: clamp(2rem, 6vw, 4rem); margin: 0 0 12px; letter-spacing: -0.04em; }
     h2 { margin-top: 42px; }
     p { line-height: 1.65; max-width: 760px; }
     .muted { opacity: .72; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin-top: 20px; }
-    .card { border: 1px solid color-mix(in srgb, CanvasText 18%, transparent); border-radius: 14px; padding: 18px; }
+    .grid-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin-top: 20px; }
+    .card { border-radius: 14px; padding: 18px; }
     .card h3 { margin: 0 0 8px; }
     .card p { margin: 0 0 16px; font-size: .95rem; }
-    a.button { display: inline-block; padding: 9px 12px; border-radius: 9px; background: CanvasText; color: Canvas; text-decoration: none; font-weight: 650; }
     code { word-break: break-all; }
     table { width: 100%; border-collapse: collapse; margin-top: 16px; }
-    th, td { text-align: left; border-bottom: 1px solid color-mix(in srgb, CanvasText 16%, transparent); padding: 10px 8px; }
     nav { display: flex; gap: 14px; flex-wrap: wrap; margin: 18px 0 0; }
   </style>
 </head>
 <body>
-<main>
+<main class="container">
   <h1>mythic3011/rules</h1>
   <p>Ready-to-use OpenClash/Mihomo profiles, AI/service routing rules, and DNS filtering assets. Consumers use the published files directly; the compiler and source-of-truth configuration stay behind the public surface.</p>
   <nav>
-    <a href="https://github.com/mythic3011/rules">GitHub</a>
-    <a href="https://github.com/mythic3011/rules/blob/main/docs/getting-started.md">Setup guide</a>
-    <a href="./report.html?category=adblock">Filter reports</a>
+    <a href="https://github.com/mythic3011/rules" role="button" class="outline">GitHub</a>
+    <a href="https://github.com/mythic3011/rules/blob/main/docs/getting-started.md" role="button" class="outline">Setup guide</a>
+    <a href="./report.html?category=adblock" role="button" class="outline">Filter reports</a>
+    <a href="./ip-lookup.html" role="button" class="outline">IP Lookup</a>
   </nav>
 
   <h2>Start here</h2>
-  <div class="grid">
-    <section class="card">
+  <div class="grid-cards">
+    <article class="card">
       <h3>AI Balanced</h3>
       <p>Recommended relaxed OpenClash/Mihomo profile for HK-oriented AI and service routing.</p>
-      <a class="button" href="https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/cfg/yaml/Custom_Clash_AI.yaml">Download YAML</a>
-    </section>
-    <section class="card">
+      <a role="button" href="https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/cfg/yaml/Custom_Clash_AI.yaml">Download YAML</a>
+    </article>
+    <article class="card">
       <h3>AI Strict</h3>
       <p>Fail-closed profile for stricter routing and account-sensitive traffic.</p>
-      <a class="button" href="https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/cfg/yaml/Custom_Clash_AI_Strict.yaml">Download YAML</a>
-    </section>
-    <section class="card">
+      <a role="button" href="https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/cfg/yaml/Custom_Clash_AI_Strict.yaml">Download YAML</a>
+    </article>
+    <article class="card">
       <h3>Subconverter AI</h3>
       <p>AI-aware subscription-conversion template. This is an INI template, not runtime YAML.</p>
-      <a class="button" href="https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/cfg/Custom_Clash_AI.ini">Open INI</a>
-    </section>
+      <a role="button" href="https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/cfg/Custom_Clash_AI.ini">Open INI</a>
+    </article>
   </div>
 
   <h2>Generated filtering status</h2>

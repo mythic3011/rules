@@ -6,177 +6,79 @@
     <title>Rules Report Detail</title>
     <link rel="icon" href="./favicon.ico" sizes="any" />
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
     <style>
       :root {
-        --bg: #101419;
-        --panel: rgba(22, 29, 37, 0.82);
-        --ink: #f3efe7;
-        --muted: #b8afa1;
-        --accent: #7dd3fc;
-        --accent-2: #f59e0b;
-        --line: rgba(255, 255, 255, 0.1);
-        --shadow: 0 22px 60px rgba(0, 0, 0, 0.28);
+        --pico-font-family: system-ui, -apple-system, sans-serif;
       }
-
-      * {
-        box-sizing: border-box;
-      }
-
-      body {
-        margin: 0;
-        font-family: "Palatino Linotype", "Book Antiqua", Palatino, serif;
-        color: var(--ink);
-        background:
-          radial-gradient(circle at top left, rgba(125, 211, 252, 0.12), transparent 30%),
-          radial-gradient(circle at top right, rgba(245, 158, 11, 0.12), transparent 26%),
-          linear-gradient(180deg, #11171d 0%, var(--bg) 100%);
-      }
-
-      a {
-        color: inherit;
-      }
-
-      .wrap {
-        width: min(1180px, calc(100vw - 32px));
-        margin: 0 auto;
-        padding: 32px 0 64px;
-      }
-
       .back {
         display: inline-flex;
         align-items: center;
         gap: 8px;
         margin-bottom: 18px;
-        color: var(--muted);
         text-decoration: none;
       }
-
-      .hero {
-        display: grid;
-        gap: 14px;
-        margin-bottom: 24px;
-      }
-
       .eyebrow {
         font-size: 12px;
         letter-spacing: 0.16em;
         text-transform: uppercase;
-        color: var(--accent);
+        color: var(--pico-primary);
+        font-weight: bold;
       }
-
-      h1 {
-        margin: 0;
-        font-size: clamp(34px, 6vw, 72px);
-        line-height: 0.95;
-      }
-
-      .lead {
-        margin: 0;
-        max-width: 72ch;
-        color: var(--muted);
-        line-height: 1.7;
-      }
-
-      .grid {
+      .grid-cards {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
         gap: 16px;
         margin: 24px 0;
       }
-
-      .card,
-      .panel {
-        background: var(--panel);
-        border: 1px solid var(--line);
-        border-radius: 22px;
-        box-shadow: var(--shadow);
-        backdrop-filter: blur(10px);
-      }
-
-      .card {
-        padding: 18px;
-      }
-
       .kicker {
         margin: 0 0 10px;
         font-size: 12px;
         letter-spacing: 0.14em;
         text-transform: uppercase;
-        color: var(--accent-2);
+        color: var(--pico-secondary);
       }
-
       .value {
         margin: 0;
-        font-size: 40px;
+        font-size: 36px;
+        font-weight: bold;
         line-height: 1;
       }
-
       .label {
         margin: 8px 0 0;
-        color: var(--muted);
+        font-size: 14px;
+        color: var(--pico-muted-color);
       }
-
-      .panel {
-        padding: 18px;
-        margin-top: 18px;
-      }
-
-      .panel h2 {
-        margin: 0 0 14px;
-        font-size: 22px;
-      }
-
-      .meta-list {
+      .meta-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
         gap: 12px 18px;
       }
-
       .meta-item {
-        border-top: 1px solid var(--line);
+        border-top: 1px solid var(--pico-border-color);
         padding-top: 10px;
       }
-
-      .meta-item strong,
-      th {
+      .meta-item strong {
         display: block;
         font-size: 12px;
         letter-spacing: 0.12em;
         text-transform: uppercase;
-        color: var(--muted);
+        color: var(--pico-muted-color);
         margin-bottom: 6px;
       }
-
-      table {
-        width: 100%;
-        border-collapse: collapse;
-      }
-
-      th,
-      td {
-        text-align: left;
-        padding: 12px 0;
-        border-bottom: 1px solid var(--line);
-        vertical-align: top;
-      }
-
-      tbody tr:last-child td {
-        border-bottom: 0;
-      }
-
       .mono {
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
         font-size: 13px;
         word-break: break-all;
       }
-
       .error {
-        color: #fca5a5;
+        color: var(--pico-del-color, #e53e3e);
+        font-weight: bold;
       }
     </style>
   </head>
   <body>
-    <main class="wrap">
+    <main class="container">
       <a class="back" href="./index.html">← Back to dashboard</a>
       <section class="hero">
         <div class="eyebrow">Category Detail</div>
@@ -186,14 +88,14 @@
         </p>
       </section>
 
-      <section class="grid" id="stats"></section>
+      <section class="grid-cards" id="stats"></section>
 
-      <section class="panel">
+      <article class="panel">
         <h2>Metadata</h2>
-        <div class="meta-list" id="metadata"></div>
-      </section>
+        <div class="meta-grid" id="metadata"></div>
+      </article>
 
-      <section class="panel">
+      <article class="panel">
         <h2>Upstream Sources</h2>
         <table>
           <thead>
@@ -210,7 +112,7 @@
             </tr>
           </tbody>
         </table>
-      </section>
+      </article>
     </main>
 
     <script>
@@ -229,8 +131,19 @@
 
       function fail(message) {
         titleEl.textContent = "Report unavailable";
-        leadEl.innerHTML = `<span class="error">${message}</span>`;
-        sourcesEl.innerHTML = `<tr><td colspan="4" class="error">${message}</td></tr>`;
+
+        const errorSpan = document.createElement("span");
+        errorSpan.className = "error";
+        errorSpan.textContent = message;
+        leadEl.replaceChildren(errorSpan);
+
+        const tr = document.createElement("tr");
+        const td = document.createElement("td");
+        td.colSpan = 4;
+        td.className = "error";
+        td.textContent = message;
+        tr.appendChild(td);
+        sourcesEl.replaceChildren(tr);
       }
 
       if (!category) {
@@ -252,17 +165,27 @@
               ["Upstreams", summary.sources.length, "Active source inputs"],
               ["Local Blocklist", summary.local_blocklist_count, "Domains added locally"],
             ];
-            statsEl.innerHTML = cards
-              .map(
-                ([k, v, label]) => `
-                  <article class="card">
-                    <p class="kicker">${k}</p>
-                    <p class="value">${fmt(v)}</p>
-                    <p class="label">${label}</p>
-                  </article>
-                `
-              )
-              .join("");
+            statsEl.replaceChildren(
+              ...cards.map(([k, v, label]) => {
+                const article = document.createElement("article");
+                article.className = "card";
+
+                const kicker = document.createElement("p");
+                kicker.className = "kicker";
+                kicker.textContent = k;
+
+                const val = document.createElement("p");
+                val.className = "value";
+                val.textContent = fmt(v);
+
+                const lbl = document.createElement("p");
+                lbl.className = "label";
+                lbl.textContent = label;
+
+                article.append(kicker, val, lbl);
+                return article;
+              })
+            );
 
             const meta = [
               ["Generated At", summary.generated_at],
@@ -277,37 +200,65 @@
               ["Post-Allowlist", fmt(summary.post_allowlist_count)],
               ["Upstream Unique", fmt(summary.upstream_unique_count)],
             ];
-            metadataEl.innerHTML = meta
-              .map(
-                ([k, v]) => `
-                  <div class="meta-item">
-                    <strong>${k}</strong>
-                    <div class="mono">${v}</div>
-                  </div>
-                `
-              )
-              .join("");
+            metadataEl.replaceChildren(
+              ...meta.map(([k, v]) => {
+                const item = document.createElement("div");
+                item.className = "meta-item";
 
-            if (!summary.sources.length) {
-              sourcesEl.innerHTML = `<tr><td colspan="4" class="error">No active upstream sources for this category.</td></tr>`;
+                const strong = document.createElement("strong");
+                strong.textContent = k;
+
+                const mono = document.createElement("div");
+                mono.className = "mono";
+                mono.textContent = String(v);
+
+                item.append(strong, mono);
+                return item;
+              })
+            );
+
+            if (!summary.sources || !summary.sources.length) {
+              const tr = document.createElement("tr");
+              const td = document.createElement("td");
+              td.colSpan = 4;
+              td.className = "error";
+              td.textContent = "No active upstream sources for this category.";
+              tr.appendChild(td);
+              sourcesEl.replaceChildren(tr);
               return;
             }
 
-            sourcesEl.innerHTML = summary.sources
-              .map(
-                (source) => `
-                  <tr>
-                    <td class="mono">${source.id}</td>
-                    <td class="mono">${fmt(source.count)}</td>
-                    <td class="mono">${source.format}</td>
-                    <td class="mono"><a href="${source.homepage || source.url}">${source.homepage || source.url}</a></td>
-                  </tr>
-                `
-              )
-              .join("");
+            sourcesEl.replaceChildren(
+              ...summary.sources.map((source) => {
+                const tr = document.createElement("tr");
+
+                const tdId = document.createElement("td");
+                tdId.className = "mono";
+                tdId.textContent = source.id;
+
+                const tdCount = document.createElement("td");
+                tdCount.className = "mono";
+                tdCount.textContent = fmt(source.count);
+
+                const tdFormat = document.createElement("td");
+                tdFormat.className = "mono";
+                tdFormat.textContent = source.format;
+
+                const tdUrl = document.createElement("td");
+                tdUrl.className = "mono";
+                const link = document.createElement("a");
+                const href = source.homepage || source.url;
+                link.href = href;
+                link.textContent = href;
+                tdUrl.appendChild(link);
+
+                tr.append(tdId, tdCount, tdFormat, tdUrl);
+                return tr;
+              })
+            );
           })
           .catch((error) => fail(`Failed to load category report: ${error.message}`));
       }
     </script>
   </body>
-  </html>
+</html>
