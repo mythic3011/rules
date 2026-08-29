@@ -34,7 +34,9 @@ class PublicCatalogTest(unittest.TestCase):
         self.assertNotIn("/etc/init.d/openclash restart", script)
 
     def test_refresh_removed_old_active_tree_names(self) -> None:
-        for path in ("archive", "data", "generated", "py", "src", "schema", "templates", "shell", "site", "reports"):
+        # Root `shell/` is the POSIX bundle source tree (tools/shbundle.py), not the
+        # pre-v2 runtime scripts that moved to setup/openclash/scripts/.
+        for path in ("archive", "data", "generated", "py", "src", "schema", "templates", "site", "reports"):
             self.assertFalse((ROOT / path).exists(), path)
         for path in ("cfg", "rule", "dns", "setup", "internal", "tests", "web"):
             self.assertTrue((ROOT / path).exists(), path)

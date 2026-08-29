@@ -1,6 +1,9 @@
 # Python cache
 __pycache__/
 *.py[cod]
+
+# Generated POSIX shell bundles (source of truth is shell/ + tools/shbundle.py)
+dist/*.sh
 node_modules/
 local/ai-routing/
 .codex/
