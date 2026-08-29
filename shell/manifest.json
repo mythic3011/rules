@@ -33,7 +33,73 @@
     "uci": {
       "path": "shell/lib/uci.sh",
       "depends": []
+    },
+    "json": {
+      "path": "shell/lib/json.sh",
+      "depends": []
+    },
+    "guard-dns": {
+      "path": "shell/apps/openclash-guard/dns.sh",
+      "depends": ["service", "env"]
+    },
+    "guard-environment": {
+      "path": "shell/apps/openclash-guard/environment.sh",
+      "depends": ["json", "env", "service", "uci", "nft", "guard-dns"]
+    },
+    "guard-policy": {
+      "path": "shell/apps/openclash-guard/policy.sh",
+      "depends": ["json", "env", "file"]
+    },
+    "guard-killswitch": {
+      "path": "shell/apps/openclash-guard/killswitch.sh",
+      "depends": ["json", "nft", "file", "uci"]
+    },
+    "guard-gaming": {
+      "path": "shell/apps/openclash-guard/gaming.sh",
+      "depends": ["json", "uci", "guard-policy"],
+      "after": ["guard-killswitch"]
+    },
+    "guard-migration": {
+      "path": "shell/apps/openclash-guard/migration.sh",
+      "depends": ["nft", "file"]
+    },
+    "guard-main": {
+      "path": "shell/apps/openclash-guard/main.sh",
+      "depends": [
+        "cli",
+        "lock",
+        "fetch",
+        "file",
+        "guard-environment",
+        "guard-policy",
+        "guard-dns",
+        "guard-killswitch",
+        "guard-gaming",
+        "guard-migration"
+      ]
     }
   },
-  "apps": {}
+  "apps": {
+    "openclash-guard": {
+      "entry": "shell/apps/openclash-guard/main.sh",
+      "depends": [
+        "cli",
+        "env",
+        "file",
+        "fetch",
+        "lock",
+        "nft",
+        "service",
+        "uci",
+        "json",
+        "guard-environment",
+        "guard-policy",
+        "guard-dns",
+        "guard-killswitch",
+        "guard-gaming",
+        "guard-migration"
+      ],
+      "output": "dist/openclash-guard.sh"
+    }
+  }
 }

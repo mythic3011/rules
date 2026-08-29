@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "revision": "synthetic-test-1",
+  "nft": {
+    "family": "inet",
+    "table": "openclash_guard",
+    "commentPrefix": "openclash-guard"
+  },
+  "protectionClasses": {
+    "stable-session": {
+      "directAllowed": false,
+      "failMode": "reject",
+      "quic": "proxy-or-reject",
+      "firewallKillSwitch": true
+    },
+    "direct-ok": {
+      "directAllowed": true,
+      "failMode": "reject",
+      "quic": "allow",
+      "firewallKillSwitch": false
+    }
+  },
+  "services": {
+    "svc-proxy-only": {
+      "protectionClass": "stable-session",
+      "allowedRegions": ["aa"],
+      "matchers": {
+        "geosite": ["synthetic"],
+        "domainSuffixes": ["example.invalid"]
+      }
+    },
+    "svc-direct-ok": {
+      "protectionClass": "direct-ok",
+      "allowedRegions": ["aa"],
+      "matchers": {
+        "geosite": [],
+        "domainSuffixes": []
+      }
+    }
+  },
+  "gaming": {
+    "udpPorts": [3074, 27015],
+    "tcpPorts": [],
+    "protectedUdpPorts": [443],
+    "destinationCidrs": ["203.0.113.0/24"]
+  },
+  "geoProviders": []
+}
