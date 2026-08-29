@@ -252,6 +252,37 @@ def cmd_refresh(args: argparse.Namespace) -> None:
         print(note, file=sys.stderr)
 
 
+def cmd_managed_paths(_: argparse.Namespace) -> None:
+    from ai_profiles.distribution import managed_git_pathspecs
+    from ai_profiles.settings import AI_SOURCES_DIR, INI_MVP_PLAN_PATH, ROOT
+    paths = list(managed_git_pathspecs())
+    paths.extend(
+        path.relative_to(ROOT).as_posix()
+        for path in (AI_SOURCES_DIR, INI_MVP_PLAN_PATH.parent)
+    )
+    paths.append("apps/profile-service/worker/generated/runtime-data.mjs")
+    shell_manifest = json.loads((ROOT / "shell" / "manifest.json").read_text(encoding="utf-8"))
+    for app in shell_manifest.get("apps", {}).values():
+        if not isinstance(app, dict):
+            continue
+        for key in ("output", "manifest", "checksum"):
+            value = app.get(key)
+            if isinstance(value, str):
+                paths.append(value)
+    print("\n".join(dict.fromkeys(paths)))
+
+
+def cmd_ci(_: argparse.Namespace) -> None:
+    config = load_rulesctl_config()
+    run([sys.executable, "-m", "compileall", "-q", *config["compilePaths"]])
+    run_pipeline(config, "checkNode")
+    run_pipeline(config, "generate")
+    run_pipeline(config, "check")
+    result = subprocess.run(["git", "diff", "--quiet"], cwd=ROOT)
+    if result.returncode:
+        raise SystemExit("generated output drift detected; run make generate and commit the outputs")
+
+
 def _csv_regions(value: str | None) -> tuple[str, ...]:
     if not value:
         return ()
@@ -296,6 +327,8 @@ def parser() -> argparse.ArgumentParser:
     r = sub.add_parser("refresh", help="refresh network-backed upstream inputs and regenerate")
     r.add_argument("--yes", action="store_true", help="confirm network-backed refresh")
     r.set_defaults(func=cmd_refresh)
+    sub.add_parser("managed-paths", help="print generated paths from repository manifests").set_defaults(func=cmd_managed_paths)
+    sub.add_parser("ci", help="run repository CI validation and generated-output drift checks").set_defaults(func=cmd_ci)
 
     profile = sub.add_parser("profile", help="resolve parameterized OpenClash custom templates")
     profile_sub = profile.add_subparsers(dest="profile_command", required=True)

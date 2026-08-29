@@ -1,4 +1,4 @@
-.PHONY: help bootstrap doctor check check-all check-profile-service generate build refresh
+.PHONY: help bootstrap doctor check check-all check-profile-service generate build ci refresh
 
 help:
 	@printf '%s\n' \
@@ -9,6 +9,7 @@ help:
 	  'make check-profile-service - Worker solver/renderer tests' \
 	  'make generate   - deterministic local generation' \
 	  'make build      - build standalone OpenClash Guard distribution' \
+	  'make ci         - run CI validation and generated-output drift checks' \
 	  'make refresh    - refresh upstream network inputs + regenerate'
 
 bootstrap:
@@ -27,5 +28,7 @@ generate:
 	python3 tools/shbundle.py build --all
 build:
 	python3 tools/shbundle.py build --all
+ci:
+	./rulesctl ci
 refresh:
 	./rulesctl refresh --yes

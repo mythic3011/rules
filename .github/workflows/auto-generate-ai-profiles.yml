@@ -99,15 +99,7 @@ jobs:
 
       - name: Validate AI routing manifests
         run: |
-          npm run validate:routing
-          npm run test:routing
-          npm run typecheck
-          npm run check:routing-schema
-          if [ "$GITHUB_EVENT_NAME" = "schedule" ]; then
-            npm run export:routing-artifacts
-          else
-            npm run check:routing-artifacts
-          fi
+          make ci
 
       - name: Refresh upstream AI host snapshot on schedule
         if: github.event_name == 'schedule'
@@ -116,31 +108,13 @@ jobs:
       - name: Generate AI profile outputs
         run: python3 internal/python/generate_ai_profiles.py
 
-      - name: Validate shadow profile
-        run: |
-          if [ "$GITHUB_EVENT_NAME" = "schedule" ]; then
-            npm run export:shadow-profile
-          else
-            npm run check:shadow-profile
-          fi
-
-      - name: Generate and test profile service runtime
-        run: |
-          python3 internal/python/generate_profile_service_runtime.py
-          npm run test:profile-service
-
-      - name: Audit AI rule coverage and upstream ownership
-        run: python3 internal/python/generate_ai_profiles.py --audit-rule-coverage
-
-      - name: Validate generated profile outputs
-        run: |
-          uv run --with pyyaml python3 -m unittest discover -s tests -p 'test_*.py'
-          uv run --with pyyaml python3 internal/python/validate_generated_profiles.py
+      - name: Validate generated outputs
+        run: python3 internal/python/validate_generated_profiles.py
 
       - name: Reject generated output drift in pull requests
         if: github.event_name == 'pull_request'
         run: |
-          mapfile -t managed_paths < <(python3 internal/python/generate_ai_profiles.py --list-managed-pathspecs)
+          mapfile -t managed_paths < <(./rulesctl managed-paths)
           managed_status="$(git status --porcelain -- "${managed_paths[@]}")"
           if [ -n "$managed_status" ]; then
             echo "Generator changed managed AI outputs in this pull request:"
@@ -216,14 +190,10 @@ jobs:
           esac
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          mapfile -t managed_paths < <(python3 internal/python/generate_ai_profiles.py --list-managed-pathspecs)
+          mapfile -t managed_paths < <(./rulesctl managed-paths)
           git add -A -- "${managed_paths[@]}"
-          git add -A -- apps/profile-service/worker/generated/runtime-data.mjs
           if [ "$GITHUB_EVENT_NAME" = "schedule" ]; then
-            git add -A -- \
-              internal/config/ai-routing/sources/adguard-upstream.json \
-              internal/config/ai-routing/sources/upstream-sources.json \
-              internal/generated/ai-routing
+            git add -A -- "${managed_paths[@]}"
           fi
           if ! git diff --cached --quiet; then
             git commit -m "chore(ai): auto generate AI profiles"

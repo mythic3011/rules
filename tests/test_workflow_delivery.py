@@ -12,7 +12,7 @@ class WorkflowDeliveryTest(unittest.TestCase):
 
     def test_ai_workflow_asks_generator_for_managed_pathspecs(self) -> None:
         workflow = (ROOT / ".github/workflows/auto-generate-ai-profiles.yml").read_text(encoding="utf-8")
-        self.assertGreaterEqual(workflow.count("--list-managed-pathspecs"), 2)
+        self.assertGreaterEqual(workflow.count("managed-paths"), 2)
         self.assertIn('git add -A -- "${managed_paths[@]}"', workflow)
         self.assertNotIn("git add -A -- \\\n            cfg/Custom_Clash_AI.ini", workflow)
 
