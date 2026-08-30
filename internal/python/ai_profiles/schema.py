@@ -158,6 +158,7 @@ class ServiceDecl:
     dns_policies: tuple[DnsPolicyDecl, ...]
     subconverter: SubconverterServiceDecl
     projections: frozenset[Literal["mihomo", "subconverter"]]
+    family: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -743,7 +744,7 @@ def load_services_document(path: Path) -> ServicesDocument:
         "id", "providerKey", "group", "file", "payload",
         "directRelaxed", "dnsPolicies", "subconverter",
     }
-    optional_keys = {"geosites", "upstreamRules", "projections", "regions", "availability"}
+    optional_keys = {"geosites", "upstreamRules", "projections", "regions", "availability", "family"}
     for index, record in enumerate(raw_services):
         field = f"services[{index}]"
         if not isinstance(record, dict):
@@ -772,9 +773,11 @@ def load_services_document(path: Path) -> ServicesDocument:
         ids.add(service_id)
         provider_keys.add(provider_key)
         files.add(file)
+        family = _string(record.get("family"), f"{field}.family") if "family" in record else None
         services.append(
             ServiceDecl(
                 id=service_id,
+                family=family,
                 provider_key=provider_key,
                 group=_string(record.get("group"), f"{field}.group"),
                 file=file,

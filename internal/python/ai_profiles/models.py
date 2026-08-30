@@ -117,6 +117,7 @@ class ServiceSpec:
     dns_policies: tuple[DnsPolicySpec, ...] = ()
     subconverter: SubconverterServicePolicy = SubconverterServicePolicy()
     projections: frozenset[ProjectionTarget] = frozenset({"mihomo", "subconverter"})
+    family: str | None = None
 
     @property
     def geosites(self) -> tuple[str, ...]:
@@ -125,6 +126,10 @@ class ServiceSpec:
             for source in self.upstream_rules
             if isinstance(source, GeositeRuleSource)
         )
+
+    @property
+    def fail_closed(self) -> bool:
+        return not self.direct_relaxed
 
 
 @dataclass(frozen=True, slots=True)
@@ -152,6 +157,14 @@ class RuleFileSpec:
     comment_lines: tuple[str, ...] = ()
     mihomo: bool = False
     subconverter_cluster: str | None = None
+
+    @property
+    def fail_closed(self) -> bool:
+        return self.category == "finance"
+
+    @property
+    def risk(self) -> str:
+        return "high" if self.category == "finance" else "normal"
 
 
 @dataclass(frozen=True, slots=True)
@@ -250,6 +263,12 @@ class Catalog:
             return self.groups[key]
         except KeyError as exc:
             raise KeyError(f"Unknown group key: {key}") from exc
+
+    def services_by_family(self, family: str) -> tuple[ServiceSpec, ...]:
+        return tuple(service for service in self.services if service.family == family)
+
+    def rules_by_category(self, category: str) -> tuple[RuleFileSpec, ...]:
+        return tuple(rule for rule in self.companion_rulesets if rule.category == category)
 
 
 @dataclass(frozen=True, slots=True)
