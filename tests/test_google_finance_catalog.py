@@ -24,7 +24,13 @@ class GoogleFinanceCatalogTest(unittest.TestCase):
 
     def test_google_ai_extensions_are_data_only_and_narrowly_scoped(self) -> None:
         antigravity = self.service("antigravity")
-        self.assertEqual(antigravity.payload, ("DOMAIN-SUFFIX,antigravity.google",))
+        self.assertEqual(
+            antigravity.payload,
+            (
+                "DOMAIN-SUFFIX,antigravity.google",
+                "DOMAIN-SUFFIX,antigravity-unleash.goog",
+            ),
+        )
 
         labs = self.service("google-labs")
         self.assertEqual(labs.payload, ("DOMAIN-SUFFIX,labs.google",))
