@@ -492,7 +492,7 @@
       "directRelaxed": true,
       "dnsPolicies": [
         {
-          "order": 126,
+          "order": 127,
           "selector": "DOMAIN,opencode.com",
           "resolverSet": "global-ai"
         }
