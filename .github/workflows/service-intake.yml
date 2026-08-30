@@ -27,6 +27,9 @@ jobs:
         with:
           python-version: '3.13'
 
+      - name: Install Python dependencies
+        run: pip install -r requirements-dev.txt
+
       - name: Extract untrusted issue body as data
         run: jq -r '.issue.body // ""' "$GITHUB_EVENT_PATH" > "$RUNNER_TEMP/issue-body.md"
 

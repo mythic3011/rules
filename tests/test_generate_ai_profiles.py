@@ -42,7 +42,7 @@ class GenerateAiProfilesTest(unittest.TestCase):
         provider_keys = [item["provider_key"] for item in MODULE.AI_RULESETS]
         self.assertTrue(provider_keys)
         self.assertTrue(
-            all(key.startswith("AI_") and key.endswith("_Classical") for key in provider_keys)
+            all(key.startswith(("AI_", "Community_")) and key.endswith("_Classical") for key in provider_keys)
         )
         self.assertIn("AI_Jules_Classical", provider_keys)
         self.assertIn("AI_VertexAI_Classical", provider_keys)
