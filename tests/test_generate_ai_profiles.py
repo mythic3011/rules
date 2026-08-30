@@ -41,11 +41,13 @@ class GenerateAiProfilesTest(unittest.TestCase):
     def test_should_use_classical_provider_keys_for_ai_rules(self) -> None:
         provider_keys = [item["provider_key"] for item in MODULE.AI_RULESETS]
         self.assertTrue(provider_keys)
-        self.assertTrue(
-            all(key.startswith("AI_") and key.endswith("_Classical") for key in provider_keys)
-        )
-        self.assertIn("AI_Jules_Classical", provider_keys)
-        self.assertIn("AI_VertexAI_Classical", provider_keys)
+        self.assertTrue(all(key.endswith("_Classical") for key in provider_keys))
+        expected_keys = [
+            service.provider_key
+            for service in MODULE.load_catalog().services
+            if service.payload
+        ]
+        self.assertEqual(provider_keys, expected_keys)
 
     def test_should_generate_rule_sets_only_for_services_with_local_payloads(self) -> None:
         service_ids = [item["id"] for item in MODULE.AI_SERVICES]
