@@ -17,6 +17,8 @@ test("POST resolve returns INI without exposing preferences in a URL", async () 
   });
   const response = await worker.fetch(request, envWithoutDb);
   assert.equal(response.status, 200);
+  assert.equal(response.headers.get("x-frame-options"), "DENY");
+  assert.equal(response.headers.get("content-security-policy"), "default-src 'none'; frame-ancestors 'none'; base-uri 'none'");
   const body = await response.json();
   assert.equal(body.spec.disabledNodeRegions[0], "jp");
   assert.match(body.ini, /\[custom\]/);
