@@ -3,7 +3,8 @@
 # SOURCE: https://github.com/mythic3011/rules/blob/main/internal/python/generate_ai_profiles.py
 # RULE-PROVIDER: AI_Antigravity_Classical
 # GROUP: 🤖 Antigravity
-# TOTAL: 1
+# TOTAL: 2
 
 payload:
   - "DOMAIN-SUFFIX,antigravity.google"
+  - "DOMAIN-SUFFIX,antigravity-unleash.goog"
