@@ -9,6 +9,8 @@ _GUARD_DISTRIBUTION_CDN_BASE="https://cdn.jsdelivr.net/gh/mythic3011/rules@main"
 _GUARD_DISTRIBUTION_ARTIFACT="dist/openclash-guard.sh"
 _GUARD_DISTRIBUTION_MANIFEST="dist/manifest.json"
 _GUARD_DISTRIBUTION_CHECKSUM="dist/openclash-guard.sha256"
+_GUARD_DISTRIBUTION_POLICY="cfg/runtime/openclash-guard.json"
+_GUARD_DISTRIBUTION_TEMPLATES="cfg/runtime/openclash-guard-templates.json"
 # END GENERATED DISTRIBUTION CATALOG
 
 _guard_distribution_base() {
@@ -31,7 +33,11 @@ _guard_distribution_url() {
 }
 
 _guard_distribution_policy_url() {
-    _guard_distribution_url "${1:-}" "cfg/runtime/openclash-guard.json" "${2:-}"
+    _guard_distribution_url "${1:-}" "$_GUARD_DISTRIBUTION_POLICY" "${2:-}"
+}
+
+_guard_distribution_templates_url() {
+    _guard_distribution_url "${1:-}" "$_GUARD_DISTRIBUTION_TEMPLATES" "${2:-}"
 }
 
 guard_distribution_validate_bundle() {

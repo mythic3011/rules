@@ -31,6 +31,10 @@ _guard_install_oc_hook() {
     printf '%s/usr/lib/openclash-guard/on-openclash-restart\n' "$(_guard_install_root)"
 }
 
+_guard_install_observations() {
+    printf '%s/environment.json\n' "$(_guard_install_etc)"
+}
+
 _guard_install_write() {
     _guard_iw_dest=$1
     _guard_iw_mode=${2:-0644}
@@ -132,15 +136,18 @@ ${_guard_ih_body}"
 
 _guard_install_policy_files() {
     _guard_ip_etc=$(_guard_install_etc)
-    _guard_ip_pol=${GUARD_POLICY_FILE:-}
-    _guard_ip_tpl=${GUARD_TEMPLATES_SOURCE:-}
+    _guard_ip_pol=${_GUARD_PREFLIGHT_POLICY_FILE:-}
+    _guard_ip_tpl=${_GUARD_PREFLIGHT_TEMPLATES_FILE:-${GUARD_TEMPLATES_SOURCE:-}}
     if [ -z "$_guard_ip_pol" ] && [ -n "${GUARD_POLICY_FILE:-}" ] && [ -f "${GUARD_POLICY_FILE}" ]; then
         _guard_ip_pol=$GUARD_POLICY_FILE
     fi
     if [ -n "$_guard_ip_pol" ] && [ -f "$_guard_ip_pol" ]; then
-        _guard_install_copy "$_guard_ip_pol" "${_guard_ip_etc}/openclash-guard.json" 0644 || return $?
+        # GUARD_POLICY_FILE may identify a staged source. Installation always
+        # publishes the validated runtime into the installer-owned directory.
+        _guard_ip_dest=$(_guard_install_etc)/openclash-guard.json
+        _guard_install_copy "$_guard_ip_pol" "$_guard_ip_dest" 0644 || return $?
         if [ "${GUARD_DRY_RUN:-0}" != 1 ]; then
-            GUARD_POLICY_FILE=${_guard_ip_etc}/openclash-guard.json
+            GUARD_POLICY_FILE=$_guard_ip_dest
         fi
     fi
     if [ -z "$_guard_ip_tpl" ] && [ -n "$_guard_ip_pol" ]; then
@@ -153,11 +160,28 @@ _guard_install_policy_files() {
         _guard_ip_tpl=$GUARD_TEMPLATES_FILE
     fi
     if [ -n "$_guard_ip_tpl" ] && [ -f "$_guard_ip_tpl" ]; then
-        _guard_install_copy "$_guard_ip_tpl" "${_guard_ip_etc}/openclash-guard-templates.json" 0644 || return $?
+        _guard_ip_tpl_dest="$(_guard_install_etc)/openclash-guard-templates.json"
+        _guard_install_copy "$_guard_ip_tpl" "$_guard_ip_tpl_dest" 0644 || return $?
         if [ "${GUARD_DRY_RUN:-0}" != 1 ]; then
-            GUARD_TEMPLATES_FILE=${_guard_ip_etc}/openclash-guard-templates.json
+            GUARD_TEMPLATES_FILE=$_guard_ip_tpl_dest
         fi
     fi
+}
+
+_guard_install_apply_preflight_templates() {
+    _guard_iat_catalog=${_GUARD_PREFLIGHT_TEMPLATES_FILE:-}
+    [ -f "$_guard_iat_catalog" ] || return 0
+    for _guard_iat_id in ${_GUARD_PREFLIGHT_TEMPLATE_IDS:-}
+    do
+        [ -n "$_guard_iat_id" ] || continue
+        for _guard_iat_key in $_GUARD_TEMPLATE_APPLY_KEYS
+        do
+            if json_has "$_guard_iat_catalog" "templates.${_guard_iat_id}.apply.${_guard_iat_key}"; then
+                _guard_iat_val=$(json_get "$_guard_iat_catalog" "templates.${_guard_iat_id}.apply.${_guard_iat_key}") || return 1
+                _guard_template_apply_key "$_guard_iat_key" "$_guard_iat_val" || return $?
+            fi
+        done
+    done
 }
 
 _guard_install_write_uci() {
@@ -200,6 +224,95 @@ _guard_install_write_uci() {
         return 0
     fi
     uci_commit_if_changed openclash_guard || return $?
+}
+
+_guard_install_write_observations() {
+    _guard_iwo_dest=$(_guard_install_observations)
+    if [ "${GUARD_DRY_RUN:-0}" = 1 ]; then
+        printf 'would write %s\n' "$_guard_iwo_dest"
+        return 0
+    fi
+    mkdir -p "$(dirname "$_guard_iwo_dest")"
+    _guard_iwo_tmp=$(file_mktemp "$(dirname "$_guard_iwo_dest")") || return 1
+    {
+        printf '{"schemaVersion":1,'
+        printf '"detectedAt":"%s",' "$(_guard_env_json_string "$(date -u +%Y-%m-%dT%H:%M:%SZ)")"
+        printf '"dns":{"backend":"%s","domainSetBackend":"%s"},' \
+            "$(_guard_env_json_string "$_GUARD_DNS_BACKEND")" \
+            "$(_guard_env_json_string "$_GUARD_DNS_DOMAIN_SET")"
+        printf '"direct":{"region":"%s","reason":"%s"},' \
+            "$(_guard_env_json_string "$_GUARD_NET_DIRECT_REGION")" \
+            "$(_guard_env_json_string "${_GUARD_PREFLIGHT_DIRECT_REASON:-}")"
+        printf '"proxy":{"region":"%s","healthy":%s,"route":"%s","reason":"%s"},' \
+            "$(_guard_env_json_string "$_GUARD_PROXY_REGION")" \
+            "$(_guard_env_json_bool "$_GUARD_PROXY_HEALTHY")" \
+            "$(_guard_env_json_string "${_GUARD_GEO_ROUTE:-}")" \
+            "$(_guard_env_json_string "${_GUARD_PREFLIGHT_PROXY_REASON:-}")"
+        printf '"templates":['
+        _guard_iwo_first=1
+        for _guard_iwo_id in ${_GUARD_PREFLIGHT_TEMPLATE_IDS:-}
+        do
+            [ -n "$_guard_iwo_id" ] || continue
+            [ "$_guard_iwo_first" = 1 ] || printf ','
+            _guard_iwo_first=0
+            printf '"%s"' "$(_guard_env_json_string "$_guard_iwo_id")"
+        done
+        printf ']}\n'
+    } > "$_guard_iwo_tmp"
+    json_load "$_guard_iwo_tmp" || {
+        rm -f "$_guard_iwo_tmp"
+        return 1
+    }
+    file_atomic_replace "$_guard_iwo_dest" "$_guard_iwo_tmp"
+    _guard_iwo_rc=$?
+    rm -f "$_guard_iwo_tmp"
+    return "$_guard_iwo_rc"
+}
+
+_GUARD_SETUP_INVALID_REASON=
+
+guard_install_validate() {
+    _GUARD_SETUP_INVALID_REASON=
+    _guard_iv_bin=$(_guard_install_bin)
+    _guard_iv_policy=$(_guard_policy_default_path)
+    _guard_iv_templates=$(dirname "$_guard_iv_policy")/openclash-guard-templates.json
+    _guard_iv_observations=$(_guard_install_observations)
+    _guard_iv_state=$(_guard_distribution_state_path)
+    if [ ! -x "$_guard_iv_bin" ] || ! guard_distribution_validate_bundle "$_guard_iv_bin" >/dev/null 2>&1; then
+        _GUARD_SETUP_INVALID_REASON="verified Guard runtime bundle is missing"
+        return 1
+    fi
+    if ! guard_policy_validate_file "$_guard_iv_policy" >/dev/null 2>&1; then
+        _GUARD_SETUP_INVALID_REASON="runtime policy is missing or invalid"
+        return 1
+    fi
+    if ! guard_template_validate_file "$_guard_iv_templates" >/dev/null 2>&1; then
+        _GUARD_SETUP_INVALID_REASON="template catalog is missing or invalid"
+        return 1
+    fi
+    if ! json_load "$_guard_iv_observations" >/dev/null 2>&1 || \
+       [ "$(json_get "$_guard_iv_observations" schemaVersion 2>/dev/null || printf 0)" != 1 ]; then
+        _GUARD_SETUP_INVALID_REASON="validated environment observations are missing"
+        return 1
+    fi
+    if [ ! -f "$_guard_iv_state" ] || [ -z "$(_guard_distribution_selected 2>/dev/null || true)" ]; then
+        _GUARD_SETUP_INVALID_REASON="distribution source metadata is missing"
+        return 1
+    fi
+    for _guard_iv_hook in "$(_guard_install_init)" "$(_guard_install_hotplug)" "$(_guard_install_fw4)" "$(_guard_install_oc_hook)"
+    do
+        if [ ! -x "$_guard_iv_hook" ]; then
+            _GUARD_SETUP_INVALID_REASON="required runtime hook is missing: $_guard_iv_hook"
+            return 1
+        fi
+    done
+    if ! command -v uci >/dev/null 2>&1 || \
+       [ "$(uci_get_default openclash_guard.main.enabled 0 2>/dev/null || printf 0)" != 1 ] || \
+       [ "$(uci_get_default openclash_guard.main.dns_ownership "" 2>/dev/null || true)" != preserve ] || \
+       [ "$(uci_get_default openclash_guard.udp.protect_udp_443 0 2>/dev/null || printf 0)" != 1 ]; then
+        _GUARD_SETUP_INVALID_REASON="required Guard UCI configuration is incomplete"
+        return 1
+    fi
 }
 
 _guard_install_print_env() {
@@ -312,6 +425,7 @@ guard_cmd_install() {
             return 2
             ;;
     esac
+    guard_preflight_require_stage || return $?
     _guard_in_ks_eff=${_guard_in_ks:-1}
     _guard_in_dns_eff=${_guard_in_dns:-0}
     _guard_in_game_eff=${_guard_in_game:-1}
@@ -353,33 +467,24 @@ guard_cmd_install() {
         fi
     fi
     if [ "${GUARD_DRY_RUN:-0}" != 1 ]; then
-        if ! cli_confirm "Apply?"; then
+        if ! cli_confirm "Provision the complete OpenClash Guard runtime?"; then
             cli_error "refusing to install without confirmation (pass --yes)"
             return 1
         fi
     fi
-    _guard_install_write_uci "$_guard_in_mode" "$_guard_in_ks_eff" "$_guard_in_dns_eff" "$_guard_in_game_eff" "$_guard_in_url" "$_guard_in_clients" || return $?
     _guard_install_self || return $?
     _guard_install_policy_files || return $?
     _guard_install_hooks || return $?
-    if [ -n "$_guard_in_url" ]; then
-        GUARD_POLICY_URL=$_guard_in_url
-    fi
-    if [ "$_guard_in_norefresh" != 1 ] && [ -n "${GUARD_POLICY_URL:-}" ] && [ "${GUARD_DRY_RUN:-0}" != 1 ]; then
-        if ! guard_cmd_refresh; then
-            cli_warn "policy refresh failed; keeping last-known-good"
-        else
-            cli_info "installed and reconciled"
-            return 0
-        fi
-    fi
+    _guard_install_write_uci "$_guard_in_mode" "$_guard_in_ks_eff" "$_guard_in_dns_eff" "$_guard_in_game_eff" "$_guard_in_url" "$_guard_in_clients" || return $?
+    _guard_install_write_observations || return $?
     if [ "${GUARD_DRY_RUN:-0}" = 1 ]; then
         cli_info "dry-run: install not written"
         return 0
     fi
-    if [ ! -f "$(_guard_policy_default_path)" ]; then
-        cli_warn "installed integration; no policy is present yet"
-        return 0
+    _guard_distribution_record "$_GUARD_PREFLIGHT_SOURCE" "$_GUARD_PREFLIGHT_POLICY_URL" "$_GUARD_PREFLIGHT_TEMPLATES_URL" || return $?
+    if ! guard_install_validate; then
+        cli_error "Setup validation failed: $_GUARD_SETUP_INVALID_REASON"
+        return 1
     fi
-    guard_cmd_reconcile
+    cli_success "setup complete; runtime is valid and not yet applied"
 }

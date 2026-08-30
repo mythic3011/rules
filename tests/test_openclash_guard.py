@@ -829,7 +829,7 @@ class GuardAppTests(unittest.TestCase):
         result = self.run_guard_tty("0\n")
         self.assertEqual(result.returncode, 0, result.stdout)
         self.assertIn("OpenClash Guard", result.stdout)
-        self.assertIn("Setup / initialize", result.stdout)
+        self.assertIn("Setup", result.stdout)
         self.assertIn("Select an action", result.stdout)
 
     def test_piped_script_reads_menu_input_from_controlling_tty(self) -> None:
@@ -850,7 +850,7 @@ class GuardAppTests(unittest.TestCase):
         }
         self.fetch_map.write_text(json.dumps(mapping) + "\n", encoding="utf-8")
         result = self.run_guard_tty(
-            "1\ny\n0\n",
+            "1\ny\nn\n0\n",
             extra={
                 "GUARD_PREFIX": str(prefix),
                 "GUARD_POLICY_FILE": str(destination),
@@ -870,7 +870,7 @@ class GuardAppTests(unittest.TestCase):
         self._write_uci(self._default_uci())
         extra = {"GUARD_OPENCLASH_HEALTHY": "1", "GUARD_PROXY_HEALTHY": "1"}
         cli = self.run_guard("status", extra=extra)
-        menu = self.run_guard_tty("4\n0\n", extra=extra)
+        menu = self.run_guard_tty("3\n0\n", extra=extra)
         self.assertEqual(cli.returncode, 0, cli.stderr + cli.stdout)
         self.assertEqual(menu.returncode, 0, menu.stdout)
         for line in cli.stdout.splitlines():
@@ -887,8 +887,12 @@ class GuardAppTests(unittest.TestCase):
         destination = policy_dir / "openclash-guard.json"
         destination.write_text(POLICY.read_text(encoding="utf-8"), encoding="utf-8")
         raw_url = self.distribution_url("github-raw", self.artifact_path("runtime-policy"))
+        templates_url = self.distribution_url("github-raw", "cfg/runtime/openclash-guard-templates.json")
         self.fetch_map.write_text(
-            json.dumps({raw_url: {"body": POLICY.read_text(encoding="utf-8")}}) + "\n",
+            json.dumps({
+                raw_url: {"body": POLICY.read_text(encoding="utf-8")},
+                templates_url: {"body": (ROOT / "cfg/runtime/openclash-guard-templates.json").read_text(encoding="utf-8")},
+            }) + "\n",
             encoding="utf-8",
         )
         result = self.run_guard_tty(
@@ -906,12 +910,16 @@ class GuardAppTests(unittest.TestCase):
         destination = prefix / "etc/openclash-guard/openclash-guard.json"
         source_state = prefix / "etc/openclash-guard/distribution-state"
         raw_url = self.distribution_url("github-raw", self.artifact_path("runtime-policy"))
+        templates_url = self.distribution_url("github-raw", "cfg/runtime/openclash-guard-templates.json")
         self.fetch_map.write_text(
-            json.dumps({raw_url: {"body": POLICY.read_text(encoding="utf-8")}}) + "\n",
+            json.dumps({
+                raw_url: {"body": POLICY.read_text(encoding="utf-8")},
+                templates_url: {"body": (ROOT / "cfg/runtime/openclash-guard-templates.json").read_text(encoding="utf-8")},
+            }) + "\n",
             encoding="utf-8",
         )
         result = self.run_guard_tty(
-            "1\ny\n0\n",
+            "1\ny\nn\n0\n",
             extra={
                 "GUARD_PREFIX": str(prefix),
                 "GUARD_POLICY_FILE": str(destination),
@@ -931,14 +939,14 @@ class GuardAppTests(unittest.TestCase):
         applied = self.run_guard("reconcile", extra={"GUARD_OPENCLASH_HEALTHY": "1"})
         self.assertEqual(applied.returncode, 0, applied.stderr + applied.stdout)
         before = self.load_nft_state()["tables"]
-        result = self.run_guard_tty("8\nn\n0\n")
+        result = self.run_guard_tty("5\nn\n0\n")
         self.assertEqual(result.returncode, 0, result.stdout)
         self.assertEqual(self.load_nft_state()["tables"], before)
         self.assertIn("aborted", result.stdout)
 
     def test_menu_is_only_a_command_dispatch_frontend(self) -> None:
         menu_source = (APP_DIR / "menu.sh").read_text(encoding="utf-8")
-        for operation in ("install", "refresh", "reconcile", "status", "doctor", "template", "geo", "remove"):
+        for operation in ("install", "refresh", "reconcile", "status", "doctor", "remove"):
             self.assertIn(operation, menu_source)
         self.assertNotIn("guard_cmd_", menu_source)
         self.assertIn('_guard_dispatch "$@"', menu_source)
@@ -1088,7 +1096,14 @@ class GuardAppTests(unittest.TestCase):
         policy_dir.mkdir()
         destination = policy_dir / "openclash-guard.json"
         raw_url = self.distribution_url("github-raw", self.artifact_path("runtime-policy"))
-        self.fetch_map.write_text(json.dumps({raw_url: {"body": POLICY.read_text(encoding="utf-8")}}) + "\n", encoding="utf-8")
+        templates_url = self.distribution_url("github-raw", "cfg/runtime/openclash-guard-templates.json")
+        self.fetch_map.write_text(
+            json.dumps({
+                raw_url: {"body": POLICY.read_text(encoding="utf-8")},
+                templates_url: {"body": (ROOT / "cfg/runtime/openclash-guard-templates.json").read_text(encoding="utf-8")},
+            }) + "\n",
+            encoding="utf-8",
+        )
         result = self.run_guard(
             "refresh",
             "--source",
@@ -1097,7 +1112,7 @@ class GuardAppTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         self.assertTrue(destination.is_file())
-        self.assertTrue(self.guard_table())
+        self.assertIsNone(self.guard_table())
 
     def test_status_and_doctor_json_emit_normalized_env(self) -> None:
         self._install_service("adguardhome", enabled=True, running=True)
@@ -1125,8 +1140,14 @@ class GuardAppTests(unittest.TestCase):
                     "domainSetBackend",
                 },
             )
-            self.assertEqual(set(payload["network"]), {"ipv6", "directRegion"})
-            self.assertEqual(set(payload["proxy"]), {"healthy", "region"})
+            self.assertEqual(
+                set(payload["network"]),
+                {"ipv6", "directRegion", "directRegionReason"},
+            )
+            self.assertEqual(
+                set(payload["proxy"]),
+                {"healthy", "region", "regionReason", "route"},
+            )
             self.assertEqual(payload["gaming"]["clients"]["count"], 1)
             self.assertTrue(payload["nft"]["available"])
             self.assertTrue(payload["openclash"]["installed"])

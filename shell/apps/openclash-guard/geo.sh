@@ -4,6 +4,11 @@
 # Never mutates nft. Malformed responses are skipped.
 set -eu
 
+_GUARD_GEO_PROXY_URL=
+_GUARD_GEO_PROXY_AUTH=
+_GUARD_GEO_ROUTE=
+_GUARD_GEO_ROUTE_REASON=
+
 _guard_geo_json_string() {
     printf '%s' "$1" | awk '
         BEGIN { ORS = "" }
@@ -48,11 +53,70 @@ _guard_geo_cache_path() {
 }
 
 _guard_geo_policy_file() {
+    if [ -n "${_GUARD_PREFLIGHT_POLICY_FILE:-}" ] && [ -f "$_GUARD_PREFLIGHT_POLICY_FILE" ]; then
+        printf '%s\n' "$_GUARD_PREFLIGHT_POLICY_FILE"
+        return 0
+    fi
     if [ -n "${_GUARD_POLICY_FILE:-}" ] && [ -f "$_GUARD_POLICY_FILE" ]; then
         printf '%s\n' "$_GUARD_POLICY_FILE"
         return 0
     fi
     _guard_policy_default_path
+}
+
+_guard_geo_valid_port() {
+    _guard_geo_vp=${1:-}
+    _guard_geo_is_int "$_guard_geo_vp" || return 1
+    [ "$_guard_geo_vp" -ge 1 ] && [ "$_guard_geo_vp" -le 65535 ]
+}
+
+guard_geo_discover_proxy_route() {
+    _GUARD_GEO_PROXY_URL=
+    _GUARD_GEO_PROXY_AUTH=
+    _GUARD_GEO_ROUTE=
+    _GUARD_GEO_ROUTE_REASON=
+    if [ -n "${GUARD_OPENCLASH_PROXY_URL:-}" ]; then
+        case $GUARD_OPENCLASH_PROXY_URL in
+            http://*|https://*|socks5://*|socks5h://*)
+                _GUARD_GEO_PROXY_URL=$GUARD_OPENCLASH_PROXY_URL
+                _GUARD_GEO_ROUTE=${GUARD_GEO_ROUTE:-openclash-override}
+                _GUARD_GEO_PROXY_AUTH=${GUARD_OPENCLASH_PROXY_AUTH:-}
+                return 0
+                ;;
+            *)
+                _GUARD_GEO_ROUTE_REASON="GUARD_OPENCLASH_PROXY_URL is not a supported proxy URL"
+                return 1
+                ;;
+        esac
+    fi
+    if ! command -v uci >/dev/null 2>&1; then
+        _GUARD_GEO_ROUTE_REASON="OpenClash proxy listener cannot be discovered because uci is unavailable"
+        return 1
+    fi
+    _guard_geo_port=$(uci_get_default openclash.config.mixed_port "" 2>/dev/null) || _guard_geo_port=
+    _guard_geo_kind=mixed
+    if ! _guard_geo_valid_port "$_guard_geo_port"; then
+        _guard_geo_port=$(uci_get_default openclash.config.http_port "" 2>/dev/null) || _guard_geo_port=
+        _guard_geo_kind=http
+    fi
+    if ! _guard_geo_valid_port "$_guard_geo_port"; then
+        _GUARD_GEO_ROUTE_REASON="OpenClash has no valid mixed_port or http_port in UCI"
+        return 1
+    fi
+    _GUARD_GEO_PROXY_URL="http://127.0.0.1:${_guard_geo_port}"
+    _GUARD_GEO_ROUTE="openclash-${_guard_geo_kind}-${_guard_geo_port}"
+    _guard_geo_auth_enabled=$(uci_get_default 'openclash.@authentication[0].enabled' 0 2>/dev/null) || _guard_geo_auth_enabled=0
+    if [ "$_guard_geo_auth_enabled" = 1 ]; then
+        _guard_geo_auth_user=$(uci_get_default 'openclash.@authentication[0].username' "" 2>/dev/null) || _guard_geo_auth_user=
+        _guard_geo_auth_pass=$(uci_get_default 'openclash.@authentication[0].password' "" 2>/dev/null) || _guard_geo_auth_pass=
+        if [ -z "$_guard_geo_auth_user" ] || [ -z "$_guard_geo_auth_pass" ]; then
+            _GUARD_GEO_ROUTE_REASON="OpenClash proxy authentication is enabled but credentials are incomplete"
+            _GUARD_GEO_PROXY_URL=
+            _GUARD_GEO_ROUTE=
+            return 1
+        fi
+        _GUARD_GEO_PROXY_AUTH="${_guard_geo_auth_user}:${_guard_geo_auth_pass}"
+    fi
 }
 
 _guard_geo_now() {
@@ -203,7 +267,21 @@ guard_geo_lookup() {
             _guard_geo_to=3
         fi
         _guard_geo_tmp=$(file_mktemp) || return 1
-        if ! fetch_http "$_guard_geo_url" "$_guard_geo_tmp" "$_guard_geo_to"; then
+        _guard_geo_fetch_rc=0
+        case $_guard_geo_kind in
+            direct)
+                fetch_http_direct "$_guard_geo_url" "$_guard_geo_tmp" "$_guard_geo_to" || _guard_geo_fetch_rc=$?
+                ;;
+            route)
+                if [ -z "${_GUARD_GEO_PROXY_URL:-}" ]; then
+                    printf '%s\n' "guard_geo: proxy route is not available" >&2
+                    rm -f "$_guard_geo_tmp"
+                    return 1
+                fi
+                fetch_http_proxy "$_guard_geo_url" "$_guard_geo_tmp" "$_GUARD_GEO_PROXY_URL" "$_guard_geo_to" "${_GUARD_GEO_PROXY_AUTH:-}" || _guard_geo_fetch_rc=$?
+                ;;
+        esac
+        if [ "$_guard_geo_fetch_rc" -ne 0 ]; then
             rm -f "$_guard_geo_tmp"
             continue
         fi

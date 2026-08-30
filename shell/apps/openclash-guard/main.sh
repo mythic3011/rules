@@ -27,7 +27,13 @@ _guard_lock_release() {
 }
 
 _guard_distribution_state_path() {
-    printf '%s\n' "${GUARD_DISTRIBUTION_STATE_FILE:-/etc/openclash-guard/distribution-state}"
+    if [ -n "${GUARD_DISTRIBUTION_STATE_FILE:-}" ]; then
+        printf '%s\n' "$GUARD_DISTRIBUTION_STATE_FILE"
+    elif [ -n "${GUARD_POLICY_FILE:-}" ]; then
+        printf '%s/distribution-state\n' "$(dirname "$GUARD_POLICY_FILE")"
+    else
+        printf '%s/etc/openclash-guard/distribution-state\n' "${GUARD_PREFIX:-}"
+    fi
 }
 
 _guard_distribution_selected() {
@@ -40,13 +46,27 @@ _guard_distribution_record() {
     [ "${GUARD_DRY_RUN:-0}" = 1 ] && return 0
     _guard_dr_file=$(_guard_distribution_state_path)
     mkdir -p "$(dirname "$_guard_dr_file")"
-    printf 'selectedSource=%s\nlastRefresh=%s\n' "$1" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$_guard_dr_file"
+    _guard_dr_tmp=$(file_mktemp "$(dirname "$_guard_dr_file")") || return 1
+    printf 'selectedSource=%s\npolicyURL=%s\ntemplatesURL=%s\nlastRefresh=%s\n' \
+        "$1" "${2:-}" "${3:-}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$_guard_dr_tmp"
+    file_atomic_replace "$_guard_dr_file" "$_guard_dr_tmp"
+    _guard_dr_rc=$?
+    rm -f "$_guard_dr_tmp"
+    return "$_guard_dr_rc"
 }
 
 _guard_prepare() {
+    _guard_pp_direct=${_GUARD_NET_DIRECT_REGION:-}
+    _guard_pp_proxy=${_GUARD_PROXY_REGION:-}
+    _guard_pp_proxy_healthy=${_GUARD_PROXY_HEALTHY:-0}
     guard_kill_read_uci
     guard_game_read_uci
     guard_env_detect
+    if [ "${_GUARD_PREFLIGHT_COMPLETE:-0}" = 1 ]; then
+        _GUARD_NET_DIRECT_REGION=$_guard_pp_direct
+        _GUARD_PROXY_REGION=$_guard_pp_proxy
+        _GUARD_PROXY_HEALTHY=$_guard_pp_proxy_healthy
+    fi
     guard_policy_load "$(_guard_policy_default_path)" || return $?
     if [ -z "$_GUARD_NET_DIRECT_REGION" ]; then
         guard_geo_detect_direct >/dev/null 2>&1 || true
@@ -59,6 +79,37 @@ _guard_prepare() {
     guard_policy_refresh_state
 }
 
+_guard_prepare_readonly() {
+    if [ "${_GUARD_PREFLIGHT_COMPLETE:-0}" != 1 ]; then
+        guard_preflight_run
+    fi
+    _guard_pr_policy=$(_guard_policy_default_path)
+    if [ ! -f "$_guard_pr_policy" ] && [ -f "${_GUARD_PREFLIGHT_POLICY_FILE:-}" ]; then
+        _guard_pr_policy=$_GUARD_PREFLIGHT_POLICY_FILE
+    fi
+    if guard_policy_load "$_guard_pr_policy" >/dev/null 2>&1; then
+        guard_policy_refresh_state
+        return 0
+    fi
+    _GUARD_POLICY_STATE=uninitialized
+    _GUARD_POLICY_ENFORCEMENT=unavailable
+    return 1
+}
+
+_guard_require_setup_for_apply() {
+    if guard_install_validate >/dev/null 2>&1; then
+        return 0
+    fi
+    if [ -n "${GUARD_POLICY_FILE:-}" ] && \
+       guard_policy_validate_file "$GUARD_POLICY_FILE" >/dev/null 2>&1 && \
+       command -v uci >/dev/null 2>&1 && \
+       [ "$(uci_get_default openclash_guard.main.enabled 0 2>/dev/null || printf 0)" = 1 ]; then
+        return 0
+    fi
+    cli_error "Apply is blocked until Setup validates: ${_GUARD_SETUP_INVALID_REASON:-runtime is incomplete}"
+    return 1
+}
+
 _guard_write_batch() {
     _guard_wb=$1
     : > "$_guard_wb"
@@ -69,6 +120,10 @@ _guard_write_batch() {
 }
 
 guard_cmd_reconcile() {
+    if [ "${_GUARD_PREFLIGHT_COMPLETE:-0}" != 1 ]; then
+        guard_preflight_run
+    fi
+    _guard_require_setup_for_apply || return $?
     _guard_prepare || return $?
     if [ "$_GUARD_NFT_AVAILABLE" != 1 ]; then
         cli_error "nft is required"
@@ -117,60 +172,66 @@ guard_cmd_remove() {
 guard_cmd_refresh() {
     _guard_refresh_source=${GUARD_DISTRIBUTION_SOURCE:-auto}
     _guard_refresh_base=${GUARD_POLICY_BASE_URL:-}
+    _guard_refresh_url=
+    _guard_refresh_templates_url=
     while [ "$#" -gt 0 ]; do
         case $1 in
             --source) _guard_refresh_source=$2; shift 2 ;;
             --base-url) _guard_refresh_base=$2; shift 2 ;;
             --policy-url) _guard_refresh_url=$2; shift 2 ;;
+            --templates-url) _guard_refresh_templates_url=$2; shift 2 ;;
             *) cli_error "unknown refresh option: $1"; return 2 ;;
         esac
     done
-    _guard_url=${_guard_refresh_url:-${GUARD_POLICY_URL:-}}
-    if [ -z "$_guard_url" ] && command -v uci >/dev/null 2>&1; then
-        _guard_url=$(uci_get_default openclash_guard.main.policy_url "" 2>/dev/null) || _guard_url=
+    if [ -n "$_guard_refresh_url" ] || [ -n "$_guard_refresh_templates_url" ]; then
+        if [ -z "$_guard_refresh_url" ] || [ -z "$_guard_refresh_templates_url" ]; then
+            cli_error "--policy-url and --templates-url must be supplied together"
+            return 2
+        fi
+        _guard_refresh_policy=$(file_mktemp) || return 1
+        _guard_refresh_templates=$(file_mktemp) || {
+            rm -f "$_guard_refresh_policy"
+            return 1
+        }
+        if ! fetch_http "$_guard_refresh_url" "$_guard_refresh_policy" || \
+           ! guard_policy_validate_file "$_guard_refresh_policy" || \
+           ! fetch_http "$_guard_refresh_templates_url" "$_guard_refresh_templates" || \
+           ! guard_template_validate_file "$_guard_refresh_templates"; then
+            rm -f "$_guard_refresh_policy" "$_guard_refresh_templates"
+            cli_error "refresh failed; keeping the installed runtime pair"
+            return 1
+        fi
+        _GUARD_PREFLIGHT_POLICY_FILE=$_guard_refresh_policy
+        _GUARD_PREFLIGHT_TEMPLATES_FILE=$_guard_refresh_templates
+        _GUARD_PREFLIGHT_POLICY_TEMP=1
+        _GUARD_PREFLIGHT_TEMPLATES_TEMP=1
+        _GUARD_PREFLIGHT_SOURCE=override
+        _GUARD_PREFLIGHT_POLICY_URL=$_guard_refresh_url
+        _GUARD_PREFLIGHT_TEMPLATES_URL=$_guard_refresh_templates_url
+    elif ! guard_preflight_stage_distribution "$_guard_refresh_source" "$_guard_refresh_base"; then
+        cli_error "refresh failed; keeping the installed runtime pair: $_GUARD_PREFLIGHT_SOURCE_REASON"
+        return 1
     fi
-    if [ -z "$_guard_url" ] && [ -n "$_guard_refresh_base" ]; then _guard_url=${_guard_refresh_base%/}/cfg/runtime/openclash-guard.json; fi
     _guard_dest=$(_guard_policy_default_path)
     _guard_dir=$(dirname "$_guard_dest")
     if [ ! -d "$_guard_dir" ]; then
         cli_error "policy directory missing: $_guard_dir"
         return 1
     fi
-    if [ -n "$_guard_url" ]; then
-        _guard_refresh_sources=override
-    else
-        _guard_refresh_sources="$_guard_refresh_source"
-    fi
-    if [ -z "$_guard_url" ] && [ "$_guard_refresh_source" = auto ]; then
-        _guard_refresh_sources="github-raw jsdelivr"
-    fi
-    _guard_refresh_ok=0
-    _guard_refresh_seen=
-    for _guard_refresh_item in $_guard_refresh_sources; do
-        case " $_guard_refresh_seen " in
-            *" $_guard_refresh_item "*) continue ;;
-        esac
-        _guard_refresh_seen="$_guard_refresh_seen $_guard_refresh_item"
-        if [ -z "$_guard_url" ]; then
-            _guard_url=$(_guard_distribution_policy_url "$_guard_refresh_item" "$_guard_refresh_base") || {
-                cli_error "unsupported distribution source: $_guard_refresh_item"
-                return 2
-            }
-        fi
-        _guard_candidate=$(fetch_to_temp "$_guard_url") || { _guard_url=; continue; }
-        if guard_policy_validate_file "$_guard_candidate" && GUARD_POLICY_FILE="$_guard_candidate" guard_cmd_reconcile; then
-            file_atomic_replace "$_guard_dest" "$_guard_candidate" || return $?
-            _guard_refresh_ok=1
-            _guard_distribution_record "$_guard_refresh_item"
-            break
-        fi
-        rm -f "$_guard_candidate"
-        _guard_url=
-    done
-    if [ "$_guard_refresh_ok" != 1 ]; then
-        cli_error "refresh failed; keeping last-known-good policy and firewall state"
+    _guard_templates_dest="$_guard_dir/openclash-guard-templates.json"
+    if ! file_atomic_replace "$_guard_dest" "$_GUARD_PREFLIGHT_POLICY_FILE" || \
+       ! file_atomic_replace "$_guard_templates_dest" "$_GUARD_PREFLIGHT_TEMPLATES_FILE"; then
+        cli_error "refresh failed while publishing the validated runtime pair"
         return 1
     fi
+    GUARD_POLICY_FILE=$_guard_dest
+    GUARD_TEMPLATES_FILE=$_guard_templates_dest
+    if ! guard_policy_validate_file "$_guard_dest" || ! guard_template_validate_file "$_guard_templates_dest"; then
+        cli_error "published runtime pair failed post-write validation"
+        return 1
+    fi
+    _guard_distribution_record "$_GUARD_PREFLIGHT_SOURCE" "$_GUARD_PREFLIGHT_POLICY_URL" "$_GUARD_PREFLIGHT_TEMPLATES_URL" || return $?
+    cli_success "runtime policy and template catalog refreshed; Apply remains pending"
 }
 
 _guard_emit_status_json() {
@@ -210,7 +271,7 @@ guard_doctor_json_extra() {
 }
 
 guard_cmd_status() {
-    _guard_prepare || true
+    _guard_prepare_readonly || true
     if [ "$_GUARD_JSON" = 1 ]; then
         _guard_emit_status_json
         return 0
@@ -223,7 +284,14 @@ guard_cmd_status() {
     cli_kv dns.backend "$(guard_env_get dns.backend)"
     cli_kv dns.domainSetBackend "$(guard_env_get dns.domainSetBackend)"
     cli_kv network.directRegion "$(guard_env_get network.directRegion)"
+    if [ -z "$_GUARD_NET_DIRECT_REGION" ]; then
+        cli_kv network.directRegionReason "$(guard_env_get network.directRegionReason)"
+    fi
     cli_kv proxy.region "$(guard_env_get proxy.region)"
+    if [ -z "$_GUARD_PROXY_REGION" ]; then
+        cli_kv proxy.regionReason "$(guard_env_get proxy.regionReason)"
+    fi
+    cli_kv proxy.route "$(guard_env_get proxy.route)"
     cli_kv proxy.healthy "$(guard_env_get proxy.healthy)"
     cli_kv gaming.clients.count "$(guard_env_get gaming.clients.count)"
     cli_kv nft.available "$(guard_env_get nft.available)"
@@ -313,7 +381,7 @@ guard_cmd_geo() {
     fi
     case $_guard_geo_sub in
         direct)
-            _guard_prepare || true
+            _guard_prepare_readonly || true
             guard_geo_detect_direct
             ;;
         route)
@@ -321,7 +389,13 @@ guard_cmd_geo() {
                 cli_error "usage: openclash-guard geo route <id>"
                 return 2
             fi
-            _guard_prepare || true
+            _guard_prepare_readonly || true
+            if [ -z "${_GUARD_GEO_PROXY_URL:-}" ]; then
+                guard_geo_discover_proxy_route || {
+                    cli_error "${_GUARD_GEO_ROUTE_REASON:-OpenClash proxy route is unavailable}"
+                    return 1
+                }
+            fi
             guard_geo_detect_route "$1"
             ;;
         *)

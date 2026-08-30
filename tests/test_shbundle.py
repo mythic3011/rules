@@ -69,6 +69,7 @@ def write_repo(
     manifest: dict[str, Any] = {
         "schemaVersion": 1,
         "generatedRoot": generated_root,
+        "contract": shbundle.load_json(shbundle.default_manifest_path())["contract"],
         "modules": modules,
         "apps": apps,
     }
@@ -122,6 +123,9 @@ class ShbundleTests(unittest.TestCase):
             base = Path(raw)
             shutil.copytree(FIXTURE_SIMPLE, base, dirs_exist_ok=True)
             manifest = base / "shell" / "manifest.json"
+            data = shbundle.load_json(manifest)
+            data["contract"] = shbundle.load_json(shbundle.default_manifest_path())["contract"]
+            manifest.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
             code, stdout, stderr = run_main(
                 ["build", "demo", "--manifest", str(manifest)]
             )
@@ -131,6 +135,26 @@ class ShbundleTests(unittest.TestCase):
             self.assertIn("util_id()", output)
             self.assertIn("# BEGIN MODULE: main", output)
             self.assertTrue(stdout.startswith("wrote dist/demo.sh"))
+
+    def test_manifest_contract_controls_bundle_rendering(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            base = Path(raw)
+            manifest = write_repo(
+                base,
+                modules={
+                    "main": _module("shell/apps/demo/main.sh"),
+                },
+                apps={"demo": _app("shell/apps/demo/main.sh", "dist/demo.sh")},
+                files={"shell/apps/demo/main.sh": _entry()},
+            )
+            data = shbundle.load_json(manifest)
+            data["contract"]["markers"]["moduleBegin"] = "# DATA MODULE START: {name}"
+            data["contract"]["markers"]["moduleEnd"] = "# DATA MODULE END: {name}"
+            manifest.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+            loaded = shbundle.load_manifest(manifest)
+            rendered = shbundle.render_bundle(loaded, "demo")
+            self.assertIn("# DATA MODULE START: main", rendered)
+            self.assertIn("# DATA MODULE END: main", rendered)
 
     def test_transitive_deduplication(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
@@ -387,6 +411,7 @@ class ShbundleTests(unittest.TestCase):
                     {
                         "schemaVersion": 1,
                         "generatedRoot": "dist",
+                        "contract": shbundle.load_json(shbundle.default_manifest_path())["contract"],
                         "modules": {
                             "main": {
                                 "path": "shell/apps/demo/main.sh",

@@ -8,7 +8,8 @@
     {"role": "guard-bundle", "path": "dist/openclash-guard.sh"},
     {"role": "guard-manifest", "path": "dist/manifest.json"},
     {"role": "guard-checksum", "path": "dist/openclash-guard.sha256"},
-    {"role": "runtime-policy", "path": "cfg/runtime/openclash-guard.json"}
+    {"role": "runtime-policy", "path": "cfg/runtime/openclash-guard.json"},
+    {"role": "runtime-templates", "path": "cfg/runtime/openclash-guard-templates.json"}
   ],
   "channels": [
     {
