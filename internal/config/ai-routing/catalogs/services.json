@@ -7,13 +7,7 @@
       "group": "🤖 ChatGPT",
       "file": "AI_ChatGPT_Classical.yaml",
       "payload": [],
-      "regions": [
-        "sg",
-        "us",
-        "jp",
-        "tw",
-        "kr"
-      ],
+      "regions": ["sg", "us", "jp", "tw", "kr"],
       "directRelaxed": false,
       "dnsPolicies": [
         {
@@ -26,10 +20,7 @@
         "selector": {
           "mode": "fixed",
           "emitWhenLegacyReplaced": true,
-          "groupKeys": [
-            "reject",
-            "manual"
-          ],
+          "groupKeys": ["reject", "manual"],
           "comments": [
             "; ChatGPT is fail-closed.",
             "; User must explicitly select 手動選擇."
@@ -42,10 +33,7 @@
           "value": "openai"
         }
       ],
-      "projections": [
-        "mihomo",
-        "subconverter"
-      ]
+      "projections": ["mihomo", "subconverter"]
     },
     {
       "id": "copilot",
@@ -57,13 +45,7 @@
         "DOMAIN-SUFFIX,copilot.microsoft.com",
         "DOMAIN-SUFFIX,copilot.cloud.microsoft"
       ],
-      "regions": [
-        "us",
-        "sg",
-        "jp",
-        "tw",
-        "kr"
-      ],
+      "regions": ["us", "sg", "jp", "tw", "kr"],
       "directRelaxed": true,
       "dnsPolicies": [],
       "subconverter": {},
@@ -73,10 +55,7 @@
           "value": "github-copilot"
         }
       ],
-      "projections": [
-        "mihomo",
-        "subconverter"
-      ]
+      "projections": ["mihomo", "subconverter"]
     },
     {
       "id": "claude",
@@ -84,13 +63,7 @@
       "group": "🤖 Claude",
       "file": "AI_Claude_Classical.yaml",
       "payload": [],
-      "regions": [
-        "sg",
-        "us",
-        "jp",
-        "tw",
-        "kr"
-      ],
+      "regions": ["sg", "us", "jp", "tw", "kr"],
       "directRelaxed": false,
       "dnsPolicies": [
         {
@@ -111,10 +84,7 @@
           "value": "anthropic"
         }
       ],
-      "projections": [
-        "mihomo",
-        "subconverter"
-      ]
+      "projections": ["mihomo", "subconverter"]
     },
     {
       "id": "gemini",
@@ -135,23 +105,14 @@
         "DOMAIN,proactivebackend-pa.googleapis.com",
         "DOMAIN,robinfrontend-pa.googleapis.com"
       ],
-      "regions": [
-        "sg",
-        "us",
-        "jp",
-        "tw",
-        "kr"
-      ],
+      "regions": ["sg", "us", "jp", "tw", "kr"],
       "directRelaxed": false,
       "dnsPolicies": [],
       "subconverter": {
         "ruleCluster": "legacy-ai-merged"
       },
       "upstreamRules": [],
-      "projections": [
-        "mihomo",
-        "subconverter"
-      ]
+      "projections": ["mihomo", "subconverter"]
     },
     {
       "id": "notebooklm",
@@ -164,40 +125,22 @@
         "DOMAIN,notebooklm-pa.googleapis.com",
         "DOMAIN,notebooklm.googleapis.com"
       ],
-      "regions": [
-        "sg",
-        "us",
-        "jp",
-        "tw",
-        "kr"
-      ],
+      "regions": ["sg", "us", "jp", "tw", "kr"],
       "directRelaxed": true,
       "dnsPolicies": [],
       "subconverter": {
         "ruleCluster": "legacy-ai-merged"
       },
       "upstreamRules": [],
-      "projections": [
-        "mihomo",
-        "subconverter"
-      ]
+      "projections": ["mihomo", "subconverter"]
     },
     {
       "id": "jules",
       "providerKey": "AI_Jules_Classical",
       "group": "🤖 Jules",
       "file": "AI_Jules_Classical.yaml",
-      "payload": [
-        "DOMAIN,jules.google.com",
-        "DOMAIN,jules.googleapis.com"
-      ],
-      "regions": [
-        "us",
-        "sg",
-        "jp",
-        "tw",
-        "kr"
-      ],
+      "payload": ["DOMAIN,jules.google.com", "DOMAIN,jules.googleapis.com"],
+      "regions": ["us", "sg", "jp", "tw", "kr"],
       "directRelaxed": true,
       "dnsPolicies": [
         {
@@ -215,10 +158,7 @@
         "ruleCluster": "legacy-ai-merged"
       },
       "upstreamRules": [],
-      "projections": [
-        "mihomo",
-        "subconverter"
-      ]
+      "projections": ["mihomo", "subconverter"]
     },
     {
       "id": "perplexity",
@@ -226,13 +166,7 @@
       "group": "🤖 Perplexity",
       "file": "AI_Perplexity_Classical.yaml",
       "payload": [],
-      "regions": [
-        "sg",
-        "us",
-        "jp",
-        "tw",
-        "kr"
-      ],
+      "regions": ["sg", "us", "jp", "tw", "kr"],
       "directRelaxed": true,
       "dnsPolicies": [
         {
@@ -250,10 +184,7 @@
           "value": "perplexity"
         }
       ],
-      "projections": [
-        "mihomo",
-        "subconverter"
-      ]
+      "projections": ["mihomo", "subconverter"]
     },
     {
       "id": "grok",
@@ -261,13 +192,7 @@
       "group": "🤖 Grok",
       "file": "AI_Grok_Classical.yaml",
       "payload": [],
-      "regions": [
-        "us",
-        "sg",
-        "jp",
-        "tw",
-        "kr"
-      ],
+      "regions": ["us", "sg", "jp", "tw", "kr"],
       "directRelaxed": true,
       "dnsPolicies": [
         {
@@ -285,10 +210,7 @@
           "value": "xai"
         }
       ],
-      "projections": [
-        "mihomo",
-        "subconverter"
-      ]
+      "projections": ["mihomo", "subconverter"]
     },
     {
       "id": "poe",
@@ -296,13 +218,7 @@
       "group": "🤖 Poe",
       "file": "AI_Poe_Classical.yaml",
       "payload": [],
-      "regions": [
-        "sg",
-        "us",
-        "jp",
-        "tw",
-        "kr"
-      ],
+      "regions": ["sg", "us", "jp", "tw", "kr"],
       "directRelaxed": false,
       "dnsPolicies": [
         {
@@ -320,26 +236,15 @@
           "value": "poe"
         }
       ],
-      "projections": [
-        "mihomo",
-        "subconverter"
-      ]
+      "projections": ["mihomo", "subconverter"]
     },
     {
       "id": "openrouter",
       "providerKey": "AI_OpenRouter_Classical",
       "group": "🤖 OpenRouter",
       "file": "AI_OpenRouter_Classical.yaml",
-      "payload": [
-        "DOMAIN-SUFFIX,openrouter.ai"
-      ],
-      "regions": [
-        "us",
-        "sg",
-        "jp",
-        "tw",
-        "kr"
-      ],
+      "payload": ["DOMAIN-SUFFIX,openrouter.ai"],
+      "regions": ["us", "sg", "jp", "tw", "kr"],
       "directRelaxed": true,
       "dnsPolicies": [
         {
@@ -352,10 +257,7 @@
         "ruleCluster": "legacy-ai-merged"
       },
       "upstreamRules": [],
-      "projections": [
-        "mihomo",
-        "subconverter"
-      ]
+      "projections": ["mihomo", "subconverter"]
     },
     {
       "id": "cursor",
@@ -367,13 +269,7 @@
         "DOMAIN-SUFFIX,cursorapi.com",
         "DOMAIN-SUFFIX,cursorvm.com"
       ],
-      "regions": [
-        "us",
-        "sg",
-        "jp",
-        "tw",
-        "kr"
-      ],
+      "regions": ["us", "sg", "jp", "tw", "kr"],
       "directRelaxed": true,
       "dnsPolicies": [
         {
@@ -396,26 +292,15 @@
         "ruleCluster": "legacy-ai-merged"
       },
       "upstreamRules": [],
-      "projections": [
-        "mihomo",
-        "subconverter"
-      ]
+      "projections": ["mihomo", "subconverter"]
     },
     {
       "id": "huggingface",
       "providerKey": "AI_HuggingFace_Classical",
       "group": "🤖 Hugging Face",
       "file": "AI_HuggingFace_Classical.yaml",
-      "payload": [
-        "DOMAIN-SUFFIX,huggingface.co"
-      ],
-      "regions": [
-        "us",
-        "sg",
-        "jp",
-        "tw",
-        "kr"
-      ],
+      "payload": ["DOMAIN-SUFFIX,huggingface.co"],
+      "regions": ["us", "sg", "jp", "tw", "kr"],
       "directRelaxed": true,
       "dnsPolicies": [
         {
@@ -428,26 +313,15 @@
         "ruleCluster": "legacy-ai-merged"
       },
       "upstreamRules": [],
-      "projections": [
-        "mihomo",
-        "subconverter"
-      ]
+      "projections": ["mihomo", "subconverter"]
     },
     {
       "id": "mirasim",
       "providerKey": "AI_Mirasim_Classical",
       "group": "🤖 Mirasim",
       "file": "AI_Mirasim_Classical.yaml",
-      "payload": [
-        "DOMAIN-SUFFIX,mirasim.ai"
-      ],
-      "regions": [
-        "us",
-        "sg",
-        "jp",
-        "tw",
-        "kr"
-      ],
+      "payload": ["DOMAIN-SUFFIX,mirasim.ai"],
+      "regions": ["us", "sg", "jp", "tw", "kr"],
       "directRelaxed": true,
       "dnsPolicies": [
         {
@@ -460,10 +334,7 @@
         "ruleCluster": "legacy-ai-merged"
       },
       "upstreamRules": [],
-      "projections": [
-        "mihomo",
-        "subconverter"
-      ]
+      "projections": ["mihomo", "subconverter"]
     },
     {
       "id": "antigravity",
@@ -474,13 +345,7 @@
         "DOMAIN-SUFFIX,antigravity.google",
         "DOMAIN-SUFFIX,antigravity-unleash.goog"
       ],
-      "regions": [
-        "us",
-        "sg",
-        "jp",
-        "tw",
-        "kr"
-      ],
+      "regions": ["us", "sg", "jp", "tw", "kr"],
       "directRelaxed": true,
       "dnsPolicies": [
         {
@@ -493,10 +358,7 @@
         "ruleCluster": "legacy-ai-merged"
       },
       "upstreamRules": [],
-      "projections": [
-        "mihomo",
-        "subconverter"
-      ],
+      "projections": ["mihomo", "subconverter"],
       "family": "google-ai"
     },
     {
@@ -504,16 +366,8 @@
       "providerKey": "AI_GoogleLabs_Classical",
       "group": "🤖 Google Labs",
       "file": "AI_GoogleLabs_Classical.yaml",
-      "payload": [
-        "DOMAIN-SUFFIX,labs.google"
-      ],
-      "regions": [
-        "us",
-        "sg",
-        "jp",
-        "tw",
-        "kr"
-      ],
+      "payload": ["DOMAIN-SUFFIX,labs.google"],
+      "regions": ["us", "sg", "jp", "tw", "kr"],
       "directRelaxed": true,
       "dnsPolicies": [
         {
@@ -526,10 +380,7 @@
         "ruleCluster": "legacy-ai-merged"
       },
       "upstreamRules": [],
-      "projections": [
-        "mihomo",
-        "subconverter"
-      ],
+      "projections": ["mihomo", "subconverter"],
       "family": "google-ai"
     },
     {
@@ -537,16 +388,8 @@
       "providerKey": "AI_Stitch_Classical",
       "group": "🤖 Stitch",
       "file": "AI_Stitch_Classical.yaml",
-      "payload": [
-        "DOMAIN,stitch.withgoogle.com"
-      ],
-      "regions": [
-        "sg",
-        "us",
-        "jp",
-        "tw",
-        "kr"
-      ],
+      "payload": ["DOMAIN,stitch.withgoogle.com"],
+      "regions": ["sg", "us", "jp", "tw", "kr"],
       "directRelaxed": true,
       "dnsPolicies": [
         {
@@ -559,10 +402,7 @@
         "ruleCluster": "legacy-ai-merged"
       },
       "upstreamRules": [],
-      "projections": [
-        "mihomo",
-        "subconverter"
-      ],
+      "projections": ["mihomo", "subconverter"],
       "family": "google-ai"
     },
     {
@@ -574,13 +414,7 @@
         "DOMAIN,cloudaicompanion.googleapis.com",
         "DOMAIN,cloudcode-pa.googleapis.com"
       ],
-      "regions": [
-        "us",
-        "sg",
-        "jp",
-        "tw",
-        "kr"
-      ],
+      "regions": ["us", "sg", "jp", "tw", "kr"],
       "directRelaxed": false,
       "dnsPolicies": [
         {
@@ -598,10 +432,7 @@
         "ruleCluster": "legacy-ai-merged"
       },
       "upstreamRules": [],
-      "projections": [
-        "mihomo",
-        "subconverter"
-      ],
+      "projections": ["mihomo", "subconverter"],
       "family": "google-ai"
     },
     {
@@ -609,16 +440,8 @@
       "providerKey": "AI_GeminiCloud_Classical",
       "group": "🤖 Gemini Cloud",
       "file": "AI_GeminiCloud_Classical.yaml",
-      "payload": [
-        "DOMAIN,geminicloudassist.googleapis.com"
-      ],
-      "regions": [
-        "us",
-        "sg",
-        "jp",
-        "tw",
-        "kr"
-      ],
+      "payload": ["DOMAIN,geminicloudassist.googleapis.com"],
+      "regions": ["us", "sg", "jp", "tw", "kr"],
       "directRelaxed": true,
       "dnsPolicies": [
         {
@@ -631,10 +454,7 @@
         "ruleCluster": "legacy-ai-merged"
       },
       "upstreamRules": [],
-      "projections": [
-        "mihomo",
-        "subconverter"
-      ],
+      "projections": ["mihomo", "subconverter"],
       "family": "google-ai"
     },
     {
@@ -646,13 +466,7 @@
         "DOMAIN,aiplatform.googleapis.com",
         "DOMAIN-KEYWORD,-aiplatform.googleapis.com"
       ],
-      "regions": [
-        "us",
-        "sg",
-        "jp",
-        "tw",
-        "kr"
-      ],
+      "regions": ["us", "sg", "jp", "tw", "kr"],
       "directRelaxed": false,
       "dnsPolicies": [
         {
@@ -665,11 +479,27 @@
         "ruleCluster": "legacy-ai-merged"
       },
       "upstreamRules": [],
-      "projections": [
-        "mihomo",
-        "subconverter"
-      ],
+      "projections": ["mihomo", "subconverter"],
       "family": "google-ai"
+    },
+    {
+      "id": "opencode",
+      "providerKey": "AI_OpenCode_Classical",
+      "group": "🤖 OpenCode",
+      "file": "AI_OpenCode_Classical.yaml",
+      "payload": ["DOMAIN,opencode.com"],
+      "regions": ["us", "sg", "jp", "tw", "kr"],
+      "directRelaxed": true,
+      "dnsPolicies": [
+        {
+          "order": 126,
+          "selector": "DOMAIN,opencode.com",
+          "resolverSet": "global-ai"
+        }
+      ],
+      "subconverter": {},
+      "upstreamRules": [],
+      "projections": ["mihomo", "subconverter"]
     },
     {
       "id": "ai-other",
@@ -687,13 +517,7 @@
         }
       ],
       "payload": [],
-      "regions": [
-        "us",
-        "sg",
-        "jp",
-        "tw",
-        "kr"
-      ],
+      "regions": ["us", "sg", "jp", "tw", "kr"],
       "directRelaxed": true,
       "dnsPolicies": [
         {
@@ -708,9 +532,7 @@
         }
       ],
       "subconverter": {},
-      "projections": [
-        "mihomo"
-      ]
+      "projections": ["mihomo"]
     },
     {
       "id": "ai-cn-other",
@@ -724,13 +546,7 @@
         }
       ],
       "payload": [],
-      "regions": [
-        "sg",
-        "tw",
-        "jp",
-        "us",
-        "kr"
-      ],
+      "regions": ["sg", "tw", "jp", "us", "kr"],
       "directRelaxed": true,
       "dnsPolicies": [
         {
@@ -740,9 +556,7 @@
         }
       ],
       "subconverter": {},
-      "projections": [
-        "mihomo"
-      ]
+      "projections": ["mihomo"]
     }
   ]
 }
