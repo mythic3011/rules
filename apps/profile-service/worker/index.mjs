@@ -21,6 +21,8 @@ const JSON_HEADERS = {
   "cache-control": "no-store",
   "x-content-type-options": "nosniff",
   "referrer-policy": "no-referrer",
+  "x-frame-options": "DENY",
+  "content-security-policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
 };
 const TOKEN_RE = /^[A-Za-z0-9_-]{40,64}$/;
 
