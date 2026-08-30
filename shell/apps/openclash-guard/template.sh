@@ -14,6 +14,15 @@ _guard_template_catalog_path() {
     printf '%s/openclash-guard-templates.json\n' "$(dirname "$_guard_tc_pol")"
 }
 
+guard_template_validate_file() {
+    _guard_tv_file=${1:-}
+    [ -f "$_guard_tv_file" ] || return 1
+    json_load "$_guard_tv_file" || return 1
+    _guard_tv_ver=$(json_get "$_guard_tv_file" schemaVersion 2>/dev/null) || _guard_tv_ver=
+    [ "$_guard_tv_ver" = 1 ] || return 1
+    json_has "$_guard_tv_file" templates
+}
+
 _guard_template_is_int() {
     case ${1:-} in
         ''|*[!0-9]*)
@@ -233,17 +242,8 @@ _guard_template_require_catalog() {
         cli_error "template catalog missing: $_GUARD_TEMPLATE_FILE"
         return 1
     fi
-    if ! json_load "$_GUARD_TEMPLATE_FILE"; then
+    if ! guard_template_validate_file "$_GUARD_TEMPLATE_FILE"; then
         cli_error "invalid template catalog: $_GUARD_TEMPLATE_FILE"
-        return 1
-    fi
-    _guard_tr_ver=$(json_get "$_GUARD_TEMPLATE_FILE" schemaVersion) || _guard_tr_ver=
-    if [ "$_guard_tr_ver" != 1 ]; then
-        cli_error "unsupported template schemaVersion: ${_guard_tr_ver:-missing}"
-        return 1
-    fi
-    if ! json_has "$_GUARD_TEMPLATE_FILE" templates; then
-        cli_error "template catalog missing templates"
         return 1
     fi
 }

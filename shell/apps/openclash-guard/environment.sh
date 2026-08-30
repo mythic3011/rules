@@ -237,8 +237,11 @@ guard_env_get() {
         dns.domainSetBackend) printf '%s\n' "$_GUARD_DNS_DOMAIN_SET" ;;
         network.ipv6) printf '%s\n' "$_GUARD_NET_IPV6" ;;
         network.directRegion) printf '%s\n' "$_GUARD_NET_DIRECT_REGION" ;;
+        network.directRegionReason) printf '%s\n' "${_GUARD_PREFLIGHT_DIRECT_REASON:-}" ;;
         proxy.healthy) printf '%s\n' "$_GUARD_PROXY_HEALTHY" ;;
         proxy.region) printf '%s\n' "$_GUARD_PROXY_REGION" ;;
+        proxy.regionReason) printf '%s\n' "${_GUARD_PREFLIGHT_PROXY_REASON:-}" ;;
+        proxy.route) printf '%s\n' "${_GUARD_GEO_ROUTE:-}" ;;
         gaming.clients.count) printf '%s\n' "$_GUARD_GAME_CLIENTS" ;;
         gaming.clients.items) printf '%s\n' "$_GUARD_GAME_CLIENT_ITEMS" ;;
         gaming.blanketUdpBypassDetected) printf '%s\n' "$_GUARD_GAME_BLANKET" ;;
@@ -267,12 +270,15 @@ guard_env_json() {
         "$(_guard_env_json_bool "$_GUARD_DNS_AGH_ENABLED")" \
         "$(_guard_env_json_bool "$_GUARD_DNS_AGH_RUNNING")" \
         "$(_guard_env_json_string "$_GUARD_DNS_DOMAIN_SET")"
-    printf '"network":{"ipv6":%s,"directRegion":"%s"},' \
+    printf '"network":{"ipv6":%s,"directRegion":"%s","directRegionReason":"%s"},' \
         "$(_guard_env_json_bool "$_GUARD_NET_IPV6")" \
-        "$(_guard_env_json_string "$_GUARD_NET_DIRECT_REGION")"
-    printf '"proxy":{"healthy":%s,"region":"%s"},' \
+        "$(_guard_env_json_string "$_GUARD_NET_DIRECT_REGION")" \
+        "$(_guard_env_json_string "${_GUARD_PREFLIGHT_DIRECT_REASON:-}")"
+    printf '"proxy":{"healthy":%s,"region":"%s","regionReason":"%s","route":"%s"},' \
         "$(_guard_env_json_bool "$_GUARD_PROXY_HEALTHY")" \
-        "$(_guard_env_json_string "$_GUARD_PROXY_REGION")"
+        "$(_guard_env_json_string "$_GUARD_PROXY_REGION")" \
+        "$(_guard_env_json_string "${_GUARD_PREFLIGHT_PROXY_REASON:-}")" \
+        "$(_guard_env_json_string "${_GUARD_GEO_ROUTE:-}")"
     printf '"gaming":{"clients":{"count":%s,"items":%s},"blanketUdpBypassDetected":%s},' \
         "$_GUARD_GAME_CLIENTS" \
         "$(_guard_env_json_items)" \

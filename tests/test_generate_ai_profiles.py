@@ -1,21 +1,61 @@
 from __future__ import annotations
 
-import importlib.util
+from collections.abc import Iterable
 import json
 from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
 
+from ai_profiles_test_support import load_generator
+from ai_profiles.catalog import load_catalog
+from ai_profiles.models import IniClustersSection, IniRulesSection
 
-ROOT = Path(__file__).resolve().parents[1]
-MODULE_PATH = ROOT / "internal" / "python" / "generate_ai_profiles.py"
-SPEC = importlib.util.spec_from_file_location("generate_ai_profiles", MODULE_PATH)
-if SPEC is None or SPEC.loader is None:
-    raise RuntimeError(f"Unable to load module from {MODULE_PATH}")
 
-MODULE = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(MODULE)
+MODULE = load_generator("generate_ai_profiles")
+CATALOG = load_catalog()
+
+
+def load_plan() -> dict[str, object]:
+    value = json.loads(MODULE.INI_MVP_PLAN_PATH.read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        raise AssertionError("INI MVP plan must be a JSON object")
+    return value
+
+
+def rule_fragment(rule: object) -> str:
+    kind = getattr(rule, "kind", None)
+    if kind in {"remote-classical", "remote-domain"}:
+        return str(getattr(rule, "url"))
+    if kind == "geosite":
+        return f"[]GEOSITE,{getattr(rule, 'value')}"
+    if kind == "geoip":
+        return f"[]GEOIP,{getattr(rule, 'value')}"
+    if kind == "final":
+        return "[]FINAL"
+    raise AssertionError(f"Unsupported INI rule kind in test: {kind}")
+
+
+def rule_fragments(rules: Iterable[object]) -> list[str]:
+    return [rule_fragment(rule) for rule in rules]
+
+
+def fragment_positions(rendered: str, fragments: Iterable[str]) -> list[int]:
+    positions: list[int] = []
+    offset = 0
+    for fragment in fragments:
+        position = rendered.index(fragment, offset)
+        positions.append(position)
+        offset = position + len(fragment)
+    return positions
+
+
+def candidate_fragment(candidate: dict[str, object]) -> str:
+    if candidate["kind"] == "group-ref":
+        return f"[]{candidate['value']}"
+    if candidate["kind"] == "node-filter":
+        return str(candidate["value"])
+    raise AssertionError(f"Unsupported INI candidate kind in test: {candidate['kind']}")
 
 
 class GenerateAiProfilesTest(unittest.TestCase):
@@ -40,57 +80,76 @@ class GenerateAiProfilesTest(unittest.TestCase):
 
     def test_should_use_classical_provider_keys_for_ai_rules(self) -> None:
         provider_keys = [item["provider_key"] for item in MODULE.AI_RULESETS]
+        payload_services = [service for service in CATALOG.services if service.payload]
+
         self.assertTrue(provider_keys)
-        self.assertTrue(
-            all(key.startswith(("AI_", "Community_")) and key.endswith("_Classical") for key in provider_keys)
+        self.assertEqual(
+            provider_keys,
+            [service.provider_key for service in payload_services],
         )
-        self.assertIn("AI_Jules_Classical", provider_keys)
-        self.assertIn("AI_VertexAI_Classical", provider_keys)
+        self.assertTrue(all(key == service.file.rsplit(".", 1)[0] for key, service in zip(provider_keys, payload_services)))
 
     def test_should_generate_rule_sets_only_for_services_with_local_payloads(self) -> None:
         service_ids = [item["id"] for item in MODULE.AI_SERVICES]
         ruleset_provider_keys = [item["provider_key"] for item in MODULE.AI_RULESETS]
+        services = [service for service in CATALOG.services if "subconverter" in service.projections]
 
         self.assertEqual(len(service_ids), len(set(service_ids)))
+        self.assertEqual(service_ids, [service.id for service in services])
         self.assertEqual(
             ruleset_provider_keys,
-            [service["provider_key"] for service in MODULE.AI_SERVICES if service["payload"]],
+            [service.provider_key for service in services if service.payload],
         )
         self.assertEqual(
             {item["group"] for item in MODULE.AI_RULESETS},
-            {service["group"] for service in MODULE.AI_SERVICES if service["payload"]},
+            {service.group for service in services if service.payload},
         )
 
     def test_should_render_service_identity_and_aggregate_rules_before_relaxed_rules(self) -> None:
         rules = MODULE.render_yaml_rules(strict=False, include_process_rules=False).splitlines()
         identity_rules = [
-            f'"RULE-SET,{service["provider_key"]},{service["group"]}"'
-            for service in MODULE.AI_SERVICES
-            if service["payload"]
+            f'"RULE-SET,{service.provider_key},{service.group}"'
+            for service in CATALOG.services
+            if "mihomo" in service.projections and service.payload
         ]
         identity_rules.extend(
-            f'"GEOSITE,{geosite},{service["group"]}"'
-            for service in MODULE.AI_SERVICES
-            for geosite in service["geosites"]
+            f'"GEOSITE,{geosite},{service.group}"'
+            for service in CATALOG.services
+            if "mihomo" in service.projections
+            for geosite in service.geosites
         )
+        aggregate_rules = [
+            f'"GEOSITE,{geosite},{service.group}"'
+            for service in CATALOG.services
+            if service.projections == {"mihomo"}
+            for geosite in service.geosites
+        ]
         aggregate_indices = [
             i
             for i, line in enumerate(rules)
-            if ("GEOSITE,google-deepmind,🤖 AI Other" in line
-                or "GEOSITE,category-ai-!cn,🤖 AI Other" in line
-                or "GEOSITE,category-ai-cn,🤖 AI CN Other" in line)
+            if any(expected in line for expected in aggregate_rules)
         ]
-        ssh_index = next(i for i, line in enumerate(rules) if "SSH_Direct_Classical" in line)
-        geoip_hk_index = next(i for i, line in enumerate(rules) if "GEOIP,HK" in line)
-        match_index = next(i for i, line in enumerate(rules) if "MATCH," in line)
+        ssh_provider = next(
+            rule.provider_key
+            for rule in CATALOG.companion_rulesets
+            if rule.category == "ssh" and rule.mihomo
+        )
+        geoip_route = next(route for route in CATALOG.external_routes if route.kind == "GEOIP")
+        match_route = next(route for route in CATALOG.external_routes if route.kind == "MATCH")
+        ssh_index = next(i for i, line in enumerate(rules) if ssh_provider in line)
+        geoip_index = next(
+            i for i, line in enumerate(rules) if f"{geoip_route.kind},{geoip_route.value}" in line
+        )
+        match_index = next(
+            i for i, line in enumerate(rules) if f"{match_route.kind}," in line
+        )
 
         for expected in identity_rules:
             self.assertTrue(any(expected in line for line in rules), expected)
-        self.assertNotIn("AI_All_Classical", "\n".join(rules))
-        self.assertTrue(aggregate_indices)
+        self.assertEqual(len(aggregate_indices), len(aggregate_rules))
         self.assertLess(max(aggregate_indices), ssh_index)
-        self.assertLess(ssh_index, geoip_hk_index)
-        self.assertLess(geoip_hk_index, match_index)
+        self.assertLess(ssh_index, geoip_index)
+        self.assertLess(geoip_index, match_index)
 
     def test_should_render_strict_match_to_reject(self) -> None:
         rendered_yaml = MODULE.render_yaml(strict=True)
@@ -110,43 +169,51 @@ class GenerateAiProfilesTest(unittest.TestCase):
     def test_should_keep_direct_out_of_strict_manual_and_service_groups(self) -> None:
         rendered_yaml = MODULE.render_yaml(strict=True)
         manual_group = self.extract_yaml_group_block(rendered_yaml, MODULE.GROUP["manual"])
-        claude_group = self.extract_yaml_group_block(rendered_yaml, MODULE.GROUP["claude"])
-        copilot_group = self.extract_yaml_group_block(rendered_yaml, MODULE.GROUP["copilot"])
-        copilot_auto_group = self.extract_yaml_group_block(
-            rendered_yaml,
-            MODULE.service_auto_group_name(MODULE.GROUP["copilot"]),
-        )
 
         self.assertNotIn(MODULE.GROUP["direct"], manual_group)
         self.assertIn('  use:', manual_group)
         self.assertIn('    - provider1', manual_group)
-        self.assertNotIn(MODULE.GROUP["direct"], claude_group)
-        self.assertNotIn(MODULE.GROUP["direct"], copilot_group)
-        self.assertNotIn(MODULE.GROUP["direct"], copilot_auto_group)
+        for service in CATALOG.services:
+            if "mihomo" not in service.projections:
+                continue
+            group = self.extract_yaml_group_block(rendered_yaml, service.group)
+            auto_group = self.extract_yaml_group_block(
+                rendered_yaml,
+                MODULE.service_auto_group_name(service.group),
+            )
+            self.assertNotIn(MODULE.GROUP["direct"], group)
+            self.assertNotIn(MODULE.GROUP["direct"], auto_group)
 
     def test_should_separate_service_ui_from_automatic_fallback_chain(self) -> None:
         rendered_yaml = MODULE.render_yaml(strict=False)
-        claude_group = self.extract_yaml_group_block(rendered_yaml, MODULE.GROUP["claude"])
-        claude_auto_name = MODULE.service_auto_group_name(MODULE.GROUP["claude"])
-        claude_auto_group = self.extract_yaml_group_block(rendered_yaml, claude_auto_name)
+        profile = MODULE.compile_mihomo_profile(
+            strict=False,
+            include_process_rules=False,
+            catalog=CATALOG,
+        )
 
-        self.assertIn("    type: select", claude_group)
-        self.assertIn(f'      - "{claude_auto_name}"', claude_group)
-        self.assertIn(f'      - "{MODULE.GROUP["manual"]}"', claude_group)
-        self.assertIn(f'      - "{MODULE.GROUP["auto"]}"', claude_group)
+        for service_plan in profile.services:
+            group = self.extract_yaml_group_block(rendered_yaml, service_plan.service.group)
+            auto_name = MODULE.service_auto_group_name(service_plan.service.group)
+            auto_group = self.extract_yaml_group_block(rendered_yaml, auto_name)
 
-        self.assertIn("    type: fallback", claude_auto_group)
-        self.assertNotIn(MODULE.GROUP["manual"], claude_auto_group)
-        self.assertNotIn(f'      - "{MODULE.GROUP["auto"]}"', claude_auto_group)
-        self.assertIn(f'      - "{MODULE.GROUP["sg"]}"', claude_auto_group)
-        self.assertIn(f'      - "{MODULE.GROUP["us"]}"', claude_auto_group)
-        self.assertTrue(claude_auto_group.rstrip().endswith(f'- "{MODULE.GROUP["reject"]}"'))
+            self.assertIn("    type: select", group)
+            self.assertIn(f'      - "{auto_name}"', group)
+            for proxy in service_plan.ui_proxies:
+                self.assertIn(f'      - "{proxy}"', group)
+
+            self.assertIn("    type: fallback", auto_group)
+            self.assertNotIn(MODULE.GROUP["manual"], auto_group)
+            self.assertNotIn(f'      - "{MODULE.GROUP["auto"]}"', auto_group)
+            for proxy in service_plan.auto_proxies:
+                self.assertIn(f'      - "{proxy}"', auto_group)
+            self.assertTrue(auto_group.rstrip().endswith(f'- "{MODULE.GROUP["reject"]}"'))
 
     def test_should_keep_global_region_groups_provider_only(self) -> None:
         rendered_yaml = MODULE.render_yaml(strict=False)
 
-        for region in MODULE.ALL_REGION_ORDER:
-            block = self.extract_yaml_group_block(rendered_yaml, MODULE.GROUP[region])
+        for group_name in CATALOG.all_region_groups:
+            block = self.extract_yaml_group_block(rendered_yaml, group_name)
             self.assertIn("    use:", block)
             self.assertIn("      - provider1", block)
             self.assertNotIn("    proxies:", block)
@@ -155,10 +222,9 @@ class GenerateAiProfilesTest(unittest.TestCase):
         rendered_yaml = MODULE.render_yaml(strict=False)
         rendered_ini = MODULE.render_ini()
 
-        self.assertIn(MODULE.GROUP["tw"], rendered_yaml)
-        self.assertIn(MODULE.GROUP["tw"], rendered_ini)
-        self.assertNotIn("🇼🇸 台灣節點", rendered_yaml)
-        self.assertNotIn("🇼🇸 台灣節點", rendered_ini)
+        for region in CATALOG.primary_regions:
+            self.assertIn(region.group, rendered_yaml)
+            self.assertIn(region.group, rendered_ini)
 
     def test_should_keep_manual_ini_group_open_to_filtered_provider_nodes(self) -> None:
         rendered_ini = MODULE.render_ini()
@@ -169,43 +235,65 @@ class GenerateAiProfilesTest(unittest.TestCase):
 
     def test_should_render_ini_mvp_before_legacy_and_keep_claude_reject_only(self) -> None:
         rendered_ini = MODULE.render_ini()
-        claude_provider = "rules/clash/anthropic.yaml"
-        claude_rule = rendered_ini.index(claude_provider)
-        claude_reject = rendered_ini.index(
-            f"ruleset={MODULE.GROUP['reject']},clash-classic:",
-            claude_rule,
+        plan = load_plan()
+        compiled = MODULE.compile_subconverter_plan(
+            MODULE.load_ini_mvp_plan(),
+            include_process_rules=False,
+            catalog=CATALOG,
         )
-        chatgpt = rendered_ini.index("ruleset=🤖 ChatGPT,[]GEOSITE,openai")
-        windsurf = rendered_ini.index("rules/clash/windsurf.yaml")
-        huggingface = rendered_ini.index("rules/clash/huggingface.yaml")
-        ai_all = rendered_ini.index("rules/clash/all.yaml")
-        category_guard = rendered_ini.index("[]GEOSITE,category-ai-!cn")
+        before = compiled.section("legacy-before")
+        services = compiled.section("service-rule-clusters")
+        after_head = compiled.section("legacy-after-head")
+        after_tail = compiled.section("legacy-after-tail")
 
-        self.assertLess(claude_rule, claude_reject)
-        self.assertLess(claude_reject, chatgpt)
-        self.assertLess(chatgpt, windsurf)
-        self.assertLess(windsurf, huggingface)
-        self.assertLess(huggingface, ai_all)
-        self.assertLess(ai_all, category_guard)
+        self.assertIsInstance(before, IniRulesSection)
+        self.assertIsInstance(services, IniClustersSection)
+        self.assertIsInstance(after_head, IniRulesSection)
+        self.assertIsInstance(after_tail, IniRulesSection)
+        service_rules = [rule for cluster in services.clusters for rule in cluster.rules]
+        after_rules = [*after_head.rules, *after_tail.rules]
+
+        before_positions = fragment_positions(rendered_ini, rule_fragments(before.rules))
+        service_positions = fragment_positions(rendered_ini, rule_fragments(service_rules))
+        after_positions = fragment_positions(rendered_ini, rule_fragments(after_rules))
+
+        self.assertLess(max(before_positions), min(service_positions))
+        self.assertLess(max(service_positions), min(after_positions))
         self.assertEqual(
-            self.extract_ini_group_line(rendered_ini, "🔐 Claude Account Guard"),
-            "custom_proxy_group=🔐 Claude Account Guard`select`[]⛔ 拒絕",
+            len(after_positions),
+            len(after_rules),
         )
-        self.assertEqual(
-            self.extract_ini_group_line(rendered_ini, "🌊 Windsurf"),
-            "custom_proxy_group=🌊 Windsurf`select`[]🇺🇸 US Stable`[]🇸🇬 SG Stable`[]🇯🇵 JP Stable`[]⛔ 拒絕",
-        )
-        plan = json.loads(MODULE.INI_MVP_PLAN_PATH.read_text(encoding="utf-8"))
-        us_stable = next(group for group in plan["groups"] if group["name"] == "🇺🇸 US Stable")
-        self.assertEqual(
-            self.extract_ini_group_line(rendered_ini, "🇺🇸 US Stable"),
-            f"custom_proxy_group=🇺🇸 US Stable`select`[]{MODULE.GROUP['reject']}`{us_stable['candidates'][1]['value']}",
-        )
-        self.assertNotIn("custom_proxy_group=🤖 Claude`", rendered_ini)
-        self.assertNotIn("ruleset=🤖 Claude,[]GEOSITE,anthropic", rendered_ini)
+
+        groups = plan.get("groups")
+        self.assertIsInstance(groups, list)
+        for group in groups:
+            self.assertIsInstance(group, dict)
+            name = group["name"]
+            candidates = group["candidates"]
+            line = self.extract_ini_group_line(rendered_ini, name)
+            self.assertTrue(line, name)
+            prefix = f"custom_proxy_group={name}`select`"
+            self.assertTrue(line.startswith(prefix), line)
+            self.assertEqual(
+                line[len(prefix):],
+                "`".join(candidate_fragment(candidate) for candidate in candidates),
+            )
+
+        migration = plan.get("migration")
+        self.assertIsInstance(migration, dict)
+        replacement_ids = set(migration["legacyReplacementIds"])
+        for service in CATALOG.services:
+            if service.id not in replacement_ids:
+                continue
+            self.assertNotIn(f"custom_proxy_group={service.group}`", rendered_ini)
+            for geosite in service.geosites:
+                self.assertNotIn(
+                    f"ruleset={service.group},[]GEOSITE,{geosite}",
+                    rendered_ini,
+                )
 
     def test_should_reject_malformed_ini_mvp_plan_before_rendering(self) -> None:
-        plan = json.loads(MODULE.INI_MVP_PLAN_PATH.read_text(encoding="utf-8"))
+        plan = load_plan()
         invalid_plans = []
 
         bad_version = dict(plan)
@@ -221,22 +309,22 @@ class GenerateAiProfilesTest(unittest.TestCase):
         invalid_plans.append(unknown_field)
 
         tampered_protected_rule = json.loads(json.dumps(plan))
-        tampered_protected_rule["rules"]["beforeLegacy"][0]["target"] = "DIRECT"
+        tampered_protected_rule["rules"]["beforeLegacy"][0]["target"] = MODULE.BUILTIN_DIRECT
         invalid_plans.append(tampered_protected_rule)
 
         mismatched_protected_terminal = json.loads(json.dumps(plan))
-        mismatched_protected_terminal["rules"]["beforeLegacy"][1]["url"] = "https://example.invalid/anthropic.yaml"
+        mismatched_protected_terminal["rules"]["beforeLegacy"][1]["url"] = "https://example.invalid/invalid-rule.yaml"
         invalid_plans.append(mismatched_protected_terminal)
 
         missing_protected_group = json.loads(json.dumps(plan))
-        missing_protected_group["accountProtection"]["protectedGroup"] = "Missing Claude Guard"
+        missing_protected_group["accountProtection"]["protectedGroup"] = "Missing Protected Group"
         invalid_plans.append(missing_protected_group)
 
         extra_protected_direct = json.loads(json.dumps(plan))
         extra_protected_direct["rules"]["afterLegacy"].append(
             {
                 **extra_protected_direct["rules"]["beforeLegacy"][0],
-                "target": "🎯 全球直連",
+                "target": CATALOG.group("direct"),
             }
         )
         invalid_plans.append(extra_protected_direct)
@@ -267,13 +355,20 @@ class GenerateAiProfilesTest(unittest.TestCase):
         invalid_plans.append(unresolved_rule_target)
 
         unresolved_group_reference = json.loads(json.dumps(plan))
-        windsurf_group = next(group for group in unresolved_group_reference["groups"] if group["name"] == "🌊 Windsurf")
-        windsurf_group["candidates"][0]["value"] = "Missing Group"
+        group_with_reference = next(
+            group
+            for group in unresolved_group_reference["groups"]
+            if any(candidate["kind"] == "group-ref" for candidate in group["candidates"])
+        )
+        group_with_reference["candidates"][0]["value"] = "Missing Group"
         invalid_plans.append(unresolved_group_reference)
 
         cyclic_groups = json.loads(json.dumps(plan))
-        cycle_left = next(group for group in cyclic_groups["groups"] if group["name"] == "🌊 Windsurf")
-        cycle_right = next(group for group in cyclic_groups["groups"] if group["name"] == "🤗 Hugging Face")
+        cycle_left, cycle_right = [
+            group
+            for group in cyclic_groups["groups"]
+            if any(candidate["kind"] == "group-ref" for candidate in group["candidates"])
+        ][:2]
         cycle_left["candidates"] = [{"kind": "group-ref", "value": cycle_right["name"]}]
         cycle_right["candidates"] = [{"kind": "group-ref", "value": cycle_left["name"]}]
         invalid_plans.append(cyclic_groups)
@@ -287,7 +382,7 @@ class GenerateAiProfilesTest(unittest.TestCase):
         invalid_plans.append(boolean_interval)
 
         with tempfile.TemporaryDirectory() as temporary:
-            plan_path = Path(temporary) / "hk.ini-mvp-plan.json"
+            plan_path = Path(temporary) / MODULE.INI_MVP_PLAN_PATH.name
             with patch.object(MODULE, "INI_MVP_PLAN_PATH", plan_path):
                 for invalid in invalid_plans:
                     plan_path.write_text(json.dumps(invalid), encoding="utf-8")
@@ -299,38 +394,51 @@ class GenerateAiProfilesTest(unittest.TestCase):
         rendered_ini = MODULE.render_ini()
 
         self.assertFalse(MODULE.ENABLE_PROCESS_RULES)
-        self.assertNotIn("Process_P2P_Classical", rendered_yaml)
-        self.assertNotIn("Process_Download_Classical", rendered_yaml)
-        self.assertNotIn("Process_ProxyTools_Classical", rendered_yaml)
-        self.assertNotIn("Process_Gaming_Classical", rendered_yaml)
-        self.assertNotIn("Process_P2P_Classical", rendered_ini)
-        self.assertNotIn("Process_Download_Classical", rendered_ini)
-        self.assertNotIn("Process_ProxyTools_Classical", rendered_ini)
-        self.assertNotIn("Process_Gaming_Classical", rendered_ini)
+        for rule in CATALOG.process_rulesets:
+            self.assertNotIn(rule.provider_key, rendered_yaml)
+            self.assertNotIn(rule.provider_key, rendered_ini)
         self.assertNotIn("PROCESS-NAME,", rendered_yaml)
 
     def test_should_render_yaml_rule_providers_with_new_custom_provider_names(self) -> None:
         rendered_providers = MODULE.render_rule_providers(include_process_rules=False, strict=False)
+        expected_names = [
+            provider.name
+            for provider in MODULE.compile_rule_providers(
+                include_process_rules=False,
+                strict=False,
+                catalog=CATALOG,
+            )
+        ]
+        rendered_names = [
+            line[:-1]
+            for line in rendered_providers.splitlines()
+            if line and not line.startswith(" ") and line.endswith(":")
+        ]
 
-        self.assertIn("Custom_Direct_Classical_IP:", rendered_providers)
-        self.assertIn("Custom_Proxy_Classical_IP:", rendered_providers)
-        self.assertNotIn("Custom_Direct_IP:", rendered_providers)
-        self.assertNotIn("Custom_Proxy_IP:", rendered_providers)
+        self.assertEqual(rendered_names, expected_names)
 
     def test_should_omit_relaxed_only_providers_from_strict_profile(self) -> None:
+        relaxed_names = {
+            provider.name
+            for provider in MODULE.compile_rule_providers(
+                include_process_rules=False,
+                strict=False,
+                catalog=CATALOG,
+            )
+        }
+        strict_names = {
+            provider.name
+            for provider in MODULE.compile_rule_providers(
+                include_process_rules=False,
+                strict=True,
+                catalog=CATALOG,
+            )
+        }
         strict_providers = MODULE.render_rule_providers(include_process_rules=False, strict=True)
 
-        for item in MODULE.AI_RULESETS:
-            self.assertIn(f'{item["provider_key"]}:', strict_providers)
-        for name in (
-            "Custom_Direct_Domain",
-            "Custom_Direct_Classical_IP",
-            "Custom_Proxy_Domain",
-            "Custom_Proxy_Classical_IP",
-            "SSH_Direct_Classical",
-            "SSH_Proxy_Classical",
-            "Gaming_Direct_Classical",
-        ):
+        for name in strict_names:
+            self.assertIn(f"{name}:", strict_providers)
+        for name in relaxed_names - strict_names:
             self.assertNotIn(f"{name}:", strict_providers)
 
 

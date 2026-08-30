@@ -514,7 +514,7 @@ class TemplateAndInstallCliTests(unittest.TestCase):
             },
         )
         self.assertNotEqual(refresh.returncode, 0)
-        self.assertIn("last-known-good", refresh.stderr)
+        self.assertIn("keeping the installed runtime pair", refresh.stderr)
         self.assertEqual(dest.read_text(encoding="utf-8"), before_policy)
         after_nft = self.load_nft()
         self.assertEqual(after_nft["tables"], before_nft["tables"])
@@ -594,7 +594,10 @@ class TemplateAndInstallCliTests(unittest.TestCase):
             "geo",
             "route",
             "aa-stable",
-            extra={"GUARD_POLICY_FILE": str(POLICY_GEO)},
+            extra={
+                "GUARD_POLICY_FILE": str(POLICY_GEO),
+                "GUARD_OPENCLASH_PROXY_URL": "http://127.0.0.1:7890",
+            },
         )
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         payload = json.loads(result.stdout)

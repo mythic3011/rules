@@ -1113,6 +1113,7 @@ cli_info hello-from-source
         manifest = {
             "schemaVersion": 1,
             "generatedRoot": "dist",
+            "contract": shbundle.load_json(shbundle.default_manifest_path())["contract"],
             "modules": {
                 "cli": {"path": "shell/lib/cli.sh", "depends": []},
                 "env": {"path": "shell/lib/env.sh", "depends": []},

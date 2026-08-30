@@ -37,6 +37,9 @@ def main() -> None:
     artifact = guard_app["output"]
     artifact_manifest = guard_app["manifest"]
     artifact_checksum = guard_app["checksum"]
+    artifacts = {item["role"]: item["path"] for item in document["artifacts"]}
+    runtime_policy = artifacts["runtime-policy"]
+    runtime_templates = artifacts["runtime-templates"]
     lines = [BEGIN]
     for source_id, variable in (("cdn", "SOURCE_CDN_BASE"), ("raw", "SOURCE_GITHUB_RAW_BASE")):
         source = sources[source_id]
@@ -61,6 +64,8 @@ def main() -> None:
             f'_GUARD_DISTRIBUTION_ARTIFACT="{artifact}"',
             f'_GUARD_DISTRIBUTION_MANIFEST="{artifact_manifest}"',
             f'_GUARD_DISTRIBUTION_CHECKSUM="{artifact_checksum}"',
+            f'_GUARD_DISTRIBUTION_POLICY="{runtime_policy}"',
+            f'_GUARD_DISTRIBUTION_TEMPLATES="{runtime_templates}"',
         )
     )
     shell_lines.append(SHELL_END)

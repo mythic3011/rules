@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build-time POSIX shell bundler driven by shell/manifest.json."""
+"""Build-time POSIX shell bundler driven by repository manifest data."""
 from __future__ import annotations
 
 import argparse
@@ -13,30 +13,6 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
-
-SCHEMA_VERSION = 1
-DEFAULT_MANIFEST_REL = "shell/manifest.json"
-MODULE_BEGIN = "# BEGIN MODULE: {name}"
-MODULE_END = "# END MODULE: {name}"
-
-NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_-]*$")
-SET_EU_RE = re.compile(r"^set -(?:eu|euo pipefail)\s*(?:#.*)?$")
-MAIN_DISPATCH_RE = re.compile(r'^main\s+"\$@"\s*(?:#.*)?$')
-FUNC_RE = re.compile(
-    r"^(?:function\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:\(\s*\))?|"
-    r"([A-Za-z_][A-Za-z0-9_]*)\s*\(\s*\))\s*\{?\s*$"
-)
-SIDE_EFFECT_CHECKS: tuple[tuple[str, re.Pattern[str]], ...] = (
-    ("nft add", re.compile(r"\bnft\s+add\b")),
-    ("uci set", re.compile(r"\buci\s+set\b")),
-    ("/etc/init.d/", re.compile(r"/etc/init\.d/")),
-    ("rm ", re.compile(r"(?:^|[\s;|&])rm\s+")),
-    ("curl ", re.compile(r"\bcurl\s+")),
-)
-
-ALLOWED_TOP_KEYS = frozenset({"schemaVersion", "generatedRoot", "modules", "apps"})
-ALLOWED_MODULE_KEYS = frozenset({"path", "depends", "before", "after"})
-ALLOWED_APP_KEYS = frozenset({"entry", "depends", "output", "manifest", "checksum"})
 
 TOOLS_DIR = Path(__file__).resolve().parent
 DEFAULT_ROOT = TOOLS_DIR.parent
@@ -66,6 +42,21 @@ class AppSpec:
 
 
 @dataclass(frozen=True)
+class BundleContract:
+    schema_version: int
+    module_begin: str
+    module_end: str
+    name_pattern: re.Pattern[str]
+    set_options_pattern: re.Pattern[str]
+    main_dispatch_pattern: re.Pattern[str]
+    function_pattern: re.Pattern[str]
+    side_effect_checks: tuple[tuple[str, re.Pattern[str]], ...]
+    allowed_top_keys: frozenset[str]
+    allowed_module_keys: frozenset[str]
+    allowed_app_keys: frozenset[str]
+
+
+@dataclass(frozen=True)
 class Manifest:
     schema_version: int
     generated_root: str
@@ -74,6 +65,7 @@ class Manifest:
     root: Path
     path: Path
     relpath: str
+    contract: BundleContract
 
 
 def _unique_object_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -97,12 +89,62 @@ def _require_string(value: Any, label: str) -> str:
     return value
 
 
-def _require_name(value: str, label: str) -> str:
-    if not NAME_RE.match(value):
+def _require_name(value: str, label: str, contract: BundleContract) -> str:
+    if not contract.name_pattern.match(value):
         raise ShbundleError(
-            f"invalid manifest: {label} {value!r} must match {NAME_RE.pattern}"
+            f"invalid manifest: {label} {value!r} must match {contract.name_pattern.pattern}"
         )
     return value
+
+
+def _string_set(value: Any, label: str) -> frozenset[str]:
+    if not isinstance(value, list) or not value:
+        raise ShbundleError(f"invalid manifest: {label} must be a non-empty array of strings")
+    values = [_require_string(item, f"{label}[{index}]") for index, item in enumerate(value)]
+    if len(values) != len(set(values)):
+        raise ShbundleError(f"invalid manifest: {label} contains duplicate keys")
+    return frozenset(values)
+
+
+def _compile_pattern(value: Any, label: str) -> re.Pattern[str]:
+    pattern = _require_string(value, label)
+    try:
+        return re.compile(pattern)
+    except re.error as exc:
+        raise ShbundleError(f"invalid manifest: {label} has invalid regex: {exc}") from exc
+
+
+def load_contract(data: Mapping[str, Any]) -> BundleContract:
+    raw = _require_object(data.get("contract"), "contract")
+    schema_version = raw.get("schemaVersion")
+    if type(schema_version) is not int or schema_version < 1:
+        raise ShbundleError("invalid manifest: contract.schemaVersion must be a positive integer")
+    markers = _require_object(raw.get("markers"), "contract.markers")
+    patterns = _require_object(raw.get("patterns"), "contract.patterns")
+    checks = raw.get("sideEffectChecks")
+    if not isinstance(checks, list):
+        raise ShbundleError("invalid manifest: contract.sideEffectChecks must be an array")
+    side_effect_checks: list[tuple[str, re.Pattern[str]]] = []
+    for index, item in enumerate(checks):
+        check = _require_object(item, f"contract.sideEffectChecks[{index}]")
+        label = _require_string(check.get("label"), f"contract.sideEffectChecks[{index}].label")
+        side_effect_checks.append(
+            (label, _compile_pattern(check.get("pattern"), f"contract.sideEffectChecks[{index}].pattern"))
+        )
+    allowed = _require_object(raw.get("allowedKeys"), "contract.allowedKeys")
+    return BundleContract(
+        schema_version=schema_version,
+        module_begin=_require_string(markers.get("moduleBegin"), "contract.markers.moduleBegin"),
+        module_end=_require_string(markers.get("moduleEnd"), "contract.markers.moduleEnd"),
+        name_pattern=_compile_pattern(patterns.get("name"), "contract.patterns.name"),
+        set_options_pattern=_compile_pattern(patterns.get("setOptions"), "contract.patterns.setOptions"),
+        main_dispatch_pattern=_compile_pattern(patterns.get("mainDispatch"), "contract.patterns.mainDispatch"),
+        function_pattern=_compile_pattern(patterns.get("function"), "contract.patterns.function"),
+        side_effect_checks=tuple(side_effect_checks),
+        allowed_top_keys=_string_set(allowed.get("root"), "contract.allowedKeys.root"),
+        allowed_module_keys=_string_set(allowed.get("module"), "contract.allowedKeys.module"),
+        allowed_app_keys=_string_set(allowed.get("app"), "contract.allowedKeys.app"),
+    )
 
 
 def _string_tuple(value: Any, label: str) -> tuple[str, ...]:
@@ -146,7 +188,20 @@ def infer_root(manifest_path: Path) -> Path:
 
 
 def default_manifest_path() -> Path:
-    return DEFAULT_ROOT / DEFAULT_MANIFEST_REL
+    candidates: list[Path] = []
+    for candidate in sorted(DEFAULT_ROOT.glob("*/manifest.json")):
+        if not candidate.is_file():
+            continue
+        try:
+            data = load_json(candidate)
+        except ShbundleError:
+            continue
+        if isinstance(data.get("modules"), dict) and isinstance(data.get("apps"), dict):
+            candidates.append(candidate)
+    if len(candidates) != 1:
+        found = ", ".join(str(path) for path in candidates) or "none"
+        raise ShbundleError(f"unable to discover unique bundle manifest: {found}")
+    return candidates[0]
 
 
 def resolve_manifest_path(manifest: str | os.PathLike[str] | None) -> Path:
@@ -212,12 +267,13 @@ def load_manifest(manifest: str | os.PathLike[str] | None = None) -> Manifest:
         raise ShbundleError(f"invalid manifest: file not found: {path}")
     root = infer_root(path)
     data = load_json(path)
-    _unknown_keys(data, ALLOWED_TOP_KEYS, "root")
+    contract = load_contract(data)
+    _unknown_keys(data, contract.allowed_top_keys, "root")
 
     schema_version = data.get("schemaVersion")
-    if schema_version != SCHEMA_VERSION:
+    if schema_version != contract.schema_version:
         raise ShbundleError(
-            f"invalid manifest: schemaVersion must be {SCHEMA_VERSION}"
+            f"invalid manifest: schemaVersion must be {contract.schema_version}"
         )
 
     generated_root = _declared_path(data.get("generatedRoot"), "generatedRoot")
@@ -227,9 +283,9 @@ def load_manifest(manifest: str | os.PathLike[str] | None = None) -> Manifest:
     modules: dict[str, ModuleSpec] = {}
     paths_to_modules: dict[str, str] = {}
     for name, spec in modules_raw.items():
-        _require_name(name, "module name")
+        _require_name(name, "module name", contract)
         spec_obj = _require_object(spec, f"modules.{name}")
-        _unknown_keys(spec_obj, ALLOWED_MODULE_KEYS, f"modules.{name}")
+        _unknown_keys(spec_obj, contract.allowed_module_keys, f"modules.{name}")
         declared_path = _declared_path(spec_obj.get("path"), f"modules.{name}.path")
         if declared_path in paths_to_modules:
             raise ShbundleError(
@@ -248,9 +304,9 @@ def load_manifest(manifest: str | os.PathLike[str] | None = None) -> Manifest:
     apps: dict[str, AppSpec] = {}
     outputs: dict[str, str] = {}
     for name, spec in apps_raw.items():
-        _require_name(name, "app name")
+        _require_name(name, "app name", contract)
         spec_obj = _require_object(spec, f"apps.{name}")
-        _unknown_keys(spec_obj, ALLOWED_APP_KEYS, f"apps.{name}")
+        _unknown_keys(spec_obj, contract.allowed_app_keys, f"apps.{name}")
         output = _declared_path(spec_obj.get("output"), f"apps.{name}.output")
         if output in outputs:
             raise ShbundleError(
@@ -282,9 +338,20 @@ def load_manifest(manifest: str | os.PathLike[str] | None = None) -> Manifest:
         root=root,
         path=path,
         relpath=posix_relpath(path, root),
+        contract=contract,
     )
     validate_manifest(loaded)
     return loaded
+
+
+_DEFAULT_CONTRACT: BundleContract | None = None
+
+
+def default_contract() -> BundleContract:
+    global _DEFAULT_CONTRACT
+    if _DEFAULT_CONTRACT is None:
+        _DEFAULT_CONTRACT = load_contract(load_json(default_manifest_path()))
+    return _DEFAULT_CONTRACT
 
 
 def _module_file(manifest: Manifest, module: ModuleSpec) -> Path:
@@ -373,18 +440,18 @@ def validate_manifest(manifest: Manifest) -> None:
     for name, module in sorted(manifest.modules.items()):
         source = read_module_source(manifest, module)
         if name not in entry_names:
-            if toplevel_main_dispatch(source):
+            if toplevel_main_dispatch(source, manifest.contract):
                 raise ShbundleError(
                     f'non-entry module {name!r} invokes main "$@"'
                 )
-            effects = toplevel_side_effects(source)
+            effects = toplevel_side_effects(source, manifest.contract)
             if effects:
                 raise ShbundleError(
                     f"top-level side effect in non-entry module {name!r}: {effects[0]}"
                 )
         if name in entry_names:
             continue
-        for func in exported_functions(source):
+        for func in exported_functions(source, manifest.contract):
             functions.setdefault(func, []).append(name)
     for func, owners in sorted(functions.items()):
         unique_owners = list(dict.fromkeys(owners))
@@ -592,7 +659,8 @@ def iter_toplevel_lines(source: str) -> Iterable[str]:
             depth = 0
 
 
-def strip_module_source(text: str) -> str:
+def strip_module_source(text: str, contract: BundleContract | None = None) -> str:
+    contract = contract or default_contract()
     if text.startswith("\ufeff"):
         text = text[1:]
     lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
@@ -603,7 +671,7 @@ def strip_module_source(text: str) -> str:
         index += 1
     while index < len(lines) and not lines[index].strip():
         index += 1
-    if index < len(lines) and SET_EU_RE.match(lines[index].strip()):
+    if index < len(lines) and contract.set_options_pattern.match(lines[index].strip()):
         index += 1
     while index < len(lines) and not lines[index].strip():
         index += 1
@@ -611,7 +679,7 @@ def strip_module_source(text: str) -> str:
     depth = 0
     for line in lines[index:]:
         stripped = line.strip()
-        if depth <= 0 and MAIN_DISPATCH_RE.match(stripped):
+        if depth <= 0 and contract.main_dispatch_pattern.match(stripped):
             depth += _brace_delta(line)
             if depth < 0:
                 depth = 0
@@ -631,27 +699,32 @@ def read_module_source(manifest: Manifest, module: ModuleSpec) -> str:
         raise ShbundleError(f"missing module path: {module.name} ({module.path})") from exc
 
 
-def exported_functions(source: str) -> list[str]:
+def exported_functions(source: str, contract: BundleContract | None = None) -> list[str]:
+    contract = contract or default_contract()
     names: list[str] = []
     for line in iter_toplevel_lines(source):
-        match = FUNC_RE.match(line)
+        match = contract.function_pattern.match(line)
         if not match:
             continue
         names.append(match.group(1) or match.group(2))
     return names
 
 
-def toplevel_main_dispatch(source: str) -> bool:
-    return any(MAIN_DISPATCH_RE.match(line) for line in iter_toplevel_lines(source))
+def toplevel_main_dispatch(source: str, contract: BundleContract | None = None) -> bool:
+    contract = contract or default_contract()
+    return any(contract.main_dispatch_pattern.match(line) for line in iter_toplevel_lines(source))
 
 
-def toplevel_side_effects(source: str) -> list[str]:
+def toplevel_side_effects(source: str, contract: BundleContract | None = None) -> list[str]:
+    contract = contract or default_contract()
     hits: list[str] = []
     seen: set[str] = set()
     for line in iter_toplevel_lines(source):
-        if MAIN_DISPATCH_RE.match(line) or SET_EU_RE.match(line) or FUNC_RE.match(line):
+        if (contract.main_dispatch_pattern.match(line)
+                or contract.set_options_pattern.match(line)
+                or contract.function_pattern.match(line)):
             continue
-        for label, pattern in SIDE_EFFECT_CHECKS:
+        for label, pattern in contract.side_effect_checks:
             if label in seen:
                 continue
             if pattern.search(line):
@@ -666,17 +739,17 @@ def validate_app(manifest: Manifest, app_name: str) -> tuple[list[str], str, set
     for name in order:
         module = manifest.modules[name]
         source = read_module_source(manifest, module)
-        if name != entry and toplevel_main_dispatch(source):
+        if name != entry and toplevel_main_dispatch(source, manifest.contract):
             raise ShbundleError(
                 f'non-entry module {name!r} invokes main "$@"'
             )
         if name != entry:
-            effects = toplevel_side_effects(source)
+            effects = toplevel_side_effects(source, manifest.contract)
             if effects:
                 raise ShbundleError(
                     f"top-level side effect in non-entry module {name!r}: {effects[0]}"
                 )
-        for func in exported_functions(source):
+        for func in exported_functions(source, manifest.contract):
             functions.setdefault(func, []).append(name)
     for func, owners in sorted(functions.items()):
         unique_owners = list(dict.fromkeys(owners))
@@ -699,11 +772,13 @@ def render_bundle(manifest: Manifest, app_name: str) -> str:
         "",
     ]
     for name in order:
-        source = strip_module_source(read_module_source(manifest, manifest.modules[name]))
-        chunks.append(MODULE_BEGIN.format(name=name))
+        source = strip_module_source(
+            read_module_source(manifest, manifest.modules[name]), manifest.contract
+        )
+        chunks.append(manifest.contract.module_begin.format(name=name))
         if source:
             chunks.append(source)
-        chunks.append(MODULE_END.format(name=name))
+        chunks.append(manifest.contract.module_end.format(name=name))
         chunks.append("")
     chunks.append('main "$@"')
     chunks.append("")
@@ -817,7 +892,7 @@ def _parser() -> argparse.ArgumentParser:
     shared.add_argument(
         "--manifest",
         default=None,
-        help=f"manifest path (default: {DEFAULT_MANIFEST_REL} relative to the repository root)",
+        help="manifest path (default: discovered from repository bundle data)",
     )
     parser = argparse.ArgumentParser(
         prog="shbundle.py",
