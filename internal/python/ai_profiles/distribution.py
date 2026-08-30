@@ -164,12 +164,12 @@ def load_distribution(path: Path) -> DistributionCatalog:
     )
 
 
-def managed_output_paths(*, include_process_rules: bool = False) -> tuple[str, ...]:
+def managed_output_paths(*, include_process_rules: bool = False, catalog: Catalog | None = None) -> tuple[str, ...]:
     # Lazy import keeps settings -> distribution config loading acyclic.
     from .catalog import load_catalog
     from .settings import AI_DISTRIBUTION_PATH
 
-    catalog = load_catalog()
+    catalog = catalog or load_catalog()
     distribution = load_distribution(AI_DISTRIBUTION_PATH)
     paths: list[str] = [
         "cfg/Custom_Clash_AI.ini",
@@ -186,11 +186,11 @@ def managed_output_paths(*, include_process_rules: bool = False) -> tuple[str, .
     return tuple(dict.fromkeys(paths))
 
 
-def managed_git_pathspecs(*, include_process_rules: bool = False) -> tuple[str, ...]:
+def managed_git_pathspecs(*, include_process_rules: bool = False, catalog: Catalog | None = None) -> tuple[str, ...]:
     from .catalog import load_catalog
     from .settings import AI_DISTRIBUTION_PATH
 
-    catalog = load_catalog()
+    catalog = catalog or load_catalog()
     distribution = load_distribution(AI_DISTRIBUTION_PATH)
     specs: list[str] = [
         "cfg/Custom_Clash_AI.ini",

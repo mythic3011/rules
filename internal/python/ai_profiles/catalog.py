@@ -365,6 +365,7 @@ def _compile_services(
         services.append(
             ServiceSpec(
                 id=record.id,
+                family=record.family,
                 provider_key=record.provider_key,
                 group=record.group,
                 file=record.file,
