@@ -21,6 +21,22 @@ test('web/site HTML files do not use dangerous innerHTML string interpolation', 
   }
 });
 
+test('web/site report.html sanitizes dynamic URL schemes before setting href', () => {
+  const content = fs.readFileSync(path.join(SITE_DIR, 'report.html'), 'utf8');
+
+  assert.match(
+    content,
+    /safeUrl\s*\(/,
+    'report.html should use a URL scheme sanitizer for dynamic upstream links.'
+  );
+
+  assert.match(
+    content,
+    /\/\^https\?:\\\/\\\//i,
+    'report.html URL sanitizer should require http:// or https:// schemes.'
+  );
+});
+
 test('web/site HTML files include Pico CSS framework', () => {
   const htmlFiles = fs.readdirSync(SITE_DIR).filter(file => file.endsWith('.html'));
 
