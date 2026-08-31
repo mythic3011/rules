@@ -129,6 +129,13 @@
         return new Intl.NumberFormat("en-US").format(n || 0);
       }
 
+      function safeUrl(url) {
+        if (typeof url !== "string") return null;
+        const trimmed = url.trim();
+        if (/^https?:\/\//i.test(trimmed)) return trimmed;
+        return null;
+      }
+
       function fail(message) {
         titleEl.textContent = "Report unavailable";
 
@@ -246,11 +253,16 @@
 
                 const tdUrl = document.createElement("td");
                 tdUrl.className = "mono";
-                const link = document.createElement("a");
-                const href = source.homepage || source.url;
-                link.href = href;
-                link.textContent = href;
-                tdUrl.appendChild(link);
+                const rawUrl = source.homepage || source.url;
+                const href = safeUrl(rawUrl);
+                if (href) {
+                  const link = document.createElement("a");
+                  link.href = href;
+                  link.textContent = href;
+                  tdUrl.appendChild(link);
+                } else {
+                  tdUrl.textContent = String(rawUrl ?? "");
+                }
 
                 tr.append(tdId, tdCount, tdFormat, tdUrl);
                 return tr;
