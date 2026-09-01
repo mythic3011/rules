@@ -1,6 +1,6 @@
 {
   "category": "tracking",
-  "generated_at": "2026-08-31T09:54:06Z",
+  "generated_at": "2026-09-01T08:45:26Z",
   "source_config": "internal/config/filtering/sources/tracking.yaml",
   "custom_source_config": "internal/config/filtering/sources/custom/tracking.yaml",
   "allowlist": "dns/local_tracking_allowlist.txt",
