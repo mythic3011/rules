@@ -157,6 +157,15 @@
       }
     },
     {
+      "path": "rule/AI_OpenCode_Classical.yaml",
+      "urls": {
+        "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_OpenCode_Classical.yaml",
+        "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_OpenCode_Classical.yaml",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/rule/AI_OpenCode_Classical.yaml",
+        "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/rule/AI_OpenCode_Classical.yaml"
+      }
+    },
+    {
       "path": "rule/SSH_Direct_Classical.yaml",
       "urls": {
         "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/SSH_Direct_Classical.yaml",

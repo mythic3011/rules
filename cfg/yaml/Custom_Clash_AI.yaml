@@ -170,6 +170,9 @@ dns:
     "stitch.withgoogle.com":
       - https://1.1.1.1/dns-query
       - https://dns.google/dns-query
+    "DOMAIN,opencode.com":
+      - https://1.1.1.1/dns-query
+      - https://dns.google/dns-query
     "geosite:google-deepmind":
       - https://1.1.1.1/dns-query
       - https://dns.google/dns-query
@@ -705,6 +708,32 @@ proxy-groups:
       - "🇰🇷 韓國節點"
       - "🌐 其他／未識別節點"
       - "⛔ 拒絕"
+  - name: "🤖 OpenCode"
+    type: select
+    proxies:
+      - "🤖 OpenCode · 自動"
+      - "🚀 手動選擇"
+      - "♻️ 自動選擇"
+      - "🎯 全球直連"
+      - "🇺🇸 美國節點"
+      - "🇸🇬 新加坡節點"
+      - "🇯🇵 日本節點"
+      - "🇹🇼 台灣節點"
+      - "🇰🇷 韓國節點"
+      - "🌐 其他／未識別節點"
+      - "⛔ 拒絕"
+  - name: "🤖 OpenCode · 自動"
+    type: fallback
+    url: "https://cp.cloudflare.com/generate_204"
+    interval: 300
+    proxies:
+      - "🇺🇸 美國節點"
+      - "🇸🇬 新加坡節點"
+      - "🇯🇵 日本節點"
+      - "🇹🇼 台灣節點"
+      - "🇰🇷 韓國節點"
+      - "🌐 其他／未識別節點"
+      - "⛔ 拒絕"
   - name: "🤖 AI Other"
     type: select
     proxies:
@@ -846,6 +875,7 @@ rules:
     - "RULE-SET,AI_AndroidStudioAI_Classical,🤖 Android Studio AI"
     - "RULE-SET,AI_GeminiCloud_Classical,🤖 Gemini Cloud"
     - "RULE-SET,AI_VertexAI_Classical,🤖 Vertex AI"
+    - "RULE-SET,AI_OpenCode_Classical,🤖 OpenCode"
     - "GEOSITE,google-deepmind,🤖 AI Other"
     - "GEOSITE,category-ai-!cn,🤖 AI Other"
     - "GEOSITE,category-ai-cn,🤖 AI CN Other"
@@ -1071,4 +1101,11 @@ rule-providers:
     interval: 10800
     type: http
     url: "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_VertexAI_Classical.yaml"
+    format: yaml
+
+  AI_OpenCode_Classical:
+    behavior: classical
+    interval: 10800
+    type: http
+    url: "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_OpenCode_Classical.yaml"
     format: yaml
