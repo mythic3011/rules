@@ -1,6 +1,6 @@
 {
   "category": "telemetry",
-  "generated_at": "2026-09-01T08:45:26Z",
+  "generated_at": "2026-09-02T07:59:17Z",
   "source_config": "internal/config/filtering/sources/telemetry.yaml",
   "custom_source_config": "internal/config/filtering/sources/custom/telemetry.yaml",
   "allowlist": "dns/local_telemetry_allowlist.txt",
@@ -9,12 +9,12 @@
   "hosts_output": "dns/telemetry.hosts.txt",
   "clash_output": "rule/Telemetry_Lite_Domain.yaml",
   "clash_name": "Telemetry_Lite_Domain",
-  "upstream_unique_count": 1937,
+  "upstream_unique_count": 1938,
   "local_blocklist_count": 47,
   "allowlist_count": 0,
-  "merged_pre_allowlist_count": 1969,
-  "post_allowlist_count": 1969,
-  "final_domain_count": 1968,
+  "merged_pre_allowlist_count": 1970,
+  "post_allowlist_count": 1970,
+  "final_domain_count": 1969,
   "clash_seed_count": 5,
   "clash_domain_count": 46,
   "sources": [
@@ -24,7 +24,7 @@
       "priority": 10,
       "url": "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/native.apple.txt",
       "homepage": "https://github.com/hagezi/dns-blocklists",
-      "count": 107
+      "count": 108
     },
     {
       "id": "hagezi_native_huawei",
