@@ -92,6 +92,11 @@ test("opaque read capability ignores query-string routing tampering", async () =
     environment,
   );
   assert.equal(response.status, 200);
+  assert.equal(response.headers.get("x-frame-options"), "DENY");
+  assert.equal(
+    response.headers.get("content-security-policy"),
+    "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+  );
   const ini = await response.text();
   assert.doesNotMatch(ini, /custom_proxy_group=🇯🇵 日本節點/);
   assert.match(ini, /custom_proxy_group=🇺🇸 美國節點/);
