@@ -5,11 +5,12 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from ai_profiles_test_support import load_generator
 from ai_profiles.catalog import load_catalog
 from ai_profiles.models import IniClustersSection, IniRulesSection
+from ai_profiles.render.rule_provider import render_rule_file
 
 
 MODULE = load_generator("generate_ai_profiles")
@@ -59,6 +60,26 @@ def candidate_fragment(candidate: dict[str, object]) -> str:
 
 
 class GenerateAiProfilesTest(unittest.TestCase):
+    def test_should_render_rule_metadata_without_dynamic_imports(self) -> None:
+        rendered = render_rule_file("provider", "AI", ["example.com"])
+
+        self.assertRegex(
+            rendered,
+            r"(?m)^# GENERATED-AT: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?\+00:00$",
+            msg=rendered,
+        )
+        self.assertRegex(rendered, r"(?m)^# VERSION: (?:[0-9a-f]{40}|unknown)$")
+
+    @patch("ai_profiles.render.rule_provider.subprocess.run")
+    def test_should_fall_back_when_git_metadata_is_unavailable(self, run: MagicMock) -> None:
+        from subprocess import CalledProcessError
+
+        run.side_effect = CalledProcessError(128, "git")
+
+        rendered = render_rule_file("provider", "AI", ["example.com"])
+
+        self.assertIn("# VERSION: unknown", rendered)
+
     def extract_yaml_group_block(self, rendered_yaml: str, name: str) -> str:
         lines = rendered_yaml.splitlines()
         block: list[str] = []

@@ -1,7 +1,33 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+from pathlib import Path
+import subprocess
+
 from ..common import yaml_string
 from ..settings import REPO_URL
+
+
+_REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
+
+
+def _generated_at() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _repository_version() -> str:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=_REPOSITORY_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError, UnicodeError):
+        return "unknown"
+    return result.stdout.strip() or "unknown"
+
 
 def render_rule_file(
     provider_key: str,
@@ -16,6 +42,8 @@ def render_rule_file(
         f"# RULE-PROVIDER: {provider_key}",
         f"# GROUP: {group}",
         f"# TOTAL: {len(payload)}",
+        f"# GENERATED-AT: {_generated_at()}",
+        f"# VERSION: {_repository_version()}",
     ]
     if extra_comments:
         lines.append("")
