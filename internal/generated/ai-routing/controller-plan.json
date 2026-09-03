@@ -54,6 +54,11 @@
           "target": "DIRECT"
         },
         {
+          "group": "@profile/opencode",
+          "proxyPath": "/proxies/%40profile%2Fopencode",
+          "target": "DIRECT"
+        },
+        {
           "group": "@profile/perplexity",
           "proxyPath": "/proxies/%40profile%2Fperplexity",
           "target": "DIRECT"
@@ -105,6 +110,11 @@
         {
           "group": "@profile/notebooklm",
           "proxyPath": "/proxies/%40profile%2Fnotebooklm",
+          "target": "🇯🇵 JP Stable"
+        },
+        {
+          "group": "@profile/opencode",
+          "proxyPath": "/proxies/%40profile%2Fopencode",
           "target": "🇯🇵 JP Stable"
         },
         {
@@ -162,6 +172,11 @@
           "target": "🇸🇬 SG Stable"
         },
         {
+          "group": "@profile/opencode",
+          "proxyPath": "/proxies/%40profile%2Fopencode",
+          "target": "🇸🇬 SG Stable"
+        },
+        {
           "group": "@profile/perplexity",
           "proxyPath": "/proxies/%40profile%2Fperplexity",
           "target": "🇸🇬 SG Stable"
@@ -213,6 +228,11 @@
         {
           "group": "@profile/notebooklm",
           "proxyPath": "/proxies/%40profile%2Fnotebooklm",
+          "target": "🇺🇸 US Stable"
+        },
+        {
+          "group": "@profile/opencode",
+          "proxyPath": "/proxies/%40profile%2Fopencode",
           "target": "🇺🇸 US Stable"
         },
         {

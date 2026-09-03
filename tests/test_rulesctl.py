@@ -36,7 +36,7 @@ class RulesctlConfigTest(unittest.TestCase):
         self.assertIsNone(re.search(r"generate_\w+\.py", text))
         self.assertNotIn("tools/shbundle.py", text)
         self.assertNotIn("generate_adblock_outputs.py", text)
-        self.assertNotIn("export:routing-artifacts", text)
+        self.assertNotIn("export:", text)
 
     def test_pipeline_config_is_valid_and_paths_exist(self) -> None:
         config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))

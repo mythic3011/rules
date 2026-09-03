@@ -4,6 +4,7 @@ import { parseDocument } from "yaml";
 import { ZodError } from "zod";
 
 import { formatIssues, type RoutingIssue } from "./issues.js";
+import { hydrateRoutingServices, loadServiceCatalog, ServiceCatalogError } from "./shared-catalog.js";
 import {
   RoutingConfigFragmentSchema,
   RoutingConfigSchema,
@@ -24,7 +25,6 @@ type Fragment = Record<string, unknown>;
 // process-rules.yaml, etc.) belong to independent schemas/loaders and MUST NOT
 // be parsed as RoutingConfig fragments.
 const CORE_FRAGMENT_FILE = /^\d{2}-.*\.ya?ml$/i;
-
 const RECORD_SECTIONS = new Set([
   "routeTargets",
   "protectionClasses",
@@ -122,7 +122,7 @@ function mergeFragments(fragments: readonly { path: string; value: Fragment }[])
   return merged;
 }
 
-export async function loadRoutingConfigFromFiles(paths: readonly string[]): Promise<RoutingConfig> {
+export async function loadRoutingConfigFromFiles(paths: readonly string[], catalogPath?: string): Promise<RoutingConfig> {
   const fragments: { path: string; value: Fragment }[] = [];
   const issues: RoutingIssue[] = [];
 
@@ -136,18 +136,32 @@ export async function loadRoutingConfigFromFiles(paths: readonly string[]): Prom
       continue;
     }
     const parsed = document.toJS();
-    const result = RoutingConfigFragmentSchema.safeParse(parsed);
-    if (!result.success) {
-      issues.push(...zodIssues(result.error));
-      continue;
+    if (catalogPath === undefined) {
+      const result = RoutingConfigFragmentSchema.safeParse(parsed);
+      if (!result.success) {
+        issues.push(...zodIssues(result.error));
+        continue;
+      }
+      fragments.push({ path, value: result.data });
+    } else if (isRecord(parsed)) {
+      fragments.push({ path, value: parsed });
+    } else {
+      issues.push({ code: "schema", path: [path], message: "must be a mapping" });
     }
-    fragments.push({ path, value: result.data });
   }
   if (issues.length > 0) {
     throw new RoutingConfigLoadError(issues);
   }
 
-  const merged = mergeFragments(fragments);
+  let merged = mergeFragments(fragments);
+  if (catalogPath !== undefined) {
+    try {
+      merged = hydrateRoutingServices(merged, await loadServiceCatalog(catalogPath)) as Fragment;
+    } catch (error: unknown) {
+      if (error instanceof ServiceCatalogError) throw new RoutingConfigLoadError(error.issues);
+      throw error;
+    }
+  }
   const result = RoutingConfigSchema.safeParse(merged);
   if (!result.success) {
     throw new RoutingConfigLoadError(zodIssues(result.error));
@@ -155,7 +169,10 @@ export async function loadRoutingConfigFromFiles(paths: readonly string[]): Prom
   return result.data;
 }
 
-export async function loadRoutingConfig(directory: string): Promise<RoutingConfig> {
+export async function loadRoutingConfig(
+  directory: string,
+  catalogPath?: string,
+): Promise<RoutingConfig> {
   const entries = await readdir(directory, { withFileTypes: true });
   const paths = entries
     .filter((entry) => entry.isFile() && CORE_FRAGMENT_FILE.test(entry.name))
@@ -166,5 +183,5 @@ export async function loadRoutingConfig(directory: string): Promise<RoutingConfi
       { code: "invalid-yaml", path: [directory], message: "contains no numbered routing fragments (expected NN-*.yaml)" },
     ]);
   }
-  return loadRoutingConfigFromFiles(paths);
+  return loadRoutingConfigFromFiles(paths, catalogPath);
 }

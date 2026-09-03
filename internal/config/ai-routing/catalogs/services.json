@@ -38,7 +38,7 @@
     {
       "id": "copilot",
       "providerKey": "AI_Copilot_Classical",
-      "group": "🤖 Copilot",
+      "group": "🧑‍💻 Copilot",
       "file": "AI_Copilot_Classical.yaml",
       "payload": [
         "DOMAIN-SUFFIX,copilot.com",
@@ -297,7 +297,7 @@
     {
       "id": "huggingface",
       "providerKey": "AI_HuggingFace_Classical",
-      "group": "🤖 Hugging Face",
+      "group": "🤗 Hugging Face",
       "file": "AI_HuggingFace_Classical.yaml",
       "payload": ["DOMAIN-SUFFIX,huggingface.co"],
       "regions": ["us", "sg", "jp", "tw", "kr"],

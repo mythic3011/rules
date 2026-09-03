@@ -3,22 +3,19 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "imports": {
+    "#routing/*": "./internal/typescript/routing/*",
+    "#routing-test/*": "./tests/routing/*"
+  },
   "packageManager": "npm@11.17.0",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "validate:routing": "node --import tsx internal/typescript/routing/cli.ts validate internal/config/ai-routing/core",
-    "export:routing-plan": "node --import tsx internal/typescript/routing/cli.ts export-plan internal/config/ai-routing/core hk internal/generated/ai-routing/hk.plan.json",
-    "check:routing-plan": "npm run export:routing-plan && git diff --exit-code -- internal/generated/ai-routing/hk.plan.json",
-    "export:mihomo-fragment": "node --import tsx internal/typescript/routing/cli.ts export-mihomo-fragment internal/config/ai-routing/core internal/config/ai-routing/projections/mihomo.yaml hk internal/generated/ai-routing/hk.mihomo-fragment.yaml",
-    "check:mihomo-fragment": "npm run export:mihomo-fragment && git diff --exit-code -- internal/generated/ai-routing/hk.mihomo-fragment.yaml",
-    "export:routing-artifacts": "node --import tsx internal/typescript/routing/cli.ts export-routing-artifacts internal/config/ai-routing/core internal/config/ai-routing/projections/mihomo.yaml internal/generated/ai-routing",
-    "check:routing-artifacts": "node --import tsx internal/typescript/routing/cli.ts check-routing-artifacts internal/config/ai-routing/core internal/config/ai-routing/projections/mihomo.yaml internal/generated/ai-routing",
-    "export:shadow-profile": "node --import tsx internal/typescript/routing/cli.ts export-shadow-profile internal/config/ai-routing/core internal/config/ai-routing/projections/mihomo.yaml cfg/yaml/Custom_Clash_AI.yaml internal/config/ai-routing/projections/parity.yaml internal/templates/ai-routing/full-relaxed-shadow.yaml.tpl internal/generated/ai-routing",
-    "check:shadow-profile": "node --import tsx internal/typescript/routing/cli.ts check-shadow-profile internal/config/ai-routing/core internal/config/ai-routing/projections/mihomo.yaml cfg/yaml/Custom_Clash_AI.yaml internal/config/ai-routing/projections/parity.yaml internal/templates/ai-routing/full-relaxed-shadow.yaml.tpl internal/generated/ai-routing",
-    "export:routing-schema": "node --import tsx internal/typescript/routing/cli.ts export-schema internal/schemas/routing-config.schema.json",
-    "check:routing-schema": "npm run export:routing-schema && git diff --exit-code -- internal/schemas/routing-config.schema.json",
+    "routing": "node --import tsx internal/typescript/routing/cli.ts",
+    "routing:validate": "npm run routing -- validate",
+    "routing:generate": "npm run routing -- generate",
+    "routing:check": "npm run routing -- check",
     "typecheck": "tsc --noEmit",
     "test:routing": "node --import tsx --test tests/routing/*.test.ts",
     "generate:profile-service-runtime": "python3 internal/python/generate_profile_service_runtime.py",

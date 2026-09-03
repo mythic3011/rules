@@ -234,10 +234,10 @@ proxy-groups:
       - "🇰🇷 韓國節點"
       - "🌐 其他／未識別節點"
       - "⛔ 拒絕"
-  - name: "🤖 Copilot"
+  - name: "🧑‍💻 Copilot"
     type: select
     proxies:
-      - "🤖 Copilot · 自動"
+      - "🧑‍💻 Copilot · 自動"
       - "🚀 手動選擇"
       - "♻️ 自動選擇"
       - "🇺🇸 美國節點"
@@ -247,7 +247,7 @@ proxy-groups:
       - "🇰🇷 韓國節點"
       - "🌐 其他／未識別節點"
       - "⛔ 拒絕"
-  - name: "🤖 Copilot · 自動"
+  - name: "🧑‍💻 Copilot · 自動"
     type: fallback
     url: "https://cp.cloudflare.com/generate_204"
     interval: 300
@@ -484,10 +484,10 @@ proxy-groups:
       - "🇰🇷 韓國節點"
       - "🌐 其他／未識別節點"
       - "⛔ 拒絕"
-  - name: "🤖 Hugging Face"
+  - name: "🤗 Hugging Face"
     type: select
     proxies:
-      - "🤖 Hugging Face · 自動"
+      - "🤗 Hugging Face · 自動"
       - "🚀 手動選擇"
       - "♻️ 自動選擇"
       - "🇺🇸 美國節點"
@@ -497,7 +497,7 @@ proxy-groups:
       - "🇰🇷 韓國節點"
       - "🌐 其他／未識別節點"
       - "⛔ 拒絕"
-  - name: "🤖 Hugging Face · 自動"
+  - name: "🤗 Hugging Face · 自動"
     type: fallback
     url: "https://cp.cloudflare.com/generate_204"
     interval: 300
@@ -828,8 +828,8 @@ rules:
     - "GEOSITE,private,🎯 全球直連"
     - "GEOIP,private,🎯 全球直連,no-resolve"
     - "GEOSITE,openai,🤖 ChatGPT"
-    - "RULE-SET,AI_Copilot_Classical,🤖 Copilot"
-    - "GEOSITE,github-copilot,🤖 Copilot"
+    - "RULE-SET,AI_Copilot_Classical,🧑‍💻 Copilot"
+    - "GEOSITE,github-copilot,🧑‍💻 Copilot"
     - "GEOSITE,anthropic,🤖 Claude"
     - "RULE-SET,AI_Gemini_Classical,🤖 Gemini"
     - "RULE-SET,AI_NotebookLM_Classical,🤖 NotebookLM"
@@ -839,7 +839,7 @@ rules:
     - "GEOSITE,poe,🤖 Poe"
     - "RULE-SET,AI_OpenRouter_Classical,🤖 OpenRouter"
     - "RULE-SET,AI_Cursor_Classical,🤖 Cursor"
-    - "RULE-SET,AI_HuggingFace_Classical,🤖 Hugging Face"
+    - "RULE-SET,AI_HuggingFace_Classical,🤗 Hugging Face"
     - "RULE-SET,AI_Mirasim_Classical,🤖 Mirasim"
     - "RULE-SET,AI_Antigravity_Classical,🤖 Antigravity"
     - "RULE-SET,AI_GoogleLabs_Classical,🤖 Google Labs"

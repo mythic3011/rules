@@ -41,7 +41,7 @@
       }
     ],
     "checkNode": [
-      { "argv": ["npm", "run", "validate:routing"] },
+      { "argv": ["npm", "run", "routing:validate"] },
       { "argv": ["npm", "run", "typecheck"] },
       { "argv": ["npm", "run", "test:routing"] }
     ],
@@ -65,8 +65,7 @@
         "otherwise": "skip",
         "skipMessage": "note: Node dependencies are not installed; TypeScript-owned generated artifacts were skipped",
         "steps": [
-          { "argv": ["npm", "run", "export:routing-artifacts"] },
-          { "argv": ["npm", "run", "export:shadow-profile"] }
+          { "argv": ["npm", "run", "routing:generate"] }
         ]
       },
       {
@@ -108,8 +107,7 @@
         "otherwise": "skip",
         "skipMessage": "note: Node dependencies are not installed; TypeScript-owned generated artifacts were skipped",
         "steps": [
-          { "argv": ["npm", "run", "export:routing-artifacts"] },
-          { "argv": ["npm", "run", "export:shadow-profile"] }
+          { "argv": ["npm", "run", "routing:generate"] }
         ]
       },
       {

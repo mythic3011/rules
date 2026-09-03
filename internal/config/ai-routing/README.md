@@ -16,6 +16,12 @@ The core routing loader selects only numbered fragments in `core/`. Do not make 
 Zod schema permissive merely to accept sibling manifests; that would erase the
 schema boundary and hide configuration mistakes.
 
+`project.yaml` is the validated routing-project entrypoint. It binds the core
+manifest, projections, shadow inputs, generated artifact directory, schema
+output, supported profiles, and semantic artifact roles. Use `npm run
+routing:validate`, `npm run routing:generate`, and `npm run routing:check`
+through that project context rather than invoking individual artifact steps.
+
 
 The catalog declares routing policy; Python compiles it into Mihomo/OpenClash and
 subconverter outputs.

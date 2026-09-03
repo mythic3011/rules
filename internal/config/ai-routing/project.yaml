@@ -1,0 +1,23 @@
+schemaVersion: 1
+canonicalManifest: core
+serviceCatalog: catalogs/services.json
+mihomoProjection: projections/mihomo.yaml
+shadowParityManifest: projections/parity.yaml
+legacyRelaxedBase: ../../../cfg/yaml/Custom_Clash_AI.yaml
+shadowTemplate: ../../templates/ai-routing/full-relaxed-shadow.yaml.tpl
+generatedArtifactDirectory: ../../generated/ai-routing
+schemaOutput: ../../schemas/routing-config.schema.json
+supportedProfiles:
+  - hk
+  - jp
+  - sg
+  - us
+artifactPaths:
+  profile-plan: "{profile}.plan.json"
+  mihomo-fragment: "{profile}.mihomo-fragment.yaml"
+  controller-plan: controller-plan.json
+  firewall-semantic-plan: firewall-semantic-plan.yaml
+  ini-mvp-plan: "{profile}.ini-mvp-plan.json"
+  shadow-candidate: "{profile}.full-profile-candidate.yaml"
+  shadow-parity-report: "{profile}.parity-report.json"
+  routing-schema: routing-config.schema.json

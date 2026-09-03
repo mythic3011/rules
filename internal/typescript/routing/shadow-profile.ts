@@ -5,6 +5,8 @@ import YAML from "yaml";
 import { z } from "zod";
 
 import { formatIssues, type RoutingIssue } from "./issues.js";
+import type { RoutingProject } from "./project/schema.js";
+import { routingArtifactName } from "./routing-artifacts.js";
 import {
   compileMihomoFragment,
   renderMihomoFragment,
@@ -843,10 +845,11 @@ export async function composeShadowProfile(
 }
 export function expectedShadowArtifacts(
   result: ShadowProfileResult,
+  project: RoutingProject,
 ): ReadonlyMap<string, string> {
   return new Map([
-    ["hk.full-profile-candidate.yaml", result.candidateYaml],
-    ["hk.parity-report.json", `${JSON.stringify(result.report, null, 2)}\n`],
+    [routingArtifactName(project, "shadow-candidate"), result.candidateYaml],
+    [routingArtifactName(project, "shadow-parity-report"), `${JSON.stringify(result.report, null, 2)}\n`],
   ]);
 }
 export async function checkShadowArtifacts(

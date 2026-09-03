@@ -76,6 +76,13 @@ ruleProviders:
     interval: 10800
     source: local-rules
     path: rule/AI_NotebookLM_Classical.yaml
+  AI_OpenCode_Classical:
+    type: http
+    behavior: classical
+    format: yaml
+    interval: 10800
+    source: local-rules
+    path: rule/AI_OpenCode_Classical.yaml
   AI_Perplexity_Classical:
     type: http
     behavior: classical

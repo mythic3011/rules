@@ -6,6 +6,7 @@ import { compileRoutingProfile } from "./compiler.js";
 import { formatIssues, type RoutingIssue } from "./issues.js";
 import { compileMihomoFragment, renderMihomoFragment, type MihomoProjectionConfig } from "./mihomo-projection.js";
 import type { RoutingConfig } from "./schema.js";
+import type { RoutingProject } from "./project/schema.js";
 import { compileControllerPlan, compileFirewallSemanticPlan, renderFirewallSemanticPlan } from "./runtime-plan.js";
 import { compileIniMvpPlan } from "./ini-mvp-plan.js";
 
@@ -16,6 +17,28 @@ export class RoutingArtifactCheckError extends Error {
   }
 }
 
+export type RoutingArtifactRole = keyof RoutingProject["artifactPaths"];
+
+export function routingArtifactName(
+  project: RoutingProject,
+  role: RoutingArtifactRole,
+  profile?: string,
+): string {
+  const selectedProfile = profile ?? project.supportedProfiles[0];
+  if (selectedProfile === undefined) throw new Error("routing project has no supported profile");
+  return project.artifactPaths[role].replaceAll("{profile}", selectedProfile);
+}
+
+export function routingArtifactPath(
+  project: RoutingProject,
+  role: RoutingArtifactRole,
+  profile?: string,
+): string {
+  return role === "routing-schema"
+    ? project.schemaOutput
+    : join(project.generatedArtifactDirectory, routingArtifactName(project, role, profile));
+}
+
 function compare(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
@@ -24,24 +47,25 @@ function issue(path: readonly (string | number)[], message: string): RoutingIssu
   return { code: "artifact-drift", path, message };
 }
 
-/** This verifier owns only compiler plans and non-standalone fragments.
- * Shadow-candidate artifacts are owned by check:shadow-profile. */
+/** This verifier owns compiler plans and non-standalone fragments.
+ * Shadow-candidate artifacts are checked by the unified routing build. */
 function isRoutingArtifactName(name: string): boolean {
-  return name.endsWith(".plan.json") || name.endsWith(".mihomo-fragment.yaml") || name === "controller-plan.json" || name === "firewall-semantic-plan.yaml" || name === "hk.ini-mvp-plan.json";
+  return name.endsWith(".plan.json") || name.endsWith(".mihomo-fragment.yaml") || name === "controller-plan.json" || name === "firewall-semantic-plan.yaml" || name.endsWith(".ini-mvp-plan.json");
 }
 
 export function expectedRoutingArtifacts(
   config: RoutingConfig,
   projection: MihomoProjectionConfig,
+  project: RoutingProject,
 ): ReadonlyMap<string, string> {
   const artifacts = new Map<string, string>();
   for (const profileId of Object.keys(config.accessProfiles).sort(compare)) {
-    artifacts.set(`${profileId}.plan.json`, `${JSON.stringify(compileRoutingProfile(config, profileId), null, 2)}\n`);
-    artifacts.set(`${profileId}.mihomo-fragment.yaml`, renderMihomoFragment(compileMihomoFragment(config, projection, profileId)));
+    artifacts.set(routingArtifactName(project, "profile-plan", profileId), `${JSON.stringify(compileRoutingProfile(config, profileId), null, 2)}\n`);
+    artifacts.set(routingArtifactName(project, "mihomo-fragment", profileId), renderMihomoFragment(compileMihomoFragment(config, projection, profileId)));
   }
-  artifacts.set("controller-plan.json", `${JSON.stringify(compileControllerPlan(config, projection), null, 2)}\n`);
-  artifacts.set("firewall-semantic-plan.yaml", renderFirewallSemanticPlan(compileFirewallSemanticPlan(config)));
-  artifacts.set("hk.ini-mvp-plan.json", `${JSON.stringify(compileIniMvpPlan(config, projection), null, 2)}\n`);
+  artifacts.set(routingArtifactName(project, "controller-plan"), `${JSON.stringify(compileControllerPlan(config, projection), null, 2)}\n`);
+  artifacts.set(routingArtifactName(project, "firewall-semantic-plan"), renderFirewallSemanticPlan(compileFirewallSemanticPlan(config)));
+  artifacts.set(routingArtifactName(project, "ini-mvp-plan"), `${JSON.stringify(compileIniMvpPlan(config, projection), null, 2)}\n`);
   return artifacts;
 }
 
@@ -50,8 +74,9 @@ export async function checkRoutingArtifacts(
   config: RoutingConfig,
   projection: MihomoProjectionConfig,
   directory: string,
+  project: RoutingProject,
 ): Promise<void> {
-  const expected = expectedRoutingArtifacts(config, projection);
+  const expected = expectedRoutingArtifacts(config, projection, project);
   const issues: RoutingIssue[] = [];
   let entries: readonly Dirent<string>[];
   try {

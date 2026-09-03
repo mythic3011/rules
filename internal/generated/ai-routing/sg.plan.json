@@ -508,6 +508,67 @@
       ]
     },
     {
+      "id": "opencode",
+      "displayName": "🤖 OpenCode",
+      "protectionClass": "direct-capable",
+      "effectiveRoute": {
+        "id": "sg-stable",
+        "kind": "region-stable",
+        "group": "🇸🇬 SG Stable",
+        "dynamic": false
+      },
+      "selector": {
+        "kind": "profile-aware",
+        "visibleGroup": "🤖 OpenCode",
+        "hiddenProfileTarget": "@profile/opencode",
+        "choices": [
+          {
+            "id": "direct",
+            "kind": "direct",
+            "group": "DIRECT",
+            "dynamic": false
+          },
+          {
+            "id": "us-stable",
+            "kind": "region-stable",
+            "group": "🇺🇸 US Stable",
+            "dynamic": false
+          },
+          {
+            "id": "sg-stable",
+            "kind": "region-stable",
+            "group": "🇸🇬 SG Stable",
+            "dynamic": false
+          },
+          {
+            "id": "jp-stable",
+            "kind": "region-stable",
+            "group": "🇯🇵 JP Stable",
+            "dynamic": false
+          },
+          {
+            "id": "reject",
+            "kind": "reject",
+            "group": "REJECT",
+            "dynamic": false
+          }
+        ]
+      },
+      "endpoints": [
+        {
+          "id": "service",
+          "ruleset": "AI_OpenCode_Classical",
+          "session": "stateless",
+          "effectiveRoute": {
+            "id": "sg-stable",
+            "kind": "region-stable",
+            "group": "🇸🇬 SG Stable",
+            "dynamic": false
+          }
+        }
+      ]
+    },
+    {
       "id": "perplexity",
       "displayName": "🤖 Perplexity",
       "protectionClass": "direct-capable",

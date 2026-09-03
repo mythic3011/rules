@@ -2,9 +2,8 @@ import assert from "node:assert/strict";
 import { join, resolve } from "node:path";
 import test from "node:test";
 
-import { loadRoutingConfig } from "../../internal/typescript/routing/loader.js";
-import { loadMihomoProjectionConfig } from "../../internal/typescript/routing/mihomo-projection.js";
-import * as FirewallProof from "../../internal/typescript/routing/firewall-proof.js";
+import { loadCanonicalInputs } from "#routing-test/support/canonical-inputs.js";
+import * as FirewallProof from "#routing/firewall-proof.js";
 import {
   digestControllerPlan,
   digestFirewallStaticEvidence,
@@ -15,26 +14,24 @@ import {
   type FirewallStaticEvidence,
   type SealedArtifactGeneration,
   type SealedArtifactInput,
-} from "../../internal/typescript/routing/firewall-proof.js";
+} from "#routing/firewall-proof.js";
 import {
   FirewallProofAdapter,
   type FirewallEvidenceSource,
   type FirewallProofClock,
-} from "../../internal/typescript/routing/firewall-proof-adapter.js";
-import { createInitialRuntimeState, type RouterDeployment } from "../../internal/typescript/routing/router-local.js";
-import { compileControllerPlan, type ControllerPlan } from "../../internal/typescript/routing/runtime-plan.js";
+} from "#routing/firewall-proof-adapter.js";
+import { createInitialRuntimeState, type RouterDeployment } from "#routing/router-local.js";
+import { compileControllerPlan, type ControllerPlan } from "#routing/runtime-plan.js";
 import {
   executeControllerStartup,
   StartupOrchestratorError,
   type EmergencyDeny,
   type EmergencyRejectLock,
   type FirewallGenerationAuthority,
-} from "../../internal/typescript/routing/startup-orchestrator.js";
-import type { ControllerApi, StartupGate } from "../../internal/typescript/routing/runtime-controller.js";
+} from "#routing/startup-orchestrator.js";
+import type { ControllerApi, StartupGate } from "#routing/runtime-controller.js";
 
-const ROOT = resolve(import.meta.dirname, "../..");
-const ROUTING_DIRECTORY = join(ROOT, "internal", "config", "ai-routing", "core");
-const MIHOMO_PROJECTION = join(ROOT, "internal", "config", "ai-routing", "projections", "mihomo.yaml");
+import { MIHOMO_PROJECTION, ROOT, VALID_DIRECTORY } from "#routing-test/support/paths.js";
 const DIGEST_A = `sha256:${"a".repeat(64)}`;
 const DIGEST_B = `sha256:${"b".repeat(64)}`;
 const RULESET_DIGEST = `sha256:${"c".repeat(64)}`;
@@ -196,8 +193,7 @@ class SynchronousThrowRejectLock implements EmergencyRejectLock {
 }
 
 async function controllerPlan(): Promise<ControllerPlan> {
-  const config = await loadRoutingConfig(ROUTING_DIRECTORY);
-  const projection = await loadMihomoProjectionConfig(MIHOMO_PROJECTION);
+  const { config, projection } = await loadCanonicalInputs();
   return compileControllerPlan(config, projection);
 }
 

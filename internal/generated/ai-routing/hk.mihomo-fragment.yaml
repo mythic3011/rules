@@ -192,6 +192,25 @@ proxy-groups:
       - 🇸🇬 SG Stable
       - 🇯🇵 JP Stable
       - REJECT
+  - name: "@profile/opencode"
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - DIRECT
+      - 🇺🇸 US Stable
+      - 🇸🇬 SG Stable
+      - 🇯🇵 JP Stable
+      - REJECT
+  - name: 🤖 OpenCode
+    type: select
+    empty-fallback: REJECT
+    proxies:
+      - "@profile/opencode"
+      - DIRECT
+      - 🇺🇸 US Stable
+      - 🇸🇬 SG Stable
+      - 🇯🇵 JP Stable
+      - REJECT
   - name: "@profile/perplexity"
     type: select
     empty-fallback: REJECT
@@ -294,6 +313,12 @@ rule-providers:
     format: yaml
     interval: 10800
     url: https://raw.githubusercontent.com/mythic3011/rules/0e9631339904f4a989c884781570b5756d82c9a3/rule/AI_NotebookLM_Classical.yaml
+  AI_OpenCode_Classical:
+    type: http
+    behavior: classical
+    format: yaml
+    interval: 10800
+    url: https://raw.githubusercontent.com/mythic3011/rules/0e9631339904f4a989c884781570b5756d82c9a3/rule/AI_OpenCode_Classical.yaml
   AI_Perplexity_Classical:
     type: http
     behavior: classical
@@ -339,6 +364,7 @@ rules:
   - RULE-SET,AI_Grok_Classical,🤖 Grok
   - RULE-SET,AI_HuggingFace_Classical,🤗 Hugging Face
   - RULE-SET,AI_NotebookLM_Classical,🤖 NotebookLM
+  - RULE-SET,AI_OpenCode_Classical,🤖 OpenCode
   - RULE-SET,AI_Perplexity_Classical,🤖 Perplexity
   - RULE-SET,AI_Poe_Classical,🤖 Poe
   - RULE-SET,AI_Windsurf_Classical,🌊 Windsurf

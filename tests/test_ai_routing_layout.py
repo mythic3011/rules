@@ -11,7 +11,7 @@ class AiRoutingLayoutTest(unittest.TestCase):
     def test_root_contains_only_layout_metadata(self) -> None:
         self.assertEqual(
             {path.name for path in ROOT.iterdir()},
-            {"README.md", "profile.json", "core", "projections", "catalogs", "sources"},
+            {"README.md", "profile.json", "project.yaml", "core", "projections", "catalogs", "sources"},
         )
 
     def test_authority_files_have_one_owned_directory(self) -> None:

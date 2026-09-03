@@ -96,7 +96,7 @@
       "quic": "proxy-or-reject"
     }
   },
-  "revision": "80f2245ef8461533ba18a709563a6f6651e5146804bab1a5cd2258c641bffcbf",
+  "revision": "26368952529698d2d9479cac40958e9174cc78252ce28651aa3b748652a540e5",
   "schemaVersion": 1,
   "services": {
     "chatgpt": {
@@ -234,6 +234,19 @@
           "notebooklm.google.com",
           "notebooklm.google"
         ],
+        "geosite": []
+      },
+      "protectionClass": "direct-capable"
+    },
+    "opencode": {
+      "allowedRegions": [
+        "us",
+        "sg",
+        "jp"
+      ],
+      "dependencies": [],
+      "matchers": {
+        "domainSuffixes": [],
         "geosite": []
       },
       "protectionClass": "direct-capable"

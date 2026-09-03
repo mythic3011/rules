@@ -9,7 +9,7 @@
 ! DOMAIN-SUFFIX / DLC suffix entries are rendered as Adblock-style ||domain^ to include subdomains.
 ! WARNING: upstream snapshot is missing; this output contains local deltas only.
 
-! 🤖 Copilot (copilot)
+! 🧑‍💻 Copilot (copilot)
 ||copilot.com^
 ||copilot.microsoft.com^
 ||copilot.cloud.microsoft^
@@ -46,7 +46,7 @@ jules.googleapis.com
 ||cursorapi.com^
 ||cursorvm.com^
 
-! 🤖 Hugging Face (huggingface)
+! 🤗 Hugging Face (huggingface)
 ||huggingface.co^
 
 ! 🤖 Mirasim (mirasim)
@@ -55,6 +55,8 @@ jules.googleapis.com
 ! 🤖 Antigravity (antigravity)
 ||antigravity.google^
 ||antigravity-unleash.goog^
+||daily-cloudcode-pa.googleapis.com^
+||cloudcode-pa.googleapis.com^
 
 ! 🤖 Google Labs (google-labs)
 ||labs.google^

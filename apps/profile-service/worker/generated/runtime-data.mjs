@@ -24,7 +24,7 @@ export default {
     "kr": "🇰🇷 韓國節點",
     "hk": "🇭🇰 香港節點",
     "chatgpt": "🤖 ChatGPT",
-    "copilot": "🤖 Copilot",
+    "copilot": "🧑‍💻 Copilot",
     "claude": "🤖 Claude",
     "gemini": "🤖 Gemini",
     "notebooklm": "🤖 NotebookLM",
@@ -34,7 +34,7 @@ export default {
     "poe": "🤖 Poe",
     "openrouter": "🤖 OpenRouter",
     "cursor": "🤖 Cursor",
-    "huggingface": "🤖 Hugging Face",
+    "huggingface": "🤗 Hugging Face",
     "mirasim": "🤖 Mirasim",
     "antigravity": "🤖 Antigravity",
     "google-labs": "🤖 Google Labs",
@@ -42,6 +42,7 @@ export default {
     "android-studio-ai": "🤖 Android Studio AI",
     "gemini-cloud": "🤖 Gemini Cloud",
     "vertex-ai": "🤖 Vertex AI",
+    "opencode": "🤖 OpenCode",
     "ai-other": "🤖 AI Other",
     "ai-cn-other": "🤖 AI CN Other"
   },
@@ -327,7 +328,7 @@ export default {
             "rules": [
               {
                 "kind": "remote-classical",
-                "target": "🤖 Copilot",
+                "target": "🧑‍💻 Copilot",
                 "url": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_Copilot_Classical.yaml",
                 "interval": 28800,
                 "value": null,
@@ -335,7 +336,7 @@ export default {
               },
               {
                 "kind": "geosite",
-                "target": "🤖 Copilot",
+                "target": "🧑‍💻 Copilot",
                 "url": null,
                 "interval": null,
                 "value": "github-copilot",
@@ -412,7 +413,7 @@ export default {
               },
               {
                 "kind": "remote-classical",
-                "target": "🤖 Hugging Face",
+                "target": "🤗 Hugging Face",
                 "url": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_HuggingFace_Classical.yaml",
                 "interval": 28800,
                 "value": null,
@@ -470,6 +471,19 @@ export default {
                 "kind": "remote-classical",
                 "target": "🤖 Vertex AI",
                 "url": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_VertexAI_Classical.yaml",
+                "interval": 28800,
+                "value": null,
+                "options": []
+              }
+            ]
+          },
+          {
+            "source": "service",
+            "rules": [
+              {
+                "kind": "remote-classical",
+                "target": "🤖 OpenCode",
+                "url": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_OpenCode_Classical.yaml",
                 "interval": 28800,
                 "value": null,
                 "options": []
@@ -1044,7 +1058,7 @@ export default {
             "comments": [],
             "group": {
               "type": "select-group",
-              "name": "🤖 Copilot",
+              "name": "🧑‍💻 Copilot",
               "candidates": [
                 {
                   "kind": "group-ref",
@@ -1405,7 +1419,7 @@ export default {
             "comments": [],
             "group": {
               "type": "select-group",
-              "name": "🤖 Hugging Face",
+              "name": "🤗 Hugging Face",
               "candidates": [
                 {
                   "kind": "group-ref",
@@ -1720,6 +1734,47 @@ export default {
                 }
               ]
             }
+          },
+          {
+            "comments": [],
+            "group": {
+              "type": "select-group",
+              "name": "🤖 OpenCode",
+              "candidates": [
+                {
+                  "kind": "group-ref",
+                  "value": "🎯 全球直連"
+                },
+                {
+                  "kind": "group-ref",
+                  "value": "🇺🇸 美國節點"
+                },
+                {
+                  "kind": "group-ref",
+                  "value": "🇸🇬 新加坡節點"
+                },
+                {
+                  "kind": "group-ref",
+                  "value": "🇯🇵 日本節點"
+                },
+                {
+                  "kind": "group-ref",
+                  "value": "🇹🇼 台灣節點"
+                },
+                {
+                  "kind": "group-ref",
+                  "value": "🇰🇷 韓國節點"
+                },
+                {
+                  "kind": "group-ref",
+                  "value": "🌐 其他／未識別節點"
+                },
+                {
+                  "kind": "group-ref",
+                  "value": "⛔ 拒絕"
+                }
+              ]
+            }
           }
         ],
         "title": "Level 3 — AI service selectors",
@@ -1872,7 +1927,7 @@ export default {
         "onlyNodeRegions": [],
         "preferredNodeRegions": []
       },
-      "customBodySha256": "97aa62f497208bb244739e2f008ce9d5bad13777b67de0948d2ebc23bc834aae"
+      "customBodySha256": "6ae2467445527d552ee8fd64196c377f006d2187e083a8d0b2ad4ae5533a1ddf"
     },
     "only-us-sg-prefer-sg": {
       "spec": {
@@ -1887,7 +1942,7 @@ export default {
           "sg"
         ]
       },
-      "customBodySha256": "5471a75a67597873fb07d74b3a56e02494aeedbe616985382cc2142e3c5e7a48"
+      "customBodySha256": "c77f4717e5081ba12c0cb4ff6c8bc751a9a302fbfe94f532e2761342f21a05cf"
     },
     "disable-hk": {
       "spec": {
@@ -1899,7 +1954,7 @@ export default {
         "onlyNodeRegions": [],
         "preferredNodeRegions": []
       },
-      "customBodySha256": "eb00b6608e84f3ffe5345d7c18ce87db5e7a9c65fea828afca743ef4af6cfa4b"
+      "customBodySha256": "b4da3c89a7b7142956a64ac8e82108f33ad9b738a83f6f6848628ecc7c1d7b16"
     }
   }
 };

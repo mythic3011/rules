@@ -101,22 +101,16 @@ matches are not used, so a name such as `Australia` cannot enter the US pool.
 
 ```bash
 npm ci
-npm run validate:routing
+npm run routing:validate
 npm run test:routing
-npm run export:routing-schema
-git diff --exit-code internal/schemas/routing-config.schema.json
-npm run export:routing-plan
-npm run check:routing-plan
-npm run export:mihomo-fragment
-npm run check:mihomo-fragment
-npm run export:routing-artifacts
-npm run check:routing-artifacts
+npm run routing:generate
+npm run routing:check
 ```
 
-`check:routing-artifacts` is read-only. It compares the exact expected profile
+`routing:check` is read-only. It compares the exact expected profile
 artifact inventory and byte content, rejecting missing, stale, non-file, or
-changed output. It never creates, overwrites, or deletes an artifact; use the
-explicit export command when regeneration is intended.
+changed output. It never creates, overwrites, or deletes an artifact; use
+`routing:generate` when regeneration is intended.
 
 ## Phase 3a shadow full-profile candidate
 
@@ -133,7 +127,7 @@ parity manifest is a closed four-operation contract: an exact proxy-group
 replace-set, an exact rule-provider replace-key-set, an exact anchored rule
 interval replacement, and one Claude DNS add-map-entry. It rejects collisions
 with preserved names, already-present DNS entries, malformed fragments, stale
-allowances, and any unmatched change. `check:shadow-profile` is read-only and
+allowances, and any unmatched change. `routing:check` is read-only and
 rejects missing, stale, or changed shadow outputs.
 
 ## Phase 4a runtime-contract preview

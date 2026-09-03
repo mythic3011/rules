@@ -34,8 +34,8 @@ class TypeScriptReorgContractTests(unittest.TestCase):
     def test_typescript_runtime_and_tests_do_not_reference_removed_reorg_paths(self):
         checked = [
             ROOT / "internal" / "typescript" / "routing" / "cli.ts",
-            ROOT / "tests" / "routing" / "routing.test.ts",
-            ROOT / "tests" / "routing" / "firewall-proof.test.ts",
+            ROOT / "internal" / "typescript" / "routing" / "project" / "loader.ts",
+            *sorted((ROOT / "tests" / "routing").glob("*.test.ts")),
         ]
         stale = (
             'join(ROOT, "data", "ai-routing")',
@@ -54,20 +54,13 @@ class TypeScriptReorgContractTests(unittest.TestCase):
         package = json.loads((ROOT / "package.json").read_text())
         scripts = package["scripts"]
         for name in (
-            "validate:routing",
-            "export:routing-plan",
-            "export:mihomo-fragment",
-            "export:routing-artifacts",
-            "export:shadow-profile",
+            "routing",
+            "routing:validate",
+            "routing:generate",
+            "routing:check",
         ):
-            script = scripts[name]
-            for relative in re.findall(r"internal/(?:config|generated|templates)/[^ ]+", script):
-                # Output files may not exist before generation; their parent must exist.
-                path = ROOT / relative
-                if relative.startswith("internal/generated/") and path.suffix:
-                    self.assertTrue(path.parent.exists(), f"missing output parent referenced by {name}: {path.parent}")
-                else:
-                    self.assertTrue(path.exists(), f"missing path referenced by {name}: {path}")
+            self.assertIn(name, scripts)
+        self.assertTrue((ROUTING / "project.yaml").is_file())
 
 
 if __name__ == "__main__":

@@ -8,8 +8,8 @@ deltas:
     remove:
       - "🤖 ChatGPT"
       - "🤖 ChatGPT · 自動"
-      - "🤖 Copilot"
-      - "🤖 Copilot · 自動"
+      - "🧑‍💻 Copilot"
+      - "🧑‍💻 Copilot · 自動"
       - "🤖 Claude"
       - "🤖 Claude · 自動"
       - "🤖 Gemini"
@@ -28,8 +28,8 @@ deltas:
       - "🤖 OpenRouter · 自動"
       - "🤖 Cursor"
       - "🤖 Cursor · 自動"
-      - "🤖 Hugging Face"
-      - "🤖 Hugging Face · 自動"
+      - "🤗 Hugging Face"
+      - "🤗 Hugging Face · 自動"
       - "🤖 Mirasim"
       - "🤖 Mirasim · 自動"
       - "🤖 Antigravity"
@@ -44,6 +44,8 @@ deltas:
       - "🤖 Gemini Cloud · 自動"
       - "🤖 Vertex AI"
       - "🤖 Vertex AI · 自動"
+      - "🤖 OpenCode"
+      - "🤖 OpenCode · 自動"
       - "🤖 AI Other"
       - "🤖 AI Other · 自動"
       - "🤖 AI CN Other"
@@ -72,6 +74,8 @@ deltas:
       - "🤗 Hugging Face"
       - "@profile/notebooklm"
       - "🤖 NotebookLM"
+      - "@profile/opencode"
+      - "🤖 OpenCode"
       - "@profile/perplexity"
       - "🤖 Perplexity"
       - "@profile/poe"
@@ -99,6 +103,7 @@ deltas:
         AI_AndroidStudioAI_Classical,
         AI_GeminiCloud_Classical,
         AI_VertexAI_Classical,
+        AI_OpenCode_Classical,
       ]
     add:
       - AI_All_Classical
@@ -109,6 +114,7 @@ deltas:
       - AI_Grok_Classical
       - AI_HuggingFace_Classical
       - AI_NotebookLM_Classical
+      - AI_OpenCode_Classical
       - AI_Perplexity_Classical
       - AI_Poe_Classical
       - AI_Windsurf_Classical
@@ -122,8 +128,8 @@ deltas:
       ["GEOSITE,private,🎯 全球直連", "GEOIP,private,🎯 全球直連,no-resolve"]
     remove:
       - "GEOSITE,openai,🤖 ChatGPT"
-      - "RULE-SET,AI_Copilot_Classical,🤖 Copilot"
-      - "GEOSITE,github-copilot,🤖 Copilot"
+      - "RULE-SET,AI_Copilot_Classical,🧑‍💻 Copilot"
+      - "GEOSITE,github-copilot,🧑‍💻 Copilot"
       - "GEOSITE,anthropic,🤖 Claude"
       - "RULE-SET,AI_Gemini_Classical,🤖 Gemini"
       - "RULE-SET,AI_NotebookLM_Classical,🤖 NotebookLM"
@@ -133,7 +139,7 @@ deltas:
       - "GEOSITE,poe,🤖 Poe"
       - "RULE-SET,AI_OpenRouter_Classical,🤖 OpenRouter"
       - "RULE-SET,AI_Cursor_Classical,🤖 Cursor"
-      - "RULE-SET,AI_HuggingFace_Classical,🤖 Hugging Face"
+      - "RULE-SET,AI_HuggingFace_Classical,🤗 Hugging Face"
       - "RULE-SET,AI_Mirasim_Classical,🤖 Mirasim"
       - "RULE-SET,AI_Antigravity_Classical,🤖 Antigravity"
       - "RULE-SET,AI_GoogleLabs_Classical,🤖 Google Labs"
@@ -141,6 +147,7 @@ deltas:
       - "RULE-SET,AI_AndroidStudioAI_Classical,🤖 Android Studio AI"
       - "RULE-SET,AI_GeminiCloud_Classical,🤖 Gemini Cloud"
       - "RULE-SET,AI_VertexAI_Classical,🤖 Vertex AI"
+      - "RULE-SET,AI_OpenCode_Classical,🤖 OpenCode"
       - "GEOSITE,google-deepmind,🤖 AI Other"
       - "GEOSITE,category-ai-!cn,🤖 AI Other"
       - "GEOSITE,category-ai-cn,🤖 AI CN Other"
@@ -155,6 +162,7 @@ deltas:
       - "RULE-SET,AI_Grok_Classical,🤖 Grok"
       - "RULE-SET,AI_HuggingFace_Classical,🤗 Hugging Face"
       - "RULE-SET,AI_NotebookLM_Classical,🤖 NotebookLM"
+      - "RULE-SET,AI_OpenCode_Classical,🤖 OpenCode"
       - "RULE-SET,AI_Perplexity_Classical,🤖 Perplexity"
       - "RULE-SET,AI_Poe_Classical,🤖 Poe"
       - "RULE-SET,AI_Windsurf_Classical,🌊 Windsurf"

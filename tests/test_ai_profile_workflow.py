@@ -60,8 +60,7 @@ class AiProfileWorkflowTests(unittest.TestCase):
         refresh_step = steps[refresh_index]
         self.assertEqual(refresh_step["if"], "github.event_name == 'schedule'")
         refresh_run = refresh_step["run"]
-        self.assertNotIn("npm run export:routing-artifacts", refresh_run)
-        self.assertNotIn("npm run export:shadow-profile", refresh_run)
+        self.assertNotIn("npm run export:", refresh_run)
         generation_index = next(
             index for index, step in enumerate(steps) if step["name"] == "Generate repository outputs"
         )
