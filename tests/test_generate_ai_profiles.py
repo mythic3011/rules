@@ -74,9 +74,9 @@ class GenerateAiProfilesTest(unittest.TestCase):
                 block.append(line)
         return "\n".join(block)
 
-    def extract_ini_group_line(self, rendered_ini: str, name: str) -> str:
+    def extract_ini_group_lines(self, rendered_ini: str, name: str) -> list[str]:
         prefix = f"custom_proxy_group={name}`"
-        return next((line for line in rendered_ini.splitlines() if line.startswith(prefix)), "")
+        return [line for line in rendered_ini.splitlines() if line.startswith(prefix)]
 
     def test_should_use_classical_provider_keys_for_ai_rules(self) -> None:
         provider_keys = [item["provider_key"] for item in MODULE.AI_RULESETS]
@@ -228,7 +228,7 @@ class GenerateAiProfilesTest(unittest.TestCase):
 
     def test_should_keep_manual_ini_group_open_to_filtered_provider_nodes(self) -> None:
         rendered_ini = MODULE.render_ini()
-        manual_group = self.extract_ini_group_line(rendered_ini, MODULE.GROUP["manual"])
+        manual_group = self.extract_ini_group_lines(rendered_ini, MODULE.GROUP["manual"])[0]
 
         self.assertIn(f"[]{MODULE.GROUP['direct']}", manual_group)
         self.assertIn(MODULE.AI_POOL_FILTER, manual_group)
@@ -270,14 +270,13 @@ class GenerateAiProfilesTest(unittest.TestCase):
             self.assertIsInstance(group, dict)
             name = group["name"]
             candidates = group["candidates"]
-            line = self.extract_ini_group_line(rendered_ini, name)
-            self.assertTrue(line, name)
             prefix = f"custom_proxy_group={name}`select`"
-            self.assertTrue(line.startswith(prefix), line)
-            self.assertEqual(
-                line[len(prefix):],
-                "`".join(candidate_fragment(candidate) for candidate in candidates),
+            expected = prefix + "`".join(
+                candidate_fragment(candidate) for candidate in candidates
             )
+            lines = self.extract_ini_group_lines(rendered_ini, name)
+            self.assertTrue(lines, name)
+            self.assertIn(expected, lines)
 
         migration = plan.get("migration")
         self.assertIsInstance(migration, dict)
