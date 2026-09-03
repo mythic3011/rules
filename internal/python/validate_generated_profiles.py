@@ -405,7 +405,6 @@ def validate_ini(text: str) -> None:
                 f"ruleset={service.group},[]GEOSITE,{geosite}" in text,
                 f"INI missing AI GEOSITE identity: {geosite}",
             )
-    ensure(plan.get("schemaVersion") == 1 and plan.get("profile") == "hk", "INI MVP plan is not the HK v1 plan")
     rule_sections = plan.get("rules")
     groups = plan.get("groups")
     ensure(isinstance(migration, dict), "INI MVP service migration metadata is invalid")
@@ -417,11 +416,14 @@ def validate_ini(text: str) -> None:
     protected_rule = before_legacy[0]
     terminal_reject = before_legacy[1]
     ensure(protected_rule.get("kind") == "remote-classical" and terminal_reject.get("kind") == "remote-classical", "INI MVP protected rules must be remote classical")
-    ensure(protected_rule.get("target") == account.get("protectedGroup") and terminal_reject.get("target") == account.get("rejectGroup") and protected_rule.get("url") == terminal_reject.get("url") and protected_rule.get("interval") == terminal_reject.get("interval"), "Claude terminal reject must immediately mirror the protected provider")
+    ensure(protected_rule.get("target") == account.get("protectedGroup") and terminal_reject.get("target") == account.get("rejectGroup") and protected_rule.get("url") == terminal_reject.get("url") and protected_rule.get("interval") == terminal_reject.get("interval"), "INI MVP terminal reject must immediately mirror the protected provider")
     expected_before = [render_ini_mvp_rule(record) for record in before_legacy]
     expected_after = [render_ini_mvp_rule(record) for record in after_legacy]
     ensure(all(line in text for line in [*expected_before, *expected_after]), "INI is missing a normalized MVP rule record")
-    ensure("ruleset=🤖 Claude,[]GEOSITE,anthropic" not in text and "custom_proxy_group=🤖 Claude`" not in text and "custom_proxy_group=🤖 Claude ·" not in text, "INI must not retain legacy Claude rules or groups")
+    for replaced_service in (s for s in CATALOG.services if s.id in replaced_service_ids and "subconverter" in s.projections):
+        for geosite in replaced_service.geosites:
+            ensure(f"ruleset={replaced_service.group},[]GEOSITE,{geosite}" not in text, f"INI must not retain legacy {replaced_service.id} geosite ruleset")
+        ensure(f"custom_proxy_group={replaced_service.group}`" not in text and f"custom_proxy_group={replaced_service.group} ·" not in text, f"INI must not retain legacy {replaced_service.id} proxy group")
     for group in groups:
         ensure(isinstance(group, dict) and isinstance(group.get("name"), str), "INI MVP plan group must be a mapping")
         expected_fields = expected_ini_mvp_group_fields(group)
@@ -434,7 +436,7 @@ def validate_ini(text: str) -> None:
             f"INI MVP group {group['name']} has invalid candidate separators or order",
         )
     protected_group = next((group for group in groups if group.get("name") == account.get("protectedGroup")), None)
-    ensure(isinstance(protected_group, dict) and expected_ini_mvp_group_fields(protected_group) == [f"[]{account.get('rejectGroup')}"], "Claude public INI group must be REJECT-only")
+    ensure(isinstance(protected_group, dict) and expected_ini_mvp_group_fields(protected_group) == [f"[]{account.get('rejectGroup')}"], "INI MVP account guard group must be REJECT-only")
     if not ENABLE_PROCESS_RULES:
         for key in PROCESS_PROVIDER_KEYS:
             ensure(key not in text, f"INI must not reference {key} while disabled")
