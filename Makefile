@@ -1,8 +1,9 @@
-.PHONY: help bootstrap doctor check check-all check-profile-service check-bootstrap-alias generate build ci refresh
+.PHONY: help bootstrap install-hooks doctor check check-all check-profile-service check-bootstrap-alias generate build ci refresh
 
 help:
 	@printf '%s\n' \
 	  'make bootstrap  - install contributor dependencies' \
+	  'make install-hooks - enable repository Git hooks' \
 	  'make doctor     - inspect local prerequisites' \
 	  'make check      - core Python + profile-service contracts' \
 	  'make check-all  - Python + TypeScript checks' \
@@ -16,6 +17,8 @@ help:
 bootstrap:
 	python3 -m pip install -r requirements-dev.txt
 	npm ci
+install-hooks:
+	git config core.hooksPath .githooks
 doctor:
 	./rulesctl doctor
 check:

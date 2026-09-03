@@ -5,6 +5,7 @@ Everything used to build those artifacts lives under `internal/`.
 
 ```sh
 make bootstrap
+make install-hooks
 make doctor
 make check
 ```

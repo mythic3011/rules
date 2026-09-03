@@ -4,6 +4,8 @@
 # RULE-PROVIDER: Finance_IBKR_Classical
 # GROUP: 🔐 高風險帳戶
 # TOTAL: 2
+# GENERATED-AT: 2026-09-03T20:42:50.815191+00:00
+# VERSION: 4bd4081bb9c59cdea09852f4f8a32272222db552
 
 # Interactive Brokers account/trading traffic uses the fail-closed high-risk account selector.
 # IBKR documents api.ibkr.com for Web API trading/account endpoints.

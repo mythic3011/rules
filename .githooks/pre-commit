@@ -1,0 +1,9 @@
+#!/bin/sh
+set -eu
+
+repo_root=$(git rev-parse --show-toplevel)
+cd "$repo_root"
+
+make generate
+
+git add -u -- rule cfg dns dist apps/profile-service/worker/generated
