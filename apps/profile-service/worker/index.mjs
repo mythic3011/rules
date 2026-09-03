@@ -109,9 +109,21 @@ async function handleCreate(request, env) {
 }
 
 async function handleSubscription(env, token) {
-  if (!TOKEN_RE.test(token)) return new Response("Not found\n", { status: 404 });
+  const notFound = () =>
+    new Response("Not found\n", {
+      status: 404,
+      headers: {
+        "content-type": "text/plain; charset=utf-8",
+        "x-content-type-options": "nosniff",
+        "referrer-policy": "no-referrer",
+        "x-frame-options": "DENY",
+        "content-security-policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+      },
+    });
+
+  if (!TOKEN_RE.test(token)) return notFound();
   const row = await getProfileByReadToken(env, token);
-  if (!row) return new Response("Not found\n", { status: 404 });
+  if (!row) return notFound();
   const spec = JSON.parse(row.spec_json);
   const solved = solveSubconverterPlan(spec);
   const ini = renderIni(solved.plan, runtimeData);
@@ -124,6 +136,8 @@ async function handleSubscription(env, token) {
       "x-profile-revision": String(row.revision),
       "x-content-type-options": "nosniff",
       "referrer-policy": "no-referrer",
+      "x-frame-options": "DENY",
+      "content-security-policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
     },
   });
 }

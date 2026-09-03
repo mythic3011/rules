@@ -33,6 +33,19 @@ test("arbitrary query-string preference route is not a config API", async () => 
   assert.equal(await response.text(), "asset-shell");
 });
 
+test("subscription 404 includes defense-in-depth security headers", async () => {
+  const response = await worker.fetch(
+    new Request("https://rules.example/p/invalid-token-format.ini"),
+    envWithoutDb,
+  );
+  assert.equal(response.status, 404);
+  assert.equal(response.headers.get("x-frame-options"), "DENY");
+  assert.equal(
+    response.headers.get("content-security-policy"),
+    "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+  );
+});
+
 test("saving a profile requires D1", async () => {
   const request = new Request("https://rules.example/api/v1/profiles", {
     method: "POST",

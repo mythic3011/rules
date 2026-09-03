@@ -44,6 +44,8 @@ deltas:
       - "🤖 Gemini Cloud · 自動"
       - "🤖 Vertex AI"
       - "🤖 Vertex AI · 自動"
+      - "🤖 OpenCode"
+      - "🤖 OpenCode · 自動"
       - "🤖 AI Other"
       - "🤖 AI Other · 自動"
       - "🤖 AI CN Other"
@@ -99,6 +101,7 @@ deltas:
         AI_AndroidStudioAI_Classical,
         AI_GeminiCloud_Classical,
         AI_VertexAI_Classical,
+        AI_OpenCode_Classical,
       ]
     add:
       - AI_All_Classical
@@ -141,6 +144,7 @@ deltas:
       - "RULE-SET,AI_AndroidStudioAI_Classical,🤖 Android Studio AI"
       - "RULE-SET,AI_GeminiCloud_Classical,🤖 Gemini Cloud"
       - "RULE-SET,AI_VertexAI_Classical,🤖 Vertex AI"
+      - "RULE-SET,AI_OpenCode_Classical,🤖 OpenCode"
       - "GEOSITE,google-deepmind,🤖 AI Other"
       - "GEOSITE,category-ai-!cn,🤖 AI Other"
       - "GEOSITE,category-ai-cn,🤖 AI CN Other"
