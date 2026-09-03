@@ -1,7 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createProfile, randomToken, sha256Hex } from "../worker/store.mjs";
+import { createProfile, randomToken, sha256Hex, timingSafeEqualString } from "../worker/store.mjs";
+
+test("timingSafeEqualString correctly compares string equality in constant time", () => {
+  assert.equal(timingSafeEqualString("token_abc123", "token_abc123"), true);
+  assert.equal(timingSafeEqualString("token_abc123", "token_abc124"), false);
+  assert.equal(timingSafeEqualString("token_abc123", "token_abc"), false);
+  assert.equal(timingSafeEqualString("", ""), true);
+  assert.equal(timingSafeEqualString("a", null), false);
+  assert.equal(timingSafeEqualString(undefined, "b"), false);
+});
 
 test("capability tokens use 256 bits of random material", () => {
   const token = randomToken();
