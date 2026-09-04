@@ -96,7 +96,7 @@
       "quic": "proxy-or-reject"
     }
   },
-  "revision": "26368952529698d2d9479cac40958e9174cc78252ce28651aa3b748652a540e5",
+  "revision": "b66a810431071f9300e4c85ac9ddf451b9786548ef9c61c40e685d49bca5c86d",
   "schemaVersion": 1,
   "services": {
     "chatgpt": {
@@ -246,7 +246,9 @@
       ],
       "dependencies": [],
       "matchers": {
-        "domainSuffixes": [],
+        "domainSuffixes": [
+          "opencode.ai"
+        ],
         "geosite": []
       },
       "protectionClass": "direct-capable"

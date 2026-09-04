@@ -352,6 +352,15 @@ def _compile_services(
     closed_rule_clusters: set[str] = set()
     active_rule_cluster: str | None = None
     for record in services_doc.services:
+        non_routable = set(record.regions) - routable_regions
+        if non_routable:
+            # Only primaryOrder regions get a selectable node group; listing any
+            # other region in `regions` would be silently unroutable, so reject
+            # it at load time instead of dropping it during projection.
+            raise RuntimeError(
+                f"AI service {record.id} lists regions without a routable node "
+                f"group (only primaryOrder regions are selectable): {sorted(non_routable)}"
+            )
         rule_cluster = record.subconverter.rule_cluster
         if rule_cluster != active_rule_cluster:
             if active_rule_cluster is not None:
