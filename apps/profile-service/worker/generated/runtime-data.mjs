@@ -1070,11 +1070,11 @@ export default {
                 },
                 {
                   "kind": "group-ref",
-                  "value": "🇸🇬 新加坡節點"
+                  "value": "🇯🇵 日本節點"
                 },
                 {
                   "kind": "group-ref",
-                  "value": "🇯🇵 日本節點"
+                  "value": "🇸🇬 新加坡節點"
                 },
                 {
                   "kind": "group-ref",
@@ -1103,15 +1103,15 @@ export default {
               "candidates": [
                 {
                   "kind": "group-ref",
-                  "value": "🇸🇬 新加坡節點"
-                },
-                {
-                  "kind": "group-ref",
                   "value": "🇺🇸 美國節點"
                 },
                 {
                   "kind": "group-ref",
                   "value": "🇯🇵 日本節點"
+                },
+                {
+                  "kind": "group-ref",
+                  "value": "🇸🇬 新加坡節點"
                 },
                 {
                   "kind": "group-ref",
@@ -1144,15 +1144,15 @@ export default {
                 },
                 {
                   "kind": "group-ref",
-                  "value": "🇸🇬 新加坡節點"
-                },
-                {
-                  "kind": "group-ref",
                   "value": "🇺🇸 美國節點"
                 },
                 {
                   "kind": "group-ref",
                   "value": "🇯🇵 日本節點"
+                },
+                {
+                  "kind": "group-ref",
+                  "value": "🇸🇬 新加坡節點"
                 },
                 {
                   "kind": "group-ref",
@@ -1189,11 +1189,11 @@ export default {
                 },
                 {
                   "kind": "group-ref",
-                  "value": "🇸🇬 新加坡節點"
+                  "value": "🇯🇵 日本節點"
                 },
                 {
                   "kind": "group-ref",
-                  "value": "🇯🇵 日本節點"
+                  "value": "🇸🇬 新加坡節點"
                 },
                 {
                   "kind": "group-ref",
@@ -1226,15 +1226,15 @@ export default {
                 },
                 {
                   "kind": "group-ref",
-                  "value": "🇸🇬 新加坡節點"
-                },
-                {
-                  "kind": "group-ref",
                   "value": "🇺🇸 美國節點"
                 },
                 {
                   "kind": "group-ref",
                   "value": "🇯🇵 日本節點"
+                },
+                {
+                  "kind": "group-ref",
+                  "value": "🇸🇬 新加坡節點"
                 },
                 {
                   "kind": "group-ref",
@@ -1271,11 +1271,11 @@ export default {
                 },
                 {
                   "kind": "group-ref",
-                  "value": "🇸🇬 新加坡節點"
+                  "value": "🇯🇵 日本節點"
                 },
                 {
                   "kind": "group-ref",
-                  "value": "🇯🇵 日本節點"
+                  "value": "🇸🇬 新加坡節點"
                 },
                 {
                   "kind": "group-ref",
@@ -1304,15 +1304,15 @@ export default {
               "candidates": [
                 {
                   "kind": "group-ref",
-                  "value": "🇸🇬 新加坡節點"
-                },
-                {
-                  "kind": "group-ref",
                   "value": "🇺🇸 美國節點"
                 },
                 {
                   "kind": "group-ref",
                   "value": "🇯🇵 日本節點"
+                },
+                {
+                  "kind": "group-ref",
+                  "value": "🇸🇬 新加坡節點"
                 },
                 {
                   "kind": "group-ref",
@@ -1349,11 +1349,11 @@ export default {
                 },
                 {
                   "kind": "group-ref",
-                  "value": "🇸🇬 新加坡節點"
+                  "value": "🇯🇵 日本節點"
                 },
                 {
                   "kind": "group-ref",
-                  "value": "🇯🇵 日本節點"
+                  "value": "🇸🇬 新加坡節點"
                 },
                 {
                   "kind": "group-ref",
@@ -1390,11 +1390,11 @@ export default {
                 },
                 {
                   "kind": "group-ref",
-                  "value": "🇸🇬 新加坡節點"
+                  "value": "🇯🇵 日本節點"
                 },
                 {
                   "kind": "group-ref",
-                  "value": "🇯🇵 日本節點"
+                  "value": "🇸🇬 新加坡節點"
                 },
                 {
                   "kind": "group-ref",
@@ -1431,11 +1431,11 @@ export default {
                 },
                 {
                   "kind": "group-ref",
-                  "value": "🇸🇬 新加坡節點"
+                  "value": "🇯🇵 日本節點"
                 },
                 {
                   "kind": "group-ref",
-                  "value": "🇯🇵 日本節點"
+                  "value": "🇸🇬 新加坡節點"
                 },
                 {
                   "kind": "group-ref",
@@ -1472,11 +1472,11 @@ export default {
                 },
                 {
                   "kind": "group-ref",
-                  "value": "🇸🇬 新加坡節點"
+                  "value": "🇯🇵 日本節點"
                 },
                 {
                   "kind": "group-ref",
-                  "value": "🇯🇵 日本節點"
+                  "value": "🇸🇬 新加坡節點"
                 },
                 {
                   "kind": "group-ref",
@@ -1513,11 +1513,11 @@ export default {
                 },
                 {
                   "kind": "group-ref",
-                  "value": "🇸🇬 新加坡節點"
+                  "value": "🇯🇵 日本節點"
                 },
                 {
                   "kind": "group-ref",
-                  "value": "🇯🇵 日本節點"
+                  "value": "🇸🇬 新加坡節點"
                 },
                 {
                   "kind": "group-ref",
@@ -1554,11 +1554,11 @@ export default {
                 },
                 {
                   "kind": "group-ref",
-                  "value": "🇸🇬 新加坡節點"
+                  "value": "🇯🇵 日本節點"
                 },
                 {
                   "kind": "group-ref",
-                  "value": "🇯🇵 日本節點"
+                  "value": "🇸🇬 新加坡節點"
                 },
                 {
                   "kind": "group-ref",
@@ -1591,15 +1591,15 @@ export default {
                 },
                 {
                   "kind": "group-ref",
-                  "value": "🇸🇬 新加坡節點"
-                },
-                {
-                  "kind": "group-ref",
                   "value": "🇺🇸 美國節點"
                 },
                 {
                   "kind": "group-ref",
                   "value": "🇯🇵 日本節點"
+                },
+                {
+                  "kind": "group-ref",
+                  "value": "🇸🇬 新加坡節點"
                 },
                 {
                   "kind": "group-ref",
@@ -1632,11 +1632,11 @@ export default {
                 },
                 {
                   "kind": "group-ref",
-                  "value": "🇸🇬 新加坡節點"
+                  "value": "🇯🇵 日本節點"
                 },
                 {
                   "kind": "group-ref",
-                  "value": "🇯🇵 日本節點"
+                  "value": "🇸🇬 新加坡節點"
                 },
                 {
                   "kind": "group-ref",
@@ -1673,11 +1673,11 @@ export default {
                 },
                 {
                   "kind": "group-ref",
-                  "value": "🇸🇬 新加坡節點"
+                  "value": "🇯🇵 日本節點"
                 },
                 {
                   "kind": "group-ref",
-                  "value": "🇯🇵 日本節點"
+                  "value": "🇸🇬 新加坡節點"
                 },
                 {
                   "kind": "group-ref",
@@ -1710,11 +1710,11 @@ export default {
                 },
                 {
                   "kind": "group-ref",
-                  "value": "🇸🇬 新加坡節點"
+                  "value": "🇯🇵 日本節點"
                 },
                 {
                   "kind": "group-ref",
-                  "value": "🇯🇵 日本節點"
+                  "value": "🇸🇬 新加坡節點"
                 },
                 {
                   "kind": "group-ref",
@@ -1751,11 +1751,11 @@ export default {
                 },
                 {
                   "kind": "group-ref",
-                  "value": "🇸🇬 新加坡節點"
+                  "value": "🇯🇵 日本節點"
                 },
                 {
                   "kind": "group-ref",
-                  "value": "🇯🇵 日本節點"
+                  "value": "🇸🇬 新加坡節點"
                 },
                 {
                   "kind": "group-ref",

@@ -123,7 +123,8 @@
         "DOMAIN-SUFFIX,notebooklm.google.com",
         "DOMAIN-SUFFIX,notebooklm.google",
         "DOMAIN,notebooklm-pa.googleapis.com",
-        "DOMAIN,notebooklm.googleapis.com"
+        "DOMAIN,notebooklm.googleapis.com",
+        "DOMAIN,notebook.google.com"
       ],
       "regions": ["sg", "us", "jp", "tw", "kr"],
       "directRelaxed": true,
@@ -495,7 +496,7 @@
       "dnsPolicies": [
         {
           "order": 127,
-          "selector": "DOMAIN,opencode.com",
+          "selector": "opencode.com",
           "resolverSet": "global-ai"
         }
       ],

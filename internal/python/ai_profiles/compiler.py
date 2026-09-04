@@ -53,8 +53,16 @@ def service_auto_group_name(service_group: str) -> str:
 def service_region_groups(service: ServiceSpec, catalog: Catalog | None = None) -> tuple[str, ...]:
     catalog = catalog or load_catalog()
     group_by_region = {region.id: region.group for region in catalog.primary_regions}
-    group_by_region["other"] = catalog.group("other")
-    return tuple(group_by_region[region] for region in service.regions) + (catalog.group("other"),)
+    order = {region.id: index for index, region in enumerate(catalog.primary_regions)}
+    # Emit region candidates in the catalog's canonical primaryOrder so every
+    # service selector lists regions identically, regardless of how a service
+    # happens to order its own `regions` array. Regions outside the primary set
+    # (e.g. hk) have no dedicated node group and are skipped rather than raising.
+    ordered_regions = sorted(
+        (region for region in service.regions if region in order),
+        key=lambda region: order[region],
+    )
+    return tuple(group_by_region[region] for region in ordered_regions) + (catalog.group("other"),)
 
 
 def compile_service_routing(
