@@ -490,13 +490,13 @@
       "providerKey": "AI_OpenCode_Classical",
       "group": "🤖 OpenCode",
       "file": "AI_OpenCode_Classical.yaml",
-      "payload": ["DOMAIN,opencode.com"],
+      "payload": ["DOMAIN-SUFFIX,opencode.ai"],
       "regions": ["us", "sg", "jp", "tw", "kr"],
       "directRelaxed": true,
       "dnsPolicies": [
         {
           "order": 127,
-          "selector": "opencode.com",
+          "selector": "+.opencode.ai",
           "resolverSet": "global-ai"
         }
       ],

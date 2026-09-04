@@ -154,7 +154,7 @@ dns:
     stitch.withgoogle.com:
       - https://1.1.1.1/dns-query
       - https://dns.google/dns-query
-    opencode.com:
+    +.opencode.ai:
       - https://1.1.1.1/dns-query
       - https://dns.google/dns-query
     geosite:google-deepmind:
