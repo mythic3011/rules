@@ -35,6 +35,18 @@ test('web/site report.html sanitizes dynamic URL schemes before setting href', (
     /\/\^https\?:\\\/\\\//i,
     'report.html URL sanitizer should require http:// or https:// schemes.'
   );
+
+  assert.match(
+    content,
+    /link\.target\s*=\s*"_blank"/,
+    'report.html dynamic links should set target="_blank".'
+  );
+
+  assert.match(
+    content,
+    /link\.rel\s*=\s*"noopener noreferrer"/,
+    'report.html dynamic links should set rel="noopener noreferrer" to prevent reverse tabnabbing.'
+  );
 });
 
 test('web/site HTML files include Pico CSS framework', () => {
