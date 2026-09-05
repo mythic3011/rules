@@ -4,8 +4,7 @@
 # RULE-PROVIDER: Finance_PayPal_Classical
 # GROUP: 🔐 高風險帳戶
 # TOTAL: 2
-# GENERATED-AT: 2026-09-04T09:25:32.564571+00:00
-# VERSION: e197ce95b8e5b6a0f8b7b6c49d7135e3054eb60a
+# SOURCE-DIGEST: 00e25a00294cabd7b78d5c009bd5a941716949a90104f57200bff9a727053910
 
 # Account/payment-sensitive PayPal traffic uses the fail-closed high-risk account selector.
 # Opt in to the stable-session selector, then pin DIRECT or one exact provider node when session/IP consistency matters.

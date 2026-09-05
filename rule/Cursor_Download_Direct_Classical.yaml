@@ -4,8 +4,7 @@
 # RULE-PROVIDER: Cursor_Download_Direct_Classical
 # GROUP: 🎯 全球直連
 # TOTAL: 1
-# GENERATED-AT: 2026-09-04T09:25:32.552822+00:00
-# VERSION: e197ce95b8e5b6a0f8b7b6c49d7135e3054eb60a
+# SOURCE-DIGEST: 12288fe39a5068e1136ddf931e874d7c16b56d1e4d81496859a49d09ae7f9856
 
 # Cursor documents cursor-cdn.com as application download/update traffic.
 # Keep bulk update traffic DIRECT instead of sending it through the AI service group.

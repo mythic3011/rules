@@ -4,8 +4,7 @@
 # RULE-PROVIDER: AI_VertexAI_Classical
 # GROUP: 🤖 Vertex AI
 # TOTAL: 2
-# GENERATED-AT: 2026-09-04T09:25:32.525440+00:00
-# VERSION: e197ce95b8e5b6a0f8b7b6c49d7135e3054eb60a
+# SOURCE-DIGEST: d14a5dfbb6718db76b68a42a06f880b07fee0ca424986ee5f6596f45c8d92b82
 
 payload:
   - "DOMAIN,aiplatform.googleapis.com"
