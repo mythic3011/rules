@@ -16,13 +16,17 @@ import {
   updateManagedProfile,
 } from "./store.mjs";
 
-const JSON_HEADERS = {
-  "content-type": "application/json; charset=utf-8",
-  "cache-control": "no-store",
+const SECURITY_HEADERS = {
   "x-content-type-options": "nosniff",
   "referrer-policy": "no-referrer",
   "x-frame-options": "DENY",
   "content-security-policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+};
+
+const JSON_HEADERS = {
+  "content-type": "application/json; charset=utf-8",
+  "cache-control": "no-store",
+  ...SECURITY_HEADERS,
 };
 const TOKEN_RE = /^[A-Za-z0-9_-]{40,64}$/;
 
@@ -109,9 +113,15 @@ async function handleCreate(request, env) {
 }
 
 async function handleSubscription(env, token) {
-  if (!TOKEN_RE.test(token)) return new Response("Not found\n", { status: 404 });
+  const notFoundResponse = () =>
+    new Response("Not found\n", {
+      status: 404,
+      headers: { "content-type": "text/plain; charset=utf-8", ...SECURITY_HEADERS },
+    });
+
+  if (!TOKEN_RE.test(token)) return notFoundResponse();
   const row = await getProfileByReadToken(env, token);
-  if (!row) return new Response("Not found\n", { status: 404 });
+  if (!row) return notFoundResponse();
   const spec = JSON.parse(row.spec_json);
   const solved = solveSubconverterPlan(spec);
   const ini = renderIni(solved.plan, runtimeData);
@@ -122,8 +132,7 @@ async function handleSubscription(env, token) {
       "cache-control": "private, max-age=300",
       etag: `W/\"${row.id}-${row.revision}\"`,
       "x-profile-revision": String(row.revision),
-      "x-content-type-options": "nosniff",
-      "referrer-policy": "no-referrer",
+      ...SECURITY_HEADERS,
     },
   });
 }
