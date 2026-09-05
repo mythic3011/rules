@@ -6,8 +6,13 @@ import { compileMihomoFragment, renderMihomoFragment } from "../mihomo-projectio
 import { compileRoutingProfile } from "../compiler.js";
 import { composeShadowProfile, expectedShadowArtifacts } from "../shadow-profile.js";
 import { RoutingConfigSchema } from "../schema.js";
-import { expectedRoutingArtifacts } from "../routing-artifacts.js";
+import { expectedRoutingArtifacts, routingArtifactName } from "../routing-artifacts.js";
 import { type RoutingContext } from "../project/loader.js";
+import {
+  SemanticParityError,
+  buildSemanticParityReport,
+  renderSemanticParityReport,
+} from "../semantic-parity.js";
 
 export interface BuiltRoutingArtifact {
   readonly path: string;
@@ -31,6 +36,14 @@ export async function buildRoutingArtifacts(
   for (const [name, content] of expectedShadowArtifacts(shadow, context.project)) {
     artifacts.push({ path: join(context.project.generatedArtifactDirectory, name), content });
   }
+  const semanticParity = await buildSemanticParityReport(context.config, context.project);
+  artifacts.push({
+    path: join(
+      context.project.generatedArtifactDirectory,
+      routingArtifactName(context.project, "semantic-parity-report"),
+    ),
+    content: renderSemanticParityReport(semanticParity),
+  });
   artifacts.push({
     path: context.project.schemaOutput,
     content: `${JSON.stringify(z.toJSONSchema(RoutingConfigSchema), null, 2)}\n`,
@@ -84,9 +97,23 @@ export async function checkRoutingBuild(
     }
     for (const entry of entries) {
       if (!entry.isFile() || expected.has(entry.name)) continue;
-      if (/(?:-plan|\.plan|\.mihomo-fragment|\.full-profile-candidate|\.parity-report)\.(?:json|yaml)$/.test(entry.name)) {
+      if (/(?:-plan|\.plan|\.mihomo-fragment|\.full-profile-candidate|\.parity-report|semantic-parity-report)\.(?:json|yaml)$/.test(entry.name)) {
         issues.push({ path: [directory, entry.name], message: "unexpected stale artifact is present" });
       }
+    }
+  }
+  for (const artifact of artifacts) {
+    if (!artifact.path.endsWith("semantic-parity-report.json")) continue;
+    try {
+      const report = JSON.parse(artifact.content) as { status?: string };
+      if (report.status === "fail") {
+        throw new SemanticParityError([
+          { code: "policy-invariant", path: ["semantic-parity"], message: "semantic parity report status is fail" },
+        ]);
+      }
+    } catch (error: unknown) {
+      if (error instanceof SemanticParityError) throw error;
+      issues.push({ path: [artifact.path], message: "semantic parity report is not valid JSON" });
     }
   }
   if (issues.length > 0) {

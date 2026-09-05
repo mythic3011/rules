@@ -17,6 +17,7 @@ export const RoutingArtifactPathsSchema = z.object({
   "ini-mvp-plan": ArtifactPath,
   "shadow-candidate": ArtifactPath,
   "shadow-parity-report": ArtifactPath,
+  "semantic-parity-report": ArtifactPath,
   "routing-schema": ArtifactPath,
 }).strict();
 

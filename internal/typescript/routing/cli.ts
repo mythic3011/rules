@@ -21,6 +21,11 @@ import {
 } from "./project/loader.js";
 import { loadRoutingConfig, RoutingConfigLoadError } from "./loader.js";
 import { validateRoutingSemantics } from "./semantic-validator.js";
+import {
+  SemanticParityError,
+  buildSemanticParityReport,
+  semanticParityIssues,
+} from "./semantic-parity.js";
 import { compileControllerPlan } from "./runtime-plan.js";
 
 function usage(): string {
@@ -131,6 +136,9 @@ async function main(args: readonly string[]): Promise<void> {
   if (command === "validate") {
     const issues = validateRoutingSemantics(context.config);
     if (issues.length > 0) throw new Error(formatIssues(issues));
+    const parity = await buildSemanticParityReport(context.config, context.project);
+    const parityIssues = semanticParityIssues(parity);
+    if (parityIssues.length > 0) throw new SemanticParityError(parityIssues);
     process.stdout.write(
       `Routing configuration is valid: ${context.project.projectFile}\n`,
     );
@@ -156,7 +164,8 @@ main(process.argv.slice(2)).catch((error: unknown) => {
     error instanceof RoutingCompileError ||
     error instanceof MihomoProjectionError ||
     error instanceof PrivateMaterializerError ||
-    error instanceof RoutingProjectError
+    error instanceof RoutingProjectError ||
+    error instanceof SemanticParityError
   ) {
     process.stderr.write(`${formatIssues(error.issues)}\n`);
   } else if (error instanceof Error) {

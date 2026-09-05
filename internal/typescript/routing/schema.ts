@@ -186,6 +186,17 @@ export const DnsProfileSchema = z
   })
   .strict();
 
+export const SharedBackendSchema = z
+  .object({
+    displayName: z.string().min(1).optional(),
+    domains: z.array(z.string().min(1)).min(1),
+    consumers: z.array(IdSchema).min(1),
+    // COMPATIBILITY METADATA ONLY — derived from generated legacy rule order.
+    // Not canonical ownership; must not change precedence in Phase 1.
+    legacyEffectiveConsumer: IdSchema.optional(),
+  })
+  .strict();
+
 export const RoutingConfigSchema = z
   .object({
     schemaVersion: z.literal(1),
@@ -200,6 +211,7 @@ export const RoutingConfigSchema = z
         profiles: z.record(IdSchema, DnsProfileSchema),
       })
       .strict(),
+    sharedBackends: z.record(IdSchema, SharedBackendSchema).default({}),
   })
   .strict();
 
@@ -210,4 +222,5 @@ export type ProtectionClass = z.infer<typeof ProtectionClassSchema>;
 export type Selector = z.infer<typeof SelectorSchema>;
 export type Resolver = z.infer<typeof ResolverSchema>;
 export type DnsProfile = z.infer<typeof DnsProfileSchema>;
+export type SharedBackend = z.infer<typeof SharedBackendSchema>;
 export type RoutingConfig = z.infer<typeof RoutingConfigSchema>;

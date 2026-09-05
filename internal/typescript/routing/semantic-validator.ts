@@ -1,4 +1,5 @@
 import type { RoutingIssue } from "./issues.js";
+import { canonicalServiceIdFromLegacy } from "./migration-adapter.js";
 import type { RouteTarget, RoutingConfig } from "./schema.js";
 
 const FORBIDDEN_ACCOUNT_GROUP_TOKENS = [
@@ -47,7 +48,7 @@ function validateResolverRouteRefs(
   }
 }
 
-function isAccountSafeTarget(target: RouteTarget): boolean {
+export function isAccountSafeTarget(target: RouteTarget): boolean {
   if (target.kind === "reject") {
     return true;
   }
@@ -406,6 +407,60 @@ export function validateRoutingSemantics(config: RoutingConfig): RoutingIssue[] 
     }
   }
 
+  issues.push(...validateSharedBackends(config));
+  return issues;
+}
+
+export function validateSharedBackends(config: RoutingConfig): RoutingIssue[] {
+  const issues: RoutingIssue[] = [];
+  const domainOwners = new Map<string, string>();
+  for (const [backendId, backend] of Object.entries(config.sharedBackends)) {
+    const backendPath = ["sharedBackends", backendId] as const;
+    const seenConsumers = new Set<string>();
+    for (const [index, consumerId] of backend.consumers.entries()) {
+      if (seenConsumers.has(consumerId)) {
+        issues.push(
+          issue("policy-invariant", [...backendPath, "consumers", index], `duplicate consumer ${consumerId}`),
+        );
+      }
+      seenConsumers.add(consumerId);
+      if (config.services[consumerId] === undefined && canonicalServiceIdFromLegacy(consumerId) === undefined) {
+        issues.push(
+          issue(
+            "missing-reference",
+            [...backendPath, "consumers", index],
+            `consumer ${consumerId} does not exist`,
+          ),
+        );
+      }
+    }
+    if (
+      backend.legacyEffectiveConsumer !== undefined &&
+      !backend.consumers.includes(backend.legacyEffectiveConsumer)
+    ) {
+      issues.push(
+        issue(
+          "policy-invariant",
+          [...backendPath, "legacyEffectiveConsumer"],
+          "legacyEffectiveConsumer must be one of consumers",
+        ),
+      );
+    }
+    for (const [index, domain] of backend.domains.entries()) {
+      const owner = domainOwners.get(domain);
+      if (owner !== undefined) {
+        issues.push(
+          issue(
+            "policy-invariant",
+            [...backendPath, "domains", index],
+            `domain ${domain} already belongs to shared backend ${owner}`,
+          ),
+        );
+      } else {
+        domainOwners.set(domain, backendId);
+      }
+    }
+  }
   return issues;
 }
 

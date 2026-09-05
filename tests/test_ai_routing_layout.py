@@ -24,6 +24,7 @@ class AiRoutingLayoutTest(unittest.TestCase):
                 "30-services.yaml",
                 "40-access-profiles.yaml",
                 "50-dns.yaml",
+                "60-shared-backends.yaml",
             },
         )
         self.assertEqual(

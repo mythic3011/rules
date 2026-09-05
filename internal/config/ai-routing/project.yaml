@@ -20,4 +20,5 @@ artifactPaths:
   ini-mvp-plan: "{profile}.ini-mvp-plan.json"
   shadow-candidate: "{profile}.full-profile-candidate.yaml"
   shadow-parity-report: "{profile}.parity-report.json"
+  semantic-parity-report: semantic-parity-report.json
   routing-schema: routing-config.schema.json

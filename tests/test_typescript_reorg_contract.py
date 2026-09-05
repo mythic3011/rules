@@ -20,6 +20,7 @@ class TypeScriptReorgContractTests(unittest.TestCase):
                 "30-services.yaml",
                 "40-access-profiles.yaml",
                 "50-dns.yaml",
+                "60-shared-backends.yaml",
             ],
         )
         for sibling in ("mihomo.yaml", "parity.yaml"):
