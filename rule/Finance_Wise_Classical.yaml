@@ -4,8 +4,8 @@
 # RULE-PROVIDER: Finance_Wise_Classical
 # GROUP: 🔐 高風險帳戶
 # TOTAL: 3
-# GENERATED-AT: 2026-09-04T09:25:32.569409+00:00
-# VERSION: e197ce95b8e5b6a0f8b7b6c49d7135e3054eb60a
+# GENERATED-AT: 2026-09-05T05:28:27.659630+00:00
+# VERSION: 6a4e714a224d3113aed0d7c27b65e1c9de2f2059
 
 # Account/payment-sensitive Wise traffic uses the fail-closed high-risk account selector.
 # Opt in to the stable-session selector, then pin DIRECT or one exact provider node when session/IP consistency matters.
