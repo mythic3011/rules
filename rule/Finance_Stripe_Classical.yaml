@@ -4,7 +4,7 @@
 # RULE-PROVIDER: Finance_Stripe_Classical
 # GROUP: 🔐 高風險帳戶
 # TOTAL: 3
-# GENERATED-AT: 2026-09-05T05:28:27.646564+00:00
+# GENERATED-AT: 2026-09-05T05:48:03.735660+00:00
 # VERSION: 6a4e714a224d3113aed0d7c27b65e1c9de2f2059
 
 # Account/payment-sensitive Stripe traffic uses the fail-closed high-risk account selector.

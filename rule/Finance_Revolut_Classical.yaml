@@ -4,7 +4,7 @@
 # RULE-PROVIDER: Finance_Revolut_Classical
 # GROUP: 🔐 高風險帳戶
 # TOTAL: 1
-# GENERATED-AT: 2026-09-05T05:28:27.664814+00:00
+# GENERATED-AT: 2026-09-05T05:48:03.750254+00:00
 # VERSION: 6a4e714a224d3113aed0d7c27b65e1c9de2f2059
 
 # Financial/account-sensitive Revolut traffic uses the fail-closed high-risk account selector.
