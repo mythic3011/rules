@@ -23,6 +23,17 @@ export default {
     "tw": "🇹🇼 台灣節點",
     "kr": "🇰🇷 韓國節點",
     "hk": "🇭🇰 香港節點",
+    "mo": "🇲🇴 澳門節點",
+    "uk": "🇬🇧 英國節點",
+    "fr": "🇫🇷 法國節點",
+    "de": "🇩🇪 德國節點",
+    "it": "🇮🇹 義大利節點",
+    "no": "🇳🇴 挪威節點",
+    "ca": "🇨🇦 加拿大節點",
+    "au": "🇦🇺 澳洲節點",
+    "ru": "🇷🇺 俄羅斯節點",
+    "ua": "🇺🇦 烏克蘭節點",
+    "tr": "🇹🇷 土耳其節點",
     "chatgpt": "🤖 ChatGPT",
     "copilot": "🧑‍💻 Copilot",
     "claude": "🤖 Claude",
@@ -202,6 +213,283 @@ export default {
       "keywords": [
         "HKG",
         "🇭🇰"
+      ],
+      "routable": false
+    },
+    {
+      "id": "mo",
+      "name": "Macao",
+      "group": "🇲🇴 澳門節點",
+      "terms": "🇲🇴|Macao|Macau|澳門|澳门|\\bMO(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|MFM",
+      "filterPattern": "(?i)(?:🇲🇴|Macao|Macau|澳門|澳门|\\bMO(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|MFM)",
+      "countryCodes": [
+        "MO"
+      ],
+      "aliases": [
+        "Macao",
+        "Macau",
+        "澳門",
+        "澳门"
+      ],
+      "keywords": [
+        "MFM",
+        "🇲🇴"
+      ],
+      "routable": false
+    },
+    {
+      "id": "uk",
+      "name": "United Kingdom",
+      "group": "🇬🇧 英國節點",
+      "terms": "🇬🇧|United Kingdom|Britain|英國|英国|London|倫敦|伦敦|\\bUK(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|\\bGB(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|LHR|LGW|MAN|LCY",
+      "filterPattern": "(?i)(?:🇬🇧|United Kingdom|Britain|英國|英国|London|倫敦|伦敦|\\bUK(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|\\bGB(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|LHR|LGW|MAN|LCY)",
+      "countryCodes": [
+        "GB"
+      ],
+      "aliases": [
+        "United Kingdom",
+        "Britain",
+        "英國",
+        "英国"
+      ],
+      "keywords": [
+        "LHR",
+        "LGW",
+        "MAN",
+        "LCY",
+        "London",
+        "倫敦",
+        "伦敦",
+        "🇬🇧"
+      ],
+      "routable": false
+    },
+    {
+      "id": "fr",
+      "name": "France",
+      "group": "🇫🇷 法國節點",
+      "terms": "🇫🇷|France|法國|法国|Paris|巴黎|\\bFR(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|CDG|ORY",
+      "filterPattern": "(?i)(?:🇫🇷|France|法國|法国|Paris|巴黎|\\bFR(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|CDG|ORY)",
+      "countryCodes": [
+        "FR"
+      ],
+      "aliases": [
+        "France",
+        "法國",
+        "法国"
+      ],
+      "keywords": [
+        "CDG",
+        "ORY",
+        "Paris",
+        "巴黎",
+        "🇫🇷"
+      ],
+      "routable": false
+    },
+    {
+      "id": "de",
+      "name": "Germany",
+      "group": "🇩🇪 德國節點",
+      "terms": "🇩🇪|Germany|德國|德国|Frankfurt|Frankfurt am Main|Berlin|慕尼黑|法蘭克福|法兰克福|柏林|\\bDE(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|FRA|MUC|BER",
+      "filterPattern": "(?i)(?:🇩🇪|Germany|德國|德国|Frankfurt|Frankfurt am Main|Berlin|慕尼黑|法蘭克福|法兰克福|柏林|\\bDE(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|FRA|MUC|BER)",
+      "countryCodes": [
+        "DE"
+      ],
+      "aliases": [
+        "Germany",
+        "德國",
+        "德国"
+      ],
+      "keywords": [
+        "FRA",
+        "MUC",
+        "BER",
+        "Frankfurt",
+        "Frankfurt am Main",
+        "Berlin",
+        "慕尼黑",
+        "法蘭克福",
+        "法兰克福",
+        "柏林",
+        "🇩🇪"
+      ],
+      "routable": false
+    },
+    {
+      "id": "it",
+      "name": "Italy",
+      "group": "🇮🇹 義大利節點",
+      "terms": "🇮🇹|Italy|Italia|義大利|意大利|Milan|Rome|米蘭|米兰|羅馬|罗马|\\bIT(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|MXP|FCO",
+      "filterPattern": "(?i)(?:🇮🇹|Italy|Italia|義大利|意大利|Milan|Rome|米蘭|米兰|羅馬|罗马|\\bIT(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|MXP|FCO)",
+      "countryCodes": [
+        "IT"
+      ],
+      "aliases": [
+        "Italy",
+        "Italia",
+        "義大利",
+        "意大利"
+      ],
+      "keywords": [
+        "MXP",
+        "FCO",
+        "Milan",
+        "Rome",
+        "米蘭",
+        "米兰",
+        "羅馬",
+        "罗马",
+        "🇮🇹"
+      ],
+      "routable": false
+    },
+    {
+      "id": "no",
+      "name": "Norway",
+      "group": "🇳🇴 挪威節點",
+      "terms": "🇳🇴|Norway|挪威|Oslo|奧斯陸|奥斯陆|\\bNO(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|OSL",
+      "filterPattern": "(?i)(?:🇳🇴|Norway|挪威|Oslo|奧斯陸|奥斯陆|\\bNO(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|OSL)",
+      "countryCodes": [
+        "NO"
+      ],
+      "aliases": [
+        "Norway",
+        "挪威"
+      ],
+      "keywords": [
+        "OSL",
+        "Oslo",
+        "奧斯陸",
+        "奥斯陆",
+        "🇳🇴"
+      ],
+      "routable": false
+    },
+    {
+      "id": "ca",
+      "name": "Canada",
+      "group": "🇨🇦 加拿大節點",
+      "terms": "🇨🇦|Canada|加拿大|Toronto|Vancouver|Montreal|多倫多|多伦多|溫哥華|温哥华|\\bCA(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|YYZ|YVR|YUL",
+      "filterPattern": "(?i)(?:🇨🇦|Canada|加拿大|Toronto|Vancouver|Montreal|多倫多|多伦多|溫哥華|温哥华|\\bCA(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|YYZ|YVR|YUL)",
+      "countryCodes": [
+        "CA"
+      ],
+      "aliases": [
+        "Canada",
+        "加拿大"
+      ],
+      "keywords": [
+        "YYZ",
+        "YVR",
+        "YUL",
+        "Toronto",
+        "Vancouver",
+        "Montreal",
+        "多倫多",
+        "多伦多",
+        "溫哥華",
+        "温哥华",
+        "🇨🇦"
+      ],
+      "routable": false
+    },
+    {
+      "id": "au",
+      "name": "Australia",
+      "group": "🇦🇺 澳洲節點",
+      "terms": "🇦🇺|Australia|澳洲|澳大利亞|澳大利亚|Sydney|Melbourne|雪梨|悉尼|墨爾本|墨尔本|\\bAU(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|SYD|MEL",
+      "filterPattern": "(?i)(?:🇦🇺|Australia|澳洲|澳大利亞|澳大利亚|Sydney|Melbourne|雪梨|悉尼|墨爾本|墨尔本|\\bAU(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|SYD|MEL)",
+      "countryCodes": [
+        "AU"
+      ],
+      "aliases": [
+        "Australia",
+        "澳洲",
+        "澳大利亞",
+        "澳大利亚"
+      ],
+      "keywords": [
+        "SYD",
+        "MEL",
+        "Sydney",
+        "Melbourne",
+        "雪梨",
+        "悉尼",
+        "墨爾本",
+        "墨尔本",
+        "🇦🇺"
+      ],
+      "routable": false
+    },
+    {
+      "id": "ru",
+      "name": "Russia",
+      "group": "🇷🇺 俄羅斯節點",
+      "terms": "🇷🇺|Russia|俄羅斯|俄罗斯|Moscow|莫斯科|\\bRU(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|SVO|DME",
+      "filterPattern": "(?i)(?:🇷🇺|Russia|俄羅斯|俄罗斯|Moscow|莫斯科|\\bRU(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|SVO|DME)",
+      "countryCodes": [
+        "RU"
+      ],
+      "aliases": [
+        "Russia",
+        "俄羅斯",
+        "俄罗斯"
+      ],
+      "keywords": [
+        "SVO",
+        "DME",
+        "Moscow",
+        "莫斯科",
+        "🇷🇺"
+      ],
+      "routable": false
+    },
+    {
+      "id": "ua",
+      "name": "Ukraine",
+      "group": "🇺🇦 烏克蘭節點",
+      "terms": "🇺🇦|Ukraine|烏克蘭|乌克兰|Kyiv|Kiev|基輔|基辅|\\bUA(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|KBP",
+      "filterPattern": "(?i)(?:🇺🇦|Ukraine|烏克蘭|乌克兰|Kyiv|Kiev|基輔|基辅|\\bUA(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|KBP)",
+      "countryCodes": [
+        "UA"
+      ],
+      "aliases": [
+        "Ukraine",
+        "烏克蘭",
+        "乌克兰"
+      ],
+      "keywords": [
+        "KBP",
+        "Kyiv",
+        "Kiev",
+        "基輔",
+        "基辅",
+        "🇺🇦"
+      ],
+      "routable": false
+    },
+    {
+      "id": "tr",
+      "name": "Turkey",
+      "group": "🇹🇷 土耳其節點",
+      "terms": "🇹🇷|Turkey|Türkiye|土耳其|Istanbul|伊斯坦堡|伊斯坦布尔|\\bTR(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|IST|SAW",
+      "filterPattern": "(?i)(?:🇹🇷|Turkey|Türkiye|土耳其|Istanbul|伊斯坦堡|伊斯坦布尔|\\bTR(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|IST|SAW)",
+      "countryCodes": [
+        "TR"
+      ],
+      "aliases": [
+        "Turkey",
+        "Türkiye",
+        "土耳其"
+      ],
+      "keywords": [
+        "IST",
+        "SAW",
+        "Istanbul",
+        "伊斯坦堡",
+        "伊斯坦布尔",
+        "🇹🇷"
       ],
       "routable": false
     }

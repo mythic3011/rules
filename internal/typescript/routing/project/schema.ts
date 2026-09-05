@@ -19,6 +19,9 @@ export const RoutingArtifactPathsSchema = z.object({
   "shadow-parity-report": ArtifactPath,
   "semantic-parity-report": ArtifactPath,
   "routing-schema": ArtifactPath,
+  "regions-schema": ArtifactPath,
+  "regions-compiled": ArtifactPath,
+  "regions-v1": ArtifactPath,
 }).strict();
 
 export const RoutingProjectDocumentSchema = z.object({
@@ -31,6 +34,9 @@ export const RoutingProjectDocumentSchema = z.object({
   shadowTemplate: RelativePath,
   generatedArtifactDirectory: RelativePath,
   schemaOutput: RelativePath,
+  regionsSchemaOutput: RelativePath,
+  regionsSource: RelativePath,
+  regionsV1Output: RelativePath,
   supportedProfiles: z.array(z.string().min(1)).min(1),
   artifactPaths: RoutingArtifactPathsSchema,
 }).strict();
@@ -48,4 +54,7 @@ export interface RoutingProject extends RoutingProjectDocument {
   readonly shadowTemplate: string;
   readonly generatedArtifactDirectory: string;
   readonly schemaOutput: string;
+  readonly regionsSchemaOutput: string;
+  readonly regionsSource: string;
+  readonly regionsV1Output: string;
 }

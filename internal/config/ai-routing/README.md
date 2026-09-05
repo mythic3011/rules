@@ -11,6 +11,7 @@ combined schema.
   projection schema/loader.
 - `projections/parity.yaml` is the shadow-profile parity contract.
 - `catalogs/process-rules.yaml` is the process-rule catalog.
+- `catalogs/regions.source.json` is the v2 authored region catalog. `catalogs/regions.json` is the generated v1 projection consumed by the frozen Python loader.
 
 The core routing loader selects only numbered fragments in `core/`. Do not make the core
 Zod schema permissive merely to accept sibling manifests; that would erase the

@@ -69,6 +69,9 @@ function resolveProjectPaths(
     shadowTemplate: resolvePath(document.shadowTemplate),
     generatedArtifactDirectory: resolvePath(document.generatedArtifactDirectory),
     schemaOutput: resolvePath(document.schemaOutput),
+    regionsSchemaOutput: resolvePath(document.regionsSchemaOutput),
+    regionsSource: resolvePath(document.regionsSource),
+    regionsV1Output: resolvePath(document.regionsV1Output),
   };
 }
 

@@ -54,6 +54,17 @@ body:
         - "tw — Taiwan"
         - "kr — South Korea"
         - "hk — Hong Kong"
+        - "mo — Macao"
+        - "uk — United Kingdom"
+        - "fr — France"
+        - "de — Germany"
+        - "it — Italy"
+        - "no — Norway"
+        - "ca — Canada"
+        - "au — Australia"
+        - "ru — Russia"
+        - "ua — Ukraine"
+        - "tr — Turkey"
     validations: {required: true}
   - type: dropdown
     id: blocked_regions
@@ -67,6 +78,17 @@ body:
         - "tw — Taiwan"
         - "kr — South Korea"
         - "hk — Hong Kong"
+        - "mo — Macao"
+        - "uk — United Kingdom"
+        - "fr — France"
+        - "de — Germany"
+        - "it — Italy"
+        - "no — Norway"
+        - "ca — Canada"
+        - "au — Australia"
+        - "ru — Russia"
+        - "ua — Ukraine"
+        - "tr — Turkey"
   - type: checkboxes
     id: add_unlisted_regions
     attributes:

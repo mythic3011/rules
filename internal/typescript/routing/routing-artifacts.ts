@@ -34,9 +34,10 @@ export function routingArtifactPath(
   role: RoutingArtifactRole,
   profile?: string,
 ): string {
-  return role === "routing-schema"
-    ? project.schemaOutput
-    : join(project.generatedArtifactDirectory, routingArtifactName(project, role, profile));
+  if (role === "routing-schema") return project.schemaOutput;
+  if (role === "regions-schema") return project.regionsSchemaOutput;
+  if (role === "regions-v1") return project.regionsV1Output;
+  return join(project.generatedArtifactDirectory, routingArtifactName(project, role, profile));
 }
 
 function compare(left: string, right: string): number {
