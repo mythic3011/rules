@@ -475,11 +475,8 @@ def _compile_automatic_region_groups(catalog: Catalog) -> tuple[IniProxyGroup, .
     groups.append(
         IniProxyGroup(
             name=catalog.group("other"),
-            kind="url-test",
+            kind="select",
             filter_pattern=catalog.other_region_filter,
-            health_check_url=_HEALTH_CHECK_URL,
-            interval=300,
-            tolerance=50,
         )
     )
     return tuple(groups)

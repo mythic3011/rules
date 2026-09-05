@@ -26,7 +26,10 @@ function renderGroup(group) {
 
   const prefix = `custom_proxy_group=${group.name}\`${group.kind}\``;
   if (group.kind === "select") {
-    return prefix + candidates + (group.filterPattern ? `\`${group.filterPattern}` : "");
+    const fields = [];
+    if (candidates) fields.push(candidates);
+    if (group.filterPattern) fields.push(group.filterPattern);
+    return prefix + fields.join("`");
   }
   if (group.kind === "url-test") {
     if (!group.filterPattern || !group.healthCheckUrl || group.interval == null || group.tolerance == null) {

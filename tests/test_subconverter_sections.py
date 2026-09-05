@@ -72,7 +72,12 @@ class SubconverterSectionsTest(unittest.TestCase):
         shared = self.plan.section("shared-routing-groups").groups
         self.assertTrue(automatic)
         self.assertTrue(all(isinstance(group, IniProxyGroup) for group in automatic))
+        other = next(group for group in automatic if group.name == "🌐 其他／未識別節點")
+        self.assertEqual(other.kind, "select")
+        self.assertIsNotNone(other.filter_pattern)
+        self.assertIsNone(other.health_check_url)
         self.assertEqual([group.kind for group in shared], ["fallback", "select", "select", "select"])
+        self.assertTrue(all(group.kind == "url-test" for group in automatic if group.name != "🌐 其他／未識別節點"))
 
     def test_render_ini_does_not_reload_catalog(self) -> None:
         source = inspect.getsource(_render_ini)

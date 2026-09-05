@@ -306,6 +306,12 @@ def validate_yaml_profile(path: Path, strict: bool) -> None:
             health_check_urls.add(group["url"])
             health_check_intervals.add(group["interval"])
 
+    other = find_group(proxy_groups, GROUP["other"])
+    ensure(other.get("type") == "select", f"{GROUP['other']} must be a select group")
+    ensure(other.get("url") is None and other.get("interval") is None, f"{GROUP['other']} must not url-test")
+    ensure(other.get("filter") and other.get("exclude-filter"), f"{GROUP['other']} must keep membership filters")
+    ensure(other.get("use") == ["provider1"], f"{GROUP['other']} must keep provider membership")
+
     ensure(len(health_check_urls) == 1, "Generated proxy groups must share one health-check URL")
     ensure(len(health_check_intervals) == 1, "Generated proxy groups must share one health-check interval")
     ensure(

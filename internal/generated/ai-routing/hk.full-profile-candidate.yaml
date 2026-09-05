@@ -269,10 +269,7 @@ proxy-groups:
     use:
       - provider1
   - name: 🌐 其他／未識別節點
-    type: url-test
-    url: https://cp.cloudflare.com/generate_204
-    interval: 300
-    tolerance: 50
+    type: select
     filter: (?i)^(?!.*(?:🇭🇰|香港|Hong
       Kong|Hong-Kong|\bHKG\b|\bHK\b|剩余流量|剩餘流量|套餐到期|到期|流量[:：]|Traffic|Expire|Subscription|官网|官方|客服|Telegram|TG群|网址|網站|更新|失效|Invalid|USE|USED|TOTAL|EXPIRE|Panel|Channel|Author|公告|通知|邀请|邀請|返利|教程|使用说明|使用說明)).*$
     exclude-filter: (?i)(?:(?:🇺🇸|美國|美国|波特蘭|波特兰|達拉斯|达拉斯|俄勒岡|俄勒冈|鳳凰城|凤凰城|費利蒙|费利蒙|硅谷|拉斯維加斯|拉斯维加斯|洛杉磯|洛杉矶|聖何塞|圣何塞|聖克拉拉|圣克拉拉|西雅圖|西雅图|芝加哥|紐約|纽约|亞特蘭大|亚特兰大|邁阿密|迈阿密|華盛頓|华盛顿|\bUS(?:[-_
