@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -32,6 +35,66 @@ class PublicCatalogTest(unittest.TestCase):
         self.assertIn("cfg/yaml/Custom_Clash_AI_Strict.yaml", script)
         self.assertNotIn("uci set", script)
         self.assertNotIn("/etc/init.d/openclash restart", script)
+
+    def test_openclash_installer_forwards_lifecycle_operations(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_tmp:
+            tmp = Path(raw_tmp)
+            guard = tmp / "openclash-guard"
+            log = tmp / "forwarded-args"
+            guard.write_text(
+                "#!/bin/sh\nset -eu\nprintf '%s\\n' \"$@\" > \"$GUARD_FORWARD_LOG\"\n",
+                encoding="utf-8",
+            )
+            guard.chmod(0o755)
+            env = os.environ.copy()
+            env.update(
+                {
+                    "OPENCLASH_GUARD_BIN": str(guard),
+                    "GUARD_FORWARD_LOG": str(log),
+                }
+            )
+
+            health = subprocess.run(
+                ["/bin/sh", str(ROOT / "setup/openclash/install.sh"), "--health-check"],
+                cwd=ROOT,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(health.returncode, 0, health.stderr)
+            self.assertEqual(log.read_text(encoding="utf-8").splitlines(), ["health-check"])
+
+            uninstall = subprocess.run(
+                [
+                    "/bin/sh",
+                    str(ROOT / "setup/openclash/install.sh"),
+                    "--uninstall",
+                    "--yes",
+                    "--purge-rules",
+                ],
+                cwd=ROOT,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(uninstall.returncode, 0, uninstall.stderr)
+            self.assertEqual(
+                log.read_text(encoding="utf-8").splitlines(),
+                ["uninstall", "--yes", "--purge-rules"],
+            )
+
+    def test_openclash_installer_rejects_unscoped_rule_purge(self) -> None:
+        result = subprocess.run(
+            ["/bin/sh", str(ROOT / "setup/openclash/install.sh"), "--purge-rules"],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("requires --uninstall", result.stderr)
 
     def test_refresh_removed_old_active_tree_names(self) -> None:
         # Root `shell/` is the POSIX bundle source tree (tools/shbundle.py), not the

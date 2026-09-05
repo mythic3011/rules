@@ -43,9 +43,25 @@ _guard_install_write() {
         cat >/dev/null
         return 0
     fi
-    mkdir -p "$(dirname "$_guard_iw_dest")"
-    cat > "$_guard_iw_dest"
+    _guard_iw_dir=$(dirname "$_guard_iw_dest")
+    mkdir -p "$_guard_iw_dir"
+    _guard_iw_tmp=$(file_mktemp "$_guard_iw_dir") || return 1
+    if ! cat > "$_guard_iw_tmp"; then
+        rm -f "$_guard_iw_tmp"
+        return 1
+    fi
+    chmod "$_guard_iw_mode" "$_guard_iw_tmp"
+    if [ -f "$_guard_iw_dest" ] && cmp -s "$_guard_iw_dest" "$_guard_iw_tmp"; then
+        chmod "$_guard_iw_mode" "$_guard_iw_dest"
+        rm -f "$_guard_iw_tmp"
+        return 0
+    fi
+    if ! file_atomic_replace "$_guard_iw_dest" "$_guard_iw_tmp"; then
+        rm -f "$_guard_iw_tmp"
+        return 1
+    fi
     chmod "$_guard_iw_mode" "$_guard_iw_dest"
+    rm -f "$_guard_iw_tmp"
 }
 
 _guard_install_copy() {
@@ -60,7 +76,11 @@ _guard_install_copy() {
         return 0
     fi
     mkdir -p "$(dirname "$_guard_ic_dest")"
-    cp "$_guard_ic_src" "$_guard_ic_dest"
+    if [ -f "$_guard_ic_dest" ] && cmp -s "$_guard_ic_src" "$_guard_ic_dest"; then
+        chmod "$_guard_ic_mode" "$_guard_ic_dest"
+        return 0
+    fi
+    file_atomic_replace "$_guard_ic_dest" "$_guard_ic_src" || return $?
     chmod "$_guard_ic_mode" "$_guard_ic_dest"
 }
 
@@ -73,6 +93,10 @@ _guard_install_self() {
     mkdir -p "$(dirname "$_guard_is_dest")"
     _guard_is_source=${GUARD_SELF_PATH:-$0}
     if [ -f "$_guard_is_source" ] && guard_distribution_validate_bundle "$_guard_is_source"; then
+        if [ -f "$_guard_is_dest" ] && cmp -s "$_guard_is_source" "$_guard_is_dest"; then
+            chmod 0755 "$_guard_is_dest"
+            return 0
+        fi
         file_atomic_replace "$_guard_is_dest" "$_guard_is_source" || return $?
         chmod 0755 "$_guard_is_dest"
         return 0
@@ -101,20 +125,28 @@ _guard_install_script() {
 _guard_install_hooks() {
     _guard_ih_bin=$(_guard_install_bin)
     _guard_install_script "$(_guard_install_init)" "/bin/sh /etc/rc.common" "\
-# OpenClash Guard boot reconcile. Does not enable OpenClash.
+# OpenClash Guard boot reconcile and fixed-interval rule sync.
+USE_PROCD=1
 START=99
 STOP=10
+PROG=${_guard_ih_bin}
 
-start() {
-	${_guard_ih_bin} reconcile
+start_service() {
+	\"\$PROG\" reconcile
+	procd_open_instance rules-sync
+	procd_set_param command \"\$PROG\" rules sync watch
+	procd_set_param env GUARD_RULES_ALLOW_WATCH=1
+	procd_set_param respawn 3600 5 5
+	procd_close_instance
 }
 
-reload() {
-	start
+reload_service() {
+	\"\$PROG\" reconcile
+	\"\$PROG\" rules sync run || true
 }
 
-restart() {
-	start
+stop_service() {
+	\"\$PROG\" --yes remove || true
 }
 "
     _guard_ih_body="# Re-apply owned table. Does not enable OpenClash.
@@ -132,6 +164,62 @@ ${_guard_ih_body}"
         _guard_install_script "${_guard_ih_oc}/openclash-guard-hook.sh" "/bin/sh" "# Drop-in observer.
 ${_guard_ih_body}"
     fi
+}
+
+_guard_install_service_control() {
+    if [ -n "${GUARD_SERVICE_CONTROL:-}" ]; then
+        printf '%s\n' "$GUARD_SERVICE_CONTROL"
+        return 0
+    fi
+    if [ -n "${GUARD_PREFIX:-}" ]; then
+        return 1
+    fi
+    _guard_install_init
+}
+
+_guard_install_enable_service() {
+    if [ "${GUARD_DRY_RUN:-0}" = 1 ]; then
+        printf 'would enable %s\n' "$(_guard_install_init)"
+        return 0
+    fi
+    _guard_ies_control=$(_guard_install_service_control) || {
+        cli_info "service enable deferred for prefixed installation"
+        return 0
+    }
+    if [ ! -x "$_guard_ies_control" ]; then
+        cli_error "Guard service control is missing: $_guard_ies_control"
+        return 1
+    fi
+    if "$_guard_ies_control" enabled >/dev/null 2>&1; then
+        return 0
+    fi
+    "$_guard_ies_control" enable
+}
+
+_guard_install_stop_disable_service() {
+    _guard_isd_control=$(_guard_install_service_control) || return 0
+    [ -x "$_guard_isd_control" ] || return 0
+    "$_guard_isd_control" stop >/dev/null 2>&1 || true
+    if "$_guard_isd_control" enabled >/dev/null 2>&1; then
+        "$_guard_isd_control" disable || return $?
+    fi
+}
+
+_guard_install_service_state() {
+    _guard_iss_control=$(_guard_install_service_control) || {
+        printf '%s\n' deferred
+        return 0
+    }
+    if [ ! -x "$_guard_iss_control" ]; then
+        printf '%s\n' missing
+        return 1
+    fi
+    if "$_guard_iss_control" enabled >/dev/null 2>&1; then
+        printf '%s\n' enabled
+        return 0
+    fi
+    printf '%s\n' disabled
+    return 1
 }
 
 _guard_install_policy_files() {
@@ -226,17 +314,11 @@ _guard_install_write_uci() {
     uci_commit_if_changed openclash_guard || return $?
 }
 
-_guard_install_write_observations() {
-    _guard_iwo_dest=$(_guard_install_observations)
-    if [ "${GUARD_DRY_RUN:-0}" = 1 ]; then
-        printf 'would write %s\n' "$_guard_iwo_dest"
-        return 0
-    fi
-    mkdir -p "$(dirname "$_guard_iwo_dest")"
-    _guard_iwo_tmp=$(file_mktemp "$(dirname "$_guard_iwo_dest")") || return 1
+_guard_install_render_observations() {
+    _guard_iro_detected_at=$1
     {
         printf '{"schemaVersion":1,'
-        printf '"detectedAt":"%s",' "$(_guard_env_json_string "$(date -u +%Y-%m-%dT%H:%M:%SZ)")"
+        printf '"detectedAt":"%s",' "$(_guard_env_json_string "$_guard_iro_detected_at")"
         printf '"dns":{"backend":"%s","domainSetBackend":"%s"},' \
             "$(_guard_env_json_string "$_GUARD_DNS_BACKEND")" \
             "$(_guard_env_json_string "$_GUARD_DNS_DOMAIN_SET")"
@@ -258,11 +340,32 @@ _guard_install_write_observations() {
             printf '"%s"' "$(_guard_env_json_string "$_guard_iwo_id")"
         done
         printf ']}\n'
-    } > "$_guard_iwo_tmp"
+    }
+}
+
+_guard_install_write_observations() {
+    _guard_iwo_dest=$(_guard_install_observations)
+    if [ "${GUARD_DRY_RUN:-0}" = 1 ]; then
+        printf 'would write %s\n' "$_guard_iwo_dest"
+        return 0
+    fi
+    mkdir -p "$(dirname "$_guard_iwo_dest")"
+    _guard_iwo_tmp=$(file_mktemp "$(dirname "$_guard_iwo_dest")") || return 1
+    _guard_iwo_detected_at=
+    if [ -f "$_guard_iwo_dest" ] && json_load "$_guard_iwo_dest" >/dev/null 2>&1; then
+        _guard_iwo_detected_at=$(json_get "$_guard_iwo_dest" detectedAt 2>/dev/null) || _guard_iwo_detected_at=
+    fi
+    [ -n "$_guard_iwo_detected_at" ] || _guard_iwo_detected_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    _guard_install_render_observations "$_guard_iwo_detected_at" > "$_guard_iwo_tmp"
     json_load "$_guard_iwo_tmp" || {
         rm -f "$_guard_iwo_tmp"
         return 1
     }
+    if [ -f "$_guard_iwo_dest" ] && cmp -s "$_guard_iwo_dest" "$_guard_iwo_tmp"; then
+        rm -f "$_guard_iwo_tmp"
+        return 0
+    fi
+    _guard_install_render_observations "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$_guard_iwo_tmp"
     file_atomic_replace "$_guard_iwo_dest" "$_guard_iwo_tmp"
     _guard_iwo_rc=$?
     rm -f "$_guard_iwo_tmp"
@@ -475,16 +578,159 @@ guard_cmd_install() {
     _guard_install_self || return $?
     _guard_install_policy_files || return $?
     _guard_install_hooks || return $?
+    guard_rules_init || return $?
     _guard_install_write_uci "$_guard_in_mode" "$_guard_in_ks_eff" "$_guard_in_dns_eff" "$_guard_in_game_eff" "$_guard_in_url" "$_guard_in_clients" || return $?
     _guard_install_write_observations || return $?
+    _guard_install_enable_service || return $?
     if [ "${GUARD_DRY_RUN:-0}" = 1 ]; then
         cli_info "dry-run: install not written"
         return 0
     fi
-    _guard_distribution_record "$_GUARD_PREFLIGHT_SOURCE" "$_GUARD_PREFLIGHT_POLICY_URL" "$_GUARD_PREFLIGHT_TEMPLATES_URL" || return $?
+    _guard_distribution_record "$_GUARD_PREFLIGHT_SOURCE" "$_GUARD_PREFLIGHT_POLICY_URL" "$_GUARD_PREFLIGHT_TEMPLATES_URL" 1 || return $?
     if ! guard_install_validate; then
         cli_error "Setup validation failed: $_GUARD_SETUP_INVALID_REASON"
         return 1
     fi
+    _guard_in_overlay=$(_guard_overlay_hook_path)
+    if [ -f "$_guard_in_overlay" ]; then
+        if cli_confirm "Activate the four staged Custom rule-provider slots through OpenClash's documented hook?"; then
+            guard_overlay_activate --yes || {
+                cli_error "setup completed, but rule activation failed safely; staged rules are not active"
+                return 1
+            }
+        else
+            cli_warn "rules are staged, not yet active; run 'openclash-guard rules activate --yes'"
+        fi
+    else
+        cli_warn "rules are staged, not yet active; OpenClash custom-overwrite hook was not found at $_guard_in_overlay"
+    fi
     cli_success "setup complete; runtime is valid and not yet applied"
+}
+
+guard_cmd_health_check() {
+    _guard_hc_json=${_GUARD_JSON:-0}
+    while [ "$#" -gt 0 ]; do
+        case $1 in
+            --json) _guard_hc_json=1; shift ;;
+            *) cli_error "unknown health-check option: $1"; return 2 ;;
+        esac
+    done
+    _guard_hc_valid=1
+    _guard_hc_reason=
+    if ! guard_install_validate; then
+        _guard_hc_valid=0
+        _guard_hc_reason=$_GUARD_SETUP_INVALID_REASON
+    fi
+    _guard_hc_service=$(_guard_install_service_state 2>/dev/null) || true
+    [ -n "$_guard_hc_service" ] || _guard_hc_service=missing
+    if [ "$_guard_hc_service" = missing ] || [ "$_guard_hc_service" = disabled ]; then
+        _guard_hc_valid=0
+        [ -n "$_guard_hc_reason" ] || _guard_hc_reason="Guard service is $_guard_hc_service"
+    fi
+    _guard_hc_overlay=staged
+    guard_overlay_is_active && _guard_hc_overlay=active
+    if [ "$_guard_hc_json" = 1 ]; then
+        printf '{"healthy":%s,"service":"%s","firewallHooks":%s,"rules":{"activation":"%s","data":"preserved"},"reason":"%s"}\n' \
+            "$(_guard_env_json_bool "$_guard_hc_valid")" \
+            "$(_guard_env_json_string "$_guard_hc_service")" \
+            "$(_guard_env_json_bool "$([ -x "$(_guard_install_hotplug)" ] && [ -x "$(_guard_install_fw4)" ] && printf 1 || printf 0)")" \
+            "$(_guard_env_json_string "$_guard_hc_overlay")" \
+            "$(_guard_env_json_string "$_guard_hc_reason")"
+    else
+        cli_section "OpenClash Guard health check"
+        cli_kv install "$([ "$_guard_hc_valid" = 1 ] && printf healthy || printf unhealthy)"
+        cli_kv service "$_guard_hc_service"
+        cli_kv firewall.hotplug "$([ -x "$(_guard_install_hotplug)" ] && printf present || printf missing)"
+        cli_kv firewall.fw4 "$([ -x "$(_guard_install_fw4)" ] && printf present || printf missing)"
+        cli_kv rules.activation "$_guard_hc_overlay"
+        [ -z "$_guard_hc_reason" ] || cli_kv reason "$_guard_hc_reason"
+    fi
+    [ "$_guard_hc_valid" = 1 ]
+}
+
+_guard_install_remove_owned_file() {
+    _guard_irof_file=$1
+    _guard_irof_marker=${2:-}
+    [ -e "$_guard_irof_file" ] || return 0
+    if [ -n "$_guard_irof_marker" ] && ! grep -F "$_guard_irof_marker" "$_guard_irof_file" >/dev/null 2>&1; then
+        cli_warn "preserving modified file not recognized as Guard-owned: $_guard_irof_file"
+        return 0
+    fi
+    rm -f "$_guard_irof_file"
+}
+
+guard_cmd_uninstall() {
+    _guard_un_yes=0
+    _guard_un_purge=0
+    while [ "$#" -gt 0 ]; do
+        case $1 in
+            --yes|-y) _guard_un_yes=1; shift ;;
+            --purge-rules) _guard_un_purge=1; shift ;;
+            *) cli_error "unknown uninstall option: $1"; return 2 ;;
+        esac
+    done
+    [ "$_guard_un_yes" -eq 1 ] && cli_set_assume_yes 1
+    if [ "$_guard_un_purge" -eq 1 ]; then
+        _guard_un_prompt="Uninstall OpenClash Guard and permanently delete staged rule data?"
+    else
+        _guard_un_prompt="Uninstall OpenClash Guard and preserve staged rule data?"
+    fi
+    if ! cli_confirm "$_guard_un_prompt"; then
+        cli_error "refusing to uninstall without confirmation (pass --yes)"
+        return 1
+    fi
+    _guard_un_rc=0
+    if ! guard_overlay_deactivate --yes; then
+        cli_error "uninstall stopped before removing the Guard runtime because the managed overlay could not be removed safely"
+        return 1
+    fi
+    guard_cmd_remove || _guard_un_rc=1
+    _guard_install_stop_disable_service || _guard_un_rc=1
+    if command -v uci >/dev/null 2>&1; then
+        for _guard_un_uci in \
+            openclash_guard.main.enabled \
+            openclash_guard.main.mode \
+            openclash_guard.main.kill_switch \
+            openclash_guard.main.dns_kill_switch \
+            openclash_guard.main.dns_ownership \
+            openclash_guard.main.policy_refresh \
+            openclash_guard.main.policy_url \
+            openclash_guard.udp.enabled \
+            openclash_guard.udp.blanket_udp_bypass \
+            openclash_guard.udp.protect_udp_443 \
+            openclash_guard.udp.src_ip
+        do
+            uci_delete "$_guard_un_uci"
+        done
+        uci_delete openclash_guard.main
+        uci_delete openclash_guard.udp
+        uci_commit_if_changed openclash_guard || _guard_un_rc=1
+    fi
+    _guard_install_remove_owned_file "$(_guard_install_hotplug)" "# fw4/firewall reload hook." || _guard_un_rc=1
+    _guard_install_remove_owned_file "$(_guard_install_fw4)" "# fw4 include." || _guard_un_rc=1
+    _guard_install_remove_owned_file "$(_guard_install_oc_hook)" "# Observe OpenClash restart." || _guard_un_rc=1
+    _guard_install_remove_owned_file "$(_guard_install_init)" "# OpenClash Guard boot reconcile" || _guard_un_rc=1
+    _guard_un_oc_dropin="$(_guard_install_root)/etc/openclash/openclash-guard-hook.sh"
+    _guard_install_remove_owned_file "$_guard_un_oc_dropin" "# Drop-in observer." || _guard_un_rc=1
+    _guard_install_remove_owned_file "$(_guard_install_bin)" || _guard_un_rc=1
+    _guard_install_remove_owned_file "$(_guard_install_etc)/openclash-guard.json" || _guard_un_rc=1
+    _guard_install_remove_owned_file "$(_guard_install_etc)/openclash-guard-templates.json" || _guard_un_rc=1
+    _guard_install_remove_owned_file "$(_guard_install_observations)" || _guard_un_rc=1
+    _guard_install_remove_owned_file "$(_guard_distribution_state_path)" || _guard_un_rc=1
+    if [ "$_guard_un_purge" -eq 1 ]; then
+        guard_rules_purge || _guard_un_rc=1
+    else
+        cli_info "preserved staged rule data under $(_guard_overlay_provider_root | sed 's,/providers$,,' )"
+    fi
+    rmdir "$(_guard_install_etc)/backups" "$(_guard_install_etc)" 2>/dev/null || true
+    rmdir "$(_guard_install_root)/usr/lib/openclash-guard" 2>/dev/null || true
+    if [ "$_guard_un_rc" -ne 0 ]; then
+        cli_error "uninstall completed with cleanup errors"
+        return "$_guard_un_rc"
+    fi
+    if [ "$_guard_un_purge" -eq 1 ]; then
+        cli_success "OpenClash Guard uninstalled; staged rule data deleted"
+    else
+        cli_success "OpenClash Guard uninstalled; staged rule data preserved"
+    fi
 }

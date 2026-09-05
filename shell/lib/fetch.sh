@@ -19,6 +19,23 @@ _fetch_http_curl() {
     _fetch_c_url=$1
     _fetch_c_out=$2
     _fetch_c_timeout=$3
+    _fetch_c_https_only=${4:-0}
+    _fetch_c_max_bytes=${5:-}
+    if [ "$_fetch_c_https_only" = 1 ]; then
+        case $_fetch_c_url in
+            https://*) ;;
+            *) printf '%s\n' "fetch: secure fetch requires an HTTPS URL" >&2; return 2 ;;
+        esac
+        _fetch_c_blocks=$(((_fetch_c_max_bytes + 511) / 512))
+        (
+            ulimit -f "$_fetch_c_blocks"
+            curl -fLSs --max-redirs 0 --proto '=https' --proto-redir '=https' \
+                --max-filesize "$_fetch_c_max_bytes" \
+                --connect-timeout "$_fetch_c_timeout" --max-time "$_fetch_c_timeout" \
+                -o "$_fetch_c_out" "$_fetch_c_url"
+        )
+        return $?
+    fi
     curl -fLSs --connect-timeout "$_fetch_c_timeout" --max-time "$_fetch_c_timeout" -o "$_fetch_c_out" "$_fetch_c_url"
 }
 
@@ -26,6 +43,11 @@ _fetch_http_wget() {
     _fetch_w_url=$1
     _fetch_w_out=$2
     _fetch_w_timeout=$3
+    _fetch_w_https_only=${4:-0}
+    if [ "$_fetch_w_https_only" = 1 ]; then
+        printf '%s\n' "fetch: HTTPS-only redirect enforcement requires curl" >&2
+        return 127
+    fi
     wget -q -O "$_fetch_w_out" -T "$_fetch_w_timeout" "$_fetch_w_url"
 }
 
@@ -142,17 +164,28 @@ fetch_http() {
     _fetch_http_url=${1:-}
     _fetch_http_out=${2:-}
     if [ -z "$_fetch_http_url" ] || [ -z "$_fetch_http_out" ]; then
-        printf '%s\n' "fetch_http: usage: fetch_http URL OUTPUT [TIMEOUT]" >&2
+        printf '%s\n' "fetch_http: usage: fetch_http URL OUTPUT [TIMEOUT [HTTPS_ONLY [MAX_BYTES]]]" >&2
         return 2
     fi
     _fetch_http_timeout=$(_fetch_timeout_secs "${3:-}") || return $?
+    _fetch_http_https_only=${4:-0}
+    _fetch_http_max_bytes=${5:-}
+    case $_fetch_http_https_only in
+        0|1) ;;
+        *) printf '%s\n' "fetch_http: HTTPS-only mode must be 0 or 1" >&2; return 2 ;;
+    esac
+    if [ "$_fetch_http_https_only" = 1 ]; then
+        case $_fetch_http_max_bytes in
+            ''|*[!0-9]*|0) printf '%s\n' "fetch_http: secure fetch requires a positive byte limit" >&2; return 2 ;;
+        esac
+    fi
     _fetch_http_dir=$(dirname "$_fetch_http_out")
     _fetch_http_tmp=$(file_mktemp "$_fetch_http_dir") || return 1
     _fetch_http_rc=0
     if command -v curl >/dev/null 2>&1; then
-        _fetch_http_curl "$_fetch_http_url" "$_fetch_http_tmp" "$_fetch_http_timeout" || _fetch_http_rc=$?
+        _fetch_http_curl "$_fetch_http_url" "$_fetch_http_tmp" "$_fetch_http_timeout" "$_fetch_http_https_only" "$_fetch_http_max_bytes" || _fetch_http_rc=$?
     elif command -v wget >/dev/null 2>&1; then
-        _fetch_http_wget "$_fetch_http_url" "$_fetch_http_tmp" "$_fetch_http_timeout" || _fetch_http_rc=$?
+        _fetch_http_wget "$_fetch_http_url" "$_fetch_http_tmp" "$_fetch_http_timeout" "$_fetch_http_https_only" || _fetch_http_rc=$?
     else
         rm -f "$_fetch_http_tmp"
         printf '%s\n' "fetch_http: curl or wget is required" >&2
@@ -194,7 +227,7 @@ fetch_atomic() {
     _fetch_at_dest=${2:-}
     _fetch_at_validator=${3:-}
     if [ -z "$_fetch_at_url" ] || [ -z "$_fetch_at_dest" ]; then
-        printf '%s\n' "fetch_atomic: usage: fetch_atomic URL DEST [VALIDATOR]" >&2
+        printf '%s\n' "fetch_atomic: usage: fetch_atomic URL DEST [VALIDATOR [TIMEOUT [MAX_BYTES [HTTPS_ONLY]]]]" >&2
         return 2
     fi
     _fetch_at_dir=$(dirname "$_fetch_at_dest")
@@ -203,7 +236,7 @@ fetch_atomic() {
         return 1
     fi
     _fetch_at_tmp=$(file_mktemp "$_fetch_at_dir") || return 1
-    if ! fetch_http "$_fetch_at_url" "$_fetch_at_tmp" "${4:-}"; then
+    if ! fetch_http "$_fetch_at_url" "$_fetch_at_tmp" "${4:-}" "${6:-0}" "${5:-}"; then
         rm -f "$_fetch_at_tmp"
         return 1
     fi
