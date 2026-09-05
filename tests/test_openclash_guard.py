@@ -514,7 +514,15 @@ def main(argv):
             output = args[i + 1]
             i += 2
             continue
-        if arg in ("--connect-timeout", "--max-time", "-m"):
+        if arg in (
+            "--connect-timeout",
+            "--max-time",
+            "--max-filesize",
+            "--max-redirs",
+            "--proto",
+            "--proto-redir",
+            "-m",
+        ):
             i += 2
             continue
         if arg.startswith("-"):

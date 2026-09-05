@@ -175,6 +175,22 @@
         "guard-policy"
       ]
     },
+    "guard-overlay": {
+      "path": "shell/apps/openclash-guard/overlay.sh",
+      "depends": [
+        "cli",
+        "file"
+      ]
+    },
+    "guard-rules": {
+      "path": "shell/apps/openclash-guard/rules.sh",
+      "depends": [
+        "cli",
+        "file",
+        "fetch",
+        "guard-overlay"
+      ]
+    },
     "guard-install": {
       "path": "shell/apps/openclash-guard/install.sh",
       "depends": [
@@ -184,7 +200,9 @@
         "uci",
         "guard-environment",
         "guard-template",
-        "guard-geo"
+        "guard-geo",
+        "guard-overlay",
+        "guard-rules"
       ]
     },
     "guard-menu": {
@@ -215,6 +233,8 @@
         "guard-geo",
         "guard-template",
         "guard-install",
+        "guard-overlay",
+        "guard-rules",
         "guard-preflight",
         "guard-menu"
       ]
@@ -257,6 +277,8 @@
         "guard-geo",
         "guard-template",
         "guard-install",
+        "guard-overlay",
+        "guard-rules",
         "guard-preflight",
         "guard-menu"
       ],

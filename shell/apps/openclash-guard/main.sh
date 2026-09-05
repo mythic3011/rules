@@ -1,12 +1,12 @@
 #!/bin/sh
-# openclash-guard CLI: apply/reconcile/status/doctor/refresh/remove/template/install/geo.
+# openclash-guard CLI: lifecycle, diagnostics, templates, geo, and custom rules.
 set -eu
 
 _GUARD_JSON=0
 _GUARD_LOCK_HELD=0
 
 guard_usage() {
-    printf '%s\n' "usage: openclash-guard apply|reconcile|status|doctor [SERVICE]|refresh|remove|eval|template|install|geo [--json] [--yes] [--dry-run] [--policy-file FILE]"
+    printf '%s\n' "usage: openclash-guard apply|reconcile|status|doctor [SERVICE]|health-check|refresh|remove|eval|template|install|uninstall|geo|rules [--json] [--yes] [--dry-run] [--policy-file FILE]"
 }
 
 _guard_lock_path() {
@@ -45,6 +45,17 @@ _guard_distribution_selected() {
 _guard_distribution_record() {
     [ "${GUARD_DRY_RUN:-0}" = 1 ] && return 0
     _guard_dr_file=$(_guard_distribution_state_path)
+    _guard_dr_preserve=${4:-0}
+    if [ "$_guard_dr_preserve" = 1 ] && [ -f "$_guard_dr_file" ]; then
+        _guard_dr_source=$(sed -n 's/^selectedSource=//p' "$_guard_dr_file" | head -n 1)
+        _guard_dr_policy=$(sed -n 's/^policyURL=//p' "$_guard_dr_file" | head -n 1)
+        _guard_dr_templates=$(sed -n 's/^templatesURL=//p' "$_guard_dr_file" | head -n 1)
+        if [ "$_guard_dr_source" = "$1" ] && \
+           [ "$_guard_dr_policy" = "${2:-}" ] && \
+           [ "$_guard_dr_templates" = "${3:-}" ]; then
+            return 0
+        fi
+    fi
     mkdir -p "$(dirname "$_guard_dr_file")"
     _guard_dr_tmp=$(file_mktemp "$(dirname "$_guard_dr_file")") || return 1
     printf 'selectedSource=%s\npolicyURL=%s\ntemplatesURL=%s\nlastRefresh=%s\n' \
@@ -456,8 +467,21 @@ guard_cmd_eval() {
 
 _guard_cmd_needs_lock() {
     case $1 in
-        status|doctor|eval|geo)
+        status|doctor|health-check|eval|geo)
             return 1
+            ;;
+        rules)
+            case ${2:-} in
+                list)
+                    return 1
+                    ;;
+                sync)
+                    case ${3:-} in
+                        list|watch) return 1 ;;
+                    esac
+                    ;;
+            esac
+            return 0
             ;;
         template)
             case $2 in
@@ -479,7 +503,7 @@ _guard_dispatch() {
     _guard_dispatch_cmd=${1:-}
     [ -n "$_guard_dispatch_cmd" ] || return 2
     shift
-    if _guard_cmd_needs_lock "$_guard_dispatch_cmd" "${1:-}"; then
+    if _guard_cmd_needs_lock "$_guard_dispatch_cmd" "${1:-}" "${2:-}"; then
         _guard_lock_acquire || return $?
         trap _guard_lock_release EXIT INT TERM
     fi
@@ -489,12 +513,15 @@ _guard_dispatch() {
         reconcile) guard_cmd_reconcile || _guard_dispatch_rc=$? ;;
         status) guard_cmd_status || _guard_dispatch_rc=$? ;;
         doctor) guard_cmd_doctor "$@" || _guard_dispatch_rc=$? ;;
+        health-check) guard_cmd_health_check "$@" || _guard_dispatch_rc=$? ;;
         refresh) guard_cmd_refresh "$@" || _guard_dispatch_rc=$? ;;
         remove) guard_cmd_remove || _guard_dispatch_rc=$? ;;
         eval) guard_cmd_eval "$@" || _guard_dispatch_rc=$? ;;
         template) guard_cmd_template "$@" || _guard_dispatch_rc=$? ;;
         install) guard_cmd_install "$@" || _guard_dispatch_rc=$? ;;
+        uninstall) guard_cmd_uninstall "$@" || _guard_dispatch_rc=$? ;;
         geo) guard_cmd_geo "$@" || _guard_dispatch_rc=$? ;;
+        rules) guard_cmd_rules "$@" || _guard_dispatch_rc=$? ;;
         *) guard_usage >&2; _guard_dispatch_rc=2 ;;
     esac
     _guard_lock_release
@@ -538,7 +565,7 @@ main() {
                 guard_usage
                 return 0
                 ;;
-            apply|reconcile|status|doctor|refresh|remove|eval|template|install|geo)
+            apply|reconcile|status|doctor|health-check|refresh|remove|eval|template|install|uninstall|geo|rules)
                 [ -z "$_guard_cmd" ] || break
                 _guard_cmd=$1
                 shift

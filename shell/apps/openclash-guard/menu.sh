@@ -80,6 +80,9 @@ guard_menu() {
                 "  3. Status                    [read-only]" \
                 "  4. Doctor                    [read-only]" \
                 "  5. Remove firewall rules     [mutating]" \
+                "  6. Health check              [read-only]" \
+                "  7. List staged custom rules  [read-only]" \
+                "  8. Uninstall Guard           [mutating]" \
                 "  0. Exit"
         else
             printf '%s\n' \
@@ -98,6 +101,9 @@ guard_menu() {
                 3) _guard_dispatch status || true ;;
                 4) _guard_dispatch doctor || true ;;
                 5) _guard_dispatch remove || true; guard_preflight_run || true ;;
+                6) _guard_dispatch health-check || true ;;
+                7) _guard_dispatch rules list || true ;;
+                8) if _guard_menu_confirm_dispatch "Uninstall OpenClash Guard and preserve staged rule data?" uninstall --yes; then return 0; fi ;;
                 0) return 0 ;;
                 *) cli_warn "unknown menu choice: $_guard_menu_choice" ;;
             esac

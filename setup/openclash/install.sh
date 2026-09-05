@@ -1,10 +1,14 @@
 #!/bin/sh
-# Download a published profile without mutating OpenClash runtime state.
+# Download profiles or install, inspect, and uninstall the verified Guard bundle.
 set -eu
 
 PROFILE="ai-balanced"
 TARGET=""
 INSTALL=0
+HEALTH_CHECK=0
+UNINSTALL=0
+ASSUME_YES=0
+PURGE_RULES=0
 SOURCE="auto"
 BASE_URL=""
 PROFILE_MODE=0
@@ -20,6 +24,8 @@ usage() {
   cat <<'EOF'
 Usage: install.sh [--source auto|github-raw|jsdelivr] [--base-url URL] [--output PATH | --install]
        install.sh --profile ID [--source auto|github-raw|jsdelivr] [--base-url URL] [--output PATH | --install]
+       install.sh --health-check
+       install.sh --uninstall [--yes] [--purge-rules]
 
 Profiles:
   ai-balanced   recommended relaxed Mihomo/OpenClash profile
@@ -27,6 +33,9 @@ Profiles:
 
 Default behavior prints the generated OpenClash Guard URL only.
 The default --install flow installs the verified standalone Guard bundle.
+--install prompts before provisioning; pass --yes for unattended installation.
+--health-check verifies the installed Guard service, hooks, and configuration.
+--uninstall removes Guard-owned runtime files; staged rule data is preserved unless --purge-rules is passed.
 --output PATH downloads to an explicit path.
 --install downloads to /etc/openclash/config/mythic3011-<profile>.yaml.
 For profile downloads, --profile selects the legacy published YAML flow.
@@ -43,10 +52,48 @@ while [ "$#" -gt 0 ]; do
     --base-url) BASE_URL=${2:?missing base URL}; shift 2 ;;
     --output) TARGET=${2:?missing output path}; shift 2 ;;
     --install) INSTALL=1; shift ;;
+    --health-check) HEALTH_CHECK=1; shift ;;
+    --uninstall) UNINSTALL=1; shift ;;
+    --yes|-y) ASSUME_YES=1; shift ;;
+    --purge-rules) PURGE_RULES=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "unknown argument: $1" >&2; usage >&2; exit 2 ;;
   esac
 done
+
+action_count=$((INSTALL + HEALTH_CHECK + UNINSTALL))
+if [ "$action_count" -gt 1 ]; then
+  echo "--install, --health-check, and --uninstall are mutually exclusive" >&2
+  exit 2
+fi
+if [ "$PURGE_RULES" -eq 1 ] && [ "$UNINSTALL" -ne 1 ]; then
+  echo "--purge-rules requires --uninstall" >&2
+  exit 2
+fi
+if { [ "$HEALTH_CHECK" -eq 1 ] || [ "$UNINSTALL" -eq 1 ]; } && [ "$PROFILE_MODE" -eq 1 ]; then
+  echo "--profile cannot be combined with Guard lifecycle operations" >&2
+  exit 2
+fi
+
+if [ "$HEALTH_CHECK" -eq 1 ] || [ "$UNINSTALL" -eq 1 ]; then
+  GUARD_BIN=${OPENCLASH_GUARD_BIN:-/usr/bin/openclash-guard}
+  if [ ! -x "$GUARD_BIN" ]; then
+    echo "installed OpenClash Guard not found: $GUARD_BIN" >&2
+    exit 1
+  fi
+  if [ "$HEALTH_CHECK" -eq 1 ]; then
+    exec "$GUARD_BIN" health-check
+  fi
+  if [ "$ASSUME_YES" -eq 1 ] && [ "$PURGE_RULES" -eq 1 ]; then
+    exec "$GUARD_BIN" uninstall --yes --purge-rules
+  elif [ "$ASSUME_YES" -eq 1 ]; then
+    exec "$GUARD_BIN" uninstall --yes
+  elif [ "$PURGE_RULES" -eq 1 ]; then
+    exec "$GUARD_BIN" uninstall --purge-rules
+  else
+    exec "$GUARD_BIN" uninstall
+  fi
+fi
 
 if [ "$PROFILE_MODE" -eq 1 ]; then
 case "$PROFILE" in
@@ -168,8 +215,11 @@ mv "$TMP" "$TARGET"
 trap - EXIT INT TERM
 printf 'Downloaded %s -> %s\n' "$PROFILE" "$TARGET"
 if [ "$INSTALL" -eq 1 ] && [ "$PROFILE_MODE" -eq 0 ]; then
-  "$TARGET" install --yes --no-refresh
-  "$TARGET" refresh --source auto
+  if [ "$ASSUME_YES" -eq 1 ]; then
+    "$TARGET" install --yes
+  else
+    "$TARGET" install
+  fi
 elif [ "$INSTALL" -eq 1 ]; then
   printf 'Next: select %s in OpenClash, validate it, then activate it.\n' "$TARGET"
 fi
