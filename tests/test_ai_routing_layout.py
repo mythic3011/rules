@@ -43,6 +43,7 @@ class AiRoutingLayoutTest(unittest.TestCase):
                 "external-routing.json",
                 "process-rules.yaml",
                 "regions.json",
+                "regions.source.json",
                 "services.json",
             },
         )

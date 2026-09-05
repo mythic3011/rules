@@ -8,6 +8,8 @@ import { composeShadowProfile, expectedShadowArtifacts } from "../shadow-profile
 import { RoutingConfigSchema } from "../schema.js";
 import { expectedRoutingArtifacts, routingArtifactName } from "../routing-artifacts.js";
 import { type RoutingContext } from "../project/loader.js";
+import { compileRegions, loadRegionsSource, renderJson } from "../regions/compile.js";
+import { RegionsConfigSchema } from "../regions/schema.js";
 import {
   SemanticParityError,
   buildSemanticParityReport,
@@ -47,6 +49,20 @@ export async function buildRoutingArtifacts(
   artifacts.push({
     path: context.project.schemaOutput,
     content: `${JSON.stringify(z.toJSONSchema(RoutingConfigSchema), null, 2)}\n`,
+  });
+  const regionsSource = await loadRegionsSource(context.project.regionsSource);
+  const { compiled, legacy } = compileRegions(regionsSource);
+  artifacts.push({
+    path: context.project.regionsSchemaOutput,
+    content: `${JSON.stringify(z.toJSONSchema(RegionsConfigSchema), null, 2)}\n`,
+  });
+  artifacts.push({
+    path: join(context.project.generatedArtifactDirectory, routingArtifactName(context.project, "regions-compiled")),
+    content: renderJson(compiled),
+  });
+  artifacts.push({
+    path: context.project.regionsV1Output,
+    content: renderJson(legacy),
   });
   return artifacts.sort((left, right) => left.path.localeCompare(right.path));
 }
@@ -97,7 +113,7 @@ export async function checkRoutingBuild(
     }
     for (const entry of entries) {
       if (!entry.isFile() || expected.has(entry.name)) continue;
-      if (/(?:-plan|\.plan|\.mihomo-fragment|\.full-profile-candidate|\.parity-report|semantic-parity-report)\.(?:json|yaml)$/.test(entry.name)) {
+      if (/(?:-plan|\.plan|\.mihomo-fragment|\.full-profile-candidate|\.parity-report|semantic-parity-report|regions\.compiled)\.(?:json|yaml)$/.test(entry.name)) {
         issues.push({ path: [directory, entry.name], message: "unexpected stale artifact is present" });
       }
     }

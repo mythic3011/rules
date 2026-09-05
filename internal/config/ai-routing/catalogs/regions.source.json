@@ -1,0 +1,246 @@
+{
+  "schemaVersion": 2,
+  "routing": {
+    "primaryOrder": ["us", "jp", "sg", "tw", "kr"]
+  },
+  "regions": [
+    {
+      "id": "us",
+      "name": "United States",
+      "group": "🇺🇸 美國節點",
+      "roles": ["exit"],
+      "match": {
+        "flags": ["🇺🇸"],
+        "aliases": ["United States", "UnitedStates", "USA", "America", "美國", "美国"],
+        "cities": ["波特蘭", "波特兰", "達拉斯", "达拉斯", "俄勒岡", "俄勒冈", "鳳凰城", "凤凰城", "費利蒙", "费利蒙", "硅谷", "拉斯維加斯", "拉斯维加斯", "洛杉磯", "洛杉矶", "聖何塞", "圣何塞", "聖克拉拉", "圣克拉拉", "西雅圖", "西雅图", "芝加哥", "紐約", "纽约", "亞特蘭大", "亚特兰大", "邁阿密", "迈阿密", "華盛頓", "华盛顿"],
+        "airportCodes": ["JFK", "EWR", "IAD", "ATL", "ORD", "MIA", "NYC", "LAX", "SFO", "SEA", "DFW", "SJC"],
+        "countryCodes": { "alpha2": ["US"], "alpha3": ["USA"] },
+        "prefixes": ["US"]
+      }
+    },
+    {
+      "id": "jp",
+      "name": "Japan",
+      "group": "🇯🇵 日本節點",
+      "roles": ["exit"],
+      "match": {
+        "flags": ["🇯🇵"],
+        "aliases": ["Japan", "JPN", "日本"],
+        "cities": ["東京", "东京", "大阪", "關西", "关西", "埼玉", "川日", "泉日", "滬日", "沪日", "深日", "Kansai"],
+        "airportCodes": ["NRT", "HND", "KIX", "TYO", "OSA"],
+        "countryCodes": { "alpha2": ["JP"], "alpha3": ["JPN"] },
+        "prefixes": ["JP"]
+      }
+    },
+    {
+      "id": "sg",
+      "name": "Singapore",
+      "group": "🇸🇬 新加坡節點",
+      "roles": ["exit"],
+      "match": {
+        "flags": ["🇸🇬"],
+        "aliases": ["Singapore", "新加坡", "獅城", "狮城"],
+        "cities": [],
+        "airportCodes": ["SIN"],
+        "countryCodes": { "alpha2": ["SG"], "alpha3": ["SGP"] },
+        "prefixes": ["SG"]
+      }
+    },
+    {
+      "id": "tw",
+      "name": "Taiwan",
+      "group": "🇹🇼 台灣節點",
+      "roles": ["exit"],
+      "match": {
+        "flags": ["🇹🇼"],
+        "aliases": ["Taiwan", "TWN", "ROC", "台灣", "臺灣", "台湾"],
+        "cities": ["台北", "臺北", "新北", "台中", "臺中", "高雄", "彰化"],
+        "airportCodes": ["TPE"],
+        "countryCodes": { "alpha2": ["TW"], "alpha3": ["TWN"] },
+        "prefixes": ["TW"]
+      }
+    },
+    {
+      "id": "kr",
+      "name": "South Korea",
+      "group": "🇰🇷 韓國節點",
+      "roles": ["exit"],
+      "match": {
+        "flags": ["🇰🇷"],
+        "aliases": ["South Korea", "Korea", "KOR", "韓國", "韩国"],
+        "cities": ["首爾", "首尔", "春川", "Chuncheon"],
+        "airportCodes": ["ICN"],
+        "countryCodes": { "alpha2": ["KR"], "alpha3": ["KOR"] },
+        "prefixes": ["KR"]
+      }
+    },
+    {
+      "id": "hk",
+      "name": "Hong Kong",
+      "group": "🇭🇰 香港節點",
+      "roles": [],
+      "match": {
+        "flags": ["🇭🇰"],
+        "aliases": ["Hong Kong", "HongKong", "香港"],
+        "cities": [],
+        "airportCodes": ["HKG"],
+        "countryCodes": { "alpha2": ["HK"], "alpha3": ["HKG"] },
+        "prefixes": ["HK"]
+      }
+    },
+    {
+      "id": "mo",
+      "name": "Macao",
+      "group": "🇲🇴 澳門節點",
+      "roles": [],
+      "match": {
+        "flags": ["🇲🇴"],
+        "aliases": ["Macao", "Macau", "澳門", "澳门"],
+        "cities": [],
+        "airportCodes": ["MFM"],
+        "countryCodes": { "alpha2": ["MO"], "alpha3": ["MAC"] },
+        "prefixes": ["MO"]
+      }
+    },
+    {
+      "id": "uk",
+      "name": "United Kingdom",
+      "group": "🇬🇧 英國節點",
+      "roles": [],
+      "match": {
+        "flags": ["🇬🇧"],
+        "aliases": ["United Kingdom", "Britain", "英國", "英国"],
+        "cities": ["London", "倫敦", "伦敦"],
+        "airportCodes": ["LHR", "LGW", "MAN", "LCY"],
+        "countryCodes": { "alpha2": ["GB"], "alpha3": ["GBR"] },
+        "prefixes": ["UK", "GB"]
+      }
+    },
+    {
+      "id": "fr",
+      "name": "France",
+      "group": "🇫🇷 法國節點",
+      "roles": [],
+      "match": {
+        "flags": ["🇫🇷"],
+        "aliases": ["France", "法國", "法国"],
+        "cities": ["Paris", "巴黎"],
+        "airportCodes": ["CDG", "ORY"],
+        "countryCodes": { "alpha2": ["FR"], "alpha3": ["FRA"] },
+        "prefixes": ["FR"]
+      }
+    },
+    {
+      "id": "de",
+      "name": "Germany",
+      "group": "🇩🇪 德國節點",
+      "roles": [],
+      "match": {
+        "flags": ["🇩🇪"],
+        "aliases": ["Germany", "德國", "德国"],
+        "cities": ["Frankfurt", "Frankfurt am Main", "Berlin", "慕尼黑", "法蘭克福", "法兰克福", "柏林"],
+        "airportCodes": ["FRA", "MUC", "BER"],
+        "countryCodes": { "alpha2": ["DE"], "alpha3": ["DEU"] },
+        "prefixes": ["DE"]
+      }
+    },
+    {
+      "id": "it",
+      "name": "Italy",
+      "group": "🇮🇹 義大利節點",
+      "roles": [],
+      "match": {
+        "flags": ["🇮🇹"],
+        "aliases": ["Italy", "Italia", "義大利", "意大利"],
+        "cities": ["Milan", "Rome", "米蘭", "米兰", "羅馬", "罗马"],
+        "airportCodes": ["MXP", "FCO"],
+        "countryCodes": { "alpha2": ["IT"], "alpha3": ["ITA"] },
+        "prefixes": ["IT"]
+      }
+    },
+    {
+      "id": "no",
+      "name": "Norway",
+      "group": "🇳🇴 挪威節點",
+      "roles": [],
+      "match": {
+        "flags": ["🇳🇴"],
+        "aliases": ["Norway", "挪威"],
+        "cities": ["Oslo", "奧斯陸", "奥斯陆"],
+        "airportCodes": ["OSL"],
+        "countryCodes": { "alpha2": ["NO"], "alpha3": ["NOR"] },
+        "prefixes": ["NO"]
+      }
+    },
+    {
+      "id": "ca",
+      "name": "Canada",
+      "group": "🇨🇦 加拿大節點",
+      "roles": [],
+      "match": {
+        "flags": ["🇨🇦"],
+        "aliases": ["Canada", "加拿大"],
+        "cities": ["Toronto", "Vancouver", "Montreal", "多倫多", "多伦多", "溫哥華", "温哥华"],
+        "airportCodes": ["YYZ", "YVR", "YUL"],
+        "countryCodes": { "alpha2": ["CA"], "alpha3": ["CAN"] },
+        "prefixes": ["CA"]
+      }
+    },
+    {
+      "id": "au",
+      "name": "Australia",
+      "group": "🇦🇺 澳洲節點",
+      "roles": [],
+      "match": {
+        "flags": ["🇦🇺"],
+        "aliases": ["Australia", "澳洲", "澳大利亞", "澳大利亚"],
+        "cities": ["Sydney", "Melbourne", "雪梨", "悉尼", "墨爾本", "墨尔本"],
+        "airportCodes": ["SYD", "MEL"],
+        "countryCodes": { "alpha2": ["AU"], "alpha3": ["AUS"] },
+        "prefixes": ["AU"]
+      }
+    },
+    {
+      "id": "ru",
+      "name": "Russia",
+      "group": "🇷🇺 俄羅斯節點",
+      "roles": [],
+      "match": {
+        "flags": ["🇷🇺"],
+        "aliases": ["Russia", "俄羅斯", "俄罗斯"],
+        "cities": ["Moscow", "莫斯科"],
+        "airportCodes": ["SVO", "DME"],
+        "countryCodes": { "alpha2": ["RU"], "alpha3": ["RUS"] },
+        "prefixes": ["RU"]
+      }
+    },
+    {
+      "id": "ua",
+      "name": "Ukraine",
+      "group": "🇺🇦 烏克蘭節點",
+      "roles": [],
+      "match": {
+        "flags": ["🇺🇦"],
+        "aliases": ["Ukraine", "烏克蘭", "乌克兰"],
+        "cities": ["Kyiv", "Kiev", "基輔", "基辅"],
+        "airportCodes": ["KBP"],
+        "countryCodes": { "alpha2": ["UA"], "alpha3": ["UKR"] },
+        "prefixes": ["UA"]
+      }
+    },
+    {
+      "id": "tr",
+      "name": "Turkey",
+      "group": "🇹🇷 土耳其節點",
+      "roles": [],
+      "match": {
+        "flags": ["🇹🇷"],
+        "aliases": ["Turkey", "Türkiye", "土耳其"],
+        "cities": ["Istanbul", "伊斯坦堡", "伊斯坦布尔"],
+        "airportCodes": ["IST", "SAW"],
+        "countryCodes": { "alpha2": ["TR"], "alpha3": ["TUR"] },
+        "prefixes": ["TR"]
+      }
+    }
+  ]
+}

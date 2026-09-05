@@ -153,6 +153,261 @@
         "HKG",
         "🇭🇰"
       ]
+    },
+    {
+      "id": "mo",
+      "group": "🇲🇴 澳門節點",
+      "terms": "🇲🇴|Macao|Macau|澳門|澳门|\\bMO(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|MFM",
+      "name": "Macao",
+      "countryCodes": [
+        "MO"
+      ],
+      "aliases": [
+        "Macao",
+        "Macau",
+        "澳門",
+        "澳门"
+      ],
+      "keywords": [
+        "MFM",
+        "🇲🇴"
+      ]
+    },
+    {
+      "id": "uk",
+      "group": "🇬🇧 英國節點",
+      "terms": "🇬🇧|United Kingdom|Britain|英國|英国|London|倫敦|伦敦|\\bUK(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|\\bGB(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|LHR|LGW|MAN|LCY",
+      "name": "United Kingdom",
+      "countryCodes": [
+        "GB"
+      ],
+      "aliases": [
+        "United Kingdom",
+        "Britain",
+        "英國",
+        "英国"
+      ],
+      "keywords": [
+        "LHR",
+        "LGW",
+        "MAN",
+        "LCY",
+        "London",
+        "倫敦",
+        "伦敦",
+        "🇬🇧"
+      ]
+    },
+    {
+      "id": "fr",
+      "group": "🇫🇷 法國節點",
+      "terms": "🇫🇷|France|法國|法国|Paris|巴黎|\\bFR(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|CDG|ORY",
+      "name": "France",
+      "countryCodes": [
+        "FR"
+      ],
+      "aliases": [
+        "France",
+        "法國",
+        "法国"
+      ],
+      "keywords": [
+        "CDG",
+        "ORY",
+        "Paris",
+        "巴黎",
+        "🇫🇷"
+      ]
+    },
+    {
+      "id": "de",
+      "group": "🇩🇪 德國節點",
+      "terms": "🇩🇪|Germany|德國|德国|Frankfurt|Frankfurt am Main|Berlin|慕尼黑|法蘭克福|法兰克福|柏林|\\bDE(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|FRA|MUC|BER",
+      "name": "Germany",
+      "countryCodes": [
+        "DE"
+      ],
+      "aliases": [
+        "Germany",
+        "德國",
+        "德国"
+      ],
+      "keywords": [
+        "FRA",
+        "MUC",
+        "BER",
+        "Frankfurt",
+        "Frankfurt am Main",
+        "Berlin",
+        "慕尼黑",
+        "法蘭克福",
+        "法兰克福",
+        "柏林",
+        "🇩🇪"
+      ]
+    },
+    {
+      "id": "it",
+      "group": "🇮🇹 義大利節點",
+      "terms": "🇮🇹|Italy|Italia|義大利|意大利|Milan|Rome|米蘭|米兰|羅馬|罗马|\\bIT(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|MXP|FCO",
+      "name": "Italy",
+      "countryCodes": [
+        "IT"
+      ],
+      "aliases": [
+        "Italy",
+        "Italia",
+        "義大利",
+        "意大利"
+      ],
+      "keywords": [
+        "MXP",
+        "FCO",
+        "Milan",
+        "Rome",
+        "米蘭",
+        "米兰",
+        "羅馬",
+        "罗马",
+        "🇮🇹"
+      ]
+    },
+    {
+      "id": "no",
+      "group": "🇳🇴 挪威節點",
+      "terms": "🇳🇴|Norway|挪威|Oslo|奧斯陸|奥斯陆|\\bNO(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|OSL",
+      "name": "Norway",
+      "countryCodes": [
+        "NO"
+      ],
+      "aliases": [
+        "Norway",
+        "挪威"
+      ],
+      "keywords": [
+        "OSL",
+        "Oslo",
+        "奧斯陸",
+        "奥斯陆",
+        "🇳🇴"
+      ]
+    },
+    {
+      "id": "ca",
+      "group": "🇨🇦 加拿大節點",
+      "terms": "🇨🇦|Canada|加拿大|Toronto|Vancouver|Montreal|多倫多|多伦多|溫哥華|温哥华|\\bCA(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|YYZ|YVR|YUL",
+      "name": "Canada",
+      "countryCodes": [
+        "CA"
+      ],
+      "aliases": [
+        "Canada",
+        "加拿大"
+      ],
+      "keywords": [
+        "YYZ",
+        "YVR",
+        "YUL",
+        "Toronto",
+        "Vancouver",
+        "Montreal",
+        "多倫多",
+        "多伦多",
+        "溫哥華",
+        "温哥华",
+        "🇨🇦"
+      ]
+    },
+    {
+      "id": "au",
+      "group": "🇦🇺 澳洲節點",
+      "terms": "🇦🇺|Australia|澳洲|澳大利亞|澳大利亚|Sydney|Melbourne|雪梨|悉尼|墨爾本|墨尔本|\\bAU(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|SYD|MEL",
+      "name": "Australia",
+      "countryCodes": [
+        "AU"
+      ],
+      "aliases": [
+        "Australia",
+        "澳洲",
+        "澳大利亞",
+        "澳大利亚"
+      ],
+      "keywords": [
+        "SYD",
+        "MEL",
+        "Sydney",
+        "Melbourne",
+        "雪梨",
+        "悉尼",
+        "墨爾本",
+        "墨尔本",
+        "🇦🇺"
+      ]
+    },
+    {
+      "id": "ru",
+      "group": "🇷🇺 俄羅斯節點",
+      "terms": "🇷🇺|Russia|俄羅斯|俄罗斯|Moscow|莫斯科|\\bRU(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|SVO|DME",
+      "name": "Russia",
+      "countryCodes": [
+        "RU"
+      ],
+      "aliases": [
+        "Russia",
+        "俄羅斯",
+        "俄罗斯"
+      ],
+      "keywords": [
+        "SVO",
+        "DME",
+        "Moscow",
+        "莫斯科",
+        "🇷🇺"
+      ]
+    },
+    {
+      "id": "ua",
+      "group": "🇺🇦 烏克蘭節點",
+      "terms": "🇺🇦|Ukraine|烏克蘭|乌克兰|Kyiv|Kiev|基輔|基辅|\\bUA(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|KBP",
+      "name": "Ukraine",
+      "countryCodes": [
+        "UA"
+      ],
+      "aliases": [
+        "Ukraine",
+        "烏克蘭",
+        "乌克兰"
+      ],
+      "keywords": [
+        "KBP",
+        "Kyiv",
+        "Kiev",
+        "基輔",
+        "基辅",
+        "🇺🇦"
+      ]
+    },
+    {
+      "id": "tr",
+      "group": "🇹🇷 土耳其節點",
+      "terms": "🇹🇷|Turkey|Türkiye|土耳其|Istanbul|伊斯坦堡|伊斯坦布尔|\\bTR(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|IST|SAW",
+      "name": "Turkey",
+      "countryCodes": [
+        "TR"
+      ],
+      "aliases": [
+        "Turkey",
+        "Türkiye",
+        "土耳其"
+      ],
+      "keywords": [
+        "IST",
+        "SAW",
+        "Istanbul",
+        "伊斯坦堡",
+        "伊斯坦布尔",
+        "🇹🇷"
+      ]
     }
   ]
 }

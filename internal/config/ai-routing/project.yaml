@@ -7,6 +7,9 @@ legacyRelaxedBase: ../../../cfg/yaml/Custom_Clash_AI.yaml
 shadowTemplate: ../../templates/ai-routing/full-relaxed-shadow.yaml.tpl
 generatedArtifactDirectory: ../../generated/ai-routing
 schemaOutput: ../../schemas/routing-config.schema.json
+regionsSchemaOutput: ../../schemas/regions-config.schema.json
+regionsSource: catalogs/regions.source.json
+regionsV1Output: catalogs/regions.json
 supportedProfiles:
   - hk
   - jp
@@ -22,3 +25,6 @@ artifactPaths:
   shadow-parity-report: "{profile}.parity-report.json"
   semantic-parity-report: semantic-parity-report.json
   routing-schema: routing-config.schema.json
+  regions-schema: regions-config.schema.json
+  regions-compiled: regions.compiled.json
+  regions-v1: regions.json
