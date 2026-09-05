@@ -146,3 +146,31 @@ test("editing saved ProfileSpec keeps subscription URL stable", async () => {
   assert.match(ini, /custom_proxy_group=🇯🇵 日本節點/);
   assert.doesNotMatch(ini, /custom_proxy_group=🇺🇸 美國節點/);
 });
+
+test("subscription GET response includes security headers", async () => {
+  const environment = env();
+  const saved = await createSavedProfile(environment, { disabledNodeRegions: ["jp"] });
+  const response = await worker.fetch(
+    new Request(`https://rules.example/p/${saved.readToken}.ini`),
+    environment,
+  );
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("x-frame-options"), "DENY");
+  assert.equal(
+    response.headers.get("content-security-policy"),
+    "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+  );
+  assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+  assert.equal(response.headers.get("referrer-policy"), "no-referrer");
+
+  const missingResponse = await worker.fetch(
+    new Request("https://rules.example/p/nonexistent_token_012345678901234567890123456789.ini"),
+    environment,
+  );
+  assert.equal(missingResponse.status, 404);
+  assert.equal(missingResponse.headers.get("x-frame-options"), "DENY");
+  assert.equal(
+    missingResponse.headers.get("content-security-policy"),
+    "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+  );
+});
