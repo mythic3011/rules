@@ -4,8 +4,7 @@
 # RULE-PROVIDER: Finance_Alpaca_Classical
 # GROUP: 🔐 高風險帳戶
 # TOTAL: 9
-# GENERATED-AT: 2026-09-04T09:25:32.586570+00:00
-# VERSION: e197ce95b8e5b6a0f8b7b6c49d7135e3054eb60a
+# SOURCE-DIGEST: fba2f69787964f63b738852707946db6c57d02b308d09fa43eae90527756ff58
 
 # Alpaca trading/account traffic uses the fail-closed high-risk account selector.
 # Hosts follow Alpaca official trading, broker, market-data, and WebSocket documentation.

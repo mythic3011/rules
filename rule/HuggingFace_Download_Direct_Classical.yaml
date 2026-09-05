@@ -4,8 +4,7 @@
 # RULE-PROVIDER: HuggingFace_Download_Direct_Classical
 # GROUP: 🎯 全球直連
 # TOTAL: 1
-# GENERATED-AT: 2026-09-04T09:25:32.547252+00:00
-# VERSION: e197ce95b8e5b6a0f8b7b6c49d7135e3054eb60a
+# SOURCE-DIGEST: a74446af5cd34601d059d19fa348e742dc338656571fb63cf404622f3e203866
 
 # Hugging Face model/dataset blobs use hf.co storage/CDN endpoints.
 # Keep bulk downloads DIRECT while huggingface.co UI/API can use its service group.

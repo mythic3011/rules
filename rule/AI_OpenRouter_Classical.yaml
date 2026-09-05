@@ -4,8 +4,7 @@
 # RULE-PROVIDER: AI_OpenRouter_Classical
 # GROUP: 🤖 OpenRouter
 # TOTAL: 1
-# GENERATED-AT: 2026-09-04T09:25:32.453608+00:00
-# VERSION: e197ce95b8e5b6a0f8b7b6c49d7135e3054eb60a
+# SOURCE-DIGEST: 584e8b9b966b79e09c228aba40f01cee3e57ae37e63b6de0707d63c6fdfd0efb
 
 payload:
   - "DOMAIN-SUFFIX,openrouter.ai"

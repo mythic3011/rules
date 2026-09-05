@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from ai_profiles_test_support import load_generator
 from ai_profiles.catalog import load_catalog
@@ -63,22 +63,20 @@ class GenerateAiProfilesTest(unittest.TestCase):
     def test_should_render_rule_metadata_without_dynamic_imports(self) -> None:
         rendered = render_rule_file("provider", "AI", ["example.com"])
 
-        self.assertRegex(
-            rendered,
-            r"(?m)^# GENERATED-AT: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?\+00:00$",
-            msg=rendered,
-        )
-        self.assertRegex(rendered, r"(?m)^# VERSION: (?:[0-9a-f]{40}|unknown)$")
+        self.assertNotIn("# GENERATED-AT", rendered)
+        self.assertRegex(rendered, r"(?m)^# SOURCE-DIGEST: [0-9a-f]{64}$")
 
-    @patch("ai_profiles.render.rule_provider.subprocess.run")
-    def test_should_fall_back_when_git_metadata_is_unavailable(self, run: MagicMock) -> None:
-        from subprocess import CalledProcessError
-
-        run.side_effect = CalledProcessError(128, "git")
-
+    def test_source_digest_is_deterministic_and_input_sensitive(self) -> None:
         rendered = render_rule_file("provider", "AI", ["example.com"])
+        self.assertEqual(rendered, render_rule_file("provider", "AI", ["example.com"]))
 
-        self.assertIn("# VERSION: unknown", rendered)
+        def digest(text: str) -> str:
+            return next(
+                line for line in text.splitlines() if line.startswith("# SOURCE-DIGEST: ")
+            )
+
+        other = render_rule_file("provider", "AI", ["other.com"])
+        self.assertNotEqual(digest(rendered), digest(other))
 
     def extract_yaml_group_block(self, rendered_yaml: str, name: str) -> str:
         lines = rendered_yaml.splitlines()
