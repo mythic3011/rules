@@ -52,6 +52,24 @@ test("semantic parity passes for every service currently in core/*.yaml", async 
   );
 });
 
+test("claude dns-policy global-ai divergence is a phase1 warning, not a mismatch", async () => {
+  const { config, artifacts } = await loadParityFixture();
+  const report = compareSemanticParity(config, artifacts);
+  assert.equal(report.status, "pass");
+  assert.equal(
+    report.mismatches.find((entry) => entry.serviceId === "claude" && entry.dimension === "dns-policy"),
+    undefined,
+    JSON.stringify(report.mismatches, null, 2),
+  );
+  const warning = report.warnings.find(
+    (entry) => entry.serviceId === "claude" && entry.dimension === "dns-policy",
+  );
+  assert.ok(warning !== undefined, JSON.stringify(report.warnings, null, 2));
+  assert.equal(warning.severity, "warn");
+  assert.match(warning.message, /global-ai/);
+  assert.match(warning.message, /phase1 known divergence/);
+});
+
 test("legacyEffectiveConsumer equals first-match consumer from generated YAML rule order", async () => {
   const { config, artifacts } = await loadParityFixture();
   const derived = deriveLegacyEffectiveConsumer(artifacts.relaxedYaml, artifacts.catalog, CLOUDCODE);

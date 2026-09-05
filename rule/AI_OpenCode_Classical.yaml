@@ -4,7 +4,7 @@
 # RULE-PROVIDER: AI_OpenCode_Classical
 # GROUP: 🤖 OpenCode
 # TOTAL: 1
-# SOURCE-DIGEST: 33b83add05f0170bf77abf58f43effa508415b12c735796a0284ce6bac40a9cc
+# SOURCE-DIGEST: ce4ce0c8bb0103fa4926cc03bf359ce4ba32d6c89e6920047bc4010aa09613a5
 
 payload:
   - "DOMAIN-SUFFIX,opencode.ai"

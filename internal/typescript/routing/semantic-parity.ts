@@ -164,7 +164,6 @@ const PHASE1_WARN_KEYS = new Set([
   "gemini:candidate-shape",
   "huggingface:candidate-shape",
   "claude:group-name",
-  "claude:dns-policy:generated-global-ai",
 ]);
 
 function compareId(left: string, right: string): number {
