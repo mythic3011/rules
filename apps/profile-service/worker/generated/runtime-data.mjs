@@ -1122,12 +1122,12 @@ export default {
           {
             "type": "proxy-group",
             "name": "🌐 其他／未識別節點",
-            "kind": "url-test",
+            "kind": "select",
             "candidates": [],
             "filterPattern": "(?i)^(?!.*(?:剩余流量|剩餘流量|套餐到期|到期|流量[:：]|Traffic|Expire|Subscription|官网|官方|客服|Telegram|TG群|网址|網站|更新|失效|Invalid|USE|USED|TOTAL|EXPIRE|Panel|Channel|Author|公告|通知|邀请|邀請|返利|教程|使用说明|使用說明|🇭🇰|香港|Hong Kong|Hong-Kong|\\bHKG\\b|\\bHK\\b|(?:🇺🇸|美國|美国|波特蘭|波特兰|達拉斯|达拉斯|俄勒岡|俄勒冈|鳳凰城|凤凰城|費利蒙|费利蒙|硅谷|拉斯維加斯|拉斯维加斯|洛杉磯|洛杉矶|聖何塞|圣何塞|聖克拉拉|圣克拉拉|西雅圖|西雅图|芝加哥|紐約|纽约|亞特蘭大|亚特兰大|邁阿密|迈阿密|華盛頓|华盛顿|\\bUS(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|United States|UnitedStates|USA|America|JFK|EWR|IAD|ATL|ORD|MIA|NYC|LAX|SFO|SEA|DFW|SJC)|(?:🇯🇵|日本|東京|东京|大阪|關西|关西|埼玉|川日|泉日|滬日|沪日|深日|\\bJP(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|Japan|JPN|NRT|HND|KIX|TYO|OSA|Kansai)|(?:🇸🇬|新加坡|獅城|狮城|\\bSG(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|Singapore|SIN)|(?:🇹🇼|台灣|臺灣|台湾|台北|臺北|新北|台中|臺中|高雄|彰化|\\bTW(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|Taiwan|TWN|TPE|ROC)|(?:🇰🇷|韓國|韩国|首爾|首尔|春川|\\bKR(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|Korea|KOR|Chuncheon|ICN))).*$",
-            "healthCheckUrl": "https://cp.cloudflare.com/generate_204",
-            "interval": 300,
-            "tolerance": 50
+            "healthCheckUrl": null,
+            "interval": null,
+            "tolerance": null
           }
         ],
         "title": "Level 1 — Automatic region groups",
@@ -2215,7 +2215,7 @@ export default {
         "onlyNodeRegions": [],
         "preferredNodeRegions": []
       },
-      "customBodySha256": "6ae2467445527d552ee8fd64196c377f006d2187e083a8d0b2ad4ae5533a1ddf"
+      "customBodySha256": "95734b21dbd6772d2d34f6efc114968f73d1d3b50321e8d9b4e73ccb5e584a6d"
     },
     "only-us-sg-prefer-sg": {
       "spec": {
@@ -2242,7 +2242,7 @@ export default {
         "onlyNodeRegions": [],
         "preferredNodeRegions": []
       },
-      "customBodySha256": "b4da3c89a7b7142956a64ac8e82108f33ad9b738a83f6f6848628ecc7c1d7b16"
+      "customBodySha256": "331e24065f4053750626918c7afa8347e749d5778e2f79a6dc61df904f312dc9"
     }
   }
 };

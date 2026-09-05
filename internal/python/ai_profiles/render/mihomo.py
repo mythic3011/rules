@@ -68,7 +68,7 @@ def _render_proxy_groups(plan: MihomoProfilePlan) -> str:
     blocks.append(_group_block(catalog.group("fallback"), "select", ["  proxies:", *(f'    - "{proxy}"' for proxy in plan.fallback_group_proxies)]))
     for region in plan.primary_regions:
         blocks.append(_group_block(region.group, "url-test", ['  url: "https://cp.cloudflare.com/generate_204"', "  interval: 300", "  tolerance: 50", f"  filter: '{region.filter_pattern}'", "  use:", "    - provider1"]))
-    blocks.append(_group_block(plan.other_region_group, "url-test", ['  url: "https://cp.cloudflare.com/generate_204"', "  interval: 300", "  tolerance: 50", f"  filter: {yaml_string(catalog.ai_pool_filter)}", f"  exclude-filter: {yaml_string(catalog.known_region_exclude_pattern)}", "  use:", "    - provider1"]))
+    blocks.append(_group_block(plan.other_region_group, "select", [f"  filter: {yaml_string(catalog.ai_pool_filter)}", f"  exclude-filter: {yaml_string(catalog.known_region_exclude_pattern)}", "  use:", "    - provider1"]))
     blocks.append(_group_block(catalog.group("direct"), "select", ["  proxies:", "    - DIRECT"]))
     return "\n".join(blocks).rstrip()
 

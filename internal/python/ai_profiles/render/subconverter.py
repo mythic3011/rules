@@ -64,10 +64,12 @@ def _render_proxy_group(group: IniSelectGroup | IniProxyGroup) -> str:
     prefix = f"custom_proxy_group={group.name}`{group.kind}`"
 
     if group.kind == "select":
-        body = candidates
+        fields: list[str] = []
+        if candidates:
+            fields.append(candidates)
         if group.filter_pattern is not None:
-            body += f"`{group.filter_pattern}"
-        return prefix + body
+            fields.append(group.filter_pattern)
+        return prefix + "`".join(fields)
 
     if group.kind == "url-test":
         if (

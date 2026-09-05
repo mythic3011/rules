@@ -169,7 +169,7 @@ class ServiceIntakeTests(unittest.TestCase):
             intake.apply_issue(body)
 
     def test_region_code_and_existing_identity_must_agree(self):
-        with self.assertRaisesRegex(ValueError, "code CA conflicts with existing region us"):
+        with self.assertRaisesRegex(ValueError, r"ambiguous; it matches existing regions \['ca', 'us'\]"):
             intake.apply_issue(issue_body(additional=[{
                 "status": "Works", "code": "CA", "name": "United States", "routable": "No — observation only"
             }]))
