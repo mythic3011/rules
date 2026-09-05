@@ -1,0 +1,14 @@
+# Declarative + descriptive only in Phase 1. Does not emit rules or change
+# precedence. legacyEffectiveConsumer is compatibility metadata derived from
+# cfg/yaml/Custom_Clash_AI.yaml RULE-SET order: AI_Antigravity_Classical
+# appears before AI_AndroidStudioAI_Classical, so Antigravity currently wins
+# cloudcode-pa.googleapis.com under Mihomo first-match.
+sharedBackends:
+  google-code-assist:
+    displayName: "Google Code Assist backend"
+    domains:
+      - cloudcode-pa.googleapis.com
+    consumers:
+      - android-studio-ai
+      - antigravity
+    legacyEffectiveConsumer: antigravity

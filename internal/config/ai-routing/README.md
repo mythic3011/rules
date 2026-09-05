@@ -5,7 +5,7 @@
 The directory intentionally contains multiple YAML dialects. They are not one
 combined schema.
 
-- `core/NN-*.yaml` (`00-base.yaml` through `50-dns.yaml`) are canonical
+- `core/NN-*.yaml` (`00-base.yaml` through `60-shared-backends.yaml`) are canonical
   `RoutingConfig` fragments consumed by `loadRoutingConfig()`.
 - `projections/mihomo.yaml` is the Mihomo projection manifest and is validated by its own
   projection schema/loader.

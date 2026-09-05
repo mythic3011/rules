@@ -1033,6 +1033,48 @@
         "profiles"
       ],
       "additionalProperties": false
+    },
+    "sharedBackends": {
+      "default": {},
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "domains": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "consumers": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*$"
+            }
+          },
+          "legacyEffectiveConsumer": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$"
+          }
+        },
+        "required": [
+          "domains",
+          "consumers"
+        ],
+        "additionalProperties": false
+      }
     }
   },
   "required": [
@@ -1042,7 +1084,8 @@
     "protectionClasses",
     "services",
     "accessProfiles",
-    "dns"
+    "dns",
+    "sharedBackends"
   ],
   "additionalProperties": false
 }

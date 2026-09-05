@@ -1,0 +1,1147 @@
+{
+  "schemaVersion": 1,
+  "status": "pass",
+  "productionAuthority": "cfg/yaml/Custom_Clash_AI.yaml",
+  "coverage": {
+    "both": [
+      "chatgpt",
+      "claude",
+      "copilot",
+      "gemini",
+      "grok",
+      "huggingface",
+      "notebooklm",
+      "opencode",
+      "perplexity",
+      "poe"
+    ],
+    "pythonOnly": [
+      "ai-cn-other",
+      "ai-other",
+      "android-studio-ai",
+      "antigravity",
+      "cursor",
+      "gemini-cloud",
+      "google-labs",
+      "jules",
+      "mirasim",
+      "openrouter",
+      "stitch",
+      "vertex-ai"
+    ],
+    "canonicalOnly": [
+      "flow-music",
+      "windsurf"
+    ]
+  },
+  "terminal": {
+    "relaxed": "🐟 漏網之魚",
+    "strict": "⛔ 拒絕"
+  },
+  "sharedBackends": [
+    {
+      "backendId": "google-code-assist",
+      "domain": "cloudcode-pa.googleapis.com",
+      "declared": "antigravity",
+      "derived": "antigravity",
+      "ok": true
+    }
+  ],
+  "services": {
+    "ai-cn-other": {
+      "serviceId": "ai-cn-other",
+      "sides": "python-only",
+      "mismatches": [],
+      "warnings": [
+        {
+          "serviceId": "ai-cn-other",
+          "dimension": "projection-presence",
+          "severity": "warn",
+          "message": "python catalog service is not yet expressed in core/*.yaml",
+          "left": {
+            "catalog": true
+          },
+          "right": {
+            "canonical": false
+          }
+        }
+      ]
+    },
+    "ai-other": {
+      "serviceId": "ai-other",
+      "sides": "python-only",
+      "mismatches": [],
+      "warnings": [
+        {
+          "serviceId": "ai-other",
+          "dimension": "projection-presence",
+          "severity": "warn",
+          "message": "python catalog service is not yet expressed in core/*.yaml",
+          "left": {
+            "catalog": true
+          },
+          "right": {
+            "canonical": false
+          }
+        }
+      ]
+    },
+    "android-studio-ai": {
+      "serviceId": "android-studio-ai",
+      "sides": "python-only",
+      "mismatches": [],
+      "warnings": [
+        {
+          "serviceId": "android-studio-ai",
+          "dimension": "projection-presence",
+          "severity": "warn",
+          "message": "python catalog service is not yet expressed in core/*.yaml",
+          "left": {
+            "catalog": true
+          },
+          "right": {
+            "canonical": false
+          }
+        }
+      ]
+    },
+    "antigravity": {
+      "serviceId": "antigravity",
+      "sides": "python-only",
+      "mismatches": [],
+      "warnings": [
+        {
+          "serviceId": "antigravity",
+          "dimension": "projection-presence",
+          "severity": "warn",
+          "message": "python catalog service is not yet expressed in core/*.yaml",
+          "left": {
+            "catalog": true
+          },
+          "right": {
+            "canonical": false
+          }
+        }
+      ]
+    },
+    "chatgpt": {
+      "serviceId": "chatgpt",
+      "sides": "both",
+      "mismatches": [],
+      "warnings": [
+        {
+          "serviceId": "chatgpt",
+          "dimension": "region-order",
+          "severity": "warn",
+          "message": "canonical region list is a subset of primaryOrder; full us,jp,sg,tw,kr,other coverage is a later phase",
+          "left": [
+            "us",
+            "jp",
+            "sg",
+            "tw",
+            "kr",
+            "other"
+          ],
+          "right": [
+            "us",
+            "sg",
+            "jp"
+          ]
+        },
+        {
+          "serviceId": "chatgpt",
+          "dimension": "dns-policy",
+          "severity": "warn",
+          "message": "catalog DNS selectors are not yet expressed as canonical servicePolicies",
+          "left": [
+            "geosite:openai"
+          ],
+          "right": null
+        }
+      ]
+    },
+    "claude": {
+      "serviceId": "claude",
+      "sides": "both",
+      "mismatches": [],
+      "warnings": [
+        {
+          "serviceId": "claude",
+          "dimension": "group-name",
+          "severity": "warn",
+          "message": "phase1 known divergence: mihomo proxy-group still uses the catalog group while INI/canonical use the account-guard name",
+          "left": {
+            "mihomo": "🤖 Claude",
+            "ini": "🔐 Claude Account Guard"
+          },
+          "right": {
+            "canonical": "🔐 Claude Account Guard"
+          }
+        },
+        {
+          "serviceId": "claude",
+          "dimension": "dns-policy",
+          "severity": "warn",
+          "message": "phase1 known divergence: canonical DNS is refuse/fallback-none but generated YAML still uses global-ai resolvers",
+          "left": {
+            "selectors": [
+              "+.anthropic.com",
+              "+.claude.ai"
+            ]
+          },
+          "right": {
+            "failure": "refuse",
+            "fallback": "none"
+          }
+        }
+      ]
+    },
+    "copilot": {
+      "serviceId": "copilot",
+      "sides": "both",
+      "mismatches": [],
+      "warnings": [
+        {
+          "serviceId": "copilot",
+          "dimension": "region-order",
+          "severity": "warn",
+          "message": "canonical region list is a subset of primaryOrder; full us,jp,sg,tw,kr,other coverage is a later phase",
+          "left": [
+            "us",
+            "jp",
+            "sg",
+            "tw",
+            "kr",
+            "other"
+          ],
+          "right": [
+            "us",
+            "sg",
+            "jp"
+          ]
+        }
+      ]
+    },
+    "cursor": {
+      "serviceId": "cursor",
+      "sides": "python-only",
+      "mismatches": [],
+      "warnings": [
+        {
+          "serviceId": "cursor",
+          "dimension": "projection-presence",
+          "severity": "warn",
+          "message": "python catalog service is not yet expressed in core/*.yaml",
+          "left": {
+            "catalog": true
+          },
+          "right": {
+            "canonical": false
+          }
+        }
+      ]
+    },
+    "flow-music": {
+      "serviceId": "flow-music",
+      "sides": "canonical-only",
+      "mismatches": [],
+      "warnings": [
+        {
+          "serviceId": "flow-music",
+          "dimension": "projection-presence",
+          "severity": "warn",
+          "message": "canonical service has no python catalog counterpart",
+          "left": {
+            "catalog": false
+          },
+          "right": {
+            "canonical": true
+          }
+        }
+      ]
+    },
+    "gemini": {
+      "serviceId": "gemini",
+      "sides": "both",
+      "mismatches": [],
+      "warnings": [
+        {
+          "serviceId": "gemini",
+          "dimension": "candidate-shape",
+          "severity": "warn",
+          "message": "phase1 known divergence: canonical expects DIRECT in relaxed YAML/INI and ABSENT in strict",
+          "left": {
+            "relaxedHasDirect": false,
+            "strictHasDirect": false,
+            "autoHasDirect": false
+          },
+          "right": {
+            "relaxedHasDirect": true,
+            "strictHasDirect": false,
+            "autoHasDirect": false,
+            "protectionClass": "direct-capable"
+          }
+        },
+        {
+          "serviceId": "gemini",
+          "dimension": "region-order",
+          "severity": "warn",
+          "message": "canonical region list is a subset of primaryOrder; full us,jp,sg,tw,kr,other coverage is a later phase",
+          "left": [
+            "us",
+            "jp",
+            "sg",
+            "tw",
+            "kr",
+            "other"
+          ],
+          "right": [
+            "us",
+            "sg",
+            "jp"
+          ]
+        }
+      ]
+    },
+    "gemini-cloud": {
+      "serviceId": "gemini-cloud",
+      "sides": "python-only",
+      "mismatches": [],
+      "warnings": [
+        {
+          "serviceId": "gemini-cloud",
+          "dimension": "projection-presence",
+          "severity": "warn",
+          "message": "python catalog service is not yet expressed in core/*.yaml",
+          "left": {
+            "catalog": true
+          },
+          "right": {
+            "canonical": false
+          }
+        }
+      ]
+    },
+    "google-labs": {
+      "serviceId": "google-labs",
+      "sides": "python-only",
+      "mismatches": [],
+      "warnings": [
+        {
+          "serviceId": "google-labs",
+          "dimension": "projection-presence",
+          "severity": "warn",
+          "message": "python catalog service is not yet expressed in core/*.yaml",
+          "left": {
+            "catalog": true
+          },
+          "right": {
+            "canonical": false
+          }
+        }
+      ]
+    },
+    "grok": {
+      "serviceId": "grok",
+      "sides": "both",
+      "mismatches": [],
+      "warnings": [
+        {
+          "serviceId": "grok",
+          "dimension": "region-order",
+          "severity": "warn",
+          "message": "canonical region list is a subset of primaryOrder; full us,jp,sg,tw,kr,other coverage is a later phase",
+          "left": [
+            "us",
+            "jp",
+            "sg",
+            "tw",
+            "kr",
+            "other"
+          ],
+          "right": [
+            "us",
+            "sg",
+            "jp"
+          ]
+        },
+        {
+          "serviceId": "grok",
+          "dimension": "dns-policy",
+          "severity": "warn",
+          "message": "catalog DNS selectors are not yet expressed as canonical servicePolicies",
+          "left": [
+            "+.x.ai"
+          ],
+          "right": null
+        }
+      ]
+    },
+    "huggingface": {
+      "serviceId": "huggingface",
+      "sides": "both",
+      "mismatches": [],
+      "warnings": [
+        {
+          "serviceId": "huggingface",
+          "dimension": "candidate-shape",
+          "severity": "warn",
+          "message": "phase1 known divergence: canonical forbids DIRECT as a candidate",
+          "left": {
+            "relaxedHasDirect": true,
+            "strictHasDirect": false,
+            "autoHasDirect": false
+          },
+          "right": {
+            "relaxedHasDirect": false,
+            "strictHasDirect": false,
+            "autoHasDirect": false,
+            "protectionClass": "proxy-required"
+          }
+        },
+        {
+          "serviceId": "huggingface",
+          "dimension": "region-order",
+          "severity": "warn",
+          "message": "canonical region list is a subset of primaryOrder; full us,jp,sg,tw,kr,other coverage is a later phase",
+          "left": [
+            "us",
+            "jp",
+            "sg",
+            "tw",
+            "kr",
+            "other"
+          ],
+          "right": [
+            "us",
+            "sg",
+            "jp"
+          ]
+        },
+        {
+          "serviceId": "huggingface",
+          "dimension": "dns-policy",
+          "severity": "warn",
+          "message": "catalog DNS selectors are not yet expressed as canonical servicePolicies",
+          "left": [
+            "+.huggingface.co"
+          ],
+          "right": null
+        }
+      ]
+    },
+    "jules": {
+      "serviceId": "jules",
+      "sides": "python-only",
+      "mismatches": [],
+      "warnings": [
+        {
+          "serviceId": "jules",
+          "dimension": "projection-presence",
+          "severity": "warn",
+          "message": "python catalog service is not yet expressed in core/*.yaml",
+          "left": {
+            "catalog": true
+          },
+          "right": {
+            "canonical": false
+          }
+        }
+      ]
+    },
+    "mirasim": {
+      "serviceId": "mirasim",
+      "sides": "python-only",
+      "mismatches": [],
+      "warnings": [
+        {
+          "serviceId": "mirasim",
+          "dimension": "projection-presence",
+          "severity": "warn",
+          "message": "python catalog service is not yet expressed in core/*.yaml",
+          "left": {
+            "catalog": true
+          },
+          "right": {
+            "canonical": false
+          }
+        }
+      ]
+    },
+    "notebooklm": {
+      "serviceId": "notebooklm",
+      "sides": "both",
+      "mismatches": [],
+      "warnings": [
+        {
+          "serviceId": "notebooklm",
+          "dimension": "region-order",
+          "severity": "warn",
+          "message": "canonical region list is a subset of primaryOrder; full us,jp,sg,tw,kr,other coverage is a later phase",
+          "left": [
+            "us",
+            "jp",
+            "sg",
+            "tw",
+            "kr",
+            "other"
+          ],
+          "right": [
+            "us",
+            "sg",
+            "jp"
+          ]
+        }
+      ]
+    },
+    "opencode": {
+      "serviceId": "opencode",
+      "sides": "both",
+      "mismatches": [],
+      "warnings": [
+        {
+          "serviceId": "opencode",
+          "dimension": "region-order",
+          "severity": "warn",
+          "message": "canonical region list is a subset of primaryOrder; full us,jp,sg,tw,kr,other coverage is a later phase",
+          "left": [
+            "us",
+            "jp",
+            "sg",
+            "tw",
+            "kr",
+            "other"
+          ],
+          "right": [
+            "us",
+            "sg",
+            "jp"
+          ]
+        },
+        {
+          "serviceId": "opencode",
+          "dimension": "dns-policy",
+          "severity": "warn",
+          "message": "catalog DNS selectors are not yet expressed as canonical servicePolicies",
+          "left": [
+            "+.opencode.ai"
+          ],
+          "right": null
+        }
+      ]
+    },
+    "openrouter": {
+      "serviceId": "openrouter",
+      "sides": "python-only",
+      "mismatches": [],
+      "warnings": [
+        {
+          "serviceId": "openrouter",
+          "dimension": "projection-presence",
+          "severity": "warn",
+          "message": "python catalog service is not yet expressed in core/*.yaml",
+          "left": {
+            "catalog": true
+          },
+          "right": {
+            "canonical": false
+          }
+        }
+      ]
+    },
+    "perplexity": {
+      "serviceId": "perplexity",
+      "sides": "both",
+      "mismatches": [],
+      "warnings": [
+        {
+          "serviceId": "perplexity",
+          "dimension": "region-order",
+          "severity": "warn",
+          "message": "canonical region list is a subset of primaryOrder; full us,jp,sg,tw,kr,other coverage is a later phase",
+          "left": [
+            "us",
+            "jp",
+            "sg",
+            "tw",
+            "kr",
+            "other"
+          ],
+          "right": [
+            "us",
+            "sg",
+            "jp"
+          ]
+        },
+        {
+          "serviceId": "perplexity",
+          "dimension": "dns-policy",
+          "severity": "warn",
+          "message": "catalog DNS selectors are not yet expressed as canonical servicePolicies",
+          "left": [
+            "+.perplexity.ai"
+          ],
+          "right": null
+        }
+      ]
+    },
+    "poe": {
+      "serviceId": "poe",
+      "sides": "both",
+      "mismatches": [],
+      "warnings": [
+        {
+          "serviceId": "poe",
+          "dimension": "region-order",
+          "severity": "warn",
+          "message": "canonical region list is a subset of primaryOrder; full us,jp,sg,tw,kr,other coverage is a later phase",
+          "left": [
+            "us",
+            "jp",
+            "sg",
+            "tw",
+            "kr",
+            "other"
+          ],
+          "right": [
+            "us",
+            "sg",
+            "jp"
+          ]
+        },
+        {
+          "serviceId": "poe",
+          "dimension": "dns-policy",
+          "severity": "warn",
+          "message": "catalog DNS selectors are not yet expressed as canonical servicePolicies",
+          "left": [
+            "+.poe.com"
+          ],
+          "right": null
+        }
+      ]
+    },
+    "stitch": {
+      "serviceId": "stitch",
+      "sides": "python-only",
+      "mismatches": [],
+      "warnings": [
+        {
+          "serviceId": "stitch",
+          "dimension": "projection-presence",
+          "severity": "warn",
+          "message": "python catalog service is not yet expressed in core/*.yaml",
+          "left": {
+            "catalog": true
+          },
+          "right": {
+            "canonical": false
+          }
+        }
+      ]
+    },
+    "vertex-ai": {
+      "serviceId": "vertex-ai",
+      "sides": "python-only",
+      "mismatches": [],
+      "warnings": [
+        {
+          "serviceId": "vertex-ai",
+          "dimension": "projection-presence",
+          "severity": "warn",
+          "message": "python catalog service is not yet expressed in core/*.yaml",
+          "left": {
+            "catalog": true
+          },
+          "right": {
+            "canonical": false
+          }
+        }
+      ]
+    },
+    "windsurf": {
+      "serviceId": "windsurf",
+      "sides": "canonical-only",
+      "mismatches": [],
+      "warnings": [
+        {
+          "serviceId": "windsurf",
+          "dimension": "projection-presence",
+          "severity": "warn",
+          "message": "canonical service has no python catalog counterpart",
+          "left": {
+            "catalog": false
+          },
+          "right": {
+            "canonical": true
+          }
+        }
+      ]
+    }
+  },
+  "mismatches": [],
+  "warnings": [
+    {
+      "serviceId": "chatgpt",
+      "dimension": "region-order",
+      "severity": "warn",
+      "message": "canonical region list is a subset of primaryOrder; full us,jp,sg,tw,kr,other coverage is a later phase",
+      "left": [
+        "us",
+        "jp",
+        "sg",
+        "tw",
+        "kr",
+        "other"
+      ],
+      "right": [
+        "us",
+        "sg",
+        "jp"
+      ]
+    },
+    {
+      "serviceId": "chatgpt",
+      "dimension": "dns-policy",
+      "severity": "warn",
+      "message": "catalog DNS selectors are not yet expressed as canonical servicePolicies",
+      "left": [
+        "geosite:openai"
+      ],
+      "right": null
+    },
+    {
+      "serviceId": "claude",
+      "dimension": "group-name",
+      "severity": "warn",
+      "message": "phase1 known divergence: mihomo proxy-group still uses the catalog group while INI/canonical use the account-guard name",
+      "left": {
+        "mihomo": "🤖 Claude",
+        "ini": "🔐 Claude Account Guard"
+      },
+      "right": {
+        "canonical": "🔐 Claude Account Guard"
+      }
+    },
+    {
+      "serviceId": "claude",
+      "dimension": "dns-policy",
+      "severity": "warn",
+      "message": "phase1 known divergence: canonical DNS is refuse/fallback-none but generated YAML still uses global-ai resolvers",
+      "left": {
+        "selectors": [
+          "+.anthropic.com",
+          "+.claude.ai"
+        ]
+      },
+      "right": {
+        "failure": "refuse",
+        "fallback": "none"
+      }
+    },
+    {
+      "serviceId": "copilot",
+      "dimension": "region-order",
+      "severity": "warn",
+      "message": "canonical region list is a subset of primaryOrder; full us,jp,sg,tw,kr,other coverage is a later phase",
+      "left": [
+        "us",
+        "jp",
+        "sg",
+        "tw",
+        "kr",
+        "other"
+      ],
+      "right": [
+        "us",
+        "sg",
+        "jp"
+      ]
+    },
+    {
+      "serviceId": "gemini",
+      "dimension": "candidate-shape",
+      "severity": "warn",
+      "message": "phase1 known divergence: canonical expects DIRECT in relaxed YAML/INI and ABSENT in strict",
+      "left": {
+        "relaxedHasDirect": false,
+        "strictHasDirect": false,
+        "autoHasDirect": false
+      },
+      "right": {
+        "relaxedHasDirect": true,
+        "strictHasDirect": false,
+        "autoHasDirect": false,
+        "protectionClass": "direct-capable"
+      }
+    },
+    {
+      "serviceId": "gemini",
+      "dimension": "region-order",
+      "severity": "warn",
+      "message": "canonical region list is a subset of primaryOrder; full us,jp,sg,tw,kr,other coverage is a later phase",
+      "left": [
+        "us",
+        "jp",
+        "sg",
+        "tw",
+        "kr",
+        "other"
+      ],
+      "right": [
+        "us",
+        "sg",
+        "jp"
+      ]
+    },
+    {
+      "serviceId": "grok",
+      "dimension": "region-order",
+      "severity": "warn",
+      "message": "canonical region list is a subset of primaryOrder; full us,jp,sg,tw,kr,other coverage is a later phase",
+      "left": [
+        "us",
+        "jp",
+        "sg",
+        "tw",
+        "kr",
+        "other"
+      ],
+      "right": [
+        "us",
+        "sg",
+        "jp"
+      ]
+    },
+    {
+      "serviceId": "grok",
+      "dimension": "dns-policy",
+      "severity": "warn",
+      "message": "catalog DNS selectors are not yet expressed as canonical servicePolicies",
+      "left": [
+        "+.x.ai"
+      ],
+      "right": null
+    },
+    {
+      "serviceId": "huggingface",
+      "dimension": "candidate-shape",
+      "severity": "warn",
+      "message": "phase1 known divergence: canonical forbids DIRECT as a candidate",
+      "left": {
+        "relaxedHasDirect": true,
+        "strictHasDirect": false,
+        "autoHasDirect": false
+      },
+      "right": {
+        "relaxedHasDirect": false,
+        "strictHasDirect": false,
+        "autoHasDirect": false,
+        "protectionClass": "proxy-required"
+      }
+    },
+    {
+      "serviceId": "huggingface",
+      "dimension": "region-order",
+      "severity": "warn",
+      "message": "canonical region list is a subset of primaryOrder; full us,jp,sg,tw,kr,other coverage is a later phase",
+      "left": [
+        "us",
+        "jp",
+        "sg",
+        "tw",
+        "kr",
+        "other"
+      ],
+      "right": [
+        "us",
+        "sg",
+        "jp"
+      ]
+    },
+    {
+      "serviceId": "huggingface",
+      "dimension": "dns-policy",
+      "severity": "warn",
+      "message": "catalog DNS selectors are not yet expressed as canonical servicePolicies",
+      "left": [
+        "+.huggingface.co"
+      ],
+      "right": null
+    },
+    {
+      "serviceId": "notebooklm",
+      "dimension": "region-order",
+      "severity": "warn",
+      "message": "canonical region list is a subset of primaryOrder; full us,jp,sg,tw,kr,other coverage is a later phase",
+      "left": [
+        "us",
+        "jp",
+        "sg",
+        "tw",
+        "kr",
+        "other"
+      ],
+      "right": [
+        "us",
+        "sg",
+        "jp"
+      ]
+    },
+    {
+      "serviceId": "opencode",
+      "dimension": "region-order",
+      "severity": "warn",
+      "message": "canonical region list is a subset of primaryOrder; full us,jp,sg,tw,kr,other coverage is a later phase",
+      "left": [
+        "us",
+        "jp",
+        "sg",
+        "tw",
+        "kr",
+        "other"
+      ],
+      "right": [
+        "us",
+        "sg",
+        "jp"
+      ]
+    },
+    {
+      "serviceId": "opencode",
+      "dimension": "dns-policy",
+      "severity": "warn",
+      "message": "catalog DNS selectors are not yet expressed as canonical servicePolicies",
+      "left": [
+        "+.opencode.ai"
+      ],
+      "right": null
+    },
+    {
+      "serviceId": "perplexity",
+      "dimension": "region-order",
+      "severity": "warn",
+      "message": "canonical region list is a subset of primaryOrder; full us,jp,sg,tw,kr,other coverage is a later phase",
+      "left": [
+        "us",
+        "jp",
+        "sg",
+        "tw",
+        "kr",
+        "other"
+      ],
+      "right": [
+        "us",
+        "sg",
+        "jp"
+      ]
+    },
+    {
+      "serviceId": "perplexity",
+      "dimension": "dns-policy",
+      "severity": "warn",
+      "message": "catalog DNS selectors are not yet expressed as canonical servicePolicies",
+      "left": [
+        "+.perplexity.ai"
+      ],
+      "right": null
+    },
+    {
+      "serviceId": "poe",
+      "dimension": "region-order",
+      "severity": "warn",
+      "message": "canonical region list is a subset of primaryOrder; full us,jp,sg,tw,kr,other coverage is a later phase",
+      "left": [
+        "us",
+        "jp",
+        "sg",
+        "tw",
+        "kr",
+        "other"
+      ],
+      "right": [
+        "us",
+        "sg",
+        "jp"
+      ]
+    },
+    {
+      "serviceId": "poe",
+      "dimension": "dns-policy",
+      "severity": "warn",
+      "message": "catalog DNS selectors are not yet expressed as canonical servicePolicies",
+      "left": [
+        "+.poe.com"
+      ],
+      "right": null
+    },
+    {
+      "serviceId": "ai-cn-other",
+      "dimension": "projection-presence",
+      "severity": "warn",
+      "message": "python catalog service is not yet expressed in core/*.yaml",
+      "left": {
+        "catalog": true
+      },
+      "right": {
+        "canonical": false
+      }
+    },
+    {
+      "serviceId": "ai-other",
+      "dimension": "projection-presence",
+      "severity": "warn",
+      "message": "python catalog service is not yet expressed in core/*.yaml",
+      "left": {
+        "catalog": true
+      },
+      "right": {
+        "canonical": false
+      }
+    },
+    {
+      "serviceId": "android-studio-ai",
+      "dimension": "projection-presence",
+      "severity": "warn",
+      "message": "python catalog service is not yet expressed in core/*.yaml",
+      "left": {
+        "catalog": true
+      },
+      "right": {
+        "canonical": false
+      }
+    },
+    {
+      "serviceId": "antigravity",
+      "dimension": "projection-presence",
+      "severity": "warn",
+      "message": "python catalog service is not yet expressed in core/*.yaml",
+      "left": {
+        "catalog": true
+      },
+      "right": {
+        "canonical": false
+      }
+    },
+    {
+      "serviceId": "cursor",
+      "dimension": "projection-presence",
+      "severity": "warn",
+      "message": "python catalog service is not yet expressed in core/*.yaml",
+      "left": {
+        "catalog": true
+      },
+      "right": {
+        "canonical": false
+      }
+    },
+    {
+      "serviceId": "gemini-cloud",
+      "dimension": "projection-presence",
+      "severity": "warn",
+      "message": "python catalog service is not yet expressed in core/*.yaml",
+      "left": {
+        "catalog": true
+      },
+      "right": {
+        "canonical": false
+      }
+    },
+    {
+      "serviceId": "google-labs",
+      "dimension": "projection-presence",
+      "severity": "warn",
+      "message": "python catalog service is not yet expressed in core/*.yaml",
+      "left": {
+        "catalog": true
+      },
+      "right": {
+        "canonical": false
+      }
+    },
+    {
+      "serviceId": "jules",
+      "dimension": "projection-presence",
+      "severity": "warn",
+      "message": "python catalog service is not yet expressed in core/*.yaml",
+      "left": {
+        "catalog": true
+      },
+      "right": {
+        "canonical": false
+      }
+    },
+    {
+      "serviceId": "mirasim",
+      "dimension": "projection-presence",
+      "severity": "warn",
+      "message": "python catalog service is not yet expressed in core/*.yaml",
+      "left": {
+        "catalog": true
+      },
+      "right": {
+        "canonical": false
+      }
+    },
+    {
+      "serviceId": "openrouter",
+      "dimension": "projection-presence",
+      "severity": "warn",
+      "message": "python catalog service is not yet expressed in core/*.yaml",
+      "left": {
+        "catalog": true
+      },
+      "right": {
+        "canonical": false
+      }
+    },
+    {
+      "serviceId": "stitch",
+      "dimension": "projection-presence",
+      "severity": "warn",
+      "message": "python catalog service is not yet expressed in core/*.yaml",
+      "left": {
+        "catalog": true
+      },
+      "right": {
+        "canonical": false
+      }
+    },
+    {
+      "serviceId": "vertex-ai",
+      "dimension": "projection-presence",
+      "severity": "warn",
+      "message": "python catalog service is not yet expressed in core/*.yaml",
+      "left": {
+        "catalog": true
+      },
+      "right": {
+        "canonical": false
+      }
+    },
+    {
+      "serviceId": "flow-music",
+      "dimension": "projection-presence",
+      "severity": "warn",
+      "message": "canonical service has no python catalog counterpart",
+      "left": {
+        "catalog": false
+      },
+      "right": {
+        "canonical": true
+      }
+    },
+    {
+      "serviceId": "windsurf",
+      "dimension": "projection-presence",
+      "severity": "warn",
+      "message": "canonical service has no python catalog counterpart",
+      "left": {
+        "catalog": false
+      },
+      "right": {
+        "canonical": true
+      }
+    }
+  ]
+}

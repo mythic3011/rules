@@ -43,7 +43,8 @@
     "checkNode": [
       { "argv": ["npm", "run", "routing:validate"] },
       { "argv": ["npm", "run", "typecheck"] },
-      { "argv": ["npm", "run", "test:routing"] }
+      { "argv": ["npm", "run", "test:routing"] },
+      { "argv": ["npm", "run", "routing:check"] }
     ],
     "generate": [
       { "argv": ["{python}", "internal/python/generate_distribution_bootstrap.py"] },

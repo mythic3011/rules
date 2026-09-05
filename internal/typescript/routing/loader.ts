@@ -30,6 +30,7 @@ const RECORD_SECTIONS = new Set([
   "protectionClasses",
   "services",
   "accessProfiles",
+  "sharedBackends",
 ]);
 
 function zodIssues(error: ZodError): RoutingIssue[] {
