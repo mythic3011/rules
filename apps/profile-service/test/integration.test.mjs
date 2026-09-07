@@ -84,7 +84,7 @@ async function createSavedProfile(environment, spec) {
   return response.json();
 }
 
-test("opaque read capability ignores query-string routing tampering", async () => {
+test("opaque read capability ignores query-string routing tampering and includes security headers", async () => {
   const environment = env();
   const saved = await createSavedProfile(environment, { disabledNodeRegions: ["jp"] });
   const response = await worker.fetch(
@@ -92,9 +92,30 @@ test("opaque read capability ignores query-string routing tampering", async () =
     environment,
   );
   assert.equal(response.status, 200);
+  assert.equal(response.headers.get("x-frame-options"), "DENY");
+  assert.equal(
+    response.headers.get("content-security-policy"),
+    "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+  );
+  assert.equal(response.headers.get("x-content-type-options"), "nosniff");
   const ini = await response.text();
   assert.doesNotMatch(ini, /custom_proxy_group=🇯🇵 日本節點/);
   assert.match(ini, /custom_proxy_group=🇺🇸 美國節點/);
+});
+
+test("subscription 404 response includes security headers", async () => {
+  const environment = env();
+  const response = await worker.fetch(
+    new Request("https://rules.example/p/0000000000000000000000000000000000000000.ini"),
+    environment,
+  );
+  assert.equal(response.status, 404);
+  assert.equal(response.headers.get("x-frame-options"), "DENY");
+  assert.equal(
+    response.headers.get("content-security-policy"),
+    "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+  );
+  assert.equal(response.headers.get("x-content-type-options"), "nosniff");
 });
 
 test("read capability cannot manage profile; manage capability can", async () => {
