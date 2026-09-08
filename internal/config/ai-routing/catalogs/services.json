@@ -115,11 +115,13 @@
       "group": "🤖 NotebookLM",
       "file": "AI_NotebookLM_Classical.yaml",
       "payload": [
-        "DOMAIN-SUFFIX,notebooklm.google.com",
+        "DOMAIN-SUFFIX,notebook.google",
+        "DOMAIN-SUFFIX,notebook.google.com",
         "DOMAIN-SUFFIX,notebooklm.google",
+        "DOMAIN-SUFFIX,notebooklm.google.com",
+        "DOMAIN-SUFFIX,notebooklm.cloud.google.com",
         "DOMAIN,notebooklm-pa.googleapis.com",
-        "DOMAIN,notebooklm.googleapis.com",
-        "DOMAIN,notebook.google.com"
+        "DOMAIN,notebooklm.googleapis.com"
       ],
       "regions": ["sg", "us", "jp", "tw", "kr"],
       "directRelaxed": true,

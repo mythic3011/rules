@@ -3,12 +3,14 @@
 # SOURCE: https://github.com/mythic3011/rules/blob/main/internal/python/generate_ai_profiles.py
 # RULE-PROVIDER: AI_NotebookLM_Classical
 # GROUP: 🤖 NotebookLM
-# TOTAL: 5
-# SOURCE-DIGEST: fef94cfbd9c921b8ea0f78c58137ae950ef70d932c195473de41c1436f07cd4c
+# TOTAL: 7
+# SOURCE-DIGEST: 86b7f9868a36aba8f8e7cfc5001979b829ef8135fe06b7d28459a533151ca8b2
 
 payload:
-  - "DOMAIN-SUFFIX,notebooklm.google.com"
+  - "DOMAIN-SUFFIX,notebook.google"
+  - "DOMAIN-SUFFIX,notebook.google.com"
   - "DOMAIN-SUFFIX,notebooklm.google"
+  - "DOMAIN-SUFFIX,notebooklm.google.com"
+  - "DOMAIN-SUFFIX,notebooklm.cloud.google.com"
   - "DOMAIN,notebooklm-pa.googleapis.com"
   - "DOMAIN,notebooklm.googleapis.com"
-  - "DOMAIN,notebook.google.com"

@@ -96,7 +96,7 @@
       "quic": "proxy-or-reject"
     }
   },
-  "revision": "43c3184f3303df9f078e328ee2c704c3ac764edfb9de629bb1674ff9c679be87",
+  "revision": "a74a0a35c8d209650281aa4d47b40cbd54777bc9e3ef7062a8d9701e2fb174f7",
   "schemaVersion": 1,
   "services": {
     "chatgpt": {
@@ -235,8 +235,11 @@
       "dependencies": [],
       "matchers": {
         "domainSuffixes": [
+          "notebook.google",
+          "notebook.google.com",
+          "notebooklm.google",
           "notebooklm.google.com",
-          "notebooklm.google"
+          "notebooklm.cloud.google.com"
         ],
         "geosite": []
       },
