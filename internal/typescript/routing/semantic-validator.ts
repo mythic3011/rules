@@ -52,7 +52,7 @@ export function isAccountSafeTarget(target: RouteTarget): boolean {
   if (target.kind === "reject") {
     return true;
   }
-  if (target.dynamic) {
+  if (target.kind === "region-auto") {
     return false;
   }
   if (target.kind !== "pinned-egress" && target.kind !== "region-stable") {

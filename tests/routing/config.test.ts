@@ -22,6 +22,7 @@ import {
   RoutingCompileError,
 } from "#routing/compiler.js";
 import {
+  isAccountSafeTarget,
   validateRoutingSemantics,
   validateRuleOrdering,
 } from "#routing/semantic-validator.js";
@@ -101,6 +102,49 @@ for (const [fixture, expectedCode] of [
     }
   });
 }
+
+test("isAccountSafeTarget admits reject, region-stable, and pinned-egress only", () => {
+  assert.equal(isAccountSafeTarget({ kind: "reject", group: "REJECT" }), true);
+  assert.equal(isAccountSafeTarget({ kind: "direct", group: "DIRECT" }), false);
+  assert.equal(
+    isAccountSafeTarget({
+      kind: "region-auto",
+      group: "🇺🇸 US Auto",
+      region: "us",
+      dynamic: true,
+    }),
+    false,
+  );
+  assert.equal(
+    isAccountSafeTarget({
+      kind: "region-stable",
+      group: "🇺🇸 US Stable",
+      region: "us",
+      dynamic: false,
+    }),
+    true,
+  );
+  assert.equal(
+    isAccountSafeTarget({
+      kind: "pinned-egress",
+      group: "Claude Pinned",
+      approvedNodes: ["Node-A"],
+      emptyFallback: "REJECT",
+      dynamic: false,
+    }),
+    true,
+  );
+  assert.equal(
+    isAccountSafeTarget({
+      kind: "pinned-egress",
+      group: "Claude DIRECT",
+      approvedNodes: ["Node-A"],
+      emptyFallback: "REJECT",
+      dynamic: false,
+    }),
+    false,
+  );
+});
 
 test("account-protected endpoint overrides fail semantically before compilation", async () => {
   const config = await loadInvalid("protected-endpoint-profile-override");
