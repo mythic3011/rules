@@ -178,6 +178,7 @@ class CompanionRuleDecl:
     comments: tuple[str, ...]
     comment_lines: tuple[str, ...]
     mihomo: bool
+    mihomo_when: Literal["relaxed", "always"]
     subconverter_cluster: str | None
 
 
@@ -834,7 +835,7 @@ def load_companion_rules_document(path: Path) -> CompanionRulesDocument:
     ids: set[str] = set()
     provider_keys: set[str] = set()
     files: set[str] = set()
-    expected_rule_keys = {
+    required_rule_keys = {
         "id",
         "category",
         "providerKey",
@@ -844,9 +845,13 @@ def load_companion_rules_document(path: Path) -> CompanionRulesDocument:
         "mihomo",
         "subconverterCluster",
     }
+    optional_rule_keys = {"mihomoWhen"}
     for index, record in enumerate(raw_rulesets):
         field = f"rulesets[{index}]"
-        if not isinstance(record, dict) or set(record) != expected_rule_keys:
+        if not isinstance(record, dict):
+            raise RuntimeError(f"Companion rule record has invalid shape: {field}")
+        keys = set(record)
+        if not required_rule_keys.issubset(keys) or keys - required_rule_keys - optional_rule_keys:
             raise RuntimeError(f"Companion rule record has invalid shape: {field}")
         rule_id = _string(record.get("id"), f"{field}.id")
         provider_key = _string(record.get("providerKey"), f"{field}.providerKey")
@@ -863,6 +868,11 @@ def load_companion_rules_document(path: Path) -> CompanionRulesDocument:
         mihomo = record.get("mihomo")
         if not isinstance(mihomo, bool):
             raise RuntimeError(f"Companion rule mihomo must be boolean: {field}.mihomo")
+        mihomo_when = record.get("mihomoWhen", "relaxed")
+        if mihomo_when not in {"relaxed", "always"}:
+            raise RuntimeError(f"Unknown companion rule mihomoWhen: {field}.mihomoWhen")
+        if mihomo_when == "always" and not mihomo:
+            raise RuntimeError(f"Companion rule mihomoWhen=always requires mihomo=true: {field}")
         cluster = record.get("subconverterCluster")
         if cluster is not None and (not isinstance(cluster, str) or not cluster):
             raise RuntimeError(
@@ -883,6 +893,7 @@ def load_companion_rules_document(path: Path) -> CompanionRulesDocument:
                 comments=comments,
                 comment_lines=comment_lines,
                 mihomo=mihomo,
+                mihomo_when=mihomo_when,
                 subconverter_cluster=cluster,
             )
         )

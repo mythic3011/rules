@@ -104,6 +104,7 @@ deltas:
         AI_GeminiCloud_Classical,
         AI_VertexAI_Classical,
         AI_OpenCode_Classical,
+        GoogleAPIs_QUIC_Reject_Classical,
       ]
     add:
       - AI_All_Classical
@@ -119,6 +120,7 @@ deltas:
       - AI_Poe_Classical
       - AI_Windsurf_Classical
       - Flow_Music_Classical
+      - GoogleAPIs_QUIC_Reject_Classical
     reason: "Replace exactly the legacy local AI provider keys with all source-pinned compiled provider definitions."
     policyReference: internal/config/ai-routing/projections/mihomo.yaml
   rules:
@@ -151,6 +153,7 @@ deltas:
       - "GEOSITE,google-deepmind,🤖 AI Other"
       - "GEOSITE,category-ai-!cn,🤖 AI Other"
       - "GEOSITE,category-ai-cn,🤖 AI CN Other"
+      - "RULE-SET,GoogleAPIs_QUIC_Reject_Classical,⛔ 拒絕"
     after: "RULE-SET,SSH_Direct_Classical,🎯 全球直連"
     add:
       - "RULE-SET,AI_Claude_Classical,🔐 Claude Account Guard"
@@ -169,6 +172,7 @@ deltas:
       - "RULE-SET,AI_All_Classical,DIRECT"
       - "GEOSITE,google-deepmind,DIRECT"
       - "GEOSITE,category-ai-!cn,DIRECT"
+      - "RULE-SET,GoogleAPIs_QUIC_Reject_Classical,⛔ 拒絕"
     reason: "The exact AI interval becomes source-pinned service identities, a locked Claude pair, and relaxed HK direct guards."
     policyReference: internal/config/ai-routing/projections/mihomo.yaml#profiles.hk
   dns:

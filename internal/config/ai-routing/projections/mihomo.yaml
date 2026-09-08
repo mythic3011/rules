@@ -132,6 +132,14 @@ ruleProviders:
     interval: 10800
     source: vpsdance
     path: rules/clash/all.yaml
+  GoogleAPIs_QUIC_Reject_Classical:
+    type: http
+    behavior: classical
+    format: yaml
+    interval: 10800
+    source: local-rules
+    path: rule/GoogleAPIs_QUIC_Reject_Classical.yaml
+quicRejectRuleset: GoogleAPIs_QUIC_Reject_Classical
 profiles:
   hk:
     aiAllRoute: direct

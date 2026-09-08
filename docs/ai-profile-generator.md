@@ -21,7 +21,7 @@ Strict kill-switch behavior has three layers:
 
 AI identity and guard rules are emitted before relaxed-only SSH, gaming, process, and custom rules. Strict YAML omits those relaxed-only providers and rules altogether; it retains only the local-payload AI providers and its fail-closed routing baseline.
 
-The relaxed YAML profile keeps `MATCH,🐟 漏網之魚`. `🐟 漏網之魚` must end with `⛔ 拒絕`, because proxy-group fallback is health-check based and is not a complete kill-switch by itself. `MATCH,DIRECT` is forbidden in every AI profile. Standalone `DST-PORT,80` and `DST-PORT,443` catch-all rules are also forbidden.
+The relaxed YAML profile keeps `MATCH,🐟 漏網之魚`. `🐟 漏網之魚` must end with `⛔ 拒絕`, because proxy-group fallback is health-check based and is not a complete kill-switch by itself. `MATCH,DIRECT` is forbidden in every AI profile. Standalone `DST-PORT,80` and `DST-PORT,443` catch-all rules are also forbidden. A host-scoped `AND,((NETWORK,UDP),(DST-PORT,443),(DOMAIN-SUFFIX,googleapis.com))` QUIC reject is allowed; it is not a catch-all.
 
 Custom provider names are explicit and canonical in generated outputs:
 - `Custom_Direct_Domain`

@@ -470,6 +470,7 @@ export type RuleOrderingStage =
   | "specific-service"
   | "ai-all"
   | "category-ai"
+  | "quic-reject"
   | "match";
 
 const RULE_ORDER: readonly RuleOrderingStage[] = [
@@ -478,6 +479,7 @@ const RULE_ORDER: readonly RuleOrderingStage[] = [
   "specific-service",
   "ai-all",
   "category-ai",
+  "quic-reject",
   "match",
 ];
 

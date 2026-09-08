@@ -129,6 +129,20 @@ def assert_provider_urls(
             ensure((RULE_DIR / filename).exists(), f"Rule-provider {key} points to missing local file {filename}")
 
 
+_CATCHALL_DST_PORT_RE = re.compile(r"^DST-PORT,(80|443)(?:,|$)")
+
+
+def is_catchall_dst_port_line(line: str) -> bool:
+    stripped = line.strip()
+    if stripped.startswith("- "):
+        stripped = stripped[2:].strip()
+    if (stripped.startswith('"') and stripped.endswith('"')) or (
+        stripped.startswith("'") and stripped.endswith("'")
+    ):
+        stripped = stripped[1:-1]
+    return _CATCHALL_DST_PORT_RE.match(stripped) is not None
+
+
 def validate_general_text(texts: dict[str, str]) -> None:
     joined = "\n".join(texts.values())
     ensure("🇼🇸 台灣節點" not in joined, "Legacy Samoa Taiwan flag found in generated output")
@@ -137,8 +151,12 @@ def validate_general_text(texts: dict[str, str]) -> None:
     ensure("Custom_Direct_IP" not in joined, "Old provider name Custom_Direct_IP found")
     ensure("Custom_Proxy_IP" not in joined, "Old provider name Custom_Proxy_IP found")
     ensure("AI_All_Classical" not in joined, "Stale AI_All_Classical reference found")
-    ensure("DST-PORT,80" not in joined, "Forbidden DST-PORT,80 catch-all found")
-    ensure("DST-PORT,443" not in joined, "Forbidden DST-PORT,443 catch-all found")
+    for name, text in texts.items():
+        for line in text.splitlines():
+            ensure(
+                not is_catchall_dst_port_line(line),
+                f"Forbidden DST-PORT catch-all found in {name}: {line.strip()}",
+            )
     for cidr in BANNED_TAILSCALE_RANGES:
         ensure(cidr not in joined, f"Forbidden unverified Tailscale range found: {cidr}")
 
@@ -542,8 +560,7 @@ def main() -> None:
         INI_PATH.name: read_text(INI_PATH),
     }
     for rule in CATALOG.companion_rulesets:
-        if rule.category in {"ssh", "gaming"}:
-            texts[rule.file] = read_text(RULE_DIR / rule.file)
+        texts[rule.file] = read_text(RULE_DIR / rule.file)
     for file_name in AI_RULE_FILES:
         texts[file_name] = read_text(RULE_DIR / file_name)
     ensure(not (RULE_DIR / "AI_All_Classical.yaml").exists(), "Stale AI_All_Classical.yaml must not exist")

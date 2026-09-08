@@ -962,6 +962,19 @@ export default {
             ]
           },
           {
+            "source": "companion",
+            "rules": [
+              {
+                "kind": "remote-classical",
+                "target": "⛔ 拒絕",
+                "url": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/GoogleAPIs_QUIC_Reject_Classical.yaml",
+                "interval": 28800,
+                "value": null,
+                "options": []
+              }
+            ]
+          },
+          {
             "source": "external",
             "rules": [
               {
@@ -2215,7 +2228,7 @@ export default {
         "onlyNodeRegions": [],
         "preferredNodeRegions": []
       },
-      "customBodySha256": "95734b21dbd6772d2d34f6efc114968f73d1d3b50321e8d9b4e73ccb5e584a6d"
+      "customBodySha256": "6bb8ea6621711b4dc6b2a1a62933f0ceeb5a26003f09f82699a454e5fef3a308"
     },
     "only-us-sg-prefer-sg": {
       "spec": {
@@ -2230,7 +2243,7 @@ export default {
           "sg"
         ]
       },
-      "customBodySha256": "c77f4717e5081ba12c0cb4ff6c8bc751a9a302fbfe94f532e2761342f21a05cf"
+      "customBodySha256": "6256b765d74aed4ea583a3086d617c350a9b5ad7f9645ad8ae3f889045fffed6"
     },
     "disable-hk": {
       "spec": {
@@ -2242,7 +2255,7 @@ export default {
         "onlyNodeRegions": [],
         "preferredNodeRegions": []
       },
-      "customBodySha256": "331e24065f4053750626918c7afa8347e749d5778e2f79a6dc61df904f312dc9"
+      "customBodySha256": "8b068f9d8f547028216713eefb3b68611d92ac974444c952706f546130aa13dd"
     }
   }
 };

@@ -848,10 +848,18 @@ rules:
     - "GEOSITE,google-deepmind,🤖 AI Other"
     - "GEOSITE,category-ai-!cn,🤖 AI Other"
     - "GEOSITE,category-ai-cn,🤖 AI CN Other"
+    - "RULE-SET,GoogleAPIs_QUIC_Reject_Classical,⛔ 拒絕"
     - "MATCH,⛔ 拒絕"
 
 # ==================== 规则提供者 Rule Providers ====================
 rule-providers:
+  GoogleAPIs_QUIC_Reject_Classical:
+    behavior: classical
+    interval: 10800
+    type: http
+    url: "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/GoogleAPIs_QUIC_Reject_Classical.yaml"
+    format: yaml
+
   AI_Copilot_Classical:
     behavior: classical
     interval: 10800

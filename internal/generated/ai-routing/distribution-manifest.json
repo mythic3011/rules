@@ -274,6 +274,15 @@
       }
     },
     {
+      "path": "rule/GoogleAPIs_QUIC_Reject_Classical.yaml",
+      "urls": {
+        "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/GoogleAPIs_QUIC_Reject_Classical.yaml",
+        "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/rule/GoogleAPIs_QUIC_Reject_Classical.yaml",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/rule/GoogleAPIs_QUIC_Reject_Classical.yaml",
+        "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/rule/GoogleAPIs_QUIC_Reject_Classical.yaml"
+      }
+    },
+    {
       "path": "internal/generated/ai-routing/distribution-manifest.json",
       "urls": {
         "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/internal/generated/ai-routing/distribution-manifest.json",

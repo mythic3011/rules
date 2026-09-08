@@ -34,15 +34,16 @@ class CompanionRulesCatalogTest(unittest.TestCase):
                 "Finance_Revolut_Classical",
                 "Finance_IBKR_Classical",
                 "Finance_Alpaca_Classical",
+                "GoogleAPIs_QUIC_Reject_Classical",
             ],
         )
         self.assertEqual(
             [rule.mihomo for rule in rules],
-            [True, True, False, True, True, True, True, True, True, True, True, True],
+            [True, True, False, True, True, True, True, True, True, True, True, True, True],
         )
         self.assertEqual(
             [rule.subconverter_cluster for rule in rules],
-            ["ssh", "ssh", None, "gaming", "downloads", "downloads", "finance", "finance", "finance", "finance", "finance", "finance"],
+            ["ssh", "ssh", None, "gaming", "downloads", "downloads", "finance", "finance", "finance", "finance", "finance", "finance", "quic-reject"],
         )
         self.assertEqual(len(documents.companion_rules.process_rulesets), 4)
         self.assertTrue(documents.companion_rules.process_warning_lines)
@@ -82,7 +83,9 @@ class CompanionRulesCatalogTest(unittest.TestCase):
             if getattr(rule, "kind", None) == "RULE-SET"
             and rule.value in {item.provider_key for item in expected}
         ]
-        self.assertEqual(routing_provider_keys, [rule.provider_key for rule in expected])
+        always_on = [rule.provider_key for rule in expected if rule.mihomo_when == "always"]
+        relaxed_only = [rule.provider_key for rule in expected if rule.mihomo_when != "always"]
+        self.assertEqual(routing_provider_keys, [*always_on, *relaxed_only])
 
         providers = compile_rule_providers(
             strict=False,
@@ -94,7 +97,7 @@ class CompanionRulesCatalogTest(unittest.TestCase):
             for provider in providers
             if provider.name in {item.provider_key for item in expected}
         ]
-        self.assertEqual(provider_names, [rule.provider_key for rule in expected])
+        self.assertEqual(provider_names, [*always_on, *relaxed_only])
 
     def test_subconverter_companion_clusters_are_data_driven(self) -> None:
         plan = compile_subconverter_plan(
@@ -120,6 +123,7 @@ class CompanionRulesCatalogTest(unittest.TestCase):
                     "Finance_IBKR_Classical.yaml",
                     "Finance_Alpaca_Classical.yaml",
                 ],
+                ["GoogleAPIs_QUIC_Reject_Classical.yaml"],
             ],
         )
 

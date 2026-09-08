@@ -132,6 +132,14 @@ def _service_routing_rules(service: ServiceSpec) -> tuple[RoutingRule, ...]:
     return tuple(rules)
 
 
+def _always_on_companion_rules(catalog: Catalog) -> tuple[RoutingRule, ...]:
+    return tuple(
+        _companion_routing_rule(rule)
+        for rule in catalog.companion_rulesets
+        if rule.mihomo and rule.mihomo_when == "always"
+    )
+
+
 def compile_ai_routing_rules(catalog: Catalog | None = None) -> tuple[RoutingRule, ...]:
     catalog = catalog or load_catalog()
     rules = [
@@ -144,6 +152,9 @@ def compile_ai_routing_rules(catalog: Catalog | None = None) -> tuple[RoutingRul
         RoutingRule("GEOSITE", geosite, catalog.group("reject"))
         for geosite in catalog.ai_guard_geosites
     )
+    # Host-scoped QUIC reject stays in the AI interval (after identity, before MATCH)
+    # so strict YAML keeps it and it cannot be treated as a relaxed-only companion.
+    rules.extend(_always_on_companion_rules(catalog))
     return tuple(rules)
 
 
@@ -245,7 +256,7 @@ def _compile_routing_entries(
         entries.extend(
             _companion_routing_rule(rule)
             for rule in catalog.companion_rulesets
-            if rule.mihomo
+            if rule.mihomo and rule.mihomo_when != "always"
         )
 
         if include_process_rules:
@@ -286,11 +297,13 @@ def compile_rule_providers(
         and _external_route_enabled(route, strict=strict)
     ]
 
+    provider_rules.extend(_always_on_companion_rules(catalog))
+
     if not strict:
         provider_rules.extend(
             _companion_routing_rule(rule)
             for rule in catalog.companion_rulesets
-            if rule.mihomo
+            if rule.mihomo and rule.mihomo_when != "always"
         )
 
     if include_process_rules and not strict:
