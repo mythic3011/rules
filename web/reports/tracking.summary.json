@@ -1,6 +1,6 @@
 {
   "category": "tracking",
-  "generated_at": "2026-09-07T08:27:26Z",
+  "generated_at": "2026-09-08T08:11:06Z",
   "source_config": "internal/config/filtering/sources/tracking.yaml",
   "custom_source_config": "internal/config/filtering/sources/custom/tracking.yaml",
   "allowlist": "dns/local_tracking_allowlist.txt",
@@ -9,12 +9,12 @@
   "hosts_output": "dns/tracking.hosts.txt",
   "clash_output": "rule/Tracking_Lite_Domain.yaml",
   "clash_name": "Tracking_Lite_Domain",
-  "upstream_unique_count": 49518,
+  "upstream_unique_count": 49314,
   "local_blocklist_count": 0,
   "allowlist_count": 0,
-  "merged_pre_allowlist_count": 49518,
-  "post_allowlist_count": 49518,
-  "final_domain_count": 49483,
+  "merged_pre_allowlist_count": 49314,
+  "post_allowlist_count": 49314,
+  "final_domain_count": 49279,
   "clash_seed_count": 8,
   "clash_domain_count": 8,
   "sources": [
@@ -24,7 +24,7 @@
       "priority": 10,
       "url": "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/pro.mini.txt",
       "homepage": "https://github.com/hagezi/dns-blocklists",
-      "count": 49518
+      "count": 49314
     }
   ]
 }
