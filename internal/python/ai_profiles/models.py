@@ -156,6 +156,7 @@ class RuleFileSpec:
     comments: tuple[str, ...] = ()
     comment_lines: tuple[str, ...] = ()
     mihomo: bool = False
+    mihomo_when: Literal["relaxed", "always"] = "relaxed"
     subconverter_cluster: str | None = None
 
     @property

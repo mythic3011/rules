@@ -567,6 +567,7 @@ rules:
   - RULE-SET,AI_All_Classical,DIRECT
   - GEOSITE,google-deepmind,DIRECT
   - GEOSITE,category-ai-!cn,DIRECT
+  - RULE-SET,GoogleAPIs_QUIC_Reject_Classical,⛔ 拒絕
   - RULE-SET,SSH_Direct_Classical,🎯 全球直連
   - RULE-SET,SSH_Proxy_Classical,🚀 手動選擇
   - RULE-SET,Gaming_Direct_Classical,🎯 全球直連
@@ -755,3 +756,9 @@ rule-providers:
     format: yaml
     interval: 10800
     url: https://raw.githubusercontent.com/mythic3011/rules/0e9631339904f4a989c884781570b5756d82c9a3/rule/Flow_Music_Classical.yaml
+  GoogleAPIs_QUIC_Reject_Classical:
+    type: http
+    behavior: classical
+    format: yaml
+    interval: 10800
+    url: https://raw.githubusercontent.com/mythic3011/rules/0e9631339904f4a989c884781570b5756d82c9a3/rule/GoogleAPIs_QUIC_Reject_Classical.yaml

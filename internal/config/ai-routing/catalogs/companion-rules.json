@@ -278,6 +278,28 @@
       },
       "mihomo": true,
       "subconverterCluster": "finance"
+    },
+    {
+      "id": "googleapis-quic-reject",
+      "category": "other",
+      "providerKey": "GoogleAPIs_QUIC_Reject_Classical",
+      "groupKey": "reject",
+      "file": "GoogleAPIs_QUIC_Reject_Classical.yaml",
+      "render": {
+        "mode": "classical",
+        "payload": [
+          "AND,((NETWORK,UDP),(DST-PORT,443),(DOMAIN-SUFFIX,googleapis.com))"
+        ],
+        "comments": [
+          "# Host-scoped QUIC reject for googleapis.com UDP/443 (Candidate Q-narrow).",
+          "# HTTP/3 cannot take a degraded direct UDP path; TCP/HTTP-2 remains available.",
+          "# DOMAIN-SUFFIX,googleapis.com covers storage.googleapis.com and producer-app-public.storage.googleapis.com.",
+          "# Must never become a DST-PORT,443 catch-all."
+        ]
+      },
+      "mihomo": true,
+      "mihomoWhen": "always",
+      "subconverterCluster": "quic-reject"
     }
   ],
   "process": {

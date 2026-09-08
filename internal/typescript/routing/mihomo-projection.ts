@@ -46,6 +46,7 @@ export const MihomoProjectionConfigSchema = z.object({
   profiles: z.record(IdSchema, z.object({ aiAllRoute: IdSchema.optional(), categoryAiRoute: IdSchema }).strict()),
   modeControl: ModeControlSchema,
   aiAllRuleset: RuleProviderKeySchema,
+  quicRejectRuleset: RuleProviderKeySchema,
   categoryGeosites: z.array(z.string().min(1)).min(1),
   iniMvp: IniMvpSchema,
 }).strict();
@@ -278,6 +279,7 @@ function validateProjection(config: RoutingConfig, projection: MihomoProjectionC
   }
   if (projection.profiles[profileId] === undefined) issues.push(issue("missing-reference", ["profiles", profileId], `projection profile ${profileId} does not exist`));
   if (projection.ruleProviders[projection.aiAllRuleset] === undefined) issues.push(issue("missing-reference", ["aiAllRuleset"], "AI_All provider does not exist"));
+  if (projection.ruleProviders[projection.quicRejectRuleset] === undefined) issues.push(issue("missing-reference", ["quicRejectRuleset"], "QUIC reject provider does not exist"));
   if (new Set(projection.categoryGeosites).size !== projection.categoryGeosites.length) issues.push(issue("policy-invariant", ["categoryGeosites"], "category geosites must be unique"));
   for (const [serviceId, service] of Object.entries(config.services)) {
     const protection = config.protectionClasses[service.protectionClass];
@@ -356,15 +358,17 @@ export function compileMihomoFragment(config: RoutingConfig, projection: MihomoP
   }
   const aiAllRules = profile.aiAllRoute === undefined ? [] : [`RULE-SET,${projection.aiAllRuleset},${requiredRoute(config, profile.aiAllRoute, ["profiles", profileId, "aiAllRoute"]).group}`];
   const categoryRules = projection.categoryGeosites.map((geosite) => `GEOSITE,${geosite},${requiredRoute(config, profile.categoryAiRoute, ["profiles", profileId, "categoryAiRoute"]).group}`);
+  const quicRejectRules = [`RULE-SET,${projection.quicRejectRuleset},${projection.iniMvp.presentation.rejectGroup}`];
   accountPairs.sort((left, right) => compare(left[0] ?? "", right[0] ?? ""));
   const accountRules = accountPairs.flatMap((pair) => pair);
-  const rules = [...accountRules, ...specificRules, ...aiAllRules, ...categoryRules];
+  const rules = [...accountRules, ...specificRules, ...aiAllRules, ...categoryRules, ...quicRejectRules];
   for (const [index, [protectedRule, terminalReject]] of accountPairs.entries()) if (rules[index * 2] !== protectedRule || rules[(index * 2) + 1] !== terminalReject) throw new MihomoProjectionError([issue("rule-ordering", ["rules", index * 2], "account terminal reject must immediately follow its protected rule")]);
   const orderingEntries = [
     ...(accountPairs.length === 0 ? [] : [{ stage: "account-protected" as const, label: "account protected pairs" }, { stage: "account-terminal-reject" as const, label: "account terminal rejects" }]),
     ...specificRules.map((label) => ({ stage: "specific-service" as const, label })),
     ...aiAllRules.map((label) => ({ stage: "ai-all" as const, label })),
     ...categoryRules.map((label) => ({ stage: "category-ai" as const, label })),
+    ...quicRejectRules.map((label) => ({ stage: "quic-reject" as const, label })),
   ];
   const ordering = validateRuleOrdering({ entries: orderingEntries });
   if (ordering.length > 0) throw new MihomoProjectionError(ordering);

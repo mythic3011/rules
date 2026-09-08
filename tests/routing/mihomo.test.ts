@@ -51,9 +51,13 @@ test("Mihomo projection renders REJECT-first filtered groups, protected rules, a
       .map((group) => group.name),
     ["@mode/hk", "@mode/jp", "@mode/sg", "@mode/us"],
   );
-  assert.equal(fragment.rules.at(-3), "RULE-SET,AI_All_Classical,DIRECT");
-  assert.equal(fragment.rules.at(-2), "GEOSITE,google-deepmind,DIRECT");
-  assert.equal(fragment.rules.at(-1), "GEOSITE,category-ai-!cn,DIRECT");
+  assert.equal(fragment.rules.at(-4), "RULE-SET,AI_All_Classical,DIRECT");
+  assert.equal(fragment.rules.at(-3), "GEOSITE,google-deepmind,DIRECT");
+  assert.equal(fragment.rules.at(-2), "GEOSITE,category-ai-!cn,DIRECT");
+  assert.equal(
+    fragment.rules.at(-1),
+    "RULE-SET,GoogleAPIs_QUIC_Reject_Classical,⛔ 拒絕",
+  );
   assert.deepEqual(fragment.dns.nameserverPolicy, {
     "rule-set:AI_Claude_Classical": [
       "https://1.1.1.1/dns-query#🔐 Claude Account Guard",

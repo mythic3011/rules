@@ -173,7 +173,14 @@ class GoogleFinanceCatalogTest(unittest.TestCase):
                 "mihomo": True,
                 "subconverterCluster": "finance",
             }
-            companion_data["rulesets"].append(synthetic_rule)
+            # Insert inside the finance cluster so subconverterCluster stays contiguous.
+            rulesets = companion_data["rulesets"]
+            last_finance = max(
+                index
+                for index, rule in enumerate(rulesets)
+                if rule.get("subconverterCluster") == "finance"
+            )
+            rulesets.insert(last_finance + 1, synthetic_rule)
             write_json(companion_path, companion_data)
 
             # Load modified catalog and verify runtime pipeline compiles & projects without errors

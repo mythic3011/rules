@@ -115,12 +115,18 @@ class RelatedServicesCatalogTest(unittest.TestCase):
             catalog=self.catalog,
         )
         strict_values = {getattr(rule, "value", None) for rule in strict_routing}
-        companion_provider_keys = {
+        relaxed_companion_provider_keys = {
             ruleset.provider_key
             for ruleset in self.catalog.companion_rulesets
-            if ruleset.mihomo
+            if ruleset.mihomo and ruleset.mihomo_when != "always"
         }
-        self.assertTrue(companion_provider_keys.isdisjoint(strict_values))
+        always_on_companion_provider_keys = {
+            ruleset.provider_key
+            for ruleset in self.catalog.companion_rulesets
+            if ruleset.mihomo and ruleset.mihomo_when == "always"
+        }
+        self.assertTrue(relaxed_companion_provider_keys.isdisjoint(strict_values))
+        self.assertTrue(always_on_companion_provider_keys <= strict_values)
 
     def test_runtime_mechanisms_do_not_name_catalog_payload_services(self) -> None:
         from ai_profiles_test_support import ROOT

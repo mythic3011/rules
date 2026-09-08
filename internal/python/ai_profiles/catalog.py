@@ -85,6 +85,7 @@ def _rule_file_from_decl(value: CompanionRuleDecl, groups: dict[str, str]) -> Ru
         comments=value.comments,
         comment_lines=value.comment_lines,
         mihomo=value.mihomo,
+        mihomo_when=value.mihomo_when,
         subconverter_cluster=value.subconverter_cluster,
     )
 

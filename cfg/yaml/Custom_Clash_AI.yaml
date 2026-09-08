@@ -876,6 +876,7 @@ rules:
     - "GEOSITE,google-deepmind,🤖 AI Other"
     - "GEOSITE,category-ai-!cn,🤖 AI Other"
     - "GEOSITE,category-ai-cn,🤖 AI CN Other"
+    - "RULE-SET,GoogleAPIs_QUIC_Reject_Classical,⛔ 拒絕"
     - "RULE-SET,SSH_Direct_Classical,🎯 全球直連"
     - "RULE-SET,SSH_Proxy_Classical,🚀 手動選擇"
     - "RULE-SET,Gaming_Direct_Classical,🎯 全球直連"
@@ -923,6 +924,13 @@ rule-providers:
     interval: 10800
     type: http
     url: "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/Custom_Proxy_Classical_IP.yaml"
+    format: yaml
+
+  GoogleAPIs_QUIC_Reject_Classical:
+    behavior: classical
+    interval: 10800
+    type: http
+    url: "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/GoogleAPIs_QUIC_Reject_Classical.yaml"
     format: yaml
 
   SSH_Direct_Classical:

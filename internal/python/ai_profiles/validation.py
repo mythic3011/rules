@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Sequence
 
 from .models import RuleFileSpec, ServiceSpec
 
 NARROW_PAYLOAD_KINDS = frozenset({"DOMAIN", "DOMAIN-SUFFIX", "DOMAIN-KEYWORD"})
+HOST_SCOPED_QUIC_REJECT_RE = re.compile(
+    r"^AND,\(\(NETWORK,UDP\),\(DST-PORT,443\),\(DOMAIN-SUFFIX,[A-Za-z0-9.-]+\)\)$"
+)
 
 GOOGLE_OWNED_DOMAIN_SUFFIXES = (
     ".google",
@@ -43,10 +47,16 @@ def payload_host(entry: str) -> str:
     return host
 
 
+def is_host_scoped_quic_reject(entry: str) -> bool:
+    return HOST_SCOPED_QUIC_REJECT_RE.fullmatch(entry) is not None
+
+
 def is_narrow_payload_entry(
     entry: str,
     allowed_kinds: Sequence[str] | frozenset[str] = NARROW_PAYLOAD_KINDS,
 ) -> bool:
+    if is_host_scoped_quic_reject(entry):
+        return True
     kind, _, host = entry.partition(",")
     return kind in allowed_kinds and bool(host)
 
