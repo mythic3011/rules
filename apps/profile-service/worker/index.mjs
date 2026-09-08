@@ -24,6 +24,13 @@ const JSON_HEADERS = {
   "x-frame-options": "DENY",
   "content-security-policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
 };
+const SUBSCRIPTION_HEADERS = {
+  "content-type": "text/plain; charset=utf-8",
+  "x-content-type-options": "nosniff",
+  "referrer-policy": "no-referrer",
+  "x-frame-options": "DENY",
+  "content-security-policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+};
 const TOKEN_RE = /^[A-Za-z0-9_-]{40,64}$/;
 
 function json(value, status = 200, headers = {}) {
@@ -109,21 +116,23 @@ async function handleCreate(request, env) {
 }
 
 async function handleSubscription(env, token) {
-  if (!TOKEN_RE.test(token)) return new Response("Not found\n", { status: 404 });
+  if (!TOKEN_RE.test(token)) {
+    return new Response("Not found\n", { status: 404, headers: SUBSCRIPTION_HEADERS });
+  }
   const row = await getProfileByReadToken(env, token);
-  if (!row) return new Response("Not found\n", { status: 404 });
+  if (!row) {
+    return new Response("Not found\n", { status: 404, headers: SUBSCRIPTION_HEADERS });
+  }
   const spec = JSON.parse(row.spec_json);
   const solved = solveSubconverterPlan(spec);
   const ini = renderIni(solved.plan, runtimeData);
   return new Response(ini, {
     headers: {
-      "content-type": "text/plain; charset=utf-8",
+      ...SUBSCRIPTION_HEADERS,
       "content-disposition": `inline; filename=ai-profile-${row.id}.ini`,
       "cache-control": "private, max-age=300",
       etag: `W/\"${row.id}-${row.revision}\"`,
       "x-profile-revision": String(row.revision),
-      "x-content-type-options": "nosniff",
-      "referrer-policy": "no-referrer",
     },
   });
 }
