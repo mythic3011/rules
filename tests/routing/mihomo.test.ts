@@ -25,20 +25,29 @@ test("Mihomo projection renders REJECT-first filtered groups, protected rules, a
   assert.ok(claude !== undefined && claude.type === "select");
   assert.deepEqual(stable.proxies, ["REJECT"]);
   assert.equal(stable.emptyFallback, "REJECT");
-  assert.deepEqual(claude.proxies, ["REJECT"]);
+  assert.deepEqual(claude.proxies, [
+    "REJECT",
+    "🇺🇸 US Stable",
+    "🇸🇬 SG Stable",
+    "🇯🇵 JP Stable",
+  ]);
   assert.equal(JSON.stringify(claude).includes("DIRECT"), false);
+  assert.equal(
+    groups.some((group) => group.name === "🔐 Claude US Pinned"),
+    false,
+  );
   const windsurf = groups.find((group) => group.name === "🌊 Windsurf");
   assert.equal(JSON.stringify(windsurf).includes("US-Claude-01"), false);
   assert.deepEqual(fragment.rules.slice(0, 2), [
+    "RULE-SET,Flow_Music_Classical,🎵 Flow Music",
     "RULE-SET,AI_Claude_Classical,🔐 Claude Account Guard",
-    "RULE-SET,AI_Claude_Classical,REJECT",
   ]);
   assert.equal(
-    groups.some((group) => group.type === "url-test"),
+    fragment.rules.includes("RULE-SET,AI_Claude_Classical,REJECT"),
     false,
   );
   assert.equal(
-    groups.some((group) => group.name === "🔐 Claude US Pinned"),
+    groups.some((group) => group.type === "url-test"),
     false,
   );
   assert.equal(
@@ -101,9 +110,7 @@ test("Mihomo DNS serializer handles UDP, DoT, and adjacent protected endpoint pa
   );
   assert.deepEqual(protectedRules, [
     "RULE-SET,AI_Claude_Classical,🔐 Claude Account Guard",
-    "RULE-SET,AI_Claude_Classical,REJECT",
     "RULE-SET,AI_Claude_Extra_Classical,🔐 Claude Account Guard",
-    "RULE-SET,AI_Claude_Extra_Classical,REJECT",
   ]);
 });
 
@@ -142,33 +149,55 @@ test("Mihomo projection rejects empty services and duplicate endpoint ruleset id
 
 test("Mihomo projection rejects missing providers and the checked fragment stays deterministic and parseable", async () => {
   const { config, projection } = await loadCanonicalInputs();
+  const missingPinnedBindingConfig = structuredClone(config);
+  missingPinnedBindingConfig.routeTargets["test-pinned"] = {
+    kind: "pinned-egress",
+    group: "Test Pinned",
+    approvedNodes: ["Node-A", "Node-B"],
+    emptyFallback: "REJECT",
+    dynamic: false,
+  };
   const missingPinnedBinding = structuredClone(projection);
-  const bindings =
-    missingPinnedBinding.pinnedEgressBindings["claude-us-pinned"];
-  assert.ok(bindings !== undefined);
-  delete bindings["US-Claude-02"];
+  missingPinnedBinding.pinnedEgressBindings["test-pinned"] = {
+    "Node-A": "provider1",
+  };
   assert.throws(
-    () => compileMihomoFragment(config, missingPinnedBinding, "hk"),
+    () =>
+      compileMihomoFragment(
+        missingPinnedBindingConfig,
+        missingPinnedBinding,
+        "hk",
+      ),
     (error: unknown) =>
       error instanceof MihomoProjectionError &&
       error.issues.some(
-        (entry) =>
-          entry.path.join(".") === "pinnedEgressBindings.claude-us-pinned",
+        (entry) => entry.path.join(".") === "pinnedEgressBindings.test-pinned",
       ),
   );
+  const nonExternalPinnedProviderConfig = structuredClone(config);
+  nonExternalPinnedProviderConfig.routeTargets["test-pinned"] = {
+    kind: "pinned-egress",
+    group: "Test Pinned",
+    approvedNodes: ["Node-A"],
+    emptyFallback: "REJECT",
+    dynamic: false,
+  };
   const nonExternalPinnedProvider = structuredClone(projection);
-  const nonExternalBindings =
-    nonExternalPinnedProvider.pinnedEgressBindings["claude-us-pinned"];
-  assert.ok(nonExternalBindings !== undefined);
-  nonExternalBindings["US-Claude-01"] = "missing-provider";
+  nonExternalPinnedProvider.pinnedEgressBindings["test-pinned"] = {
+    "Node-A": "missing-provider",
+  };
   assert.throws(
-    () => compileMihomoFragment(config, nonExternalPinnedProvider, "hk"),
+    () =>
+      compileMihomoFragment(
+        nonExternalPinnedProviderConfig,
+        nonExternalPinnedProvider,
+        "hk",
+      ),
     (error: unknown) =>
       error instanceof MihomoProjectionError &&
       error.issues.some(
         (entry) =>
-          entry.path.join(".") ===
-          "pinnedEgressBindings.claude-us-pinned.US-Claude-01",
+          entry.path.join(".") === "pinnedEgressBindings.test-pinned.Node-A",
       ),
   );
   const invalid = structuredClone(projection);

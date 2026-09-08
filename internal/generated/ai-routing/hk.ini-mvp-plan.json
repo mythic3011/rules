@@ -9,6 +9,7 @@
   "migration": {
     "migratedServiceIds": [
       "claude",
+      "flow-music",
       "windsurf",
       "huggingface"
     ],
@@ -24,13 +25,13 @@
     "beforeLegacy": [
       {
         "kind": "remote-classical",
-        "target": "🔐 Claude Account Guard",
-        "url": "https://raw.githubusercontent.com/VPSDance/ai-proxy-rules/d07cac190c33e7914ba7adaf7e7c14298fba7024/rules/clash/anthropic.yaml",
+        "target": "🎵 Flow Music",
+        "url": "https://raw.githubusercontent.com/mythic3011/rules/0e9631339904f4a989c884781570b5756d82c9a3/rule/Flow_Music_Classical.yaml",
         "interval": 10800
       },
       {
         "kind": "remote-classical",
-        "target": "⛔ 拒絕",
+        "target": "🔐 Claude Account Guard",
         "url": "https://raw.githubusercontent.com/VPSDance/ai-proxy-rules/d07cac190c33e7914ba7adaf7e7c14298fba7024/rules/clash/anthropic.yaml",
         "interval": 10800
       }
@@ -113,6 +114,40 @@
       "kind": "select",
       "name": "🔐 Claude Account Guard",
       "candidates": [
+        {
+          "kind": "group-ref",
+          "value": "⛔ 拒絕"
+        },
+        {
+          "kind": "group-ref",
+          "value": "🇺🇸 US Stable"
+        },
+        {
+          "kind": "group-ref",
+          "value": "🇸🇬 SG Stable"
+        },
+        {
+          "kind": "group-ref",
+          "value": "🇯🇵 JP Stable"
+        }
+      ]
+    },
+    {
+      "kind": "select",
+      "name": "🎵 Flow Music",
+      "candidates": [
+        {
+          "kind": "group-ref",
+          "value": "🇯🇵 JP Stable"
+        },
+        {
+          "kind": "group-ref",
+          "value": "🇸🇬 SG Stable"
+        },
+        {
+          "kind": "group-ref",
+          "value": "🇺🇸 US Stable"
+        },
         {
           "kind": "group-ref",
           "value": "⛔ 拒絕"

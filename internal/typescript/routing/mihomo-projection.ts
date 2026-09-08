@@ -6,7 +6,7 @@ import { z } from "zod";
 import { compileRoutingProfile, type CompiledRoutingPlan } from "./compiler.js";
 import { formatIssues, type RoutingIssue } from "./issues.js";
 import { IdSchema, type Resolver, type RouteTarget, type RoutingConfig } from "./schema.js";
-import { validateRuleOrdering } from "./semantic-validator.js";
+import { isOwnershipOverrideService, validateRuleOrdering } from "./semantic-validator.js";
 
 const RuleProviderKeySchema = z.string().regex(/^[A-Za-z][A-Za-z0-9_]*$/);
 const SourceSchema = z.object({
@@ -335,10 +335,24 @@ export function compileMihomoFragment(config: RoutingConfig, projection: MihomoP
     if (autoReachable) groups.push({ name: region.autoGroup, type: "url-test", emptyFallback: "REJECT", use: [...region.use], filter: region.filter, url: region.url, interval: region.interval, tolerance: region.tolerance });
     if (stableReachable) groups.push({ name: region.stableGroup, type: "select", emptyFallback: "REJECT", proxies: ["REJECT"], use: [...region.use], filter: region.filter });
   }
+  for (const [routeId, target] of Object.entries(config.routeTargets).sort(([left], [right]) => compare(left, right))) {
+    if (target.kind !== "pinned-egress" || !reachableRouteIds.has(routeId)) continue;
+    const bindings = projection.pinnedEgressBindings[routeId];
+    if (bindings === undefined) throw new MihomoProjectionError([issue("missing-reference", ["pinnedEgressBindings", routeId], "pinned-egress route requires exact approved-node provider bindings")]);
+    groups.push({
+      name: target.group,
+      type: "select",
+      emptyFallback: "REJECT",
+      proxies: ["REJECT"],
+      use: unique(Object.values(bindings)),
+      filter: `(?i)${target.approvedNodes.join("|")}`,
+    });
+  }
   const profileIds = Object.keys(config.accessProfiles).sort(compare);
   for (const modeId of profileIds) groups.push({ name: `${projection.modeControl.hiddenPrefix}${modeId}`, type: "select", emptyFallback: "REJECT", proxies: ["REJECT"] });
   groups.push({ name: projection.modeControl.visibleGroup, type: "select", emptyFallback: "REJECT", proxies: profileIds.map((modeId) => `${projection.modeControl.hiddenPrefix}${modeId}`) });
-  const accountPairs: string[][] = [];
+  const overrideRules: string[] = [];
+  const accountRules: string[] = [];
   const specificRules: string[] = [];
   for (const service of plan.services) {
     const canonical = config.services[service.id]; if (canonical === undefined) continue;
@@ -348,20 +362,36 @@ export function compileMihomoFragment(config: RoutingConfig, projection: MihomoP
       const choices = unique([service.effectiveRoute.group, ...service.selector.choices.map((choice) => choice.group)]);
       groups.push({ name: service.selector.hiddenProfileTarget, type: "select", emptyFallback: "REJECT", proxies: choices });
       groups.push({ name: service.selector.visibleGroup, type: "select", emptyFallback: "REJECT", proxies: unique([service.selector.hiddenProfileTarget, ...choices]) });
-    } else groups.push({ name: service.selector.visibleGroup, type: "select", emptyFallback: "REJECT", proxies: ["REJECT"] });
+    } else {
+      const proxies = ["REJECT"];
+      if (protection.kind === "account-protected") {
+        for (const routeId of canonical.allowedRoutes) {
+          const target = config.routeTargets[routeId];
+          if (
+            (target?.kind === "pinned-egress" || target?.kind === "region-stable") &&
+            !proxies.includes(target.group)
+          ) {
+            proxies.push(target.group);
+          }
+        }
+      }
+      groups.push({ name: service.selector.visibleGroup, type: "select", emptyFallback: "REJECT", proxies });
+    }
     for (const endpoint of service.endpoints) {
-      if (protection.kind === "account-protected") accountPairs.push([`RULE-SET,${endpoint.ruleset},${service.selector.visibleGroup}`, `RULE-SET,${endpoint.ruleset},REJECT`]);
-      else specificRules.push(`RULE-SET,${endpoint.ruleset},${service.selector.visibleGroup}`);
+      const line = `RULE-SET,${endpoint.ruleset},${service.selector.visibleGroup}`;
+      if (isOwnershipOverrideService(config, service.id)) overrideRules.push(line);
+      else if (protection.kind === "account-protected") accountRules.push(line);
+      else specificRules.push(line);
     }
   }
   const aiAllRules = profile.aiAllRoute === undefined ? [] : [`RULE-SET,${projection.aiAllRuleset},${requiredRoute(config, profile.aiAllRoute, ["profiles", profileId, "aiAllRoute"]).group}`];
   const categoryRules = projection.categoryGeosites.map((geosite) => `GEOSITE,${geosite},${requiredRoute(config, profile.categoryAiRoute, ["profiles", profileId, "categoryAiRoute"]).group}`);
-  accountPairs.sort((left, right) => compare(left[0] ?? "", right[0] ?? ""));
-  const accountRules = accountPairs.flatMap((pair) => pair);
-  const rules = [...accountRules, ...specificRules, ...aiAllRules, ...categoryRules];
-  for (const [index, [protectedRule, terminalReject]] of accountPairs.entries()) if (rules[index * 2] !== protectedRule || rules[(index * 2) + 1] !== terminalReject) throw new MihomoProjectionError([issue("rule-ordering", ["rules", index * 2], "account terminal reject must immediately follow its protected rule")]);
+  overrideRules.sort(compare);
+  accountRules.sort(compare);
+  const rules = [...overrideRules, ...accountRules, ...specificRules, ...aiAllRules, ...categoryRules];
   const orderingEntries = [
-    ...(accountPairs.length === 0 ? [] : [{ stage: "account-protected" as const, label: "account protected pairs" }, { stage: "account-terminal-reject" as const, label: "account terminal rejects" }]),
+    ...overrideRules.map((label) => ({ stage: "ownership-override" as const, label })),
+    ...accountRules.map((label) => ({ stage: "account-protected" as const, label })),
     ...specificRules.map((label) => ({ stage: "specific-service" as const, label })),
     ...aiAllRules.map((label) => ({ stage: "ai-all" as const, label })),
     ...categoryRules.map((label) => ({ stage: "category-ai" as const, label })),

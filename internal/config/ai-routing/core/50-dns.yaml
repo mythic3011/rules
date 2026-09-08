@@ -17,6 +17,6 @@ dns:
           resolvers:
             - kind: doh
               url: https://1.1.1.1/dns-query
-              viaRoute: claude-us-pinned
+              viaRoute: us-stable
           failure: refuse
           fallback: none

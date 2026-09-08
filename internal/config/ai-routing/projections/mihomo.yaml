@@ -11,10 +11,7 @@ sources:
 proxyProviders:
   provider1:
     external: true
-pinnedEgressBindings:
-  claude-us-pinned:
-    US-Claude-01: provider1
-    US-Claude-02: provider1
+pinnedEgressBindings: {}
 regions:
   us:
     autoGroup: "🇺🇸 US Auto"
@@ -152,7 +149,7 @@ aiAllRuleset: AI_All_Classical
 categoryGeosites: [google-deepmind, category-ai-!cn]
 iniMvp:
   profile: hk
-  migratedServices: [claude, windsurf, huggingface]
+  migratedServices: [claude, flow-music, windsurf, huggingface]
   legacyReplacementIds: [claude]
   aiOtherGroup: "🤖 AI Other"
   aiOtherAllowedRoutes: [direct, us-stable, sg-stable, jp-stable, reject]

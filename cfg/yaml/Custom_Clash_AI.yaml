@@ -708,6 +708,31 @@ proxy-groups:
       - "🇰🇷 韓國節點"
       - "🌐 其他／未識別節點"
       - "⛔ 拒絕"
+  - name: "🎵 Flow Music"
+    type: select
+    proxies:
+      - "🎵 Flow Music · 自動"
+      - "🚀 手動選擇"
+      - "♻️ 自動選擇"
+      - "🇺🇸 美國節點"
+      - "🇯🇵 日本節點"
+      - "🇸🇬 新加坡節點"
+      - "🇹🇼 台灣節點"
+      - "🇰🇷 韓國節點"
+      - "🌐 其他／未識別節點"
+      - "⛔ 拒絕"
+  - name: "🎵 Flow Music · 自動"
+    type: fallback
+    url: "https://cp.cloudflare.com/generate_204"
+    interval: 300
+    proxies:
+      - "🇺🇸 美國節點"
+      - "🇯🇵 日本節點"
+      - "🇸🇬 新加坡節點"
+      - "🇹🇼 台灣節點"
+      - "🇰🇷 韓國節點"
+      - "🌐 其他／未識別節點"
+      - "⛔ 拒絕"
   - name: "🤖 OpenCode"
     type: select
     proxies:
@@ -872,6 +897,7 @@ rules:
     - "RULE-SET,AI_AndroidStudioAI_Classical,🤖 Android Studio AI"
     - "RULE-SET,AI_GeminiCloud_Classical,🤖 Gemini Cloud"
     - "RULE-SET,AI_VertexAI_Classical,🤖 Vertex AI"
+    - "RULE-SET,Flow_Music_Classical,🎵 Flow Music"
     - "RULE-SET,AI_OpenCode_Classical,🤖 OpenCode"
     - "GEOSITE,google-deepmind,🤖 AI Other"
     - "GEOSITE,category-ai-!cn,🤖 AI Other"
@@ -892,6 +918,7 @@ rules:
     - "RULE-SET,Custom_Proxy_Domain,🚀 手動選擇"
     - "RULE-SET,Custom_Proxy_Classical_IP,🚀 手動選擇"
     - "GEOIP,HK,🎯 全球直連,no-resolve"
+    - "GEOIP,CN,🎯 全球直連,no-resolve"
     - "SRC-IP-CIDR,10.0.0.11/32,🎯 全球直連"
     - "MATCH,🐟 漏網之魚"
 
@@ -1098,6 +1125,13 @@ rule-providers:
     interval: 10800
     type: http
     url: "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_VertexAI_Classical.yaml"
+    format: yaml
+
+  Flow_Music_Classical:
+    behavior: classical
+    interval: 10800
+    type: http
+    url: "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/Flow_Music_Classical.yaml"
     format: yaml
 
   AI_OpenCode_Classical:

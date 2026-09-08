@@ -41,8 +41,9 @@ export interface ControllerPlan {
     readonly initialSelection: "REJECT";
     readonly canonicalApprovedNodeIds: readonly string[];
     readonly canonicalApprovedBindings: readonly { readonly approvedId: string; readonly provider: string }[];
+    readonly publicSelectorMembers: readonly string[];
     readonly localMaterialization: {
-      readonly exactNodeFilterRequired: true;
+      readonly exactNodeFilterRequired: boolean;
       readonly emptyFallback: "REJECT";
     };
     readonly dnsPolicyKeys: readonly string[];
@@ -77,6 +78,17 @@ function accountBindings(config: RoutingConfig, projection: MihomoProjectionConf
   }).sort((left, right) => compare(left.approvedId, right.approvedId));
 }
 
+function accountPublicSelectorMembers(config: RoutingConfig, routeIds: readonly string[]): string[] {
+  const members = ["REJECT"];
+  for (const routeId of routeIds) {
+    const route = config.routeTargets[routeId];
+    if (route?.kind === "region-stable" && !members.includes(route.group)) {
+      members.push(route.group);
+    }
+  }
+  return members;
+}
+
 export function compileControllerPlan(
   config: RoutingConfig,
   projection: MihomoProjectionConfig,
@@ -95,21 +107,25 @@ export function compileControllerPlan(
   }));
   const accountProtected = Object.entries(config.services)
     .filter(([, service]) => config.protectionClasses[service.protectionClass]?.kind === "account-protected")
-    .map(([serviceId, service]) => ({
-      serviceId,
-      visibleGroup: service.selector.visibleGroup,
-      initialSelection: "REJECT" as const,
-      canonicalApprovedNodeIds: accountNodes(config, service.allowedRoutes),
-      canonicalApprovedBindings: accountBindings(config, projection, service.allowedRoutes),
-      localMaterialization: {
-        exactNodeFilterRequired: true as const,
-        emptyFallback: "REJECT" as const,
-      },
-      dnsPolicyKeys: Object.values(service.endpoints)
-        .map((endpoint) => `rule-set:${endpoint.ruleset}`)
-        .sort(compare),
-      lockRequest: apiSelection(service.selector.visibleGroup, "REJECT"),
-    }))
+    .map(([serviceId, service]) => {
+      const canonicalApprovedNodeIds = accountNodes(config, service.allowedRoutes);
+      return {
+        serviceId,
+        visibleGroup: service.selector.visibleGroup,
+        initialSelection: "REJECT" as const,
+        canonicalApprovedNodeIds,
+        canonicalApprovedBindings: accountBindings(config, projection, service.allowedRoutes),
+        publicSelectorMembers: accountPublicSelectorMembers(config, service.allowedRoutes),
+        localMaterialization: {
+          exactNodeFilterRequired: canonicalApprovedNodeIds.length > 0,
+          emptyFallback: "REJECT" as const,
+        },
+        dnsPolicyKeys: Object.values(service.endpoints)
+          .map((endpoint) => `rule-set:${endpoint.ruleset}`)
+          .sort(compare),
+        lockRequest: apiSelection(service.selector.visibleGroup, "REJECT"),
+      };
+    })
     .sort((left, right) => compare(left.serviceId, right.serviceId));
 
   return {

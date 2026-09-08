@@ -365,6 +365,9 @@ proxy-groups:
     empty-fallback: REJECT
     proxies:
       - REJECT
+      - 🇺🇸 US Stable
+      - 🇸🇬 SG Stable
+      - 🇯🇵 JP Stable
   - name: "@profile/copilot"
     type: select
     empty-fallback: REJECT
@@ -392,7 +395,7 @@ proxy-groups:
       - 🇸🇬 SG Stable
       - 🇺🇸 US Stable
       - REJECT
-  - name: Flow Music
+  - name: 🎵 Flow Music
     type: select
     empty-fallback: REJECT
     proxies:
@@ -551,11 +554,10 @@ proxy-groups:
 rules:
   - GEOSITE,private,🎯 全球直連
   - GEOIP,private,🎯 全球直連,no-resolve
+  - RULE-SET,Flow_Music_Classical,🎵 Flow Music
   - RULE-SET,AI_Claude_Classical,🔐 Claude Account Guard
-  - RULE-SET,AI_Claude_Classical,REJECT
   - RULE-SET,AI_ChatGPT_Classical,🤖 ChatGPT
   - RULE-SET,AI_Copilot_Classical,🧑‍💻 Copilot
-  - RULE-SET,Flow_Music_Classical,Flow Music
   - RULE-SET,AI_Gemini_Classical,🤖 Gemini
   - RULE-SET,AI_Grok_Classical,🤖 Grok
   - RULE-SET,AI_HuggingFace_Classical,🤗 Hugging Face
@@ -583,6 +585,7 @@ rules:
   - RULE-SET,Custom_Proxy_Domain,🚀 手動選擇
   - RULE-SET,Custom_Proxy_Classical_IP,🚀 手動選擇
   - GEOIP,HK,🎯 全球直連,no-resolve
+  - GEOIP,CN,🎯 全球直連,no-resolve
   - SRC-IP-CIDR,10.0.0.11/32,🎯 全球直連
   - MATCH,🐟 漏網之魚
 

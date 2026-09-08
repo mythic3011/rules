@@ -44,6 +44,8 @@ deltas:
       - "🤖 Gemini Cloud · 自動"
       - "🤖 Vertex AI"
       - "🤖 Vertex AI · 自動"
+      - "🎵 Flow Music"
+      - "🎵 Flow Music · 自動"
       - "🤖 OpenCode"
       - "🤖 OpenCode · 自動"
       - "🤖 AI Other"
@@ -65,7 +67,7 @@ deltas:
       - "@profile/copilot"
       - "🧑‍💻 Copilot"
       - "@profile/flow-music"
-      - "Flow Music"
+      - "🎵 Flow Music"
       - "@profile/gemini"
       - "🤖 Gemini"
       - "@profile/grok"
@@ -103,6 +105,7 @@ deltas:
         AI_AndroidStudioAI_Classical,
         AI_GeminiCloud_Classical,
         AI_VertexAI_Classical,
+        Flow_Music_Classical,
         AI_OpenCode_Classical,
       ]
     add:
@@ -147,17 +150,17 @@ deltas:
       - "RULE-SET,AI_AndroidStudioAI_Classical,🤖 Android Studio AI"
       - "RULE-SET,AI_GeminiCloud_Classical,🤖 Gemini Cloud"
       - "RULE-SET,AI_VertexAI_Classical,🤖 Vertex AI"
+      - "RULE-SET,Flow_Music_Classical,🎵 Flow Music"
       - "RULE-SET,AI_OpenCode_Classical,🤖 OpenCode"
       - "GEOSITE,google-deepmind,🤖 AI Other"
       - "GEOSITE,category-ai-!cn,🤖 AI Other"
       - "GEOSITE,category-ai-cn,🤖 AI CN Other"
     after: "RULE-SET,SSH_Direct_Classical,🎯 全球直連"
     add:
+      - "RULE-SET,Flow_Music_Classical,🎵 Flow Music"
       - "RULE-SET,AI_Claude_Classical,🔐 Claude Account Guard"
-      - "RULE-SET,AI_Claude_Classical,REJECT"
       - "RULE-SET,AI_ChatGPT_Classical,🤖 ChatGPT"
       - "RULE-SET,AI_Copilot_Classical,🧑‍💻 Copilot"
-      - "RULE-SET,Flow_Music_Classical,Flow Music"
       - "RULE-SET,AI_Gemini_Classical,🤖 Gemini"
       - "RULE-SET,AI_Grok_Classical,🤖 Grok"
       - "RULE-SET,AI_HuggingFace_Classical,🤗 Hugging Face"
@@ -169,7 +172,7 @@ deltas:
       - "RULE-SET,AI_All_Classical,DIRECT"
       - "GEOSITE,google-deepmind,DIRECT"
       - "GEOSITE,category-ai-!cn,DIRECT"
-    reason: "The exact AI interval becomes source-pinned service identities, a locked Claude pair, and relaxed HK direct guards."
+    reason: "The exact AI interval becomes source-pinned service identities, Flow Music ownership-override before a single Claude Guard rule, and relaxed HK direct guards."
     policyReference: internal/config/ai-routing/projections/mihomo.yaml#profiles.hk
   dns:
     surface: dns

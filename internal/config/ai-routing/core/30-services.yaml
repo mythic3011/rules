@@ -25,12 +25,12 @@ services:
     displayName: "🔐 Claude Account Guard"
     protectionClass: account-protected
     defaultRoute: reject
-    allowedRoutes: [reject, claude-us-pinned]
+    allowedRoutes: [reject, us-stable, sg-stable, jp-stable]
     selector:
       kind: explicit-node
       visibleGroup: "🔐 Claude Account Guard"
       initialRoute: reject
-      allowedRouteRefs: [reject, claude-us-pinned]
+      allowedRouteRefs: [reject, us-stable, sg-stable, jp-stable]
     upstream: { source: vpsdance, provider: anthropic }
     endpoints:
       service: { session: stable }
@@ -137,7 +137,6 @@ services:
       service:
         session: stable
   flow-music:
-    displayName: "Flow Music"
     protectionClass: proxy-required
     defaultRoute: jp-stable
     allowedRoutes:
@@ -147,7 +146,6 @@ services:
       - reject
     selector:
       kind: profile-aware
-      visibleGroup: "Flow Music"
       hiddenProfileTarget: "@profile/flow-music"
       allowedRouteRefs:
         - jp-stable
@@ -156,7 +154,7 @@ services:
         - reject
     upstream: { source: local-rules, provider: flow-music }
     endpoints:
-      service: { ruleset: Flow_Music_Classical, session: stable }
+      service: { session: stable }
     dependencies:
       - id: producer-media
         host: storage.googleapis.com

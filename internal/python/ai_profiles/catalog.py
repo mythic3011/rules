@@ -324,10 +324,29 @@ def _register_service_groups(services_doc, groups: dict[str, str], known_regions
         groups[record.id] = record.group
 
 
+def _stable_group_keys(groups: Mapping[str, str]) -> tuple[str, ...]:
+    return tuple(key for key in groups if key.endswith("-stable"))
+
+
 def _service_selector(
     record, groups: dict[str, str]
 ) -> tuple[tuple[str, ...] | None, tuple[str, ...]]:
-    if record.subconverter.selector.mode != "fixed":
+    mode = record.subconverter.selector.mode
+    if mode == "stables":
+        stable_keys = _stable_group_keys(groups)
+        if not stable_keys:
+            raise RuntimeError(
+                f"AI service {record.id} stables selector requires catalog *-stable groups"
+            )
+        if "reject" not in groups:
+            raise RuntimeError(
+                f"AI service {record.id} stables selector requires the reject group"
+            )
+        return (
+            tuple(groups[key] for key in stable_keys) + (groups["reject"],),
+            record.subconverter.selector.comments,
+        )
+    if mode != "fixed":
         return None, ()
     unknown_group_keys = set(record.subconverter.selector.group_keys) - set(groups)
     if unknown_group_keys:

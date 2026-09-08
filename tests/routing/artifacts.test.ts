@@ -51,6 +51,13 @@ test("all canonical profiles have deterministic plan and non-standalone fragment
       groups.some((group) => group.name === "🔐 Claude US Pinned"),
       false,
     );
+    const claude = groups.find((group) => group.name === "🔐 Claude Account Guard");
+    assert.deepEqual(claude?.proxies, [
+      "REJECT",
+      "🇺🇸 US Stable",
+      "🇸🇬 SG Stable",
+      "🇯🇵 JP Stable",
+    ]);
     const rules = parsed.rules as string[];
     const deepmind = rules.findIndex((rule) =>
       rule.startsWith("GEOSITE,google-deepmind,"),

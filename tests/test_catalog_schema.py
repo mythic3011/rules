@@ -97,7 +97,12 @@ class CatalogSchemaTest(unittest.TestCase):
             catalog_dir = copy_catalog(Path(raw_tmp))
             path = catalog_dir / "catalogs" / "services.json"
             value = read_json(path)
-            value["services"][0]["subconverter"]["selector"]["groupKeys"] = ["missing"]
+            value["services"][0]["subconverter"]["selector"] = {
+                "mode": "fixed",
+                "emitWhenLegacyReplaced": True,
+                "groupKeys": ["missing"],
+                "comments": [],
+            }
             write_json(path, value)
             with self.assertRaisesRegex(RuntimeError, "unknown group keys"):
                 load_catalog(catalog_dir)

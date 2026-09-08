@@ -7,6 +7,7 @@
       "chatgpt",
       "claude",
       "copilot",
+      "flow-music",
       "gemini",
       "grok",
       "huggingface",
@@ -30,7 +31,6 @@
       "vertex-ai"
     ],
     "canonicalOnly": [
-      "flow-music",
       "windsurf"
     ]
   },
@@ -39,6 +39,13 @@
     "strict": "⛔ 拒絕"
   },
   "sharedBackends": [
+    {
+      "backendId": "gcs-object-storage",
+      "domain": "storage.googleapis.com",
+      "declared": "flow-music",
+      "derived": "flow-music",
+      "ok": true
+    },
     {
       "backendId": "google-code-assist",
       "domain": "cloudcode-pa.googleapis.com",
@@ -180,6 +187,25 @@
         },
         {
           "serviceId": "claude",
+          "dimension": "region-order",
+          "severity": "warn",
+          "message": "canonical region list is a subset of primaryOrder; full us,jp,sg,tw,kr,other coverage is a later phase",
+          "left": [
+            "us",
+            "jp",
+            "sg",
+            "tw",
+            "kr",
+            "other"
+          ],
+          "right": [
+            "us",
+            "sg",
+            "jp"
+          ]
+        },
+        {
+          "serviceId": "claude",
           "dimension": "dns-policy",
           "severity": "warn",
           "message": "phase1 known divergence: canonical DNS is refuse/fallback-none but generated YAML still uses global-ai resolvers",
@@ -243,20 +269,27 @@
     },
     "flow-music": {
       "serviceId": "flow-music",
-      "sides": "canonical-only",
+      "sides": "both",
       "mismatches": [],
       "warnings": [
         {
           "serviceId": "flow-music",
-          "dimension": "projection-presence",
+          "dimension": "region-order",
           "severity": "warn",
-          "message": "canonical service has no python catalog counterpart",
-          "left": {
-            "catalog": false
-          },
-          "right": {
-            "canonical": true
-          }
+          "message": "canonical region list is a subset of primaryOrder; full us,jp,sg,tw,kr,other coverage is a later phase",
+          "left": [
+            "us",
+            "jp",
+            "sg",
+            "tw",
+            "kr",
+            "other"
+          ],
+          "right": [
+            "jp",
+            "sg",
+            "us"
+          ]
         }
       ]
     },
@@ -725,6 +758,25 @@
     },
     {
       "serviceId": "claude",
+      "dimension": "region-order",
+      "severity": "warn",
+      "message": "canonical region list is a subset of primaryOrder; full us,jp,sg,tw,kr,other coverage is a later phase",
+      "left": [
+        "us",
+        "jp",
+        "sg",
+        "tw",
+        "kr",
+        "other"
+      ],
+      "right": [
+        "us",
+        "sg",
+        "jp"
+      ]
+    },
+    {
+      "serviceId": "claude",
       "dimension": "dns-policy",
       "severity": "warn",
       "message": "phase1 known divergence: canonical DNS is refuse/fallback-none but generated YAML still uses global-ai resolvers",
@@ -756,6 +808,25 @@
         "us",
         "sg",
         "jp"
+      ]
+    },
+    {
+      "serviceId": "flow-music",
+      "dimension": "region-order",
+      "severity": "warn",
+      "message": "canonical region list is a subset of primaryOrder; full us,jp,sg,tw,kr,other coverage is a later phase",
+      "left": [
+        "us",
+        "jp",
+        "sg",
+        "tw",
+        "kr",
+        "other"
+      ],
+      "right": [
+        "jp",
+        "sg",
+        "us"
       ]
     },
     {
@@ -1117,18 +1188,6 @@
       },
       "right": {
         "canonical": false
-      }
-    },
-    {
-      "serviceId": "flow-music",
-      "dimension": "projection-presence",
-      "severity": "warn",
-      "message": "canonical service has no python catalog counterpart",
-      "left": {
-        "catalog": false
-      },
-      "right": {
-        "canonical": true
       }
     },
     {

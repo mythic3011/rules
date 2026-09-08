@@ -132,7 +132,7 @@ class RegionsDocument:
 
 @dataclass(frozen=True, slots=True)
 class SubconverterSelectorDecl:
-    mode: Literal["standard", "fixed"] = "standard"
+    mode: Literal["standard", "fixed", "stables"] = "standard"
     emit_when_legacy_replaced: bool = False
     group_keys: tuple[str, ...] = ()
     comments: tuple[str, ...] = ()
@@ -704,6 +704,22 @@ def _subconverter_service_decl(value: object, field: str) -> SubconverterService
                 comments=_string_list(
                     selector_value.get("comments"), f"{field}.selector.comments"
                 ),
+            )
+        elif mode == "stables":
+            extra = set(selector_value) - {"mode", "emitWhenLegacyReplaced", "comments"}
+            if extra:
+                raise RuntimeError(
+                    f"Stables subconverter selector has invalid shape: {field}.selector"
+                )
+            comments = (
+                _string_list(selector_value.get("comments"), f"{field}.selector.comments")
+                if "comments" in selector_value
+                else ()
+            )
+            selector_decl = SubconverterSelectorDecl(
+                mode="stables",
+                emit_when_legacy_replaced=emit_when_legacy_replaced,
+                comments=comments,
             )
         else:
             raise RuntimeError(f"Unknown subconverter selector mode: {field}.selector")

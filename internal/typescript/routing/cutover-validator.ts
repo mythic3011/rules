@@ -50,12 +50,19 @@ export function validateEffectiveCutover(
         issues.push(issue(["proxyStates", account.visibleGroup], "account selector runtime state is absent"));
         continue;
       }
-      const expectedMembers = ["REJECT", ...local.bindings.map((binding) => binding.node)];
+      const expectedMembers =
+        account.canonicalApprovedNodeIds.length === 0
+          ? [...account.publicSelectorMembers]
+          : ["REJECT", ...local.bindings.map((binding) => binding.node)];
       if (JSON.stringify(accountState.all) !== JSON.stringify(expectedMembers) || accountState.now !== "REJECT" || accountState.emptyFallback !== "REJECT" || accountState.udp !== true) {
-        issues.push(issue(["proxyStates", account.visibleGroup], "locked account selector must have REJECT first/current and exactly the local approved-node allowlist"));
+        issues.push(issue(["proxyStates", account.visibleGroup], "locked account selector must have REJECT first/current and the public stable groups or local approved-node allowlist"));
       }
       const graph: MaterializedGroupProof = { groups: { [account.visibleGroup]: accountState.all } };
-      validateAccountMaterializedGraph(account.visibleGroup, local.bindings.map((binding) => binding.node), graph);
+      const approvedTerminals =
+        account.canonicalApprovedNodeIds.length === 0
+          ? account.publicSelectorMembers.filter((member) => member !== "REJECT")
+          : local.bindings.map((binding) => binding.node);
+      validateAccountMaterializedGraph(account.visibleGroup, approvedTerminals, graph);
     } catch (error: unknown) {
       if (error instanceof RouterLocalConfigError) issues.push(...error.issues.map((entry) => issue(["materializedGroups", ...entry.path], entry.message)));
       else throw error;

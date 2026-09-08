@@ -65,7 +65,7 @@ def load_ini_mvp_plan() -> IniMvpPlan:
         raise RuntimeError("INI MVP plan has an invalid rules shape")
     before_legacy = validate_ini_mvp_rules(rules.get("beforeLegacy"), "beforeLegacy")
     after_legacy = validate_ini_mvp_rules(rules.get("afterLegacy"), "afterLegacy")
-    if len(before_legacy) != 2 or not after_legacy:
+    if len(before_legacy) < 2 or not after_legacy:
         raise RuntimeError("INI MVP plan requires ordered before/after legacy rules")
     all_rule_keys = [
         (record["kind"], record["target"], record.get("url"), record.get("interval"), record.get("value"))
@@ -73,16 +73,28 @@ def load_ini_mvp_plan() -> IniMvpPlan:
     ]
     if len(set(all_rule_keys)) != len(all_rule_keys):
         raise RuntimeError("INI MVP plan rule records must be unique across sections")
-    first_rule, terminal_reject = before_legacy[0], before_legacy[1]
-    if first_rule["kind"] != "remote-classical" or terminal_reject["kind"] != "remote-classical" or first_rule["target"] != account["protectedGroup"] or terminal_reject["target"] != account["rejectGroup"] or first_rule["url"] != terminal_reject["url"] or first_rule["interval"] != terminal_reject["interval"]:
-        raise RuntimeError("INI MVP protected terminal reject must immediately mirror the protected provider")
-    protected_provider_records = [
-        record
+    remote_urls = [
+        record["url"]
         for record in [*before_legacy, *after_legacy]
-        if record["kind"] == "remote-classical" and record["url"] == first_rule["url"] and record["interval"] == first_rule["interval"]
+        if record["kind"] == "remote-classical"
     ]
-    if protected_provider_records != [first_rule, terminal_reject]:
-        raise RuntimeError("INI MVP protected provider may only emit its adjacent protected/reject pair")
+    if len(set(remote_urls)) != len(remote_urls):
+        raise RuntimeError("INI MVP remote-classical provider URLs must be unique across targets")
+    protected_rule_indexes = [
+        index
+        for index, record in enumerate(before_legacy)
+        if record["kind"] == "remote-classical" and record["target"] == account["protectedGroup"]
+    ]
+    if len(protected_rule_indexes) != 1:
+        raise RuntimeError("INI MVP beforeLegacy must contain exactly one remote-classical targeting the protected group")
+    protected_index = protected_rule_indexes[0]
+    if protected_index != len(before_legacy) - 1:
+        raise RuntimeError("INI MVP protected remote-classical must appear last in beforeLegacy after ownership-override rules")
+    for index, record in enumerate(before_legacy[:-1]):
+        if record["kind"] != "remote-classical":
+            raise RuntimeError("INI MVP ownership-override rules must be remote-classical")
+        if record["target"] in {account["protectedGroup"], account["rejectGroup"]}:
+            raise RuntimeError("INI MVP ownership-override rules must not target the protected or reject group")
     groups = validate_ini_mvp_groups(value["groups"])
     group_names = {str(group["name"]) for group in groups}
     if group_names.intersection(external_groups):
@@ -97,8 +109,15 @@ def load_ini_mvp_plan() -> IniMvpPlan:
                 raise RuntimeError("INI MVP group references must resolve to plan or external groups")
     validate_ini_mvp_group_graph(groups, group_names)
     protected_group = next((group for group in groups if str(group["name"]) == account["protectedGroup"]), None)
-    if protected_group is None or protected_group["candidates"] != [{"kind": "group-ref", "value": account["rejectGroup"]}]:
-        raise RuntimeError("INI MVP protected group must be reject-only")
+    protected_candidates = None if protected_group is None else cast(list[dict[str, object]], protected_group["candidates"])
+    if (
+        protected_group is None
+        or protected_candidates is None
+        or len(protected_candidates) < 2
+        or protected_candidates[0] != {"kind": "group-ref", "value": account["rejectGroup"]}
+        or any(candidate.get("kind") != "group-ref" for candidate in protected_candidates[1:])
+    ):
+        raise RuntimeError("INI MVP protected group must be reject-first plus stable group-refs")
     for group in groups:
         candidates = cast(list[dict[str, object]], group["candidates"])
         if any(candidate["kind"] == "node-filter" for candidate in candidates):

@@ -178,12 +178,40 @@ export async function materializePrivateProfile(
     const matches = groups.filter((value): value is Record<string, unknown> => isObject(value) && value.name === account.visibleGroup);
     const group = matches[0];
     if (local === undefined || group === undefined || matches.length !== 1) throw new PrivateMaterializerError([issue(["account", account.serviceId], "candidate account group or local binding is absent or ambiguous")]);
-    const baseKeys = Object.keys(group).sort();
-    if (JSON.stringify(baseKeys) !== JSON.stringify(["empty-fallback", "name", "proxies", "type"]) || JSON.stringify(group.proxies) !== JSON.stringify(["REJECT"]) || group.type !== "select" || group["empty-fallback"] !== "REJECT") {
-      throw new PrivateMaterializerError([issue(["proxy-groups", account.visibleGroup], "public account group must retain exact locked REJECT-only base shape")]);
+    const proxies = group.proxies;
+    if (
+      JSON.stringify(Object.keys(group).sort()) !== JSON.stringify(["empty-fallback", "name", "proxies", "type"]) ||
+      group.type !== "select" ||
+      group["empty-fallback"] !== "REJECT" ||
+      !Array.isArray(proxies) ||
+      proxies.length < 2 ||
+      proxies[0] !== "REJECT" ||
+      proxies.slice(1).some((entry) => typeof entry !== "string" || !safeNode(entry))
+    ) {
+      throw new PrivateMaterializerError([issue(["proxy-groups", account.visibleGroup], "public account group must retain exact locked reject-first plus stable group-refs")]);
     }
     const ids = local.bindings.map((binding) => binding.approvedId).sort();
     if (JSON.stringify(ids) !== JSON.stringify([...account.canonicalApprovedNodeIds].sort())) throw new PrivateMaterializerError([issue(["account", account.serviceId], "local binding IDs do not exactly match canonical approved IDs")]);
+    if (account.canonicalApprovedNodeIds.length === 0) {
+      continue;
+    }
+    const pinnedName = typeof proxies[1] === "string" ? proxies[1] : undefined;
+    if (proxies.length !== 2 || pinnedName === undefined) {
+      throw new PrivateMaterializerError([issue(["proxy-groups", account.visibleGroup], "pinned account group must retain exact locked reject-first plus one pinned group-ref shape")]);
+    }
+    const pinnedMatches = groups.filter((value): value is Record<string, unknown> => isObject(value) && value.name === pinnedName);
+    const pinned = pinnedMatches[0];
+    if (pinned === undefined || pinnedMatches.length !== 1) {
+      throw new PrivateMaterializerError([issue(["proxy-groups", pinnedName], "public pinned stable group is absent or ambiguous")]);
+    }
+    if (
+      JSON.stringify(Object.keys(pinned).sort()) !== JSON.stringify(["empty-fallback", "filter", "name", "proxies", "type", "use"]) ||
+      pinned.type !== "select" ||
+      pinned["empty-fallback"] !== "REJECT" ||
+      JSON.stringify(pinned.proxies) !== JSON.stringify(["REJECT"])
+    ) {
+      throw new PrivateMaterializerError([issue(["proxy-groups", pinnedName], "public pinned stable group must retain exact locked REJECT-only filter shape")]);
+    }
     if (local.bindings.some((binding) => {
       const provider = providers[binding.provider];
       return !account.canonicalApprovedBindings.some((expected) => expected.approvedId === binding.approvedId && expected.provider === binding.provider) || !isObject(provider) || provider.type !== "http" || !safeNode(binding.node) || /^EXAMPLE/i.test(binding.node);
@@ -192,11 +220,10 @@ export async function materializePrivateProfile(
     }
     const nodes = local.bindings.map((binding) => binding.node);
     if (new Set(nodes).size !== nodes.length || nodes.length === 0) throw new PrivateMaterializerError([issue(["account", account.serviceId], "binding nodes must be nonempty and unique")]);
-    group.proxies = ["REJECT"];
-    group.use = [...new Set(local.bindings.map((binding) => binding.provider))].sort();
+    pinned.use = [...new Set(local.bindings.map((binding) => binding.provider))].sort();
     // Mihomo uses regexp2 for `filter`; this is a literal-only expression, not RE2 policy syntax.
-    group.filter = `^(?:${nodes.map(escapeRegexLiteral).join("|")})$`;
-    changed.push(account.visibleGroup);
+    pinned.filter = `^(?:${nodes.map(escapeRegexLiteral).join("|")})$`;
+    changed.push(pinnedName);
   }
   document["external-controller"] = deployment.controller.url.replace(/^http:\/\//, "");
   document.secret = secret;

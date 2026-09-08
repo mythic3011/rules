@@ -17,6 +17,7 @@ import type { RoutingConfig } from "#routing/schema.js";
 import { loadCanonicalInputs } from "#routing-test/support/canonical-inputs.js";
 
 const CLOUDCODE = "cloudcode-pa.googleapis.com";
+const GCS_OBJECT = "storage.googleapis.com";
 
 async function loadParityFixture(): Promise<{
   config: RoutingConfig;
@@ -35,7 +36,8 @@ test("semantic parity passes for every service currently in core/*.yaml", async 
   assert.ok(report.coverage.pythonOnly.includes("antigravity"));
   assert.ok(report.coverage.pythonOnly.includes("android-studio-ai"));
   assert.ok(report.coverage.canonicalOnly.includes("windsurf"));
-  assert.ok(report.coverage.canonicalOnly.includes("flow-music"));
+  assert.ok(report.coverage.both.includes("flow-music"));
+  assert.equal(report.coverage.canonicalOnly.includes("flow-music"), false);
   for (const serviceId of bothIds) {
     assert.equal(report.services[serviceId]?.sides, "both");
     assert.deepEqual(report.services[serviceId]?.mismatches, []);
@@ -81,6 +83,20 @@ test("legacyEffectiveConsumer equals first-match consumer from generated YAML ru
   const row = report.sharedBackends.find((entry) => entry.backendId === "google-code-assist");
   assert.equal(row?.ok, true);
   assert.equal(row?.derived, "antigravity");
+  const gcsDerived = deriveLegacyEffectiveConsumer(
+    artifacts.relaxedYaml,
+    artifacts.catalog,
+    GCS_OBJECT,
+  );
+  assert.equal(gcsDerived, "flow-music");
+  const gcs = config.sharedBackends["gcs-object-storage"];
+  assert.ok(gcs !== undefined);
+  assert.equal(gcs.legacyEffectiveConsumer, gcsDerived);
+  const gcsRow = report.sharedBackends.find(
+    (entry) => entry.backendId === "gcs-object-storage",
+  );
+  assert.equal(gcsRow?.ok, true);
+  assert.equal(gcsRow?.derived, "flow-music");
 });
 
 test("negative: flipping protection class fails candidate-shape for that service", async () => {

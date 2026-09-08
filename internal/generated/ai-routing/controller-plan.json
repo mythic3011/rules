@@ -258,22 +258,16 @@
       "serviceId": "claude",
       "visibleGroup": "🔐 Claude Account Guard",
       "initialSelection": "REJECT",
-      "canonicalApprovedNodeIds": [
-        "US-Claude-01",
-        "US-Claude-02"
-      ],
-      "canonicalApprovedBindings": [
-        {
-          "approvedId": "US-Claude-01",
-          "provider": "provider1"
-        },
-        {
-          "approvedId": "US-Claude-02",
-          "provider": "provider1"
-        }
+      "canonicalApprovedNodeIds": [],
+      "canonicalApprovedBindings": [],
+      "publicSelectorMembers": [
+        "REJECT",
+        "🇺🇸 US Stable",
+        "🇸🇬 SG Stable",
+        "🇯🇵 JP Stable"
       ],
       "localMaterialization": {
-        "exactNodeFilterRequired": true,
+        "exactNodeFilterRequired": false,
         "emptyFallback": "REJECT"
       },
       "dnsPolicyKeys": [

@@ -96,7 +96,7 @@
       "quic": "proxy-or-reject"
     }
   },
-  "revision": "b66a810431071f9300e4c85ac9ddf451b9786548ef9c61c40e685d49bca5c86d",
+  "revision": "43c3184f3303df9f078e328ee2c704c3ac764edfb9de629bb1674ff9c679be87",
   "schemaVersion": 1,
   "services": {
     "chatgpt": {
@@ -115,7 +115,11 @@
       "protectionClass": "stable-session"
     },
     "claude": {
-      "allowedRegions": [],
+      "allowedRegions": [
+        "us",
+        "sg",
+        "jp"
+      ],
       "dependencies": [],
       "matchers": {
         "domainSuffixes": [],

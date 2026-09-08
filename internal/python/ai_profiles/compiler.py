@@ -554,7 +554,9 @@ def _service_selector_candidates(
 
 
 def _compile_service_selectors(
-    catalog: Catalog, legacy_replacement_ids: set[str]
+    catalog: Catalog,
+    legacy_replacement_ids: set[str],
+    reserved_group_names: set[str] | frozenset[str] = frozenset(),
 ) -> tuple[IniServiceSelector, ...]:
     selectors: list[IniServiceSelector] = []
     for service in catalog.services:
@@ -564,6 +566,8 @@ def _compile_service_selectors(
             service.id in legacy_replacement_ids
             and not service.subconverter.emit_selector_when_legacy_replaced
         ):
+            continue
+        if service.group in reserved_group_names:
             continue
         candidates, comments = _service_selector_candidates(service, catalog)
         selectors.append(
@@ -575,6 +579,23 @@ def _compile_service_selectors(
     return tuple(selectors)
 
 
+def _partition_ini_mvp_groups(
+    catalog: Catalog,
+    groups: tuple[IniSelectGroup, ...],
+    protected_group_name: str,
+) -> tuple[tuple[IniSelectGroup, ...], IniSelectGroup, tuple[IniSelectGroup, ...]]:
+    stable_names = set(catalog.stable_group_names())
+    region_groups = tuple(group for group in groups if group.name in stable_names)
+    remaining = [group for group in groups if group.name not in stable_names]
+    if not region_groups:
+        raise RuntimeError("INI MVP plan requires catalog-resolved stable region groups")
+    protected = next((group for group in remaining if group.name == protected_group_name), None)
+    if protected is None:
+        raise RuntimeError("INI MVP plan requires the account-protected group")
+    session_groups = tuple(group for group in remaining if group.name != protected_group_name)
+    return region_groups, protected, session_groups
+
+
 def _build_subconverter_sections(
     catalog: Catalog,
     *,
@@ -583,7 +604,9 @@ def _build_subconverter_sections(
     process_rules: tuple[IniRule, ...],
     include_process_rules: bool,
     selectors: tuple[IniServiceSelector, ...],
-    stable_groups: tuple[IniSelectGroup, ...],
+    region_stable_groups: tuple[IniSelectGroup, ...],
+    account_group: IniSelectGroup,
+    session_groups: tuple[IniSelectGroup, ...],
     service_clusters: tuple[IniRuleCluster, ...],
     routing_tail_clusters: tuple[IniRuleCluster, ...],
 ):
@@ -629,7 +652,7 @@ def _build_subconverter_sections(
         ),
         IniGroupsSection(
             "stable-region-groups",
-            groups=stable_groups[:3],
+            groups=region_stable_groups,
             title="Level 1 — Stable manual region groups",
             blank_between_groups=True,
         ),
@@ -647,12 +670,12 @@ def _build_subconverter_sections(
         ),
         IniGroupsSection(
             "account-group",
-            groups=(stable_groups[3],),
+            groups=(account_group,),
             title="Account-protected service",
         ),
         IniGroupsSection(
             "stable-session-groups",
-            groups=stable_groups[4:],
+            groups=session_groups,
             title="Stable-session / explicitly separated AI services",
             blank_between_groups=True,
         ),
@@ -675,9 +698,12 @@ def compile_subconverter_plan(
     legacy_replacement_ids = set(ini_mvp["migration"]["legacyReplacementIds"])
     before_legacy = tuple(_normalize_ini_rule(record) for record in ini_mvp["rules"]["beforeLegacy"])
     after_legacy = tuple(_normalize_ini_rule(record) for record in ini_mvp["rules"]["afterLegacy"])
-    stable_groups = tuple(_normalize_ini_group(group) for group in ini_mvp["groups"])
-    if len(stable_groups) < 4:
-        raise RuntimeError("INI MVP plan requires at least four groups for legacy layout projection")
+    mvp_groups = tuple(_normalize_ini_group(group) for group in ini_mvp["groups"])
+    region_stable_groups, account_group, session_groups = _partition_ini_mvp_groups(
+        catalog,
+        mvp_groups,
+        ini_mvp["accountProtection"]["protectedGroup"],
+    )
 
     plan = SubconverterPlan(
         sections=_build_subconverter_sections(
@@ -686,8 +712,14 @@ def compile_subconverter_plan(
             after_legacy=after_legacy,
             process_rules=_compile_process_rules(catalog, include_process_rules),
             include_process_rules=include_process_rules,
-            selectors=_compile_service_selectors(catalog, legacy_replacement_ids),
-            stable_groups=stable_groups,
+            selectors=_compile_service_selectors(
+                catalog,
+                legacy_replacement_ids,
+                {group.name for group in mvp_groups},
+            ),
+            region_stable_groups=region_stable_groups,
+            account_group=account_group,
+            session_groups=session_groups,
             service_clusters=_compile_service_rule_clusters(
                 catalog.services, legacy_replacement_ids
             ),

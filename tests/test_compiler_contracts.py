@@ -67,12 +67,9 @@ class CompilerContractsTest(unittest.TestCase):
         )
         self.assertEqual(
             [candidate.value for candidate in first.group.candidates],
-            [self.catalog.group("reject"), self.catalog.group("manual")],
+            [*self.catalog.stable_group_names(), self.catalog.group("reject")],
         )
-        self.assertEqual(
-            first.comments,
-            ("; ChatGPT is fail-closed.", "; User must explicitly select 手動選擇."),
-        )
+        self.assertEqual(first.comments, ())
 
     def test_compiler_has_no_named_service_policy_literals(self) -> None:
         compiler_source = (ROOT / "internal" / "python" / "ai_profiles" / "compiler.py").read_text(

@@ -252,7 +252,7 @@ class GenerateAiProfilesTest(unittest.TestCase):
         self.assertIn(f"[]{MODULE.GROUP['direct']}", manual_group)
         self.assertIn(MODULE.AI_POOL_FILTER, manual_group)
 
-    def test_should_render_ini_mvp_before_legacy_and_keep_claude_reject_only(self) -> None:
+    def test_should_render_ini_mvp_before_legacy_and_keep_claude_reject_first_plus_stables(self) -> None:
         rendered_ini = MODULE.render_ini()
         plan = load_plan()
         compiled = MODULE.compile_subconverter_plan(
@@ -296,6 +296,7 @@ class GenerateAiProfilesTest(unittest.TestCase):
             lines = self.extract_ini_group_lines(rendered_ini, name)
             self.assertTrue(lines, name)
             self.assertIn(expected, lines)
+            self.assertEqual(len(lines), 1, name)
 
         migration = plan.get("migration")
         self.assertIsInstance(migration, dict)
@@ -327,12 +328,29 @@ class GenerateAiProfilesTest(unittest.TestCase):
         invalid_plans.append(unknown_field)
 
         tampered_protected_rule = json.loads(json.dumps(plan))
-        tampered_protected_rule["rules"]["beforeLegacy"][0]["target"] = MODULE.BUILTIN_DIRECT
+        protected_rule = next(
+            record
+            for record in tampered_protected_rule["rules"]["beforeLegacy"]
+            if record["kind"] == "remote-classical"
+            and record["target"] == tampered_protected_rule["accountProtection"]["protectedGroup"]
+        )
+        protected_rule["target"] = MODULE.BUILTIN_DIRECT
         invalid_plans.append(tampered_protected_rule)
 
-        mismatched_protected_terminal = json.loads(json.dumps(plan))
-        mismatched_protected_terminal["rules"]["beforeLegacy"][1]["url"] = "https://example.invalid/invalid-rule.yaml"
-        invalid_plans.append(mismatched_protected_terminal)
+        duplicate_protected_url = json.loads(json.dumps(plan))
+        protected_url_rule = next(
+            record
+            for record in duplicate_protected_url["rules"]["beforeLegacy"]
+            if record["kind"] == "remote-classical"
+            and record["target"] == duplicate_protected_url["accountProtection"]["protectedGroup"]
+        )
+        duplicate_protected_url["rules"]["afterLegacy"].append(
+            {
+                **protected_url_rule,
+                "target": CATALOG.group("direct"),
+            }
+        )
+        invalid_plans.append(duplicate_protected_url)
 
         missing_protected_group = json.loads(json.dumps(plan))
         missing_protected_group["accountProtection"]["protectedGroup"] = "Missing Protected Group"

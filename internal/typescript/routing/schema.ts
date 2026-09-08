@@ -191,8 +191,8 @@ export const SharedBackendSchema = z
     displayName: z.string().min(1).optional(),
     domains: z.array(z.string().min(1)).min(1),
     consumers: z.array(IdSchema).min(1),
-    // COMPATIBILITY METADATA ONLY — derived from generated legacy rule order.
-    // Not canonical ownership; must not change precedence in Phase 1.
+    // Compatibility metadata from generated YAML first-match. Compilers also
+    // consume sharedBackends for ownership-override projection.
     legacyEffectiveConsumer: IdSchema.optional(),
   })
   .strict();

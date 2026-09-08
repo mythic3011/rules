@@ -68,7 +68,20 @@
       ],
       "mihomoWhen": "relaxed",
       "provider": null,
-      "subconverterCluster": "geoip-hk"
+      "subconverterCluster": "geoip-direct"
+    },
+    {
+      "id": "cn-direct",
+      "kind": "GEOIP",
+      "value": "CN",
+      "targetGroupKey": "direct",
+      "strictTargetGroupKey": null,
+      "options": [
+        "no-resolve"
+      ],
+      "mihomoWhen": "relaxed",
+      "provider": null,
+      "subconverterCluster": "geoip-direct"
     },
     {
       "id": "gaming-pc-default-direct",

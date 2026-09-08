@@ -141,6 +141,9 @@ test("routing loader hydrates catalog-owned service identity and endpoint metada
   assert.equal(config.services.windsurf?.endpoints.service?.ruleset, "AI_Windsurf_Classical");
   assert.equal(config.services.claude?.displayName, "🔐 Claude Account Guard");
   assert.equal(config.services.claude?.selector.visibleGroup, "🔐 Claude Account Guard");
+  assert.equal(config.services["flow-music"]?.displayName, "🎵 Flow Music");
+  assert.equal(config.services["flow-music"]?.selector.visibleGroup, "🎵 Flow Music");
+  assert.equal(config.services["flow-music"]?.endpoints.service?.ruleset, "Flow_Music_Classical");
 });
 
 test("service catalog validation fails closed for malformed and duplicate identities", async () => {
@@ -285,22 +288,31 @@ test("stable/realtime services and non-dynamic protection classes reject selecta
 test("pinned egress rejects built-ins and duplicate approved node identities", async () => {
   const { config } = await loadCanonicalInputs();
   const mutated = structuredClone(config);
-  const target = mutated.routeTargets["claude-us-pinned"];
+  mutated.routeTargets["test-pinned"] = {
+    kind: "pinned-egress",
+    group: "Test Pinned",
+    approvedNodes: ["Node-A"],
+    emptyFallback: "REJECT",
+    dynamic: false,
+  };
+  const target = mutated.routeTargets["test-pinned"];
   assert.ok(target !== undefined && target.kind === "pinned-egress");
-  target.approvedNodes.push("direct", "US-Claude-01");
+  target.approvedNodes.push("direct", "Node-A");
   const issues = validateRoutingSemantics(mutated);
   assert.ok(
     issues.some(
       (entry) =>
-        entry.path.join(".") === "routeTargets.claude-us-pinned.approvedNodes",
+        entry.path.join(".") === "routeTargets.test-pinned.approvedNodes",
     ),
+    JSON.stringify(issues),
   );
   assert.ok(
     issues.some(
       (entry) =>
-        entry.path.join(".") ===
-        "routeTargets.claude-us-pinned.approvedNodes.2",
+        entry.path.join(".") === "routeTargets.test-pinned.approvedNodes.1" ||
+        entry.path.join(".") === "routeTargets.test-pinned.approvedNodes.2",
     ),
+    JSON.stringify(issues),
   );
 });
 

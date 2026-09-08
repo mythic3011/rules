@@ -20,29 +20,6 @@ test("private materializer preserves the candidate except allowed private deltas
       controller: { url: "http://127.0.0.1:9090", secretFile: secret },
     };
     const egress = structuredClone(harness.egress);
-    const bindings = (
-      egress.services as Record<
-        string,
-        {
-          bindings: Array<{
-            approvedId: string;
-            node: string;
-            provider: string;
-          }>;
-        }
-      >
-    ).claude?.bindings;
-    assert.ok(bindings !== undefined);
-    bindings[0] = {
-      approvedId: "US-Claude-01",
-      node: "節點 A + (safe)",
-      provider: "provider1",
-    };
-    bindings[1] = {
-      approvedId: "US-Claude-02",
-      node: "node [B]?",
-      provider: "provider1",
-    };
     const report = await materializePrivateProfile(
       candidatePath,
       output,
@@ -52,7 +29,7 @@ test("private materializer preserves the candidate except allowed private deltas
       options,
     );
     assert.deepEqual(report, {
-      changedGroups: ["🔐 Claude Account Guard"],
+      changedGroups: [],
       controllerChanged: true,
       startupGate: "still-required",
     });
@@ -66,44 +43,52 @@ test("private materializer preserves the candidate except allowed private deltas
     const account = groups.find(
       (group) => group.name === "🔐 Claude Account Guard",
     );
-    assert.deepEqual(account?.proxies, ["REJECT"]);
-    assert.deepEqual(account?.use, ["provider1"]);
+    assert.deepEqual(account?.proxies, [
+      "REJECT",
+      "🇺🇸 US Stable",
+      "🇸🇬 SG Stable",
+      "🇯🇵 JP Stable",
+    ]);
+    assert.equal(account?.use, undefined);
+    assert.equal(account?.filter, undefined);
     assert.equal(
-      account?.filter,
-      "^(?:節點 A \\+ \\(safe\\)|node \\[B\\]\\?)$",
+      groups.some((group) => group.name === "🔐 Claude US Pinned"),
+      false,
     );
-    assert.doesNotThrow(() => new RegExp(String(account?.filter), "u"));
     assert.equal(rendered["external-controller"], "127.0.0.1:9090");
     assert.equal(rendered.secret, "private-secret-value");
     assert.ok((rendered.rules as string[]).includes("MATCH,🐟 漏網之魚"));
     const candidate = YAML.parse(
-      await readFile(
-      candidatePath,
-        "utf8",
-      ),
+      await readFile(candidatePath, "utf8"),
     ) as Record<string, unknown>;
     const normalized = structuredClone(rendered);
     delete normalized["external-controller"];
     delete normalized.secret;
-    const normalizedGroup = (
-      normalized["proxy-groups"] as Array<Record<string, unknown>>
-    ).find((group) => group.name === "🔐 Claude Account Guard");
-    assert.ok(normalizedGroup !== undefined);
-    delete normalizedGroup.use;
-    delete normalizedGroup.filter;
     delete candidate["external-controller"];
     delete candidate.secret;
     assert.deepEqual(normalized, candidate);
 
     const unauthorized = structuredClone(egress);
     (
-      (
-        unauthorized.services as Record<
-          string,
-          { bindings: Array<{ provider: string }> }
-        >
-      ).claude?.bindings[0] as { provider: string }
-    ).provider = "other-provider";
+      unauthorized.services as Record<
+        string,
+        {
+          bindings: Array<{
+            approvedId: string;
+            node: string;
+            provider: string;
+          }>;
+        }
+      >
+    ).claude = {
+      bindings: [
+        {
+          approvedId: "US-Claude-01",
+          node: "節點 A + (safe)",
+          provider: "other-provider",
+        },
+      ],
+    };
     await assert.rejects(
       () =>
         materializePrivateProfile(
@@ -120,9 +105,25 @@ test("private materializer preserves the candidate except allowed private deltas
     );
     const unsafe = structuredClone(egress);
     (
-      (unsafe.services as Record<string, { bindings: Array<{ node: string }> }>)
-        .claude?.bindings[0] as { node: string }
-    ).node = "bad\u0001node";
+      unsafe.services as Record<
+        string,
+        {
+          bindings: Array<{
+            approvedId: string;
+            node: string;
+            provider: string;
+          }>;
+        }
+      >
+    ).claude = {
+      bindings: [
+        {
+          approvedId: "US-Claude-01",
+          node: "unsafe-node",
+          provider: "provider1",
+        },
+      ],
+    };
     await assert.rejects(
       () =>
         materializePrivateProfile(
@@ -263,17 +264,31 @@ test("private materializer rejects shape drift, duplicates, unsafe paths, and cl
       false,
     );
     const duplicateNode = structuredClone(egress);
-    const bindings = (
+    (
       duplicateNode.services as Record<
         string,
-        { bindings: Array<{ node: string }> }
+        {
+          bindings: Array<{
+            approvedId: string;
+            node: string;
+            provider: string;
+          }>;
+        }
       >
-    ).claude?.bindings;
-    assert.ok(bindings !== undefined);
-    const first = bindings[0];
-    const second = bindings[1];
-    assert.ok(first !== undefined && second !== undefined);
-    second.node = first.node;
+    ).claude = {
+      bindings: [
+        {
+          approvedId: "US-Claude-01",
+          node: "same-node",
+          provider: "provider1",
+        },
+        {
+          approvedId: "US-Claude-02",
+          node: "same-node",
+          provider: "provider1",
+        },
+      ],
+    };
     await writeFile(candidate, YAML.stringify(original));
     await assert.rejects(
       () =>

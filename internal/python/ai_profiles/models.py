@@ -264,6 +264,12 @@ class Catalog:
         except KeyError as exc:
             raise KeyError(f"Unknown group key: {key}") from exc
 
+    def stable_group_keys(self) -> tuple[str, ...]:
+        return tuple(key for key in self.groups if key.endswith("-stable"))
+
+    def stable_group_names(self) -> tuple[str, ...]:
+        return tuple(self.groups[key] for key in self.stable_group_keys())
+
     def services_by_family(self, family: str) -> tuple[ServiceSpec, ...]:
         return tuple(service for service in self.services if service.family == family)
 

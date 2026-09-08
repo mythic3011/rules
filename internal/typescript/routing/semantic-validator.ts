@@ -52,7 +52,10 @@ export function isAccountSafeTarget(target: RouteTarget): boolean {
   if (target.kind === "reject") {
     return true;
   }
-  if (target.kind !== "pinned-egress" || target.dynamic) {
+  if (target.dynamic) {
+    return false;
+  }
+  if (target.kind !== "pinned-egress" && target.kind !== "region-stable") {
     return false;
   }
   const group = target.group.toLowerCase();
@@ -237,7 +240,7 @@ export function validateRoutingSemantics(config: RoutingConfig): RoutingIssue[] 
             issue(
               "policy-invariant",
               [...servicePath, "allowedRoutes", index],
-              "account-protected services may only reference reject or a non-dynamic pinned-egress route",
+              "account-protected services may only reference reject, region-stable, or a non-dynamic pinned-egress route",
             ),
           );
         }
@@ -385,14 +388,19 @@ export function validateRoutingSemantics(config: RoutingConfig): RoutingIssue[] 
       for (const [index, resolver] of dnsPolicy.resolvers.entries()) {
         if (resolver.viaRoute === undefined) {
           issues.push(
-            issue("policy-invariant", ["dns", "profiles", profileId, "servicePolicies", serviceId, "resolvers", index], "account-protected resolver must use an approved pinned-egress route"),
+            issue("policy-invariant", ["dns", "profiles", profileId, "servicePolicies", serviceId, "resolvers", index], "account-protected resolver must use an approved non-dynamic route"),
           );
           continue;
         }
         const target = validateRouteRef(config, resolver.viaRoute, ["dns", "profiles", profileId, "servicePolicies", serviceId, "resolvers", index, "viaRoute"], issues);
-        if (target?.kind !== "pinned-egress" || !service.allowedRoutes.includes(resolver.viaRoute)) {
+        if (
+          target === undefined ||
+          target.kind === "reject" ||
+          !isAccountSafeTarget(target) ||
+          !service.allowedRoutes.includes(resolver.viaRoute)
+        ) {
           issues.push(
-            issue("policy-invariant", ["dns", "profiles", profileId, "servicePolicies", serviceId, "resolvers", index, "viaRoute"], "account-protected resolver must use a service-allowed pinned-egress route"),
+            issue("policy-invariant", ["dns", "profiles", profileId, "servicePolicies", serviceId, "resolvers", index, "viaRoute"], "account-protected resolver must use a service-allowed region-stable or pinned-egress route"),
           );
         }
       }
@@ -464,7 +472,19 @@ export function validateSharedBackends(config: RoutingConfig): RoutingIssue[] {
   return issues;
 }
 
+export function isOwnershipOverrideService(config: RoutingConfig, serviceId: string): boolean {
+  const service = config.services[serviceId];
+  if (service === undefined) return false;
+  const hosts = new Set(service.dependencies.map((dependency) => dependency.host));
+  for (const backend of Object.values(config.sharedBackends)) {
+    if (!backend.consumers.includes(serviceId)) continue;
+    if (backend.domains.some((domain) => hosts.has(domain))) return true;
+  }
+  return false;
+}
+
 export type RuleOrderingStage =
+  | "ownership-override"
   | "account-protected"
   | "account-terminal-reject"
   | "specific-service"
@@ -473,6 +493,7 @@ export type RuleOrderingStage =
   | "match";
 
 const RULE_ORDER: readonly RuleOrderingStage[] = [
+  "ownership-override",
   "account-protected",
   "account-terminal-reject",
   "specific-service",

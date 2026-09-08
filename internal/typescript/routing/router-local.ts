@@ -45,7 +45,7 @@ export const RouterDeploymentSchema = z.object({
 
 const BindingSchema = z.object({ approvedId: NodeName, node: NodeName, provider: Id }).strict();
 const LocalServiceSchema = z.object({
-  bindings: z.array(BindingSchema).min(1),
+  bindings: z.array(BindingSchema),
   revokedNodes: z.array(NodeName).default([]),
 }).strict();
 

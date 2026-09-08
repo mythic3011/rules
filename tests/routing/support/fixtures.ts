@@ -120,18 +120,7 @@ export function egressFixture(
   const {
     policyVersion = "1",
     serviceId = "claude",
-    bindings = [
-      {
-        approvedId: "US-Claude-01",
-        node: "EXAMPLE-APPROVED-NODE-ONE",
-        provider: "provider1",
-      },
-      {
-        approvedId: "US-Claude-02",
-        node: "EXAMPLE-APPROVED-NODE-TWO",
-        provider: "provider1",
-      },
-    ],
+    bindings = [],
     revokedNodes = [],
   } = options;
   return {

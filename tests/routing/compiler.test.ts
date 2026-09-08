@@ -39,34 +39,46 @@ test("canonical HK matrix and protected Claude configuration validate", async ()
   assert.deepEqual(validateRoutingSemantics(config), []);
 });
 
-test("INI MVP plan owns ordered rules/groups, pins providers, and keeps Claude reject-only", async () => {
+test("INI MVP plan owns ordered rules/groups, pins providers, and keeps Claude reject-first plus region stables", async () => {
   const { config, projection } = await loadCanonicalInputs();
   const plan = compileIniMvpPlan(config, projection);
   const vpsdance = projection.sources.vpsdance;
+  const localRules = projection.sources["local-rules"];
   assert.ok(vpsdance !== undefined);
+  assert.ok(localRules !== undefined);
   assert.deepEqual(plan.migration.migratedServiceIds, [
     "claude",
+    "flow-music",
     "windsurf",
     "huggingface",
   ]);
   assert.deepEqual(plan.migration.legacyReplacementIds, ["claude"]);
   assert.equal(plan.profile, "hk");
   assert.deepEqual(plan.externalGroups, ["🎯 全球直連", "⛔ 拒絕"]);
-  const [claudeRule, claudeReject] = plan.rules.beforeLegacy;
+  const [flowMusicRule, claudeRule] = plan.rules.beforeLegacy;
+  assert.equal(flowMusicRule?.kind, "remote-classical");
   assert.equal(claudeRule?.kind, "remote-classical");
-  assert.equal(claudeReject?.kind, "remote-classical");
   if (
-    claudeRule?.kind !== "remote-classical" ||
-    claudeReject?.kind !== "remote-classical"
+    flowMusicRule?.kind !== "remote-classical" ||
+    claudeRule?.kind !== "remote-classical"
   )
-    throw new Error("expected Claude remote rule pair");
+    throw new Error("expected Flow Music then Claude remote rules");
+  assert.equal(flowMusicRule.target, "🎵 Flow Music");
   assert.equal(claudeRule.target, "🔐 Claude Account Guard");
-  assert.equal(claudeReject.target, "⛔ 拒絕");
-  assert.equal(claudeRule.url, claudeReject.url);
-  assert.equal(claudeRule.interval, claudeReject.interval);
+  assert.notEqual(flowMusicRule.url, claudeRule.url);
+  assert.equal(
+    flowMusicRule.url,
+    `${localRules.rawBaseUrl}/${localRules.revision}/rule/Flow_Music_Classical.yaml`,
+  );
   assert.equal(
     claudeRule.url,
     `${vpsdance.rawBaseUrl}/${vpsdance.revision}/rules/clash/anthropic.yaml`,
+  );
+  assert.equal(
+    plan.rules.beforeLegacy.filter(
+      (rule) => rule.kind === "remote-classical" && rule.url === claudeRule.url,
+    ).length,
+    1,
   );
   assert.deepEqual(
     plan.rules.afterLegacy.map((rule) =>
@@ -85,6 +97,9 @@ test("INI MVP plan owns ordered rules/groups, pins providers, and keeps Claude r
   const claudeGroup = plan.groups.find(
     (group) => group.name === "🔐 Claude Account Guard",
   );
+  const flowMusicGroup = plan.groups.find(
+    (group) => group.name === "🎵 Flow Music",
+  );
   const windsurfGroup = plan.groups.find(
     (group) => group.name === "🌊 Windsurf",
   );
@@ -94,9 +109,24 @@ test("INI MVP plan owns ordered rules/groups, pins providers, and keeps Claude r
   const stableGroups = plan.groups.filter((group) =>
     group.candidates.some((candidate) => candidate.kind === "node-filter"),
   );
+  const claudeIndex = plan.groups.findIndex(
+    (group) => group.name === "🔐 Claude Account Guard",
+  );
+  assert.equal(claudeIndex, 3);
+  assert.equal(
+    plan.groups.some((group) => group.name === "🔐 Claude US Pinned"),
+    false,
+  );
   assert.deepEqual(claudeGroup?.candidates, [
     { kind: "group-ref", value: "⛔ 拒絕" },
+    { kind: "group-ref", value: "🇺🇸 US Stable" },
+    { kind: "group-ref", value: "🇸🇬 SG Stable" },
+    { kind: "group-ref", value: "🇯🇵 JP Stable" },
   ]);
+  assert.deepEqual(
+    flowMusicGroup?.candidates.map((candidate) => candidate.value),
+    ["🇯🇵 JP Stable", "🇸🇬 SG Stable", "🇺🇸 US Stable", "⛔ 拒絕"],
+  );
   assert.deepEqual(
     windsurfGroup?.candidates.map((candidate) => candidate.value),
     ["🇺🇸 US Stable", "🇸🇬 SG Stable", "🇯🇵 JP Stable", "⛔ 拒絕"],
@@ -122,16 +152,28 @@ test("INI MVP plan owns ordered rules/groups, pins providers, and keeps Claude r
   const mustReject = (candidate: unknown): void => {
     assert.throws(() => IniMvpPlanSchema.parse(candidate));
   };
-  const directClaude = structuredClone(plan);
-  directClaude.rules.beforeLegacy[0]!.target = "🎯 全球直連";
-  mustReject(directClaude);
+  const retargetProtected = structuredClone(plan);
+  const protectedRule = retargetProtected.rules.beforeLegacy.find(
+    (rule) =>
+      rule.kind === "remote-classical" &&
+      rule.target === "🔐 Claude Account Guard",
+  );
+  if (protectedRule === undefined) throw new Error("expected protected rule");
+  protectedRule.target = "🎯 全球直連";
+  mustReject(retargetProtected);
 
-  const mismatchedClaudeTerminal = structuredClone(plan);
-  const terminal = mismatchedClaudeTerminal.rules.beforeLegacy[1];
-  if (terminal?.kind !== "remote-classical")
-    throw new Error("expected Claude terminal reject");
-  terminal.url = "https://example.invalid/anthropic.yaml";
-  mustReject(mismatchedClaudeTerminal);
+  const duplicateClaudeUrl = structuredClone(plan);
+  const claudeRemote = duplicateClaudeUrl.rules.beforeLegacy.find(
+    (rule) =>
+      rule.kind === "remote-classical" &&
+      rule.target === "🔐 Claude Account Guard",
+  );
+  const afterHead = duplicateClaudeUrl.rules.afterLegacy[0];
+  if (claudeRemote?.kind !== "remote-classical" || afterHead?.kind !== "remote-classical") {
+    throw new Error("expected Claude and afterLegacy remote rules");
+  }
+  afterHead.url = claudeRemote.url;
+  mustReject(duplicateClaudeUrl);
 
   const missingProtectedGroup = structuredClone(plan);
   missingProtectedGroup.accountProtection.protectedGroup =
@@ -238,9 +280,13 @@ test("compiler preview resolves the canonical HK service matrix and keeps Claude
     assert.equal(firstChoice.route.group, "REJECT");
     assert.deepEqual(
       claude.selector.choices
-        .filter((choice) => choice.kind === "approved-node")
-        .map((choice) => choice.node),
-      ["US-Claude-01", "US-Claude-02"],
+        .filter((choice) => choice.kind === "route")
+        .map((choice) => choice.route.id),
+      ["reject", "us-stable", "sg-stable", "jp-stable"],
+    );
+    assert.deepEqual(
+      claude.selector.choices.filter((choice) => choice.kind === "approved-node"),
+      [],
     );
   }
   for (const serviceId of [

@@ -1,8 +1,7 @@
-# Declarative + descriptive only in Phase 1. Does not emit rules or change
-# precedence. legacyEffectiveConsumer is compatibility metadata derived from
-# cfg/yaml/Custom_Clash_AI.yaml RULE-SET order: AI_Antigravity_Classical
-# appears before AI_AndroidStudioAI_Classical, so Antigravity currently wins
-# cloudcode-pa.googleapis.com under Mihomo first-match.
+# Compilers consume sharedBackends for ownership-override projection.
+# An upstream ruleset name does not imply ownership of every host it lists.
+# legacyEffectiveConsumer is compatibility metadata derived from generated
+# YAML first-match (catalog payload + RULE-SET order).
 sharedBackends:
   google-code-assist:
     displayName: "Google Code Assist backend"
@@ -12,3 +11,10 @@ sharedBackends:
       - android-studio-ai
       - antigravity
     legacyEffectiveConsumer: antigravity
+  gcs-object-storage:
+    displayName: "GCS object storage"
+    domains:
+      - storage.googleapis.com
+    consumers:
+      - flow-music
+    legacyEffectiveConsumer: flow-music

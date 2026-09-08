@@ -13,6 +13,9 @@ export default {
     "auto": "♻️ 自動選擇",
     "direct": "🎯 全球直連",
     "reject": "⛔ 拒絕",
+    "us-stable": "🇺🇸 US Stable",
+    "sg-stable": "🇸🇬 SG Stable",
+    "jp-stable": "🇯🇵 JP Stable",
     "fallback": "🐟 漏網之魚",
     "stable-session": "💳 穩定會話",
     "high-risk-account": "🔐 高風險帳戶",
@@ -53,6 +56,7 @@ export default {
     "android-studio-ai": "🤖 Android Studio AI",
     "gemini-cloud": "🤖 Gemini Cloud",
     "vertex-ai": "🤖 Vertex AI",
+    "flow-music": "🎵 Flow Music",
     "opencode": "🤖 OpenCode",
     "ai-other": "🤖 AI Other",
     "ai-cn-other": "🤖 AI CN Other"
@@ -575,15 +579,15 @@ export default {
         "rules": [
           {
             "kind": "remote-classical",
-            "target": "🔐 Claude Account Guard",
-            "url": "https://raw.githubusercontent.com/VPSDance/ai-proxy-rules/d07cac190c33e7914ba7adaf7e7c14298fba7024/rules/clash/anthropic.yaml",
+            "target": "🎵 Flow Music",
+            "url": "https://raw.githubusercontent.com/mythic3011/rules/0e9631339904f4a989c884781570b5756d82c9a3/rule/Flow_Music_Classical.yaml",
             "interval": 10800,
             "value": null,
             "options": []
           },
           {
             "kind": "remote-classical",
-            "target": "⛔ 拒絕",
+            "target": "🔐 Claude Account Guard",
             "url": "https://raw.githubusercontent.com/VPSDance/ai-proxy-rules/d07cac190c33e7914ba7adaf7e7c14298fba7024/rules/clash/anthropic.yaml",
             "interval": 10800,
             "value": null,
@@ -759,6 +763,19 @@ export default {
                 "kind": "remote-classical",
                 "target": "🤖 Vertex AI",
                 "url": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_VertexAI_Classical.yaml",
+                "interval": 28800,
+                "value": null,
+                "options": []
+              }
+            ]
+          },
+          {
+            "source": "service",
+            "rules": [
+              {
+                "kind": "remote-classical",
+                "target": "🎵 Flow Music",
+                "url": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/Flow_Music_Classical.yaml",
                 "interval": 28800,
                 "value": null,
                 "options": []
@@ -1012,6 +1029,16 @@ export default {
                 "url": null,
                 "interval": null,
                 "value": "HK",
+                "options": [
+                  "no-resolve"
+                ]
+              },
+              {
+                "kind": "geoip",
+                "target": "🎯 全球直連",
+                "url": null,
+                "interval": null,
+                "value": "CN",
                 "options": [
                   "no-resolve"
                 ]
@@ -1323,21 +1350,26 @@ export default {
         "type": "selectors",
         "selectors": [
           {
-            "comments": [
-              "; ChatGPT is fail-closed.",
-              "; User must explicitly select 手動選擇."
-            ],
+            "comments": [],
             "group": {
               "type": "select-group",
               "name": "🤖 ChatGPT",
               "candidates": [
                 {
                   "kind": "group-ref",
-                  "value": "⛔ 拒絕"
+                  "value": "🇺🇸 US Stable"
                 },
                 {
                   "kind": "group-ref",
-                  "value": "🚀 手動選擇"
+                  "value": "🇸🇬 SG Stable"
+                },
+                {
+                  "kind": "group-ref",
+                  "value": "🇯🇵 JP Stable"
+                },
+                {
+                  "kind": "group-ref",
+                  "value": "⛔ 拒絕"
                 }
               ]
             }
@@ -1667,47 +1699,6 @@ export default {
             "group": {
               "type": "select-group",
               "name": "🤖 Cursor",
-              "candidates": [
-                {
-                  "kind": "group-ref",
-                  "value": "🎯 全球直連"
-                },
-                {
-                  "kind": "group-ref",
-                  "value": "🇺🇸 美國節點"
-                },
-                {
-                  "kind": "group-ref",
-                  "value": "🇯🇵 日本節點"
-                },
-                {
-                  "kind": "group-ref",
-                  "value": "🇸🇬 新加坡節點"
-                },
-                {
-                  "kind": "group-ref",
-                  "value": "🇹🇼 台灣節點"
-                },
-                {
-                  "kind": "group-ref",
-                  "value": "🇰🇷 韓國節點"
-                },
-                {
-                  "kind": "group-ref",
-                  "value": "🌐 其他／未識別節點"
-                },
-                {
-                  "kind": "group-ref",
-                  "value": "⛔ 拒絕"
-                }
-              ]
-            }
-          },
-          {
-            "comments": [],
-            "group": {
-              "type": "select-group",
-              "name": "🤗 Hugging Face",
               "candidates": [
                 {
                   "kind": "group-ref",
@@ -2080,6 +2071,18 @@ export default {
               {
                 "kind": "group-ref",
                 "value": "⛔ 拒絕"
+              },
+              {
+                "kind": "group-ref",
+                "value": "🇺🇸 US Stable"
+              },
+              {
+                "kind": "group-ref",
+                "value": "🇸🇬 SG Stable"
+              },
+              {
+                "kind": "group-ref",
+                "value": "🇯🇵 JP Stable"
               }
             ]
           }
@@ -2092,6 +2095,28 @@ export default {
         "role": "stable-session-groups",
         "type": "groups",
         "groups": [
+          {
+            "type": "select-group",
+            "name": "🎵 Flow Music",
+            "candidates": [
+              {
+                "kind": "group-ref",
+                "value": "🇯🇵 JP Stable"
+              },
+              {
+                "kind": "group-ref",
+                "value": "🇸🇬 SG Stable"
+              },
+              {
+                "kind": "group-ref",
+                "value": "🇺🇸 US Stable"
+              },
+              {
+                "kind": "group-ref",
+                "value": "⛔ 拒絕"
+              }
+            ]
+          },
           {
             "type": "select-group",
             "name": "🌊 Windsurf",
@@ -2215,7 +2240,7 @@ export default {
         "onlyNodeRegions": [],
         "preferredNodeRegions": []
       },
-      "customBodySha256": "95734b21dbd6772d2d34f6efc114968f73d1d3b50321e8d9b4e73ccb5e584a6d"
+      "customBodySha256": "28b88e0aadf2b0f536af593ddbd1638b164304e77e2d556c778d03f6fc79a8fe"
     },
     "only-us-sg-prefer-sg": {
       "spec": {
@@ -2230,7 +2255,7 @@ export default {
           "sg"
         ]
       },
-      "customBodySha256": "c77f4717e5081ba12c0cb4ff6c8bc751a9a302fbfe94f532e2761342f21a05cf"
+      "customBodySha256": "163ebd606fe227873cd895401b203217fdbe7d7325dbf79bd4b076bf0f0c42eb"
     },
     "disable-hk": {
       "spec": {
@@ -2242,7 +2267,7 @@ export default {
         "onlyNodeRegions": [],
         "preferredNodeRegions": []
       },
-      "customBodySha256": "331e24065f4053750626918c7afa8347e749d5778e2f79a6dc61df904f312dc9"
+      "customBodySha256": "a0a40d12167bd25a9113d35d8970b83cf672ba4210a241a36da8e451276b639e"
     }
   }
 };

@@ -34,7 +34,7 @@
         "fallback": "none",
         "resolvers": [
           {
-            "viaRoute": "claude-us-pinned",
+            "viaRoute": "us-stable",
             "kind": "doh",
             "url": "https://1.1.1.1/dns-query"
           }
@@ -124,18 +124,31 @@
             }
           },
           {
-            "kind": "approved-node",
-            "routeId": "claude-us-pinned",
-            "group": "🔐 Claude US Pinned",
-            "node": "US-Claude-01",
-            "emptyFallback": "REJECT"
+            "kind": "route",
+            "route": {
+              "id": "us-stable",
+              "kind": "region-stable",
+              "group": "🇺🇸 US Stable",
+              "dynamic": false
+            }
           },
           {
-            "kind": "approved-node",
-            "routeId": "claude-us-pinned",
-            "group": "🔐 Claude US Pinned",
-            "node": "US-Claude-02",
-            "emptyFallback": "REJECT"
+            "kind": "route",
+            "route": {
+              "id": "sg-stable",
+              "kind": "region-stable",
+              "group": "🇸🇬 SG Stable",
+              "dynamic": false
+            }
+          },
+          {
+            "kind": "route",
+            "route": {
+              "id": "jp-stable",
+              "kind": "region-stable",
+              "group": "🇯🇵 JP Stable",
+              "dynamic": false
+            }
           }
         ]
       },
@@ -216,7 +229,7 @@
     },
     {
       "id": "flow-music",
-      "displayName": "Flow Music",
+      "displayName": "🎵 Flow Music",
       "protectionClass": "proxy-required",
       "effectiveRoute": {
         "id": "sg-stable",
@@ -226,7 +239,7 @@
       },
       "selector": {
         "kind": "profile-aware",
-        "visibleGroup": "Flow Music",
+        "visibleGroup": "🎵 Flow Music",
         "hiddenProfileTarget": "@profile/flow-music",
         "choices": [
           {

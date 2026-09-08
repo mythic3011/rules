@@ -35,11 +35,3 @@ routeTargets:
     group: "🇯🇵 JP Stable"
     region: jp
     dynamic: false
-  claude-us-pinned:
-    kind: pinned-egress
-    group: "🔐 Claude US Pinned"
-    approvedNodes:
-      - US-Claude-01
-      - US-Claude-02
-    emptyFallback: REJECT
-    dynamic: false

@@ -18,13 +18,8 @@
       ],
       "subconverter": {
         "selector": {
-          "mode": "fixed",
-          "emitWhenLegacyReplaced": true,
-          "groupKeys": ["reject", "manual"],
-          "comments": [
-            "; ChatGPT is fail-closed.",
-            "; User must explicitly select 手動選擇."
-          ]
+          "mode": "stables",
+          "emitWhenLegacyReplaced": true
         }
       },
       "upstreamRules": [
@@ -484,6 +479,19 @@
       "upstreamRules": [],
       "projections": ["mihomo", "subconverter"],
       "family": "google-ai"
+    },
+    {
+      "id": "flow-music",
+      "providerKey": "Flow_Music_Classical",
+      "group": "🎵 Flow Music",
+      "file": "Flow_Music_Classical.yaml",
+      "payload": ["DOMAIN,storage.googleapis.com"],
+      "regions": ["us", "sg", "jp", "tw", "kr"],
+      "directRelaxed": false,
+      "dnsPolicies": [],
+      "subconverter": {},
+      "upstreamRules": [],
+      "projections": ["mihomo", "subconverter"]
     },
     {
       "id": "opencode",

@@ -180,6 +180,10 @@ function compileSelector(
       continue;
     }
     const target = config.routeTargets[routeId];
+    if (target?.kind === "region-stable") {
+      choices.push({ kind: "route", route: terminalRoute(config, routeId) });
+      continue;
+    }
     if (target?.kind !== "pinned-egress") {
       continue;
     }

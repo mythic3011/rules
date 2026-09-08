@@ -49,14 +49,9 @@ test("controller plan materializes every access matrix into hidden profile selec
   const claude = plan.accountProtected.find(
     (service) => service.serviceId === "claude",
   );
-  assert.deepEqual(claude?.canonicalApprovedNodeIds, [
-    "US-Claude-01",
-    "US-Claude-02",
-  ]);
-  assert.deepEqual(claude?.canonicalApprovedBindings, [
-    { approvedId: "US-Claude-01", provider: "provider1" },
-    { approvedId: "US-Claude-02", provider: "provider1" },
-  ]);
+  assert.deepEqual(claude?.canonicalApprovedNodeIds, []);
+  assert.deepEqual(claude?.canonicalApprovedBindings, []);
+  assert.equal(claude?.localMaterialization.exactNodeFilterRequired, false);
   assert.equal(claude?.initialSelection, "REJECT");
   assert.equal(
     claude?.lockRequest.proxyPath,
@@ -141,7 +136,15 @@ test("account-protected detection follows the protection-class kind rather than 
     "claude",
   );
   const fragment = compileMihomoFragment(mutated, projection, "hk");
-  assert.ok(fragment.rules.includes("RULE-SET,AI_Claude_Classical,REJECT"));
+  assert.ok(
+    fragment.rules.includes(
+      "RULE-SET,AI_Claude_Classical,🔐 Claude Account Guard",
+    ),
+  );
+  assert.equal(
+    fragment.rules.includes("RULE-SET,AI_Claude_Classical,REJECT"),
+    false,
+  );
 });
 
 
@@ -169,17 +172,27 @@ test("router-local documents require exact local egress mapping and preserve the
     RouterLocalConfigError,
   );
 
-  const missingBinding = egressFixture();
-  const claude = missingBinding.services as Record<
+  const extraBinding = egressFixture();
+  const claude = extraBinding.services as Record<
     string,
-    { bindings: unknown[] }
+    {
+      bindings: Array<{
+        approvedId: string;
+        node: string;
+        provider: string;
+      }>;
+    }
   >;
-  claude.claude?.bindings.pop();
+  claude.claude?.bindings.push({
+    approvedId: "US-Claude-01",
+    node: "leftover-node",
+    provider: "provider1",
+  });
   assert.throws(
     () =>
       validateRouterLocalConfig(
         deploymentFixture(),
-        missingBinding,
+        extraBinding,
         stateFixture(),
         plan,
       ),
@@ -189,10 +202,19 @@ test("router-local documents require exact local egress mapping and preserve the
   const unsafeNode = egressFixture();
   const unsafeClaude = unsafeNode.services as Record<
     string,
-    { bindings: Array<{ approvedId: string; node: string }> }
+    {
+      bindings: Array<{
+        approvedId: string;
+        node: string;
+        provider: string;
+      }>;
+    }
   >;
-  const binding = unsafeClaude.claude?.bindings[0];
-  if (binding !== undefined) binding.node = "DIRECT";
+  unsafeClaude.claude?.bindings.push({
+    approvedId: "US-Claude-01",
+    node: "DIRECT",
+    provider: "provider1",
+  });
   assert.throws(
     () =>
       validateRouterLocalConfig(
@@ -232,41 +254,45 @@ test("account safety decisions reset stale, revoked, and unverified armed select
   armedAccount.selectedNode = "EXAMPLE-APPROVED-NODE-ONE";
   armedAccount.verifiedNode = "EXAMPLE-APPROVED-NODE-ONE";
   armedAccount.verifiedPolicyVersion = "1";
-  const valid = validateRouterLocalConfig(
+  assert.throws(
+    () =>
+      validateRouterLocalConfig(
+        deploymentFixture(),
+        egressFixture(),
+        armed,
+        plan,
+      ),
+    RouterLocalConfigError,
+  );
+  const locked = validateRouterLocalConfig(
     deploymentFixture(),
     egressFixture(),
-    armed,
+    stateFixture(),
     plan,
   );
-  assert.deepEqual(decideAccountSafety(plan, valid.egress, valid.state), [
-    {
-      serviceId: "claude",
-      selection: "EXAMPLE-APPROVED-NODE-ONE",
-      resetReason: "none",
-    },
-  ]);
-
-  const stale = structuredClone(valid.state);
-  const staleAccount = stale.accounts.claude;
-  assert.ok(staleAccount !== undefined);
-  staleAccount.verifiedPolicyVersion = "0";
-  assert.deepEqual(decideAccountSafety(plan, valid.egress, stale), [
+  const remembered = structuredClone(locked.state);
+  const rememberedAccount = remembered.accounts.claude;
+  assert.ok(rememberedAccount !== undefined);
+  rememberedAccount.selectedNode = "EXAMPLE-APPROVED-NODE-ONE";
+  rememberedAccount.verifiedNode = "EXAMPLE-APPROVED-NODE-ONE";
+  rememberedAccount.verifiedPolicyVersion = "1";
+  assert.deepEqual(decideAccountSafety(plan, locked.egress, remembered), [
     {
       serviceId: "claude",
       selection: "REJECT",
       resetReason: "selected-node-missing",
     },
   ]);
-  const revoked = structuredClone(valid.egress);
+  const revoked = structuredClone(locked.egress);
   const revokedClaude = revoked.services.claude;
   assert.ok(revokedClaude !== undefined);
   revokedClaude.revokedNodes.push("EXAMPLE-APPROVED-NODE-ONE");
-  assert.deepEqual(decideAccountSafety(plan, revoked, valid.state), [
+  assert.deepEqual(decideAccountSafety(plan, revoked, remembered), [
     { serviceId: "claude", selection: "REJECT", resetReason: "node-revoked" },
   ]);
   const changedPlan = { ...plan, policyVersion: "2" as const };
   assert.deepEqual(
-    decideAccountSafety(changedPlan, valid.egress, valid.state),
+    decideAccountSafety(changedPlan, locked.egress, locked.state),
     [
       {
         serviceId: "claude",
@@ -280,10 +306,15 @@ test("account safety decisions reset stale, revoked, and unverified armed select
 test("materialized account graph accepts only REJECT or exact approved nodes", () => {
   validateAccountMaterializedGraph(
     "🔐 Claude Account Guard",
-    ["EXAMPLE-APPROVED-NODE-ONE"],
+    ["🇺🇸 US Stable", "🇸🇬 SG Stable", "🇯🇵 JP Stable"],
     {
       groups: {
-        "🔐 Claude Account Guard": ["REJECT", "EXAMPLE-APPROVED-NODE-ONE"],
+        "🔐 Claude Account Guard": [
+          "REJECT",
+          "🇺🇸 US Stable",
+          "🇸🇬 SG Stable",
+          "🇯🇵 JP Stable",
+        ],
       },
     },
   );
@@ -334,8 +365,9 @@ test("effective cutover proof requires account DNS selector, startup gate, and f
         type: "Selector",
         all: [
           "REJECT",
-          "EXAMPLE-APPROVED-NODE-ONE",
-          "EXAMPLE-APPROVED-NODE-TWO",
+          "🇺🇸 US Stable",
+          "🇸🇬 SG Stable",
+          "🇯🇵 JP Stable",
         ],
         now: "REJECT",
         emptyFallback: "REJECT",

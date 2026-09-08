@@ -28,17 +28,27 @@ class ExternalRoutingCatalogTest(unittest.TestCase):
                 "custom-proxy-domain",
                 "custom-proxy-classical-ip",
                 "hk-direct",
+                "cn-direct",
                 "gaming-pc-default-direct",
                 "final",
             ],
         )
         self.assertEqual(
             [route.subconverter_cluster for route in routes],
-            ["custom-direct", "custom-direct", "custom-proxy", "custom-proxy", "geoip-hk", None, "final"],
+            [
+                "custom-direct",
+                "custom-direct",
+                "custom-proxy",
+                "custom-proxy",
+                "geoip-direct",
+                "geoip-direct",
+                None,
+                "final",
+            ],
         )
         self.assertEqual(
             [route.provider.behavior if route.provider else None for route in routes],
-            ["domain", "classical", "domain", "classical", None, None, None],
+            ["domain", "classical", "domain", "classical", None, None, None, None],
         )
 
     def test_schema_rejects_provider_on_non_ruleset_route(self) -> None:
@@ -117,7 +127,7 @@ class ExternalRoutingCatalogTest(unittest.TestCase):
             [
                 ["remote-domain", "remote-classical"],
                 ["remote-domain", "remote-classical"],
-                ["geoip"],
+                ["geoip", "geoip"],
                 ["final"],
             ],
         )
@@ -127,6 +137,11 @@ class ExternalRoutingCatalogTest(unittest.TestCase):
             rendered,
         )
         self.assertIn(f"ruleset={self.catalog.group('direct')},[]GEOIP,HK,no-resolve", rendered)
+        self.assertIn(f"ruleset={self.catalog.group('direct')},[]GEOIP,CN,no-resolve", rendered)
+        self.assertLess(
+            rendered.index(f"ruleset={self.catalog.group('direct')},[]GEOIP,HK,no-resolve"),
+            rendered.index(f"ruleset={self.catalog.group('direct')},[]GEOIP,CN,no-resolve"),
+        )
         self.assertIn(f"ruleset={self.catalog.group('fallback')},[]FINAL", rendered)
 
     def test_runtime_modules_do_not_name_legacy_external_routes(self) -> None:

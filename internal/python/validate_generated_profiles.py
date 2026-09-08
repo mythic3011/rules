@@ -419,10 +419,28 @@ def validate_ini(text: str) -> None:
     after_legacy = rule_sections.get("afterLegacy")
     ensure(isinstance(before_legacy, list) and len(before_legacy) >= 2 and isinstance(after_legacy, list) and after_legacy, "INI MVP plan has missing ordered rules")
     ensure(all(isinstance(record, dict) for record in [*before_legacy, *after_legacy]), "INI MVP plan rules must be mappings")
-    protected_rule = before_legacy[0]
-    terminal_reject = before_legacy[1]
-    ensure(protected_rule.get("kind") == "remote-classical" and terminal_reject.get("kind") == "remote-classical", "INI MVP protected rules must be remote classical")
-    ensure(protected_rule.get("target") == account.get("protectedGroup") and terminal_reject.get("target") == account.get("rejectGroup") and protected_rule.get("url") == terminal_reject.get("url") and protected_rule.get("interval") == terminal_reject.get("interval"), "INI MVP terminal reject must immediately mirror the protected provider")
+    protected_rules = [
+        record
+        for record in before_legacy
+        if isinstance(record, dict) and record.get("kind") == "remote-classical" and record.get("target") == account.get("protectedGroup")
+    ]
+    ensure(len(protected_rules) == 1, "INI MVP beforeLegacy must contain exactly one protected remote-classical")
+    ensure(before_legacy[-1] is protected_rules[0], "INI MVP protected remote-classical must appear last in beforeLegacy")
+    ensure(all(isinstance(record, dict) and record.get("kind") == "remote-classical" for record in before_legacy[:-1]), "INI MVP ownership-override rules must be remote classical")
+    ensure(
+        all(
+            record.get("target") not in {account.get("protectedGroup"), account.get("rejectGroup")}
+            for record in before_legacy[:-1]
+            if isinstance(record, dict)
+        ),
+        "INI MVP ownership-override rules must not target the protected or reject group",
+    )
+    remote_urls = [
+        record.get("url")
+        for record in [*before_legacy, *after_legacy]
+        if isinstance(record, dict) and record.get("kind") == "remote-classical"
+    ]
+    ensure(len(set(remote_urls)) == len(remote_urls), "INI MVP remote-classical provider URLs must be unique across targets")
     expected_before = [render_ini_mvp_rule(record) for record in before_legacy]
     expected_after = [render_ini_mvp_rule(record) for record in after_legacy]
     ensure(all(line in text for line in [*expected_before, *expected_after]), "INI is missing a normalized MVP rule record")
@@ -442,7 +460,15 @@ def validate_ini(text: str) -> None:
             f"INI MVP group {group['name']} has invalid candidate separators or order",
         )
     protected_group = next((group for group in groups if group.get("name") == account.get("protectedGroup")), None)
-    ensure(isinstance(protected_group, dict) and expected_ini_mvp_group_fields(protected_group) == [f"[]{account.get('rejectGroup')}"], "INI MVP account guard group must be REJECT-only")
+    protected_fields = expected_ini_mvp_group_fields(protected_group) if isinstance(protected_group, dict) else []
+    expected_protected_fields = [
+        f"[]{account.get('rejectGroup')}",
+        *[f"[]{name}" for name in CATALOG.stable_group_names()],
+    ]
+    ensure(
+        isinstance(protected_group, dict) and protected_fields == expected_protected_fields,
+        "INI MVP account guard group must be reject-first plus catalog stable groups",
+    )
     if not ENABLE_PROCESS_RULES:
         for key in PROCESS_PROVIDER_KEYS:
             ensure(key not in text, f"INI must not reference {key} while disabled")

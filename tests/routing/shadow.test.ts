@@ -74,7 +74,7 @@ test("shadow composer applies only four exact typed deltas and preserves closed 
   );
   assert.deepEqual(
     groups.find((group) => group.name === "🔐 Claude Account Guard")?.proxies,
-    ["REJECT"],
+    ["REJECT", "🇺🇸 US Stable", "🇸🇬 SG Stable", "🇯🇵 JP Stable"],
   );
   assert.equal(rules.includes("GEOSITE,google-deepmind,DIRECT"), true);
   assert.equal(result.report.observedDeltaIds.length, 4);
