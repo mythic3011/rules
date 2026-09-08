@@ -455,23 +455,33 @@ function validateProjection(
   });
 }
 
-function resolverValue(resolver: Resolver, config: RoutingConfig, selectedGroup?: string): string {
-  let base: string;
-  switch (resolver.kind) {
-    case "udp": base = resolver.port === 53 ? resolver.host : `${resolver.host}:${resolver.port}`; break;
-    case "dot": base = resolver.port === 853 ? `tls://${resolver.host}` : `tls://${resolver.host}:${resolver.port}`; break;
-    case "doh": base = resolver.url; break;
-    default: { const exhaustive: never = resolver; throw new Error(`Unsupported resolver: ${String(exhaustive)}`); }
-  }
-  if (resolver.viaRoute === undefined) return base;
-  return `${base}#${selectedGroup ?? requiredRoute(config, resolver.viaRoute, ["dns", "resolver", "viaRoute"]).group}`;
+type MihomoProjectionProfile = NonNullable<MihomoProjectionConfig["profiles"][string]>;
+
+interface ValidatedProjectionContext {
+  readonly config: RoutingConfig;
+  readonly projection: MihomoProjectionConfig;
+  readonly profileId: string;
+  readonly profile: MihomoProjectionProfile;
+  readonly plan: CompiledRoutingPlan;
+  readonly reachableRouteIds: ReadonlySet<string>;
 }
 
-export function compileMihomoFragment(config: RoutingConfig, projection: MihomoProjectionConfig, profileId: string): MihomoFragmentIR {
-  const crossIssues = validateProjection(config, projection, profileId); if (crossIssues.length > 0) throw new MihomoProjectionError(crossIssues);
-  const plan: CompiledRoutingPlan = compileRoutingProfile(config, profileId);
-  const profile = projection.profiles[profileId]; if (profile === undefined) throw new MihomoProjectionError([issue("missing-reference", ["profiles", profileId], "projection profile does not exist")]);
-  const groups: MihomoGroup[] = [];
+function compilerInvariant(message: string): never {
+  throw new Error(`mihomo compiler invariant: ${message}`);
+}
+
+function createValidatedCompileContext(
+  config: RoutingConfig,
+  projection: MihomoProjectionConfig,
+  profileId: string,
+): ValidatedProjectionContext {
+  const issues = validateProjection(config, projection, profileId);
+  if (issues.length > 0) throw new MihomoProjectionError(issues);
+  const profile = projection.profiles[profileId];
+  if (profile === undefined) {
+    compilerInvariant(`projection profile ${profileId} does not exist after validation`);
+  }
+  const plan = compileRoutingProfile(config, profileId);
   const reachableRouteIds = new Set<string>();
   for (const service of Object.values(config.services)) {
     reachableRouteIds.add(service.defaultRoute);
@@ -485,16 +495,34 @@ export function compileMihomoFragment(config: RoutingConfig, projection: MihomoP
     for (const endpoints of Object.values(accessProfile.endpointOverrides)) for (const routeId of Object.values(endpoints)) reachableRouteIds.add(routeId);
   }
   for (const dnsProfile of Object.values(config.dns.profiles)) for (const policy of Object.values(dnsProfile.servicePolicies)) for (const resolver of policy.resolvers) if (resolver.viaRoute !== undefined) reachableRouteIds.add(resolver.viaRoute);
-  for (const [regionId, region] of Object.entries(projection.regions).sort(([a], [b]) => compare(a, b))) {
-    const autoReachable = [...reachableRouteIds].some((routeId) => config.routeTargets[routeId]?.kind === "region-auto" && config.routeTargets[routeId]?.region === regionId);
-    const stableReachable = [...reachableRouteIds].some((routeId) => config.routeTargets[routeId]?.kind === "region-stable" && config.routeTargets[routeId]?.region === regionId);
+  return { config, projection, profileId, profile, plan, reachableRouteIds };
+}
+
+function resolverValue(resolver: Resolver, config: RoutingConfig, selectedGroup?: string): string {
+  let base: string;
+  switch (resolver.kind) {
+    case "udp": base = resolver.port === 53 ? resolver.host : `${resolver.host}:${resolver.port}`; break;
+    case "dot": base = resolver.port === 853 ? `tls://${resolver.host}` : `tls://${resolver.host}:${resolver.port}`; break;
+    case "doh": base = resolver.url; break;
+    default: { const exhaustive: never = resolver; throw new Error(`Unsupported resolver: ${String(exhaustive)}`); }
+  }
+  if (resolver.viaRoute === undefined) return base;
+  return `${base}#${selectedGroup ?? requiredRoute(config, resolver.viaRoute, ["dns", "resolver", "viaRoute"]).group}`;
+}
+
+export function compileMihomoFragment(config: RoutingConfig, projection: MihomoProjectionConfig, profileId: string): MihomoFragmentIR {
+  const ctx = createValidatedCompileContext(config, projection, profileId);
+  const groups: MihomoGroup[] = [];
+  for (const [regionId, region] of Object.entries(ctx.projection.regions).sort(([a], [b]) => compare(a, b))) {
+    const autoReachable = [...ctx.reachableRouteIds].some((routeId) => ctx.config.routeTargets[routeId]?.kind === "region-auto" && ctx.config.routeTargets[routeId]?.region === regionId);
+    const stableReachable = [...ctx.reachableRouteIds].some((routeId) => ctx.config.routeTargets[routeId]?.kind === "region-stable" && ctx.config.routeTargets[routeId]?.region === regionId);
     if (autoReachable) groups.push({ name: region.autoGroup, type: "url-test", emptyFallback: "REJECT", use: [...region.use], filter: region.filter, url: region.url, interval: region.interval, tolerance: region.tolerance });
     if (stableReachable) groups.push({ name: region.stableGroup, type: "select", emptyFallback: "REJECT", proxies: ["REJECT"], use: [...region.use], filter: region.filter });
   }
-  for (const [routeId, target] of Object.entries(config.routeTargets).sort(([left], [right]) => compare(left, right))) {
-    if (target.kind !== "pinned-egress" || !reachableRouteIds.has(routeId)) continue;
-    const bindings = projection.pinnedEgressBindings[routeId];
-    if (bindings === undefined) throw new MihomoProjectionError([issue("missing-reference", ["pinnedEgressBindings", routeId], "pinned-egress route requires exact approved-node provider bindings")]);
+  for (const [routeId, target] of Object.entries(ctx.config.routeTargets).sort(([left], [right]) => compare(left, right))) {
+    if (target.kind !== "pinned-egress" || !ctx.reachableRouteIds.has(routeId)) continue;
+    const bindings = ctx.projection.pinnedEgressBindings[routeId];
+    if (bindings === undefined) compilerInvariant(`pinned-egress route ${routeId} is missing provider bindings after validation`);
     groups.push({
       name: target.group,
       type: "select",
@@ -504,16 +532,16 @@ export function compileMihomoFragment(config: RoutingConfig, projection: MihomoP
       filter: `(?i)${target.approvedNodes.join("|")}`,
     });
   }
-  const profileIds = Object.keys(config.accessProfiles).sort(compare);
-  for (const modeId of profileIds) groups.push({ name: `${projection.modeControl.hiddenPrefix}${modeId}`, type: "select", emptyFallback: "REJECT", proxies: ["REJECT"] });
-  groups.push({ name: projection.modeControl.visibleGroup, type: "select", emptyFallback: "REJECT", proxies: profileIds.map((modeId) => `${projection.modeControl.hiddenPrefix}${modeId}`) });
+  const profileIds = Object.keys(ctx.config.accessProfiles).sort(compare);
+  for (const modeId of profileIds) groups.push({ name: `${ctx.projection.modeControl.hiddenPrefix}${modeId}`, type: "select", emptyFallback: "REJECT", proxies: ["REJECT"] });
+  groups.push({ name: ctx.projection.modeControl.visibleGroup, type: "select", emptyFallback: "REJECT", proxies: profileIds.map((modeId) => `${ctx.projection.modeControl.hiddenPrefix}${modeId}`) });
   const overrideRules: string[] = [];
   const accountRules: string[] = [];
   const specificRules: string[] = [];
-  for (const service of plan.services) {
-    const canonical = config.services[service.id]; if (canonical === undefined) continue;
-    const protection = config.protectionClasses[canonical.protectionClass];
-    if (protection === undefined) throw new MihomoProjectionError([issue("missing-reference", ["services", service.id, "protectionClass"], "service protection class does not exist")]);
+  for (const service of ctx.plan.services) {
+    const canonical = ctx.config.services[service.id]; if (canonical === undefined) continue;
+    const protection = ctx.config.protectionClasses[canonical.protectionClass];
+    if (protection === undefined) compilerInvariant(`service ${service.id} is missing a protection class after validation`);
     if (service.selector.kind === "profile-aware") {
       const choices = unique([service.effectiveRoute.group, ...service.selector.choices.map((choice) => choice.group)]);
       groups.push({ name: service.selector.hiddenProfileTarget, type: "select", emptyFallback: "REJECT", proxies: choices });
@@ -522,7 +550,7 @@ export function compileMihomoFragment(config: RoutingConfig, projection: MihomoP
       const proxies = ["REJECT"];
       if (protection.kind === "account-protected") {
         for (const routeId of canonical.allowedRoutes) {
-          const target = config.routeTargets[routeId];
+          const target = ctx.config.routeTargets[routeId];
           if (
             (target?.kind === "pinned-egress" || target?.kind === "region-stable") &&
             !proxies.includes(target.group)
@@ -535,13 +563,13 @@ export function compileMihomoFragment(config: RoutingConfig, projection: MihomoP
     }
     for (const endpoint of service.endpoints) {
       const line = `RULE-SET,${endpoint.ruleset},${service.selector.visibleGroup}`;
-      if (isOwnershipOverrideService(config, service.id)) overrideRules.push(line);
+      if (isOwnershipOverrideService(ctx.config, service.id)) overrideRules.push(line);
       else if (protection.kind === "account-protected") accountRules.push(line);
       else specificRules.push(line);
     }
   }
-  const aiAllRules = profile.aiAllRoute === undefined ? [] : [`RULE-SET,${projection.aiAllRuleset},${requiredRoute(config, profile.aiAllRoute, ["profiles", profileId, "aiAllRoute"]).group}`];
-  const categoryRules = projection.categoryGeosites.map((geosite) => `GEOSITE,${geosite},${requiredRoute(config, profile.categoryAiRoute, ["profiles", profileId, "categoryAiRoute"]).group}`);
+  const aiAllRules = ctx.profile.aiAllRoute === undefined ? [] : [`RULE-SET,${ctx.projection.aiAllRuleset},${requiredRoute(ctx.config, ctx.profile.aiAllRoute, ["profiles", ctx.profileId, "aiAllRoute"]).group}`];
+  const categoryRules = ctx.projection.categoryGeosites.map((geosite) => `GEOSITE,${geosite},${requiredRoute(ctx.config, ctx.profile.categoryAiRoute, ["profiles", ctx.profileId, "categoryAiRoute"]).group}`);
   overrideRules.sort(compare);
   accountRules.sort(compare);
   const rules = [...overrideRules, ...accountRules, ...specificRules, ...aiAllRules, ...categoryRules];
@@ -555,19 +583,19 @@ export function compileMihomoFragment(config: RoutingConfig, projection: MihomoP
   const ordering = validateRuleOrdering({ entries: orderingEntries });
   if (ordering.length > 0) throw new MihomoProjectionError(ordering);
   const nameserverPolicy: Record<string, readonly string[]> = {};
-  for (const policy of plan.dns.servicePolicies) {
-    const service = config.services[policy.serviceId]; if (service === undefined) continue;
-    const protection = config.protectionClasses[service.protectionClass];
+  for (const policy of ctx.plan.dns.servicePolicies) {
+    const service = ctx.config.services[policy.serviceId]; if (service === undefined) continue;
+    const protection = ctx.config.protectionClasses[service.protectionClass];
     const selectedGroup = protection?.kind === "account-protected" ? service.selector.visibleGroup : undefined;
-    for (const endpoint of Object.values(service.endpoints)) nameserverPolicy[`rule-set:${endpoint.ruleset}`] = policy.resolvers.map((resolver) => resolverValue(resolver, config, selectedGroup));
+    for (const endpoint of Object.values(service.endpoints)) nameserverPolicy[`rule-set:${endpoint.ruleset}`] = policy.resolvers.map((resolver) => resolverValue(resolver, ctx.config, selectedGroup));
   }
-  const providers = Object.fromEntries(Object.entries(projection.ruleProviders).sort(([a], [b]) => compare(a, b)).map(([key, provider]) => {
-    const source = projection.sources[provider.source];
-    if (source === undefined) throw new MihomoProjectionError([issue("missing-reference", ["ruleProviders", key, "source"], `source ${provider.source} does not exist`)]);
+  const providers = Object.fromEntries(Object.entries(ctx.projection.ruleProviders).sort(([a], [b]) => compare(a, b)).map(([key, provider]) => {
+    const source = ctx.projection.sources[provider.source];
+    if (source === undefined) compilerInvariant(`rule provider ${key} is missing source ${provider.source} after validation`);
     return [key, { type: provider.type, behavior: provider.behavior, format: provider.format, interval: provider.interval, url: sourceProviderUrl(source, provider.path) }];
   }));
-  const provenance = Object.values(projection.sources).sort((left, right) => compare(left.repository, right.repository)).map((source) => `${source.label} (${source.repository}@${source.revision})`).join(", ");
-  return { metadata: { provenance, externalProxyProviders: Object.keys(projection.proxyProviders).sort(compare) }, groups, ruleProviders: providers, rules, dns: { respectRules: plan.dns.respectRules, defaultNameserver: plan.dns.defaultNameserver.map((resolver) => resolverValue(resolver, config)), proxyServerNameserver: plan.dns.proxyServerNameserver.map((resolver) => resolverValue(resolver, config)), nameserver: plan.dns.nameserver.map((resolver) => resolverValue(resolver, config)), nameserverPolicy } };
+  const provenance = Object.values(ctx.projection.sources).sort((left, right) => compare(left.repository, right.repository)).map((source) => `${source.label} (${source.repository}@${source.revision})`).join(", ");
+  return { metadata: { provenance, externalProxyProviders: Object.keys(ctx.projection.proxyProviders).sort(compare) }, groups, ruleProviders: providers, rules, dns: { respectRules: ctx.plan.dns.respectRules, defaultNameserver: ctx.plan.dns.defaultNameserver.map((resolver) => resolverValue(resolver, ctx.config)), proxyServerNameserver: ctx.plan.dns.proxyServerNameserver.map((resolver) => resolverValue(resolver, ctx.config)), nameserver: ctx.plan.dns.nameserver.map((resolver) => resolverValue(resolver, ctx.config)), nameserverPolicy } };
 }
 
 export function renderMihomoFragment(ir: MihomoFragmentIR): string {
