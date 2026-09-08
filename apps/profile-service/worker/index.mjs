@@ -124,6 +124,8 @@ async function handleSubscription(env, token) {
       "x-profile-revision": String(row.revision),
       "x-content-type-options": "nosniff",
       "referrer-policy": "no-referrer",
+      "x-frame-options": "DENY",
+      "content-security-policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
     },
   });
 }
