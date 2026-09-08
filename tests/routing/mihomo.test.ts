@@ -1,15 +1,19 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import test from "node:test";
 import YAML from "yaml";
 
 import {
   compileMihomoFragment,
+  loadMihomoProjectionConfig,
   MihomoProjectionError,
   renderMihomoFragment,
 } from "#routing/mihomo-projection.js";
 import { canonicalArtifactPath } from "#routing-test/support/canonical-inputs.js";
 import { loadCanonicalInputs } from "#routing-test/support/canonical-inputs.js";
+import { MIHOMO_PROJECTION } from "#routing-test/support/paths.js";
+import { withTempDirectory } from "#routing-test/support/temp-dir.js";
 
 test("Mihomo projection renders REJECT-first filtered groups, protected rules, and pinned DNS", async () => {
   const { config, projection } = await loadCanonicalInputs();
@@ -364,4 +368,154 @@ test("source-owned providers are pinned and canonical services do not invent end
     projection.ruleProviders.AI_NotebookLM_Classical?.path,
     "rule/AI_NotebookLM_Classical.yaml",
   );
+});
+
+test("route target kinds keep their discriminators and compiled groups stay fail-closed", async () => {
+  const { config, projection } = await loadCanonicalInputs();
+  const direct = config.routeTargets.direct;
+  const usAuto = config.routeTargets["us-auto"];
+  const usStable = config.routeTargets["us-stable"];
+  assert.ok(direct !== undefined && usAuto !== undefined && usStable !== undefined);
+  assert.equal(direct.kind, "direct");
+  assert.equal("dynamic" in direct, false);
+  assert.equal(usAuto.kind, "region-auto");
+  assert.equal(usAuto.dynamic, true);
+  assert.equal(usStable.kind, "region-stable");
+  assert.equal(usStable.dynamic, false);
+
+  const canonical = compileMihomoFragment(config, projection, "hk");
+  assert.equal(
+    canonical.groups.some((group) => group.type === "url-test"),
+    false,
+  );
+  assert.equal(
+    canonical.groups.some((group) => group.name === "🇺🇸 US Stable"),
+    true,
+  );
+  assert.equal(
+    canonical.groups.some((group) => group.name === "🇯🇵 JP Auto"),
+    false,
+  );
+
+  const withAuto = structuredClone(config);
+  const copilot = withAuto.services.copilot;
+  assert.ok(copilot !== undefined && copilot.selector.kind === "profile-aware");
+  copilot.allowedRoutes = [...copilot.allowedRoutes, "us-auto"];
+  copilot.selector.allowedRouteRefs = [...copilot.selector.allowedRouteRefs, "us-auto"];
+  const autoFragment = compileMihomoFragment(withAuto, projection, "hk");
+  const usAutoGroup = autoFragment.groups.find((group) => group.name === "🇺🇸 US Auto");
+  assert.ok(usAutoGroup !== undefined && usAutoGroup.type === "url-test");
+  assert.equal(usAutoGroup.emptyFallback, "REJECT");
+  assert.equal(
+    autoFragment.groups.some((group) => group.name === "🇯🇵 JP Auto"),
+    false,
+  );
+});
+
+test("pinned-egress groups appear only when reachable and stay REJECT-first", async () => {
+  const { config, projection } = await loadCanonicalInputs();
+  const withPinned = structuredClone(config);
+  const pinnedProjection = structuredClone(projection);
+  withPinned.routeTargets["test-pinned"] = {
+    kind: "pinned-egress",
+    group: "Test Pinned",
+    approvedNodes: ["Node-A"],
+    emptyFallback: "REJECT",
+    dynamic: false,
+  };
+  pinnedProjection.pinnedEgressBindings["test-pinned"] = { "Node-A": "provider1" };
+  const unreachable = compileMihomoFragment(withPinned, pinnedProjection, "hk");
+  assert.equal(
+    unreachable.groups.some((group) => group.name === "Test Pinned"),
+    false,
+  );
+
+  const copilot = withPinned.services.copilot;
+  assert.ok(copilot !== undefined && copilot.selector.kind === "profile-aware");
+  copilot.allowedRoutes = [...copilot.allowedRoutes, "test-pinned"];
+  copilot.selector.allowedRouteRefs = [...copilot.selector.allowedRouteRefs, "test-pinned"];
+  const reachable = compileMihomoFragment(withPinned, pinnedProjection, "hk");
+  const pinned = reachable.groups.find((group) => group.name === "Test Pinned");
+  assert.ok(pinned !== undefined && pinned.type === "select");
+  assert.deepEqual(pinned.proxies, ["REJECT"]);
+  assert.equal(pinned.emptyFallback, "REJECT");
+  assert.deepEqual(pinned.use, ["provider1"]);
+});
+
+test("compiled rule stages stay ordered and account rules have no adjacent terminal REJECT", async () => {
+  const { config, projection } = await loadCanonicalInputs();
+  const first = compileMihomoFragment(config, projection, "hk");
+  const second = compileMihomoFragment(config, projection, "hk");
+  assert.deepEqual(first, second);
+
+  const ownership = first.rules.findIndex((rule) =>
+    rule.startsWith("RULE-SET,Flow_Music_Classical,"),
+  );
+  const account = first.rules.findIndex((rule) =>
+    rule.startsWith("RULE-SET,AI_Claude_Classical,"),
+  );
+  const specific = first.rules.findIndex((rule) =>
+    rule.startsWith("RULE-SET,AI_ChatGPT_Classical,"),
+  );
+  const aiAll = first.rules.findIndex((rule) =>
+    rule.startsWith("RULE-SET,AI_All_Classical,"),
+  );
+  const category = first.rules.findIndex((rule) => rule.startsWith("GEOSITE,"));
+  assert.ok(ownership !== -1 && account !== -1 && specific !== -1 && aiAll !== -1 && category !== -1);
+  assert.ok(ownership < account);
+  assert.ok(account < specific);
+  assert.ok(specific < aiAll);
+  assert.ok(aiAll < category);
+  assert.equal(first.rules[aiAll], "RULE-SET,AI_All_Classical,DIRECT");
+  assert.equal(first.rules.at(-2), "GEOSITE,google-deepmind,DIRECT");
+  assert.equal(first.rules.at(-1), "GEOSITE,category-ai-!cn,DIRECT");
+  assert.equal(
+    first.rules.includes("RULE-SET,AI_Claude_Classical,REJECT"),
+    false,
+  );
+  assert.equal(
+    first.rules.some((rule) => rule.includes("QUIC") || rule.includes("NETWORK,UDP")),
+    false,
+  );
+});
+
+test("duplicate generated names and invalid manifest paths fail closed", async () => {
+  const { config, projection } = await loadCanonicalInputs();
+  const duplicate = structuredClone(projection);
+  const us = duplicate.regions.us;
+  assert.ok(us !== undefined);
+  us.stableGroup = duplicate.modeControl.visibleGroup;
+  assert.throws(
+    () => compileMihomoFragment(config, duplicate, "hk"),
+    (error: unknown) =>
+      error instanceof MihomoProjectionError &&
+      error.issues.some(
+        (entry) =>
+          entry.code === "policy-invariant" &&
+          entry.message.includes("duplicate generated group/provider name"),
+      ),
+  );
+
+  const original = await readFile(MIHOMO_PROJECTION, "utf8");
+  await withTempDirectory("mihomo-manifest-", async (directory) => {
+    const path = join(directory, "mihomo.yaml");
+    await writeFile(
+      path,
+      original.replace(
+        "upstreamSourceManifest: ../sources/upstream-sources.json",
+        "upstreamSourceManifest: ../sources/./upstream-sources.json",
+      ),
+      "utf8",
+    );
+    await assert.rejects(
+      () => loadMihomoProjectionConfig(path),
+      (error: unknown) =>
+        error instanceof MihomoProjectionError &&
+        error.issues.some(
+          (entry) =>
+            entry.path.join(".") === "upstreamSourceManifest" &&
+            entry.code === "policy-invariant",
+        ),
+    );
+  });
 });
