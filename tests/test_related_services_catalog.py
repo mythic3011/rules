@@ -126,7 +126,7 @@ class RelatedServicesCatalogTest(unittest.TestCase):
             if ruleset.mihomo and ruleset.mihomo_when == "always"
         }
         self.assertTrue(relaxed_companion_provider_keys.isdisjoint(strict_values))
-        self.assertTrue(always_on_companion_provider_keys <= strict_values)
+        self.assertLessEqual(always_on_companion_provider_keys, strict_values)
 
     def test_runtime_mechanisms_do_not_name_catalog_payload_services(self) -> None:
         from ai_profiles_test_support import ROOT
