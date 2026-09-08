@@ -6,7 +6,7 @@ import { z } from "zod";
 import { compileRoutingProfile, type CompiledRoutingPlan } from "./compiler.js";
 import { formatIssues, type RoutingIssue } from "./issues.js";
 import { IdSchema, type Resolver, type RouteTarget, type RoutingConfig } from "./schema.js";
-import { isOwnershipOverrideService, validateRuleOrdering } from "./semantic-validator.js";
+import { isOwnershipOverrideService, validateRuleOrdering, type RuleOrderingStage } from "./semantic-validator.js";
 
 const RuleProviderKeySchema = z.string().regex(/^[A-Za-z][A-Za-z0-9_]*$/);
 const SourceSchema = z.object({
@@ -514,6 +514,42 @@ function createValidatedCompileContext(
   };
 }
 
+type EmittedRuleStage = Extract<
+  RuleOrderingStage,
+  "ownership-override" | "account-protected" | "specific-service" | "ai-all" | "category-ai"
+>;
+
+const RULE_STAGE_ORDER = {
+  "ownership-override": 10,
+  "account-protected": 20,
+  "specific-service": 30,
+  "ai-all": 40,
+  "category-ai": 50,
+} as const satisfies Record<EmittedRuleStage, number>;
+
+interface RuleBundle {
+  readonly stage: EmittedRuleStage;
+  readonly sortKey: string;
+  readonly lines: readonly string[];
+}
+
+function compareRuleBundles(left: RuleBundle, right: RuleBundle): number {
+  const stageDelta = RULE_STAGE_ORDER[left.stage] - RULE_STAGE_ORDER[right.stage];
+  if (stageDelta !== 0) return stageDelta;
+  return compare(left.sortKey, right.sortKey);
+}
+
+function flattenRuleBundles(bundles: readonly RuleBundle[]): {
+  readonly rules: readonly string[];
+  readonly entries: readonly { readonly stage: EmittedRuleStage; readonly label: string }[];
+} {
+  const ordered = [...bundles].sort(compareRuleBundles);
+  return {
+    rules: ordered.flatMap((bundle) => [...bundle.lines]),
+    entries: ordered.flatMap((bundle) => bundle.lines.map((label) => ({ stage: bundle.stage, label }))),
+  };
+}
+
 function resolverValue(resolver: Resolver, config: RoutingConfig, selectedGroup?: string): string {
   let base: string;
   switch (resolver.kind) {
@@ -551,9 +587,8 @@ export function compileMihomoFragment(config: RoutingConfig, projection: MihomoP
   const profileIds = Object.keys(ctx.config.accessProfiles).sort(compare);
   for (const modeId of profileIds) groups.push({ name: `${ctx.projection.modeControl.hiddenPrefix}${modeId}`, type: "select", emptyFallback: "REJECT", proxies: ["REJECT"] });
   groups.push({ name: ctx.projection.modeControl.visibleGroup, type: "select", emptyFallback: "REJECT", proxies: profileIds.map((modeId) => `${ctx.projection.modeControl.hiddenPrefix}${modeId}`) });
-  const overrideRules: string[] = [];
-  const accountRules: string[] = [];
-  const specificRules: string[] = [];
+  const bundles: RuleBundle[] = [];
+  let specificOrder = 0;
   for (const service of ctx.plan.services) {
     const canonical = ctx.config.services[service.id]; if (canonical === undefined) continue;
     const protection = ctx.config.protectionClasses[canonical.protectionClass];
@@ -579,23 +614,25 @@ export function compileMihomoFragment(config: RoutingConfig, projection: MihomoP
     }
     for (const endpoint of service.endpoints) {
       const line = `RULE-SET,${endpoint.ruleset},${service.selector.visibleGroup}`;
-      if (isOwnershipOverrideService(ctx.config, service.id)) overrideRules.push(line);
-      else if (protection.kind === "account-protected") accountRules.push(line);
-      else specificRules.push(line);
+      if (isOwnershipOverrideService(ctx.config, service.id)) {
+        bundles.push({ stage: "ownership-override", sortKey: line, lines: [line] });
+      } else if (protection.kind === "account-protected") {
+        bundles.push({ stage: "account-protected", sortKey: line, lines: [line] });
+      } else {
+        bundles.push({ stage: "specific-service", sortKey: String(specificOrder).padStart(8, "0"), lines: [line] });
+        specificOrder += 1;
+      }
     }
   }
-  const aiAllRules = ctx.profile.aiAllRoute === undefined ? [] : [`RULE-SET,${ctx.projection.aiAllRuleset},${requiredRoute(ctx.config, ctx.profile.aiAllRoute, ["profiles", ctx.profileId, "aiAllRoute"]).group}`];
-  const categoryRules = ctx.projection.categoryGeosites.map((geosite) => `GEOSITE,${geosite},${requiredRoute(ctx.config, ctx.profile.categoryAiRoute, ["profiles", ctx.profileId, "categoryAiRoute"]).group}`);
-  overrideRules.sort(compare);
-  accountRules.sort(compare);
-  const rules = [...overrideRules, ...accountRules, ...specificRules, ...aiAllRules, ...categoryRules];
-  const orderingEntries = [
-    ...overrideRules.map((label) => ({ stage: "ownership-override" as const, label })),
-    ...accountRules.map((label) => ({ stage: "account-protected" as const, label })),
-    ...specificRules.map((label) => ({ stage: "specific-service" as const, label })),
-    ...aiAllRules.map((label) => ({ stage: "ai-all" as const, label })),
-    ...categoryRules.map((label) => ({ stage: "category-ai" as const, label })),
-  ];
+  if (ctx.profile.aiAllRoute !== undefined) {
+    const line = `RULE-SET,${ctx.projection.aiAllRuleset},${requiredRoute(ctx.config, ctx.profile.aiAllRoute, ["profiles", ctx.profileId, "aiAllRoute"]).group}`;
+    bundles.push({ stage: "ai-all", sortKey: "0", lines: [line] });
+  }
+  for (const [index, geosite] of ctx.projection.categoryGeosites.entries()) {
+    const line = `GEOSITE,${geosite},${requiredRoute(ctx.config, ctx.profile.categoryAiRoute, ["profiles", ctx.profileId, "categoryAiRoute"]).group}`;
+    bundles.push({ stage: "category-ai", sortKey: String(index).padStart(8, "0"), lines: [line] });
+  }
+  const { rules, entries: orderingEntries } = flattenRuleBundles(bundles);
   const ordering = validateRuleOrdering({ entries: orderingEntries });
   if (ordering.length > 0) throw new MihomoProjectionError(ordering);
   const nameserverPolicy: Record<string, readonly string[]> = {};
