@@ -470,18 +470,7 @@ function compilerInvariant(message: string): never {
   throw new Error(`mihomo compiler invariant: ${message}`);
 }
 
-function createValidatedCompileContext(
-  config: RoutingConfig,
-  projection: MihomoProjectionConfig,
-  profileId: string,
-): ValidatedProjectionContext {
-  const issues = validateProjection(config, projection, profileId);
-  if (issues.length > 0) throw new MihomoProjectionError(issues);
-  const profile = projection.profiles[profileId];
-  if (profile === undefined) {
-    compilerInvariant(`projection profile ${profileId} does not exist after validation`);
-  }
-  const plan = compileRoutingProfile(config, profileId);
+function collectReachableRouteIds(config: RoutingConfig): ReadonlySet<string> {
   const reachableRouteIds = new Set<string>();
   for (const service of Object.values(config.services)) {
     reachableRouteIds.add(service.defaultRoute);
@@ -494,8 +483,35 @@ function createValidatedCompileContext(
     for (const routeId of Object.values(accessProfile.serviceOverrides)) reachableRouteIds.add(routeId);
     for (const endpoints of Object.values(accessProfile.endpointOverrides)) for (const routeId of Object.values(endpoints)) reachableRouteIds.add(routeId);
   }
-  for (const dnsProfile of Object.values(config.dns.profiles)) for (const policy of Object.values(dnsProfile.servicePolicies)) for (const resolver of policy.resolvers) if (resolver.viaRoute !== undefined) reachableRouteIds.add(resolver.viaRoute);
-  return { config, projection, profileId, profile, plan, reachableRouteIds };
+  for (const dnsProfile of Object.values(config.dns.profiles)) {
+    for (const policy of Object.values(dnsProfile.servicePolicies)) {
+      for (const resolver of policy.resolvers) {
+        if (resolver.viaRoute !== undefined) reachableRouteIds.add(resolver.viaRoute);
+      }
+    }
+  }
+  return reachableRouteIds;
+}
+
+function createValidatedCompileContext(
+  config: RoutingConfig,
+  projection: MihomoProjectionConfig,
+  profileId: string,
+): ValidatedProjectionContext {
+  const issues = validateProjection(config, projection, profileId);
+  if (issues.length > 0) throw new MihomoProjectionError(issues);
+  const profile = projection.profiles[profileId];
+  if (profile === undefined) {
+    compilerInvariant(`projection profile ${profileId} does not exist after validation`);
+  }
+  return {
+    config,
+    projection,
+    profileId,
+    profile,
+    plan: compileRoutingProfile(config, profileId),
+    reachableRouteIds: collectReachableRouteIds(config),
+  };
 }
 
 function resolverValue(resolver: Resolver, config: RoutingConfig, selectedGroup?: string): string {
