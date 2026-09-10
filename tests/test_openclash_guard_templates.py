@@ -438,6 +438,21 @@ class TemplateAndInstallCliTests(unittest.TestCase):
         self.assertEqual(uci["committed"]["openclash_guard.main.mode"], "strict")
         self.assertTrue(self.load_nft()["tables"].get("inet openclash_guard"))
 
+    def test_template_apply_bootstraps_missing_uci_config(self) -> None:
+        self._install_service("openclash", enabled=True, running=True)
+        self._write_uci(self._default_uci())
+        config = self.prefix / "etc/config/openclash_guard"
+        self.assertFalse(config.exists())
+        result = self.run_guard(
+            "template",
+            "apply",
+            "failclosed-strict",
+            "--yes",
+            extra={"GUARD_OPENCLASH_HEALTHY": "1", "GUARD_PROXY_HEALTHY": "1"},
+        )
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertEqual(config.read_text(encoding="utf-8"), "# OpenClash Guard UCI configuration.\n")
+
     def test_headless_install_yes_mode_auto_never_reads_stdin(self) -> None:
         self._install_service("adguardhome", enabled=True, running=True)
         self._install_service("openclash", enabled=True, running=True)
