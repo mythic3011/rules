@@ -28,6 +28,8 @@ APP_DIR = ROOT / "shell" / "apps" / "openclash-guard"
 FIXTURE_DIR = ROOT / "tests" / "fixtures" / "synthetic" / "openclash-guard"
 POLICY = FIXTURE_DIR / "policy.json"
 POLICY_INVALID = FIXTURE_DIR / "policy-invalid.json"
+RUNTIME_POLICY = ROOT / "cfg" / "runtime" / "openclash-guard.json"
+RUNTIME_TEMPLATES = ROOT / "cfg" / "runtime" / "openclash-guard-templates.json"
 
 SPEC = importlib.util.spec_from_file_location("shbundle", SHBUNDLE_PATH)
 if SPEC is None or SPEC.loader is None:
@@ -826,6 +828,19 @@ class GuardAppTests(unittest.TestCase):
         self.assertIn("json", included)
         self.assertLess(order.index("guard-killswitch"), order.index("guard-gaming"))
         self.assertEqual(order[-1], "guard-main")
+
+    def test_generated_runtime_policy_pair_is_accepted_by_bundle(self) -> None:
+        result = self.run_guard(
+            "status",
+            "--json",
+            extra={
+                "GUARD_POLICY_FILE": str(RUNTIME_POLICY),
+                "GUARD_TEMPLATES_FILE": str(RUNTIME_TEMPLATES),
+            },
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("invalid failMode", result.stderr)
+        self.assertEqual(json.loads(result.stdout)["state"], "degraded")
 
     def test_no_args_without_controlling_tty_has_headless_guidance(self) -> None:
         result = self.run_guard()

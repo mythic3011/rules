@@ -86,7 +86,7 @@ guard_policy_validate_file() {
             return 1
         fi
         case $_guard_pv_fm in
-            reject|drop)
+            reject|allow)
                 ;;
             *)
                 printf '%s\n' "guard_policy: invalid failMode on $_guard_pv_class" >&2

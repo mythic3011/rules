@@ -2561,7 +2561,7 @@ guard_policy_validate_file() {
             return 1
         fi
         case $_guard_pv_fm in
-            reject|drop)
+            reject|allow)
                 ;;
             *)
                 printf '%s\n' "guard_policy: invalid failMode on $_guard_pv_class" >&2
@@ -4321,6 +4321,34 @@ _guard_template_env_file() {
     printf '%s\n' "$_guard_tef"
 }
 
+_guard_template_uci_config_path() {
+    printf '%s\n' "${GUARD_UCI_CONFIG_FILE:-${GUARD_PREFIX:-}/etc/config/openclash_guard}"
+}
+
+_guard_template_ensure_uci_config() {
+    _guard_teuc_path=$(_guard_template_uci_config_path)
+    if [ -e "$_guard_teuc_path" ]; then
+        if [ ! -f "$_guard_teuc_path" ]; then
+            cli_error "UCI config path is not a regular file: $_guard_teuc_path"
+            return 1
+        fi
+        return 0
+    fi
+    _guard_teuc_dir=$(dirname "$_guard_teuc_path")
+    mkdir -p "$_guard_teuc_dir" || return 1
+    _guard_teuc_tmp=$(file_mktemp "$_guard_teuc_dir") || return 1
+    if ! printf '%s\n' '# OpenClash Guard UCI configuration.' > "$_guard_teuc_tmp"; then
+        rm -f "$_guard_teuc_tmp"
+        return 1
+    fi
+    chmod 0644 "$_guard_teuc_tmp"
+    if ! file_atomic_replace "$_guard_teuc_path" "$_guard_teuc_tmp"; then
+        rm -f "$_guard_teuc_tmp"
+        return 1
+    fi
+    rm -f "$_guard_teuc_tmp"
+}
+
 guard_intent_ensure_sections() {
     if [ "${GUARD_DRY_RUN:-0}" = 1 ]; then
         return 0
@@ -4329,6 +4357,7 @@ guard_intent_ensure_sections() {
         printf '%s\n' "uci: command not found" >&2
         return 127
     fi
+    _guard_template_ensure_uci_config || return $?
     uci_set openclash_guard.main openclash_guard
     uci_set openclash_guard.udp udp
 }
