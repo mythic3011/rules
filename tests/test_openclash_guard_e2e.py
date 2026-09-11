@@ -349,6 +349,10 @@ puts JSON.generate(value)
         committed = self._load_uci()["committed"]
         self.assertEqual(committed.get("openclash_guard.udp.src_ip", []), [])
 
+        empty_list = self.run_guard("rules", "list")
+        self._assert_ok(empty_list, "list empty local rules")
+        self.assertEqual(empty_list.stdout, "No staged custom rules.\n")
+
         status = self.run_guard("status", "--json")
         self._assert_ok(status, "status after install")
         status_payload = json.loads(status.stdout)
@@ -390,7 +394,7 @@ puts JSON.generate(value)
         self._assert_ok(remove_local, "remove local rule")
         listed_after_remove = self.run_guard("rules", "list", "direct")
         self._assert_ok(listed_after_remove, "list local rules after removal")
-        self.assertEqual(listed_after_remove.stdout, "")
+        self.assertEqual(listed_after_remove.stdout, "No staged direct rules.\n")
         self.assertNotIn(
             "+.example.com", direct_provider.read_text(encoding="utf-8")
         )

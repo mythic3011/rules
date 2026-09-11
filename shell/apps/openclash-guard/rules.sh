@@ -473,6 +473,22 @@ guard_rules_list_local() {
     cat "$_guard_rules_ll_local"
 }
 
+guard_rules_local_has_entries() {
+    _guard_rules_lhe_scope=${1:-}
+    case $_guard_rules_lhe_scope in
+        direct|proxy)
+            [ -s "$(guard_rules_local_file "$_guard_rules_lhe_scope")" ]
+            ;;
+        '')
+            [ -s "$(guard_rules_local_file direct)" ] || \
+                [ -s "$(guard_rules_local_file proxy)" ]
+            ;;
+        *)
+            return 2
+            ;;
+    esac
+}
+
 guard_rules_config_mutate() {
     _guard_rules_cm_scope=$1
     _guard_rules_cm_action=$2
@@ -694,7 +710,22 @@ guard_cmd_rules() {
             ;;
         list)
             [ "$#" -le 1 ] || return 2
-            guard_rules_list_local "${1:-}"
+            _guard_rules_list_scope=${1:-}
+            if guard_rules_local_has_entries "$_guard_rules_list_scope"; then
+                guard_rules_list_local "$_guard_rules_list_scope"
+            else
+                case $_guard_rules_list_scope in
+                    direct|proxy)
+                        printf 'No staged %s rules.\n' "$_guard_rules_list_scope"
+                        ;;
+                    '')
+                        printf '%s\n' 'No staged custom rules.'
+                        ;;
+                    *)
+                        return 2
+                        ;;
+                esac
+            fi
             ;;
         activate)
             guard_overlay_activate "$@"
