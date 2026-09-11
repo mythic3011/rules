@@ -104,6 +104,8 @@ _guard_prepare_readonly() {
     fi
     _GUARD_POLICY_STATE=uninitialized
     _GUARD_POLICY_ENFORCEMENT=unavailable
+    _GUARD_POLICY_STATE_REASON=runtime-policy-unavailable
+    _GUARD_POLICY_DEGRADED_COMPONENTS=
     return 1
 }
 
@@ -307,6 +309,8 @@ guard_cmd_status() {
     cli_kv gaming.clients.count "$(guard_env_get gaming.clients.count)"
     cli_kv nft.available "$(guard_env_get nft.available)"
     cli_kv state "$_GUARD_POLICY_STATE"
+    [ -n "$_GUARD_POLICY_STATE_REASON" ] && cli_kv state.reason "$_GUARD_POLICY_STATE_REASON"
+    [ -n "$_GUARD_POLICY_DEGRADED_COMPONENTS" ] && cli_kv state.degradedComponents "$_GUARD_POLICY_DEGRADED_COMPONENTS"
     cli_kv enforcement "$_GUARD_POLICY_ENFORCEMENT"
     cli_kv distribution.selectedSource "$(_guard_distribution_selected 2>/dev/null || printf 'none')"
 }

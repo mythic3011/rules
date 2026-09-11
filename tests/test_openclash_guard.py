@@ -842,6 +842,122 @@ class GuardAppTests(unittest.TestCase):
         self.assertNotIn("invalid failMode", result.stderr)
         self.assertEqual(json.loads(result.stdout)["state"], "degraded")
 
+    def test_status_reports_degradation_reason_and_components(self) -> None:
+        self._install_service("adguardhome", enabled=True, running=True)
+        self._install_service("openclash", enabled=True, running=True)
+        self._write_uci(self._default_uci())
+        extra = {"GUARD_OPENCLASH_HEALTHY": "1", "GUARD_PROXY_HEALTHY": "1"}
+
+        result = self.run_guard("status", "--json", extra=extra)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["state"], "degraded")
+        self.assertEqual(payload["enforcement"], "reject")
+        self.assertEqual(payload["stateReason"], "domain-set-backend-unavailable")
+        self.assertEqual(payload["degradedComponents"], ["dns.domainSetBackend"])
+
+        readable = self.run_guard("status", extra=extra)
+        self.assertEqual(readable.returncode, 0, readable.stderr)
+        self.assertIn("state.reason: domain-set-backend-unavailable", readable.stdout)
+        self.assertIn("state.degradedComponents: dns.domainSetBackend", readable.stdout)
+
+    def test_status_degradation_details_follow_current_health(self) -> None:
+        self._install_service("dnsmasq", enabled=True, running=True)
+        self._install_service("openclash", enabled=True, running=True)
+        self._write_uci(self._default_uci())
+
+        healthy = self.run_guard(
+            "status", "--json", extra={"GUARD_OPENCLASH_HEALTHY": "1"}
+        )
+        self.assertEqual(healthy.returncode, 0, healthy.stderr)
+        healthy_payload = json.loads(healthy.stdout)
+        self.assertEqual(healthy_payload["state"], "ok")
+        self.assertEqual(healthy_payload["enforcement"], "allow-proxy")
+        self.assertEqual(healthy_payload["stateReason"], "")
+        self.assertEqual(healthy_payload["degradedComponents"], [])
+
+        openclash_only = self.run_guard(
+            "status",
+            "--json",
+            extra={"GUARD_OPENCLASH_HEALTHY": "0", "GUARD_PROXY_HEALTHY": "0"},
+        )
+        self.assertEqual(openclash_only.returncode, 0, openclash_only.stderr)
+        openclash_payload = json.loads(openclash_only.stdout)
+        self.assertEqual(openclash_payload["state"], "degraded")
+        self.assertEqual(openclash_payload["enforcement"], "reject")
+        self.assertEqual(openclash_payload["stateReason"], "openclash-unhealthy")
+        self.assertEqual(openclash_payload["degradedComponents"], ["openclash.healthy"])
+
+        self._install_service("adguardhome", enabled=True, running=True)
+        combined = self.run_guard(
+            "status",
+            "--json",
+            extra={"GUARD_OPENCLASH_HEALTHY": "0", "GUARD_PROXY_HEALTHY": "0"},
+        )
+        self.assertEqual(combined.returncode, 0, combined.stderr)
+        combined_payload = json.loads(combined.stdout)
+        self.assertEqual(combined_payload["state"], "degraded")
+        self.assertEqual(combined_payload["enforcement"], "reject")
+        self.assertEqual(combined_payload["stateReason"], "multiple-degraded-components")
+        self.assertEqual(
+            combined_payload["degradedComponents"],
+            ["dns.domainSetBackend", "openclash.healthy"],
+        )
+
+        disabled_uci = self._default_uci()
+        disabled_uci["openclash_guard.main.enabled"] = "0"
+        self._write_uci(disabled_uci)
+        disabled = self.run_guard(
+            "status",
+            "--json",
+            extra={"GUARD_OPENCLASH_HEALTHY": "0", "GUARD_PROXY_HEALTHY": "0"},
+        )
+        self.assertEqual(disabled.returncode, 0, disabled.stderr)
+        disabled_payload = json.loads(disabled.stdout)
+        self.assertEqual(disabled_payload["state"], "disabled")
+        self.assertEqual(disabled_payload["enforcement"], "disabled")
+        self.assertEqual(disabled_payload["stateReason"], "guard-disabled")
+        self.assertEqual(disabled_payload["degradedComponents"], [])
+
+    def test_status_uninitialized_policy_clears_degradation_details(self) -> None:
+        missing_policy = self.work / "missing-policy.json"
+        result = self.run_guard(
+            "status",
+            "--json",
+            extra={"GUARD_POLICY_FILE": str(missing_policy)},
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["state"], "uninitialized")
+        self.assertEqual(payload["enforcement"], "unavailable")
+        self.assertEqual(payload["stateReason"], "runtime-policy-unavailable")
+        self.assertEqual(payload["degradedComponents"], [])
+
+    def test_menu_empty_rules_list_is_explicit(self) -> None:
+        prefix = self.base / "prefix"
+        rules_dir = self.base / "rules"
+        distribution_state = prefix / "etc/openclash-guard/distribution-state"
+        common = {
+            "GUARD_PREFIX": str(prefix),
+            "GUARD_RULES_DIR": str(rules_dir),
+            "GUARD_POLICY_FILE": str(POLICY),
+            "GUARD_TEMPLATES_FILE": str(RUNTIME_TEMPLATES),
+            "GUARD_TEMPLATES_SOURCE": str(RUNTIME_TEMPLATES),
+            "GUARD_DISTRIBUTION_STATE_FILE": str(distribution_state),
+            "GUARD_OPENCLASH_HEALTHY": "1",
+            "GUARD_PROXY_HEALTHY": "1",
+        }
+        self._install_service("openclash", enabled=True, running=True)
+        self._write_uci(self._default_uci())
+        install = self.run_guard(
+            "install", "--yes", "--mode", "auto", "--no-refresh", extra=common
+        )
+        self.assertEqual(install.returncode, 0, install.stderr + install.stdout)
+
+        result = self.run_guard_tty("7\n0\n", extra=common)
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("No staged custom rules.", result.stdout)
+
     def test_no_args_without_controlling_tty_has_headless_guidance(self) -> None:
         result = self.run_guard()
         self.assertEqual(result.returncode, 2)

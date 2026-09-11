@@ -10,6 +10,8 @@ _GUARD_NFT_PREFIX=openclash-guard
 _GUARD_POLICY_REVISION=
 _GUARD_POLICY_STATE=disabled
 _GUARD_POLICY_ENFORCEMENT=reject
+_GUARD_POLICY_STATE_REASON=
+_GUARD_POLICY_DEGRADED_COMPONENTS=
 
 _guard_policy_default_path() {
     if [ -n "${GUARD_POLICY_FILE:-}" ]; then
@@ -151,12 +153,39 @@ guard_policy_needs_failclosed() {
     return 1
 }
 
+_guard_policy_add_degraded_component() {
+    _guard_padc_component=$1
+    case " $_GUARD_POLICY_DEGRADED_COMPONENTS " in
+        *" $_guard_padc_component "*) return 0 ;;
+    esac
+    if [ -n "$_GUARD_POLICY_DEGRADED_COMPONENTS" ]; then
+        _GUARD_POLICY_DEGRADED_COMPONENTS="$_GUARD_POLICY_DEGRADED_COMPONENTS $_guard_padc_component"
+    else
+        _GUARD_POLICY_DEGRADED_COMPONENTS=$_guard_padc_component
+    fi
+}
+
+_guard_policy_mark_degraded() {
+    _guard_pmd_reason=$1
+    _guard_pmd_component=$2
+    _GUARD_POLICY_STATE=degraded
+    if [ -z "$_GUARD_POLICY_STATE_REASON" ]; then
+        _GUARD_POLICY_STATE_REASON=$_guard_pmd_reason
+    elif [ "$_GUARD_POLICY_STATE_REASON" != "$_guard_pmd_reason" ]; then
+        _GUARD_POLICY_STATE_REASON=multiple-degraded-components
+    fi
+    _guard_policy_add_degraded_component "$_guard_pmd_component"
+}
+
 guard_policy_refresh_state() {
     _GUARD_POLICY_STATE=ok
     _GUARD_POLICY_ENFORCEMENT=allow-proxy
+    _GUARD_POLICY_STATE_REASON=
+    _GUARD_POLICY_DEGRADED_COMPONENTS=
     if [ "${_GUARD_UCI_ENABLED:-1}" = 0 ]; then
         _GUARD_POLICY_STATE=disabled
         _GUARD_POLICY_ENFORCEMENT=disabled
+        _GUARD_POLICY_STATE_REASON=guard-disabled
         return 0
     fi
     _guard_ps_failclosed=0
@@ -164,15 +193,13 @@ guard_policy_refresh_state() {
         _guard_ps_failclosed=1
     fi
     if [ "$_guard_ps_failclosed" = 1 ] && [ "$_GUARD_DNS_DOMAIN_SET" = unavailable ]; then
-        _GUARD_POLICY_STATE=degraded
         _GUARD_POLICY_ENFORCEMENT=reject
+        _guard_policy_mark_degraded domain-set-backend-unavailable dns.domainSetBackend
     fi
     if [ "$_GUARD_OC_HEALTHY" != 1 ]; then
         if [ "${_GUARD_UCI_KILL_SWITCH:-1}" = 1 ] || [ "$_guard_ps_failclosed" = 1 ]; then
             _GUARD_POLICY_ENFORCEMENT=reject
-            if [ "$_GUARD_POLICY_STATE" = ok ]; then
-                _GUARD_POLICY_STATE=degraded
-            fi
+            _guard_policy_mark_degraded openclash-unhealthy openclash.healthy
         fi
     fi
 }
@@ -275,8 +302,17 @@ guard_policy_eval() {
 }
 
 guard_policy_json_extra() {
-    printf '"state":"%s","enforcement":"%s","policyRevision":"%s"' \
+    printf '"state":"%s","enforcement":"%s","policyRevision":"%s","stateReason":"%s","degradedComponents":[' \
         "$(_guard_env_json_string "$_GUARD_POLICY_STATE")" \
         "$(_guard_env_json_string "$_GUARD_POLICY_ENFORCEMENT")" \
-        "$(_guard_env_json_string "$_GUARD_POLICY_REVISION")"
+        "$(_guard_env_json_string "$_GUARD_POLICY_REVISION")" \
+        "$(_guard_env_json_string "$_GUARD_POLICY_STATE_REASON")"
+    _guard_pje_first=1
+    for _guard_pje_component in $_GUARD_POLICY_DEGRADED_COMPONENTS
+    do
+        [ "$_guard_pje_first" = 1 ] || printf ','
+        _guard_pje_first=0
+        printf '"%s"' "$(_guard_env_json_string "$_guard_pje_component")"
+    done
+    printf ']'
 }
