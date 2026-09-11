@@ -179,6 +179,16 @@
         return "unsupported_type";
       }
 
+      // Security: Validate asset paths to prevent path traversal, absolute paths, or protocol injection
+      function safeAssetPath(pathStr) {
+        if (typeof pathStr !== "string") return null;
+        const trimmed = pathStr.trim();
+        if (!trimmed || trimmed.includes("..") || trimmed.startsWith("/") || /^[a-z]+:/i.test(trimmed)) {
+          return null;
+        }
+        return trimmed;
+      }
+
       async function loadInventory() {
         const response = await fetch("./reports/rule-assets.json");
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -186,7 +196,9 @@
       }
 
       async function loadCidrEntries(assetPath) {
-        const response = await fetch(`./${assetPath}`);
+        const safePath = safeAssetPath(assetPath);
+        if (!safePath) throw new Error("Invalid asset path");
+        const response = await fetch(`./${safePath}`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const text = await response.text();
         return text
