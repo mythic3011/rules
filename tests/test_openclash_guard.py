@@ -664,6 +664,35 @@ class GuardAppTests(unittest.TestCase):
             encoding="utf-8",
         )
 
+    def _write_distribution_state(
+        self,
+        path: Path,
+        source: str = "github-raw",
+        policy_url: str = "https://example.invalid/policy.json",
+        templates_url: str = "https://example.invalid/templates.json",
+    ) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            "selectedSource={source}\npolicyURL={policy}\ntemplatesURL={templates}\nlastRefresh=2026-01-01T00:00:00Z\n".format(
+                source=source,
+                policy=policy_url,
+                templates=templates_url,
+            ),
+            encoding="utf-8",
+        )
+
+    def _observability_extra(self, **overrides: str) -> dict[str, str]:
+        state = self.work / "distribution-state"
+        extra = {
+            "GUARD_POLICY_FILE": str(POLICY),
+            "GUARD_TEMPLATES_FILE": str(RUNTIME_TEMPLATES),
+            "GUARD_DISTRIBUTION_STATE_FILE": str(state),
+            "GUARD_OPENCLASH_HEALTHY": "1",
+            "GUARD_PROXY_HEALTHY": "1",
+        }
+        extra.update(overrides)
+        return extra
+
     def _default_uci(self, **overrides: Any) -> dict[str, Any]:
         data: dict[str, Any] = {
             "openclash_guard.main.enabled": "1",
@@ -957,6 +986,109 @@ class GuardAppTests(unittest.TestCase):
         result = self.run_guard_tty("7\n0\n", extra=common)
         self.assertEqual(result.returncode, 0, result.stdout)
         self.assertIn("No staged custom rules.", result.stdout)
+        status = self.run_guard("status", extra=common)
+        self.assertEqual(status.returncode, 0, status.stderr + status.stdout)
+        self.assertIn("rules.activation: staged", status.stdout)
+        self.assertNotIn("No staged custom rules.", status.stdout)
+        self.assertIn("enforcement: reject", status.stdout)
+
+    def test_status_keeps_local_runtime_and_github_raw_provenance_distinct(self) -> None:
+        self._install_service("openclash", enabled=True, running=True)
+        self._write_uci(self._default_uci())
+        extra = self._observability_extra()
+        self._write_distribution_state(Path(extra["GUARD_DISTRIBUTION_STATE_FILE"]))
+
+        readable = self.run_guard("status", extra=extra)
+        self.assertEqual(readable.returncode, 0, readable.stderr + readable.stdout)
+        self.assertIn("runtime.source: local", readable.stdout)
+        self.assertIn("distribution.selectedSource: github-raw", readable.stdout)
+        self.assertNotEqual("local", "github-raw")
+
+        payload = json.loads(self.run_guard("status", "--json", extra=extra).stdout)
+        self.assertEqual(payload["runtime"]["source"], "local")
+        self.assertEqual(payload["distribution"]["selectedSource"], "github-raw")
+        self.assertEqual(payload["rules"]["activation"], "staged")
+        self.assertEqual(payload["firewall"]["table"], "absent")
+        self.assertEqual(payload["enforcement"], "reject")
+        self.assertEqual(payload["stateReason"], "domain-set-backend-unavailable")
+        self.assertEqual(payload["degradedComponents"], ["dns.domainSetBackend"])
+
+    def test_status_provenance_falls_back_to_none_without_state(self) -> None:
+        self._install_service("openclash", enabled=True, running=True)
+        self._write_uci(self._default_uci())
+        extra = self._observability_extra()
+        missing = Path(extra["GUARD_DISTRIBUTION_STATE_FILE"])
+        if missing.exists():
+            missing.unlink()
+
+        readable = self.run_guard("status", extra=extra)
+        self.assertEqual(readable.returncode, 0, readable.stderr + readable.stdout)
+        self.assertIn("runtime.source: local", readable.stdout)
+        self.assertIn("distribution.selectedSource: none", readable.stdout)
+
+        payload = json.loads(self.run_guard("status", "--json", extra=extra).stdout)
+        self.assertEqual(payload["runtime"]["source"], "local")
+        self.assertEqual(payload["distribution"]["selectedSource"], "none")
+
+    def test_menu_labels_runtime_source_and_distribution_provenance(self) -> None:
+        self._install_service("openclash", enabled=True, running=True)
+        self._write_uci(self._default_uci())
+        extra = self._observability_extra()
+        self._write_distribution_state(Path(extra["GUARD_DISTRIBUTION_STATE_FILE"]))
+
+        menu = self.run_guard_tty("0\n", extra=extra)
+        self.assertEqual(menu.returncode, 0, menu.stdout)
+        self.assertIn("Runtime source: local", menu.stdout)
+        self.assertIn("Distribution provenance: github-raw", menu.stdout)
+        self.assertNotIn("Distribution source:", menu.stdout)
+
+    def test_firewall_table_and_overlay_activation_are_independent_of_enforcement(self) -> None:
+        self._install_service("adguardhome", enabled=True, running=True)
+        self._install_service("openclash", enabled=True, running=True)
+        self._write_uci(self._default_uci())
+        extra = self._observability_extra()
+        self._write_distribution_state(Path(extra["GUARD_DISTRIBUTION_STATE_FILE"]))
+        hook = self.work / "openclash_custom_overwrite.sh"
+        extra["GUARD_OPENCLASH_CUSTOM_OVERWRITE"] = str(hook)
+
+        before = json.loads(self.run_guard("status", "--json", extra=extra).stdout)
+        self.assertEqual(before["enforcement"], "reject")
+        self.assertEqual(before["firewall"]["table"], "absent")
+        self.assertEqual(before["rules"]["activation"], "staged")
+        self.assertEqual(before["stateReason"], "domain-set-backend-unavailable")
+        self.assertEqual(before["degradedComponents"], ["dns.domainSetBackend"])
+
+        applied = self.run_guard("apply", extra=extra)
+        self.assertEqual(applied.returncode, 0, applied.stderr + applied.stdout)
+        after_apply = json.loads(self.run_guard("status", "--json", extra=extra).stdout)
+        self.assertEqual(after_apply["enforcement"], "reject")
+        self.assertEqual(after_apply["firewall"]["table"], "active")
+        self.assertEqual(after_apply["rules"]["activation"], "staged")
+        self.assertEqual(after_apply["runtime"]["source"], "local")
+        self.assertEqual(after_apply["distribution"]["selectedSource"], "github-raw")
+
+        readable = self.run_guard("status", extra=extra)
+        self.assertIn("firewall.table: active", readable.stdout)
+        self.assertIn("rules.activation: staged", readable.stdout)
+        self.assertIn("enforcement: reject", readable.stdout)
+
+        health = self.run_guard("health-check", extra=extra)
+        self.assertIn("rules.activation: staged", health.stdout)
+
+        hook.write_text(
+            "# BEGIN openclash-guard rules\n# END openclash-guard rules\n",
+            encoding="utf-8",
+        )
+        after_overlay = json.loads(self.run_guard("status", "--json", extra=extra).stdout)
+        self.assertEqual(after_overlay["rules"]["activation"], "active")
+        self.assertEqual(after_overlay["firewall"]["table"], "active")
+        self.assertEqual(after_overlay["enforcement"], "reject")
+        health_active = self.run_guard("health-check", extra=extra)
+        self.assertIn("rules.activation: active", health_active.stdout)
+        self.assertEqual(
+            json.loads(self.run_guard("health-check", "--json", extra=extra).stdout)["rules"]["activation"],
+            after_overlay["rules"]["activation"],
+        )
 
     def test_no_args_without_controlling_tty_has_headless_guidance(self) -> None:
         result = self.run_guard()

@@ -139,6 +139,20 @@ guard_policy_load() {
     _GUARD_POLICY_REVISION=$(json_get "$_GUARD_POLICY_FILE" revision 2>/dev/null) || _GUARD_POLICY_REVISION=
 }
 
+# Guard nft table lifecycle: active | absent | unavailable.
+# Distinct from policy enforcement and from overlay rules.activation.
+guard_firewall_table_state() {
+    if ! command -v nft >/dev/null 2>&1; then
+        printf '%s\n' "unavailable"
+        return 0
+    fi
+    if nft_table_exists "${_GUARD_NFT_FAMILY:-inet}" "${_GUARD_NFT_TABLE:-openclash_guard}"; then
+        printf '%s\n' "active"
+        return 0
+    fi
+    printf '%s\n' "absent"
+}
+
 guard_policy_needs_failclosed() {
     _guard_nf_svcs=$(json_keys "$_GUARD_POLICY_FILE" services) || _guard_nf_svcs=
     for _guard_nf_svc in $_guard_nf_svcs

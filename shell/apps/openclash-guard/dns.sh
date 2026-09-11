@@ -81,6 +81,7 @@ guard_dns_domain_set_backend() {
             ;;
         adguardhome)
             # resolver-sync is not implemented; do not claim dest-set protection.
+            # See docs/openclash-guard.md "AdGuard Home Domain-Set Backend".
             printf '%s\n' "unavailable"
             ;;
         *)
