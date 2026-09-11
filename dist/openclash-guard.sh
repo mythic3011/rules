@@ -864,6 +864,16 @@ guard_overlay_is_active() {
         [ "$(_guard_overlay_marker_count "$_guard_oia_hook" "$_GUARD_OVERLAY_END")" -eq 1 ]
 }
 
+# Overlay hook lifecycle: staged (markers absent) or active (marked block present).
+# This is not custom-rule data and not the Guard nft table.
+guard_overlay_activation() {
+    if guard_overlay_is_active; then
+        printf '%s\n' "active"
+    else
+        printf '%s\n' "staged"
+    fi
+}
+
 guard_overlay_activate() {
     _guard_oa_yes=0
     while [ "$#" -gt 0 ]; do
@@ -2645,6 +2655,20 @@ guard_policy_load() {
     _GUARD_POLICY_REVISION=$(json_get "$_GUARD_POLICY_FILE" revision 2>/dev/null) || _GUARD_POLICY_REVISION=
 }
 
+# Guard nft table lifecycle: active | absent | unavailable.
+# Distinct from policy enforcement and from overlay rules.activation.
+guard_firewall_table_state() {
+    if ! command -v nft >/dev/null 2>&1; then
+        printf '%s\n' "unavailable"
+        return 0
+    fi
+    if nft_table_exists "${_GUARD_NFT_FAMILY:-inet}" "${_GUARD_NFT_TABLE:-openclash_guard}"; then
+        printf '%s\n' "active"
+        return 0
+    fi
+    printf '%s\n' "absent"
+}
+
 guard_policy_needs_failclosed() {
     _guard_nf_svcs=$(json_keys "$_GUARD_POLICY_FILE" services) || _guard_nf_svcs=
     for _guard_nf_svc in $_guard_nf_svcs
@@ -3371,6 +3395,7 @@ guard_dns_domain_set_backend() {
             ;;
         adguardhome)
             # resolver-sync is not implemented; do not claim dest-set protection.
+            # See docs/openclash-guard.md "AdGuard Home Domain-Set Backend".
             printf '%s\n' "unavailable"
             ;;
         *)
@@ -5457,8 +5482,7 @@ guard_cmd_health_check() {
         _guard_hc_valid=0
         [ -n "$_guard_hc_reason" ] || _guard_hc_reason="Guard service is $_guard_hc_service"
     fi
-    _guard_hc_overlay=staged
-    guard_overlay_is_active && _guard_hc_overlay=active
+    _guard_hc_overlay=$(guard_overlay_activation)
     if [ "$_guard_hc_json" = 1 ]; then
         printf '{"healthy":%s,"service":"%s","firewallHooks":%s,"rules":{"activation":"%s","data":"preserved"},"reason":"%s"}\n' \
             "$(_guard_env_json_bool "$_guard_hc_valid")" \
@@ -5589,6 +5613,16 @@ _GUARD_PREFLIGHT_CACHE_DIR=
 _GUARD_PREFLIGHT_CACHE_TEMP=0
 _GUARD_PREFLIGHT_POLICY_TEMP=0
 _GUARD_PREFLIGHT_TEMPLATES_TEMP=0
+
+# Current preflight materialization: local | github-raw | jsdelivr | override | none.
+# Distinct from persisted distribution provenance (selectedSource).
+guard_runtime_source() {
+    if [ -n "${_GUARD_PREFLIGHT_SOURCE:-}" ]; then
+        printf '%s\n' "$_GUARD_PREFLIGHT_SOURCE"
+    else
+        printf '%s\n' "none"
+    fi
+}
 
 _guard_preflight_remove_file() {
     [ -n "${1:-}" ] && [ -f "$1" ] && rm -f "$1"
@@ -5948,10 +5982,6 @@ _guard_menu_environment() {
     [ "$_guard_me_dns" = none ] && _guard_me_dns=unknown
     _guard_me_guard=uninitialized
     [ "$_GUARD_PREFLIGHT_SETUP_VALID" = 1 ] && _guard_me_guard=valid
-    _guard_me_source=$_GUARD_PREFLIGHT_SOURCE
-    if [ -z "$_guard_me_source" ]; then
-        _guard_me_source=$(_guard_distribution_selected 2>/dev/null) || _guard_me_source=unknown
-    fi
     _guard_me_templates=$(printf '%s' "$_GUARD_PREFLIGHT_TEMPLATE_IDS" | tr '\n' ' ')
     [ -n "$_guard_me_templates" ] || _guard_me_templates=none
 
@@ -5967,8 +5997,9 @@ _guard_menu_environment() {
     cli_kv "  Routing capability" "${_GUARD_GEO_ROUTE:-unavailable}"
     cli_kv "  Guard runtime" "$_guard_me_guard"
     [ "$_GUARD_PREFLIGHT_SETUP_VALID" = 1 ] || cli_kv "    Reason" "$_GUARD_PREFLIGHT_SETUP_REASON"
-    cli_kv "  Distribution source" "$_guard_me_source"
+    cli_kv "  Runtime source" "$(guard_runtime_source)"
     [ -n "$_GUARD_PREFLIGHT_SOURCE" ] || cli_kv "    Reason" "$_GUARD_PREFLIGHT_SOURCE_REASON"
+    cli_kv "  Distribution provenance" "$(_guard_distribution_selected_or_none)"
     cli_kv "  Matching templates" "$_guard_me_templates"
     [ -n "$_GUARD_PREFLIGHT_TEMPLATE_IDS" ] || cli_kv "    Reason" "$_GUARD_PREFLIGHT_TEMPLATE_REASON"
 }
@@ -6092,6 +6123,15 @@ _guard_distribution_selected() {
     _guard_ds_file=$(_guard_distribution_state_path)
     [ -f "$_guard_ds_file" ] || return 1
     sed -n 's/^selectedSource=//p' "$_guard_ds_file" | head -n 1
+}
+
+_guard_distribution_selected_or_none() {
+    _guard_dson=$(_guard_distribution_selected 2>/dev/null) || _guard_dson=
+    if [ -n "$_guard_dson" ]; then
+        printf '%s\n' "$_guard_dson"
+    else
+        printf '%s\n' "none"
+    fi
 }
 
 _guard_distribution_record() {
@@ -6299,11 +6339,20 @@ guard_cmd_refresh() {
     cli_success "runtime policy and template catalog refreshed; Apply remains pending"
 }
 
+guard_status_json_extra() {
+    printf ',"runtime":{"source":"%s"},"distribution":{"selectedSource":"%s"},"rules":{"activation":"%s"},"firewall":{"table":"%s"}' \
+        "$(_guard_env_json_string "$(guard_runtime_source)")" \
+        "$(_guard_env_json_string "$(_guard_distribution_selected_or_none)")" \
+        "$(_guard_env_json_string "$(guard_overlay_activation)")" \
+        "$(_guard_env_json_string "$(guard_firewall_table_state)")"
+}
+
 _guard_emit_status_json() {
     _guard_sj=$(guard_env_json)
     _guard_sj=${_guard_sj%?}
     printf '%s,' "$_guard_sj"
     guard_policy_json_extra
+    guard_status_json_extra
     guard_doctor_json_extra
     printf '}\n'
 }
@@ -6364,7 +6413,10 @@ guard_cmd_status() {
     [ -n "$_GUARD_POLICY_STATE_REASON" ] && cli_kv state.reason "$_GUARD_POLICY_STATE_REASON"
     [ -n "$_GUARD_POLICY_DEGRADED_COMPONENTS" ] && cli_kv state.degradedComponents "$_GUARD_POLICY_DEGRADED_COMPONENTS"
     cli_kv enforcement "$_GUARD_POLICY_ENFORCEMENT"
-    cli_kv distribution.selectedSource "$(_guard_distribution_selected 2>/dev/null || printf 'none')"
+    cli_kv firewall.table "$(guard_firewall_table_state)"
+    cli_kv rules.activation "$(guard_overlay_activation)"
+    cli_kv runtime.source "$(guard_runtime_source)"
+    cli_kv distribution.selectedSource "$(_guard_distribution_selected_or_none)"
 }
 
 guard_cmd_doctor() {

@@ -18,10 +18,6 @@ _guard_menu_environment() {
     [ "$_guard_me_dns" = none ] && _guard_me_dns=unknown
     _guard_me_guard=uninitialized
     [ "$_GUARD_PREFLIGHT_SETUP_VALID" = 1 ] && _guard_me_guard=valid
-    _guard_me_source=$_GUARD_PREFLIGHT_SOURCE
-    if [ -z "$_guard_me_source" ]; then
-        _guard_me_source=$(_guard_distribution_selected 2>/dev/null) || _guard_me_source=unknown
-    fi
     _guard_me_templates=$(printf '%s' "$_GUARD_PREFLIGHT_TEMPLATE_IDS" | tr '\n' ' ')
     [ -n "$_guard_me_templates" ] || _guard_me_templates=none
 
@@ -37,8 +33,9 @@ _guard_menu_environment() {
     cli_kv "  Routing capability" "${_GUARD_GEO_ROUTE:-unavailable}"
     cli_kv "  Guard runtime" "$_guard_me_guard"
     [ "$_GUARD_PREFLIGHT_SETUP_VALID" = 1 ] || cli_kv "    Reason" "$_GUARD_PREFLIGHT_SETUP_REASON"
-    cli_kv "  Distribution source" "$_guard_me_source"
+    cli_kv "  Runtime source" "$(guard_runtime_source)"
     [ -n "$_GUARD_PREFLIGHT_SOURCE" ] || cli_kv "    Reason" "$_GUARD_PREFLIGHT_SOURCE_REASON"
+    cli_kv "  Distribution provenance" "$(_guard_distribution_selected_or_none)"
     cli_kv "  Matching templates" "$_guard_me_templates"
     [ -n "$_GUARD_PREFLIGHT_TEMPLATE_IDS" ] || cli_kv "    Reason" "$_GUARD_PREFLIGHT_TEMPLATE_REASON"
 }

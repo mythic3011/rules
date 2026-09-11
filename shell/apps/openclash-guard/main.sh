@@ -42,6 +42,15 @@ _guard_distribution_selected() {
     sed -n 's/^selectedSource=//p' "$_guard_ds_file" | head -n 1
 }
 
+_guard_distribution_selected_or_none() {
+    _guard_dson=$(_guard_distribution_selected 2>/dev/null) || _guard_dson=
+    if [ -n "$_guard_dson" ]; then
+        printf '%s\n' "$_guard_dson"
+    else
+        printf '%s\n' "none"
+    fi
+}
+
 _guard_distribution_record() {
     [ "${GUARD_DRY_RUN:-0}" = 1 ] && return 0
     _guard_dr_file=$(_guard_distribution_state_path)
@@ -247,11 +256,20 @@ guard_cmd_refresh() {
     cli_success "runtime policy and template catalog refreshed; Apply remains pending"
 }
 
+guard_status_json_extra() {
+    printf ',"runtime":{"source":"%s"},"distribution":{"selectedSource":"%s"},"rules":{"activation":"%s"},"firewall":{"table":"%s"}' \
+        "$(_guard_env_json_string "$(guard_runtime_source)")" \
+        "$(_guard_env_json_string "$(_guard_distribution_selected_or_none)")" \
+        "$(_guard_env_json_string "$(guard_overlay_activation)")" \
+        "$(_guard_env_json_string "$(guard_firewall_table_state)")"
+}
+
 _guard_emit_status_json() {
     _guard_sj=$(guard_env_json)
     _guard_sj=${_guard_sj%?}
     printf '%s,' "$_guard_sj"
     guard_policy_json_extra
+    guard_status_json_extra
     guard_doctor_json_extra
     printf '}\n'
 }
@@ -312,7 +330,10 @@ guard_cmd_status() {
     [ -n "$_GUARD_POLICY_STATE_REASON" ] && cli_kv state.reason "$_GUARD_POLICY_STATE_REASON"
     [ -n "$_GUARD_POLICY_DEGRADED_COMPONENTS" ] && cli_kv state.degradedComponents "$_GUARD_POLICY_DEGRADED_COMPONENTS"
     cli_kv enforcement "$_GUARD_POLICY_ENFORCEMENT"
-    cli_kv distribution.selectedSource "$(_guard_distribution_selected 2>/dev/null || printf 'none')"
+    cli_kv firewall.table "$(guard_firewall_table_state)"
+    cli_kv rules.activation "$(guard_overlay_activation)"
+    cli_kv runtime.source "$(guard_runtime_source)"
+    cli_kv distribution.selectedSource "$(_guard_distribution_selected_or_none)"
 }
 
 guard_cmd_doctor() {

@@ -627,8 +627,7 @@ guard_cmd_health_check() {
         _guard_hc_valid=0
         [ -n "$_guard_hc_reason" ] || _guard_hc_reason="Guard service is $_guard_hc_service"
     fi
-    _guard_hc_overlay=staged
-    guard_overlay_is_active && _guard_hc_overlay=active
+    _guard_hc_overlay=$(guard_overlay_activation)
     if [ "$_guard_hc_json" = 1 ]; then
         printf '{"healthy":%s,"service":"%s","firewallHooks":%s,"rules":{"activation":"%s","data":"preserved"},"reason":"%s"}\n' \
             "$(_guard_env_json_bool "$_guard_hc_valid")" \

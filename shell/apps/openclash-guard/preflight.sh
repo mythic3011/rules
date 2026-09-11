@@ -22,6 +22,16 @@ _GUARD_PREFLIGHT_CACHE_TEMP=0
 _GUARD_PREFLIGHT_POLICY_TEMP=0
 _GUARD_PREFLIGHT_TEMPLATES_TEMP=0
 
+# Current preflight materialization: local | github-raw | jsdelivr | override | none.
+# Distinct from persisted distribution provenance (selectedSource).
+guard_runtime_source() {
+    if [ -n "${_GUARD_PREFLIGHT_SOURCE:-}" ]; then
+        printf '%s\n' "$_GUARD_PREFLIGHT_SOURCE"
+    else
+        printf '%s\n' "none"
+    fi
+}
+
 _guard_preflight_remove_file() {
     [ -n "${1:-}" ] && [ -f "$1" ] && rm -f "$1"
 }

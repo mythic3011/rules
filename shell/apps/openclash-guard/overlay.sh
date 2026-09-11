@@ -131,6 +131,16 @@ guard_overlay_is_active() {
         [ "$(_guard_overlay_marker_count "$_guard_oia_hook" "$_GUARD_OVERLAY_END")" -eq 1 ]
 }
 
+# Overlay hook lifecycle: staged (markers absent) or active (marked block present).
+# This is not custom-rule data and not the Guard nft table.
+guard_overlay_activation() {
+    if guard_overlay_is_active; then
+        printf '%s\n' "active"
+    else
+        printf '%s\n' "staged"
+    fi
+}
+
 guard_overlay_activate() {
     _guard_oa_yes=0
     while [ "$#" -gt 0 ]; do
