@@ -138,6 +138,7 @@ _guard_write_batch() {
     {
         guard_kill_render
         guard_game_render
+        guard_kill_render_final
     } >> "$_guard_wb"
 }
 
