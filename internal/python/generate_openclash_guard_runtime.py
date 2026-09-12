@@ -514,20 +514,36 @@ def compile_nft(spec: object) -> dict[str, str]:
 def compile_gaming(spec: object) -> dict[str, Any]:
     if not _is_mapping(spec):
         raise RuntimeError("gaming config must be a mapping")
+    if "udpPorts" in spec:
+        raise RuntimeError(
+            "gaming.udpPorts is ambiguous; use gaming.udpSourcePorts and gaming.udpDestinationPorts"
+        )
     protected = _ports(spec.get("protectedUdpPorts"), "gaming.protectedUdpPorts")
     if PROTECTED_UDP_PORT not in protected:
         protected.append(PROTECTED_UDP_PORT)
     protected = sorted(set(protected))
     protected_set = set(protected)
-    udp_ports = [port for port in _ports(spec.get("udpPorts"), "gaming.udpPorts") if port not in protected_set]
-    tcp_ports = [port for port in _ports(spec.get("tcpPorts"), "gaming.tcpPorts") if port not in protected_set]
+    udp_source_ports = _ports(spec.get("udpSourcePorts"), "gaming.udpSourcePorts")
+    udp_destination_ports = [
+        port
+        for port in _ports(spec.get("udpDestinationPorts"), "gaming.udpDestinationPorts")
+        if port not in protected_set
+    ]
+    tcp_ports = [
+        port
+        for port in _ports(spec.get("tcpPorts"), "gaming.tcpPorts")
+        if port not in protected_set
+    ]
     return {
-        "udpPorts": udp_ports,
+        "udpSourcePorts": udp_source_ports,
+        "udpDestinationPorts": udp_destination_ports,
+        # Runtime schema v1 compatibility for older Guard bundles. Canonical
+        # authoring must use the explicit directional fields above.
+        "udpPorts": udp_destination_ports,
         "tcpPorts": tcp_ports,
         "protectedUdpPorts": protected,
         "destinationCidrs": _cidrs(spec.get("destinationCidrs"), "gaming.destinationCidrs"),
     }
-
 
 def compile_geo_providers(spec: object) -> list[dict[str, Any]]:
     if not isinstance(spec, list):
