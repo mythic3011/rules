@@ -1,5 +1,5 @@
 #!/bin/sh
-# Scoped gaming exceptions. Never saddr+any-UDP. Never UDP/443 blanket.
+# Scoped gaming exceptions. Never saddr+any-UDP. Protected UDP ports are destination-only.
 # Prefix: guard_game_
 set -eu
 
@@ -16,29 +16,54 @@ guard_game_src_ips() {
     if ! command -v uci >/dev/null 2>&1; then
         return 0
     fi
-    _guard_gs_nl='
-'
+    _guard_gs_nl='\n'
     uci -d "$_guard_gs_nl" -q get openclash_guard.udp.src_ip 2>/dev/null || true
 }
 
-guard_game_safe_udp_ports() {
-    _guard_gsp_ports=$(json_list "$_GUARD_POLICY_FILE" gaming.udpPorts 2>/dev/null) || _guard_gsp_ports=
-    for _guard_gsp_port in $_guard_gsp_ports
+guard_game_udp_source_ports() {
+    json_list "$_GUARD_POLICY_FILE" gaming.udpSourcePorts 2>/dev/null || true
+}
+
+guard_game_udp_destination_ports() {
+    if json_has "$_GUARD_POLICY_FILE" gaming.udpDestinationPorts; then
+        json_list "$_GUARD_POLICY_FILE" gaming.udpDestinationPorts 2>/dev/null || true
+        return 0
+    fi
+    # Backward compatibility for installed schema-v1 runtime files. The
+    # ambiguous legacy field is interpreted only as a destination-port list.
+    json_list "$_GUARD_POLICY_FILE" gaming.udpPorts 2>/dev/null || true
+}
+
+guard_game_safe_udp_destination_ports() {
+    _guard_gsdp_ports=$(guard_game_udp_destination_ports)
+    for _guard_gsdp_port in $_guard_gsdp_ports
     do
-        [ -n "$_guard_gsp_port" ] || continue
-        if guard_policy_port_in_list "$_guard_gsp_port" gaming.protectedUdpPorts; then
+        [ -n "$_guard_gsdp_port" ] || continue
+        if guard_policy_port_in_list "$_guard_gsdp_port" gaming.protectedUdpPorts; then
             continue
         fi
-        printf '%s\n' "$_guard_gsp_port"
+        printf '%s\n' "$_guard_gsdp_port"
     done
 }
 
-guard_game_port_enabled() {
-    _guard_gpe_want=$1
-    _guard_gpe_ports=$(json_list "$_GUARD_POLICY_FILE" gaming.udpPorts 2>/dev/null) || _guard_gpe_ports=
-    for _guard_gpe_port in $_guard_gpe_ports
+guard_game_source_port_enabled() {
+    _guard_gspe_want=$1
+    _guard_gspe_ports=$(guard_game_udp_source_ports)
+    for _guard_gspe_port in $_guard_gspe_ports
     do
-        if [ "$_guard_gpe_port" = "$_guard_gpe_want" ]; then
+        if [ "$_guard_gspe_port" = "$_guard_gspe_want" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+guard_game_destination_port_enabled() {
+    _guard_gdpe_want=$1
+    _guard_gdpe_ports=$(guard_game_udp_destination_ports)
+    for _guard_gdpe_port in $_guard_gdpe_ports
+    do
+        if [ "$_guard_gdpe_port" = "$_guard_gdpe_want" ]; then
             return 0
         fi
     done
@@ -119,18 +144,28 @@ _guard_game_dest_ok() {
 
 guard_game_flow_eligible() {
     _guard_gf_proto=$1
-    _guard_gf_dport=$2
-    _guard_gf_src=$3
-    _guard_gf_dest=$4
+    _guard_gf_sport=$2
+    _guard_gf_dport=$3
+    _guard_gf_src=$4
+    _guard_gf_dest=$5
     guard_game_direct_available || return 1
     case $_guard_gf_proto in
         udp|UDP) ;;
         *) return 1 ;;
     esac
-    if [ -z "$_guard_gf_dport" ] || guard_policy_port_in_list "$_guard_gf_dport" gaming.protectedUdpPorts; then
+    # Protected ports describe the remote/destination endpoint. A trusted
+    # source-port exception must never override this fail-closed boundary.
+    if [ -n "$_guard_gf_dport" ] && guard_policy_port_in_list "$_guard_gf_dport" gaming.protectedUdpPorts; then
         return 1
     fi
-    guard_game_port_enabled "$_guard_gf_dport" || return 1
+    _guard_gf_port_match=0
+    if [ -n "$_guard_gf_sport" ] && guard_game_source_port_enabled "$_guard_gf_sport"; then
+        _guard_gf_port_match=1
+    fi
+    if [ -n "$_guard_gf_dport" ] && guard_game_destination_port_enabled "$_guard_gf_dport"; then
+        _guard_gf_port_match=1
+    fi
+    [ "$_guard_gf_port_match" = 1 ] || return 1
     _guard_gf_srcs=$(guard_game_src_ips)
     if [ -z "$_guard_gf_srcs" ]; then
         return 1
@@ -151,24 +186,36 @@ _guard_game_render_scoped() {
     guard_game_direct_available || return 0
     _guard_gr_srcs=$(guard_game_src_ips)
     [ -n "$_guard_gr_srcs" ] || return 0
-    _guard_gr_keep=$(guard_game_safe_udp_ports)
-    [ -n "$_guard_gr_keep" ] || return 0
+    _guard_gr_source_ports=$(guard_game_udp_source_ports)
+    _guard_gr_destination_ports=$(guard_game_safe_udp_destination_ports)
+    if [ -z "$_guard_gr_source_ports" ] && [ -z "$_guard_gr_destination_ports" ]; then
+        return 0
+    fi
 
     _guard_kill_add_set gaming_src ipv4_addr gaming-src interval
     # shellcheck disable=SC2086
     _guard_kill_add_elements gaming_src $_guard_gr_srcs
-    _guard_kill_add_set gaming_udp inet_service gaming-udp
-    # shellcheck disable=SC2086
-    _guard_kill_add_elements gaming_udp $_guard_gr_keep
 
     _guard_gr_cidrs=$(json_list "$_GUARD_POLICY_FILE" gaming.destinationCidrs 2>/dev/null) || _guard_gr_cidrs=
+    _guard_gr_dst_match=
     if [ -n "$_guard_gr_cidrs" ]; then
         _guard_kill_add_set gaming_dst ipv4_addr gaming-dst interval
         # shellcheck disable=SC2086
         _guard_kill_add_elements gaming_dst $_guard_gr_cidrs
-        _guard_kill_add_rule forward 'ip saddr @gaming_src ip daddr @gaming_dst udp dport @gaming_udp accept' game-udp
-    else
-        _guard_kill_add_rule forward 'ip saddr @gaming_src udp dport @gaming_udp accept' game-udp
+        _guard_gr_dst_match='ip daddr @gaming_dst '
+    fi
+
+    if [ -n "$_guard_gr_source_ports" ]; then
+        _guard_kill_add_set gaming_udp_source inet_service gaming-udp-source
+        # shellcheck disable=SC2086
+        _guard_kill_add_elements gaming_udp_source $_guard_gr_source_ports
+        _guard_kill_add_rule forward "ip saddr @gaming_src ${_guard_gr_dst_match}udp sport @gaming_udp_source accept" game-udp-source
+    fi
+    if [ -n "$_guard_gr_destination_ports" ]; then
+        _guard_kill_add_set gaming_udp_destination inet_service gaming-udp-destination
+        # shellcheck disable=SC2086
+        _guard_kill_add_elements gaming_udp_destination $_guard_gr_destination_ports
+        _guard_kill_add_rule forward "ip saddr @gaming_src ${_guard_gr_dst_match}udp dport @gaming_udp_destination accept" game-udp-destination
     fi
 }
 

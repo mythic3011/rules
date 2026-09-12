@@ -28,7 +28,8 @@ nft:
   table: openclash_guard
   commentPrefix: openclash-guard
 gaming:
-  udpPorts: [3074]
+  udpSourcePorts: [443, 3074]
+  udpDestinationPorts: [443, 27015]
   tcpPorts: []
   protectedUdpPorts: []
   destinationCidrs: []
@@ -170,8 +171,10 @@ class SyntheticCatalogTest(unittest.TestCase):
         self.assertEqual(document["protectionClasses"]["direct-capable"]["quic"], "allow")
         self.assertEqual(document["protectionClasses"]["proxy-required"]["quic"], "proxy-or-reject")
         self.assertIn(443, document["gaming"]["protectedUdpPorts"])
-        self.assertNotIn(443, document["gaming"]["udpPorts"])
-        self.assertEqual(document["gaming"]["udpPorts"], [3074])
+        self.assertEqual(document["gaming"]["udpSourcePorts"], [443, 3074])
+        self.assertNotIn(443, document["gaming"]["udpDestinationPorts"])
+        self.assertEqual(document["gaming"]["udpDestinationPorts"], [27015])
+        self.assertEqual(document["gaming"]["udpPorts"], [27015])
         self.assertEqual(document["geoProviders"][0]["cacheTtlSeconds"], 300)
 
     def test_real_flow_music_dependency_is_config_driven(self) -> None:
@@ -240,7 +243,8 @@ nft:
   table: openclash_guard
   commentPrefix: openclash-guard
 gaming:
-  udpPorts: []
+  udpSourcePorts: []
+  udpDestinationPorts: []
   tcpPorts: []
   protectedUdpPorts: [443]
   destinationCidrs: []
@@ -270,6 +274,15 @@ geoProviders:
         guard = GUARD_YAML + "\n    apiKey: hunter2\n"
         with tempfile.TemporaryDirectory() as raw:
             with self.assertRaisesRegex(RuntimeError, "refusing secret field"):
+                _compile(Path(raw), guard=guard)
+
+    def test_ambiguous_canonical_udp_ports_are_rejected(self) -> None:
+        guard = GUARD_YAML.replace(
+            "  udpSourcePorts: [443, 3074]\n  udpDestinationPorts: [443, 27015]\n",
+            "  udpPorts: [3074]\n",
+        )
+        with tempfile.TemporaryDirectory() as raw:
+            with self.assertRaisesRegex(RuntimeError, "gaming.udpPorts is ambiguous"):
                 _compile(Path(raw), guard=guard)
 
     def test_firewall_kill_switch_defaults_fail_mode_to_reject(self) -> None:

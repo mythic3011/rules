@@ -255,10 +255,11 @@ guard_policy_eval() {
     _guard_pe_dport=${3:-}
     _guard_pe_src=${4:-}
     _guard_pe_dest=${5:-}
+    _guard_pe_sport=${6:-}
     _guard_pe_gaming=0
     if [ -n "$_guard_pe_dport" ] && guard_policy_port_in_list "$_guard_pe_dport" gaming.protectedUdpPorts; then
         _guard_pe_gaming=0
-    elif guard_game_flow_eligible "$_guard_pe_proto" "$_guard_pe_dport" "$_guard_pe_src" "$_guard_pe_dest"; then
+    elif guard_game_flow_eligible "$_guard_pe_proto" "$_guard_pe_sport" "$_guard_pe_dport" "$_guard_pe_src" "$_guard_pe_dest"; then
         _guard_pe_gaming=1
     fi
     if [ "$_GUARD_POLICY_ENFORCEMENT" = reject ] || [ "$_GUARD_OC_HEALTHY" != 1 ]; then

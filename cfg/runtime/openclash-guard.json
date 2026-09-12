@@ -39,7 +39,9 @@
       443
     ],
     "tcpPorts": [],
-    "udpPorts": []
+    "udpDestinationPorts": [],
+    "udpPorts": [],
+    "udpSourcePorts": []
   },
   "geoProviders": [
     {
@@ -96,7 +98,7 @@
       "quic": "proxy-or-reject"
     }
   },
-  "revision": "a74a0a35c8d209650281aa4d47b40cbd54777bc9e3ef7062a8d9701e2fb174f7",
+  "revision": "08829d9f6ee2334d6fdeccf424b41c5816c7df0aac2f5301435b828306f44c26",
   "schemaVersion": 1,
   "services": {
     "chatgpt": {

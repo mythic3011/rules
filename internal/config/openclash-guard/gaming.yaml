@@ -1,6 +1,8 @@
-# Gaming bypass ports. UDP/443 is never a bypass candidate.
+# Gaming direct exceptions are endpoint-direction aware. Protected UDP ports
+# apply to the remote/destination endpoint and are never bypass candidates.
 gaming:
-  udpPorts: []
+  udpSourcePorts: []
+  udpDestinationPorts: []
   tcpPorts: []
   protectedUdpPorts: [443]
   destinationCidrs: []
