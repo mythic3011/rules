@@ -21,6 +21,36 @@ guard_game_src_ips() {
     uci -d "$_guard_gs_nl" -q get openclash_guard.udp.src_ip 2>/dev/null || true
 }
 
+guard_game_safe_udp_ports() {
+    _guard_gsp_ports=$(json_list "$_GUARD_POLICY_FILE" gaming.udpPorts 2>/dev/null) || _guard_gsp_ports=
+    for _guard_gsp_port in $_guard_gsp_ports
+    do
+        [ -n "$_guard_gsp_port" ] || continue
+        if guard_policy_port_in_list "$_guard_gsp_port" gaming.protectedUdpPorts; then
+            continue
+        fi
+        printf '%s\n' "$_guard_gsp_port"
+    done
+}
+
+guard_game_port_enabled() {
+    _guard_gpe_want=$1
+    _guard_gpe_ports=$(json_list "$_GUARD_POLICY_FILE" gaming.udpPorts 2>/dev/null) || _guard_gpe_ports=
+    for _guard_gpe_port in $_guard_gpe_ports
+    do
+        if [ "$_guard_gpe_port" = "$_guard_gpe_want" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+guard_game_direct_available() {
+    [ "$_GUARD_GAME_ENABLED" = 1 ] || return 1
+    [ "${_GUARD_OC_HEALTHY:-0}" = 1 ] || return 1
+    return 0
+}
+
 _guard_game_ip_in() {
     _guard_gi_ip=$1
     shift
@@ -51,9 +81,7 @@ _guard_game_dest_ok() {
                 _guard_gd_net=${_guard_gd_cidr%/*}
                 _guard_gd_pfx=${_guard_gd_net%%.*}.
                 case $_guard_gd_dest in
-                    "$_guard_gd_pfx"*)
-                        return 0
-                        ;;
+                    "$_guard_gd_pfx"*) return 0 ;;
                 esac
                 ;;
             */16)
@@ -63,18 +91,14 @@ _guard_game_dest_ok() {
                 _guard_gd_b=${_guard_gd_rest%%.*}
                 _guard_gd_pfx="${_guard_gd_a}.${_guard_gd_b}."
                 case $_guard_gd_dest in
-                    "$_guard_gd_pfx"*)
-                        return 0
-                        ;;
+                    "$_guard_gd_pfx"*) return 0 ;;
                 esac
                 ;;
             */24)
                 _guard_gd_net=${_guard_gd_cidr%/*}
                 _guard_gd_pfx=${_guard_gd_net%.*}.
                 case $_guard_gd_dest in
-                    "$_guard_gd_pfx"*)
-                        return 0
-                        ;;
+                    "$_guard_gd_pfx"*) return 0 ;;
                 esac
                 ;;
             */*)
@@ -98,22 +122,15 @@ guard_game_flow_eligible() {
     _guard_gf_dport=$2
     _guard_gf_src=$3
     _guard_gf_dest=$4
-    if [ "$_GUARD_GAME_ENABLED" != 1 ]; then
-        return 1
-    fi
+    guard_game_direct_available || return 1
     case $_guard_gf_proto in
-        udp|UDP)
-            ;;
-        *)
-            return 1
-            ;;
+        udp|UDP) ;;
+        *) return 1 ;;
     esac
     if [ -z "$_guard_gf_dport" ] || guard_policy_port_in_list "$_guard_gf_dport" gaming.protectedUdpPorts; then
         return 1
     fi
-    if ! guard_policy_port_in_list "$_guard_gf_dport" gaming.udpPorts; then
-        return 1
-    fi
+    guard_game_port_enabled "$_guard_gf_dport" || return 1
     _guard_gf_srcs=$(guard_game_src_ips)
     if [ -z "$_guard_gf_srcs" ]; then
         return 1
@@ -130,38 +147,20 @@ guard_game_flow_eligible() {
     return 0
 }
 
-# Gaming runs AFTER kill/protect. Skipped entirely when enforcement=reject
-# so it cannot override the global kill switch or directAllowed=false.
-guard_game_render() {
-    if [ "$_GUARD_GAME_ENABLED" != 1 ]; then
-        return 0
-    fi
-    if [ "$_GUARD_POLICY_ENFORCEMENT" = reject ]; then
-        return 0
-    fi
+_guard_game_render_scoped() {
+    guard_game_direct_available || return 0
     _guard_gr_srcs=$(guard_game_src_ips)
-    if [ -z "$_guard_gr_srcs" ]; then
-        return 0
-    fi
-    _guard_gr_ports=$(json_list "$_GUARD_POLICY_FILE" gaming.udpPorts 2>/dev/null) || _guard_gr_ports=
-    _guard_gr_keep=
-    for _guard_gr_port in $_guard_gr_ports
-    do
-        [ -n "$_guard_gr_port" ] || continue
-        if guard_policy_port_in_list "$_guard_gr_port" gaming.protectedUdpPorts; then
-            continue
-        fi
-        _guard_gr_keep="$_guard_gr_keep $_guard_gr_port"
-    done
-    if [ -z "$_guard_gr_keep" ]; then
-        return 0
-    fi
+    [ -n "$_guard_gr_srcs" ] || return 0
+    _guard_gr_keep=$(guard_game_safe_udp_ports)
+    [ -n "$_guard_gr_keep" ] || return 0
+
     _guard_kill_add_set gaming_src ipv4_addr gaming-src interval
     # shellcheck disable=SC2086
     _guard_kill_add_elements gaming_src $_guard_gr_srcs
     _guard_kill_add_set gaming_udp inet_service gaming-udp
     # shellcheck disable=SC2086
     _guard_kill_add_elements gaming_udp $_guard_gr_keep
+
     _guard_gr_cidrs=$(json_list "$_GUARD_POLICY_FILE" gaming.destinationCidrs 2>/dev/null) || _guard_gr_cidrs=
     if [ -n "$_guard_gr_cidrs" ]; then
         _guard_kill_add_set gaming_dst ipv4_addr gaming-dst interval
@@ -171,4 +170,11 @@ guard_game_render() {
     else
         _guard_kill_add_rule forward 'ip saddr @gaming_src udp dport @gaming_udp accept' game-udp
     fi
+}
+
+# Render only the scoped gaming exception. Global firewall finalization belongs
+# to the orchestration layer so other scoped exception modules can be ordered
+# explicitly before the final fail-closed rule.
+guard_game_render() {
+    _guard_game_render_scoped
 }

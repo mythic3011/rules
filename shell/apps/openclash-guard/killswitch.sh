@@ -12,7 +12,6 @@ _GUARD_NFT_TABLE_EXISTS=0
 _guard_kill_comment() {
     printf '%s:%s' "$_GUARD_NFT_PREFIX" "$1"
 }
-
 guard_kill_read_uci() {
     _GUARD_UCI_ENABLED=1
     _GUARD_UCI_MODE=auto
@@ -81,7 +80,9 @@ guard_kill_delete_table() {
     fi
 }
 
-# Order: local accepts, kill/protect reject, (gaming appended later), remaining.
+# Base order: local accepts and protected-port rejects. Scoped direct exceptions
+# are appended by their feature modules before guard_kill_render_final() emits
+# the global fail-closed rule.
 guard_kill_render() {
     if [ "${_GUARD_NFT_TABLE_EXISTS:-0}" = 1 ]; then
         printf 'flush table %s %s\n' "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE"
@@ -122,6 +123,9 @@ guard_kill_render() {
     _guard_kill_add_rule forward 'udp dport { 67, 68 } accept' dhcp
     _guard_kill_add_rule forward 'ip daddr @lan_rfc1918 accept' lan-dst
     _guard_kill_add_rule forward 'udp dport @protected_udp reject' protected-udp
+}
+
+guard_kill_render_final() {
     if [ "$_GUARD_POLICY_ENFORCEMENT" = reject ]; then
         _guard_kill_add_rule forward reject kill-switch
     fi
