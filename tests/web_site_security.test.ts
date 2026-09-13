@@ -37,6 +37,22 @@ test('web/site report.html sanitizes dynamic URL schemes before setting href', (
   );
 });
 
+test('web/site report.html configures target=_blank and rel=noopener noreferrer on dynamic external links', () => {
+  const content = fs.readFileSync(path.join(SITE_DIR, 'report.html'), 'utf8');
+
+  assert.match(
+    content,
+    /link\.target\s*=\s*["']_blank["']/,
+    'report.html dynamic links should open in a new tab.'
+  );
+
+  assert.match(
+    content,
+    /link\.rel\s*=\s*["']noopener noreferrer["']/,
+    'report.html dynamic links should specify rel="noopener noreferrer" to prevent tabnabbing.'
+  );
+});
+
 test('web/site HTML files include Pico CSS framework', () => {
   const htmlFiles = fs.readdirSync(SITE_DIR).filter(file => file.endsWith('.html'));
 
