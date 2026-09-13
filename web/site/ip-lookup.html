@@ -186,6 +186,16 @@
       }
 
       async function loadCidrEntries(assetPath) {
+        // Security check: validate assetPath to prevent path traversal and arbitrary external fetches
+        if (
+          typeof assetPath !== "string" ||
+          assetPath.includes("..") ||
+          assetPath.startsWith("/") ||
+          assetPath.startsWith("\\") ||
+          /^[a-z]+:/i.test(assetPath)
+        ) {
+          throw new Error("Invalid asset path");
+        }
         const response = await fetch(`./${assetPath}`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const text = await response.text();
