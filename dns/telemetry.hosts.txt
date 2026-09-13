@@ -2,22 +2,22 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/internal/python/generate_adblock_outputs.py
 # CATEGORY: telemetry
-# GENERATED_AT: 2026-09-12T08:00:00Z
-# TOTAL: 1967
+# GENERATED_AT: 2026-09-13T08:24:37Z
+# TOTAL: 1973
 # FORMAT: hosts
 # UPSTREAM hagezi_native_apple: 108
 # UPSTREAM hagezi_native_apple HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_huawei: 135
 # UPSTREAM hagezi_native_huawei HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_oppo_realme: 484
+# UPSTREAM hagezi_native_oppo_realme: 483
 # UPSTREAM hagezi_native_oppo_realme HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_samsung: 199
+# UPSTREAM hagezi_native_samsung: 200
 # UPSTREAM hagezi_native_samsung HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_tiktok: 435
+# UPSTREAM hagezi_native_tiktok: 438
 # UPSTREAM hagezi_native_tiktok HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_vivo: 229
+# UPSTREAM hagezi_native_vivo: 233
 # UPSTREAM hagezi_native_vivo HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_xiaomi: 346
+# UPSTREAM hagezi_native_xiaomi: 345
 # UPSTREAM hagezi_native_xiaomi HOMEPAGE: https://github.com/hagezi/dns-blocklists
 
 0.0.0.0 0001-metrics1-data-hicloud-com.geac.dbankedge.cn
@@ -50,6 +50,7 @@
 0.0.0.0 ad-drcn.media.dbankcloud.ru
 0.0.0.0 ad-format-sg.tiktokv.com
 0.0.0.0 ad-format-ttp2.tiktokv.eu
+0.0.0.0 ad-format.tiktokv.us
 0.0.0.0 ad-format16-normal-useastred.tiktokv.eu
 0.0.0.0 ad-growth-in.heytapmobile.com
 0.0.0.0 ad-growth-ru.heytapmobile.com
@@ -337,7 +338,6 @@
 0.0.0.0 bds.snssdk.com
 0.0.0.0 beacon.shazam.com
 0.0.0.0 bgp.fe01.c3.xiaomi.com
-0.0.0.0 bgp.tv.pandora.xiaomi.com
 0.0.0.0 bigdata-lbs-pri-c3.alb.xiaomi.com
 0.0.0.0 bigdata.ssp.samsung.com
 0.0.0.0 bldr.mkt.samsung.com
@@ -669,6 +669,7 @@
 0.0.0.0 eu-p.vivoglobal.com
 0.0.0.0 eu-pnrt-stsdk.vivoglobal.com
 0.0.0.0 eu-romsp-unifyconfig.vivoglobal.com
+0.0.0.0 eu-st-exappupgrade.vivoglobal.com
 0.0.0.0 eu-st-sl.vivoglobal.com
 0.0.0.0 eu-stsdk.vivoglobal.com
 0.0.0.0 eu-timesync.vivoglobal.com
@@ -845,7 +846,6 @@
 0.0.0.0 icosa-service-sg-03.allawnos.com
 0.0.0.0 icosa-service-sg.allawnos.com
 0.0.0.0 icosa-service-us.allawnos.com
-0.0.0.0 icosa-sg.coloros.com
 0.0.0.0 icota-eu.coloros.com
 0.0.0.0 icota-service-eu.allawnos.com
 0.0.0.0 icota-service-in.allawnos.com
@@ -931,17 +931,20 @@
 0.0.0.0 jupiter.sys.miui.com
 0.0.0.0 kpu.samsungelectronics.com
 0.0.0.0 kuyun.com
+0.0.0.0 kz-album-api.vivoglobal.com
 0.0.0.0 kz-cname-sin01-bigdata.vivoglobal.com
 0.0.0.0 kz-err-up.vivoglobal.com
 0.0.0.0 kz-monitor-stsdk.vivoglobal.com
 0.0.0.0 kz-onrt-stsdk.vivoglobal.com
 0.0.0.0 kz-ort-stsdk.vivoglobal.com
+0.0.0.0 kz-p.vivoglobal.com
 0.0.0.0 kz-pnrt-stsdk.vivoglobal.com
 0.0.0.0 kz-prt-stsdk.vivoglobal.com
 0.0.0.0 kz-st-exappupgrade.vivoglobal.com
 0.0.0.0 kz-st-sl.vivoglobal.com
 0.0.0.0 kz-st-sysupgrade.vivoglobal.com
 0.0.0.0 kz-stsdk.vivoglobal.com
+0.0.0.0 kz-timesync.vivoglobal.com
 0.0.0.0 kz-vcode-od.vivoglobal.com
 0.0.0.0 kz-vcode-or.vivoglobal.com
 0.0.0.0 launch.apple.com
@@ -950,6 +953,7 @@
 0.0.0.0 live-video-log16-normal-alisg.tiktokv.com
 0.0.0.0 live.miphone.pandora.xiaomi.com
 0.0.0.0 location-i18n.tiktokv.com
+0.0.0.0 location-ru.tiktokv.com
 0.0.0.0 location-sg.tiktokv.com
 0.0.0.0 location-ttp2.tiktokv.eu
 0.0.0.0 location-ttp2.us.tiktokv.com
@@ -1049,7 +1053,6 @@
 0.0.0.0 log32-normal-zr.tiktokv.com
 0.0.0.0 log32-normal.capcutapi.com
 0.0.0.0 log32-normal.tiktokv.com
-0.0.0.0 log53-normal-c-useast1a.tiktokv.com
 0.0.0.0 log58-normal-alisg.tiktokv.com
 0.0.0.0 log58-normal-c-alisg.tiktokv.com
 0.0.0.0 log58-normal-c-useast1a.tiktokv.com
@@ -1302,6 +1305,7 @@
 0.0.0.0 mssdk-i18n.tiktokv.com
 0.0.0.0 mssdk-phx.tiktokv.com
 0.0.0.0 mssdk-ru.tiktokv.com
+0.0.0.0 mssdk-ru.tiktokv.com.www.digmawifi.com
 0.0.0.0 mssdk-sg-bu.byteoversea.com
 0.0.0.0 mssdk-sg.byteoversea.com
 0.0.0.0 mssdk-sg.tiktokv.com
@@ -1490,6 +1494,7 @@
 0.0.0.0 ro-up.vivoglobal.com
 0.0.0.0 rtc-logger-i18n.tiktokv.com
 0.0.0.0 rtc-logger-ie.tiktokv.eu
+0.0.0.0 rtc-logger-ttp2.tiktokv.us
 0.0.0.0 rtc-logger-ttp2.us.tiktokv.com
 0.0.0.0 rtc-logger-va.tiktokv.com
 0.0.0.0 rtc-logger.tiktokv.com
@@ -1911,6 +1916,7 @@
 0.0.0.0 upu.samsungelectronics.com
 0.0.0.0 ureca.samsungapps.com
 0.0.0.0 url4077.ads-service.tiktok.com
+0.0.0.0 us-report.gras.samsungdm.com
 0.0.0.0 userid.xiaomi.com
 0.0.0.0 userprofile.push.heytapmobi.com
 0.0.0.0 v16-ad.byteoversea.com

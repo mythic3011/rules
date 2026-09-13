@@ -1,6 +1,6 @@
 {
   "category": "telemetry",
-  "generated_at": "2026-09-12T08:00:00Z",
+  "generated_at": "2026-09-13T08:24:37Z",
   "source_config": "internal/config/filtering/sources/telemetry.yaml",
   "custom_source_config": "internal/config/filtering/sources/custom/telemetry.yaml",
   "allowlist": "dns/local_telemetry_allowlist.txt",
@@ -9,12 +9,12 @@
   "hosts_output": "dns/telemetry.hosts.txt",
   "clash_output": "rule/Telemetry_Lite_Domain.yaml",
   "clash_name": "Telemetry_Lite_Domain",
-  "upstream_unique_count": 1936,
+  "upstream_unique_count": 1942,
   "local_blocklist_count": 47,
   "allowlist_count": 0,
-  "merged_pre_allowlist_count": 1968,
-  "post_allowlist_count": 1968,
-  "final_domain_count": 1967,
+  "merged_pre_allowlist_count": 1974,
+  "post_allowlist_count": 1974,
+  "final_domain_count": 1973,
   "clash_seed_count": 5,
   "clash_domain_count": 46,
   "sources": [
@@ -40,7 +40,7 @@
       "priority": 30,
       "url": "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/native.oppo-realme.txt",
       "homepage": "https://github.com/hagezi/dns-blocklists",
-      "count": 484
+      "count": 483
     },
     {
       "id": "hagezi_native_samsung",
@@ -48,7 +48,7 @@
       "priority": 40,
       "url": "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/native.samsung.txt",
       "homepage": "https://github.com/hagezi/dns-blocklists",
-      "count": 199
+      "count": 200
     },
     {
       "id": "hagezi_native_tiktok",
@@ -56,7 +56,7 @@
       "priority": 50,
       "url": "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/native.tiktok.txt",
       "homepage": "https://github.com/hagezi/dns-blocklists",
-      "count": 435
+      "count": 438
     },
     {
       "id": "hagezi_native_vivo",
@@ -64,7 +64,7 @@
       "priority": 60,
       "url": "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/native.vivo.txt",
       "homepage": "https://github.com/hagezi/dns-blocklists",
-      "count": 229
+      "count": 233
     },
     {
       "id": "hagezi_native_xiaomi",
@@ -72,7 +72,7 @@
       "priority": 70,
       "url": "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/native.xiaomi.txt",
       "homepage": "https://github.com/hagezi/dns-blocklists",
-      "count": 346
+      "count": 345
     }
   ]
 }
