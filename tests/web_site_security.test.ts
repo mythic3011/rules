@@ -37,6 +37,22 @@ test('web/site report.html sanitizes dynamic URL schemes before setting href', (
   );
 });
 
+test('web/site ip-lookup.html validates asset paths against path traversal before fetching', () => {
+  const content = fs.readFileSync(path.join(SITE_DIR, 'ip-lookup.html'), 'utf8');
+
+  assert.match(
+    content,
+    /safeAssetPath\s*\(/,
+    'ip-lookup.html should use safeAssetPath to validate CIDR asset paths before fetching.'
+  );
+
+  assert.match(
+    content,
+    /trimmed\.includes\s*\(\s*["']\.\.["']\s*\)/,
+    'ip-lookup.html asset path validator should reject path traversal sequences.'
+  );
+});
+
 test('web/site HTML files include Pico CSS framework', () => {
   const htmlFiles = fs.readdirSync(SITE_DIR).filter(file => file.endsWith('.html'));
 
