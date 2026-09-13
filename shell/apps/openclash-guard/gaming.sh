@@ -184,6 +184,10 @@ guard_game_flow_eligible() {
 
 _guard_game_render_scoped() {
     guard_game_direct_available || return 0
+    guard_dataplane_ready || return 0
+    _guard_gr_oif=$(guard_dataplane_direct_iface 2>/dev/null) || _guard_gr_oif=
+    [ -n "$_guard_gr_oif" ] || return 0
+
     _guard_gr_srcs=$(guard_game_src_ips)
     [ -n "$_guard_gr_srcs" ] || return 0
     _guard_gr_source_ports=$(guard_game_udp_source_ports)
@@ -209,19 +213,31 @@ _guard_game_render_scoped() {
         _guard_kill_add_set gaming_udp_source inet_service gaming-udp-source
         # shellcheck disable=SC2086
         _guard_kill_add_elements gaming_udp_source $_guard_gr_source_ports
-        _guard_kill_add_rule forward "ip saddr @gaming_src ${_guard_gr_dst_match}udp sport @gaming_udp_source accept" game-udp-source
+        _guard_kill_add_rule forward "ip saddr @gaming_src ${_guard_gr_dst_match}oifname \"$_guard_gr_oif\" udp sport @gaming_udp_source accept" game-udp-source
     fi
     if [ -n "$_guard_gr_destination_ports" ]; then
         _guard_kill_add_set gaming_udp_destination inet_service gaming-udp-destination
         # shellcheck disable=SC2086
         _guard_kill_add_elements gaming_udp_destination $_guard_gr_destination_ports
-        _guard_kill_add_rule forward "ip saddr @gaming_src ${_guard_gr_dst_match}udp dport @gaming_udp_destination accept" game-udp-destination
+        _guard_kill_add_rule forward "ip saddr @gaming_src ${_guard_gr_dst_match}oifname \"$_guard_gr_oif\" udp dport @gaming_udp_destination accept" game-udp-destination
     fi
 }
 
-# Render only the scoped gaming exception. Global firewall finalization belongs
-# to the orchestration layer so other scoped exception modules can be ordered
-# explicitly before the final fail-closed rule.
+# Reconcile both halves from the same normalized directional policy. The Guard
+# accept is emitted only when the OpenClash dataplane target and direct egress
+# interface have been validated; otherwise only stale Guard-owned dataplane
+# state is removed and the final kill-switch remains authoritative.
 guard_game_render() {
+    _guard_game_dp_srcs=$(guard_game_src_ips)
+    _guard_game_dp_sports=$(guard_game_udp_source_ports)
+    _guard_game_dp_dports=$(guard_game_safe_udp_destination_ports)
+    _guard_game_dp_cidrs=$(json_list "$_GUARD_POLICY_FILE" gaming.destinationCidrs 2>/dev/null) || _guard_game_dp_cidrs=
+
+    guard_dataplane_prepare \
+        "$_guard_game_dp_srcs" \
+        "$_guard_game_dp_sports" \
+        "$_guard_game_dp_dports" \
+        "$_guard_game_dp_cidrs" || return $?
     _guard_game_render_scoped
+    guard_dataplane_render
 }

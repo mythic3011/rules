@@ -75,6 +75,12 @@ guard_kill_delete_table() {
     if [ "$_GUARD_NFT_AVAILABLE" != 1 ]; then
         return 0
     fi
+    # The OpenClash dataplane exemption and the Guard allow are one policy.
+    # Remove Guard-owned pre-TUN state first so disabling/removing Guard cannot
+    # leave a stale direct-routing bypass behind.
+    if command -v guard_dataplane_remove >/dev/null 2>&1; then
+        guard_dataplane_remove || return $?
+    fi
     if nft_table_exists "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE"; then
         nft delete table "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE"
     fi
