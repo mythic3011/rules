@@ -21,7 +21,7 @@ test('web/site HTML files do not use dangerous innerHTML string interpolation', 
   }
 });
 
-test('web/site report.html sanitizes dynamic URL schemes before setting href', () => {
+test('web/site report.html sanitizes dynamic URL schemes and secures external links', () => {
   const content = fs.readFileSync(path.join(SITE_DIR, 'report.html'), 'utf8');
 
   assert.match(
@@ -34,6 +34,18 @@ test('web/site report.html sanitizes dynamic URL schemes before setting href', (
     content,
     /\/\^https\?:\\\/\\\//i,
     'report.html URL sanitizer should require http:// or https:// schemes.'
+  );
+
+  assert.match(
+    content,
+    /link\.rel\s*=\s*["']noopener noreferrer["']/,
+    'report.html should set rel="noopener noreferrer" on dynamic external links.'
+  );
+
+  assert.match(
+    content,
+    /link\.target\s*=\s*["']_blank["']/,
+    'report.html should set target="_blank" on dynamic external links.'
   );
 });
 
