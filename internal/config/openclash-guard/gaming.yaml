@@ -1,8 +1,12 @@
 # Gaming direct exceptions are endpoint-direction aware. Protected UDP ports
 # apply to the remote/destination endpoint and are never bypass candidates.
+# Range fields are canonical-authoring sugar and compile to runtime port lists.
 gaming:
-  udpSourcePorts: []
+  udpSourcePorts: [4950, 4955]
+  udpSourcePortRanges: []
   udpDestinationPorts: []
+  udpDestinationPortRanges:
+    - [27000, 27250]
   tcpPorts: []
   protectedUdpPorts: [443]
   destinationCidrs: []

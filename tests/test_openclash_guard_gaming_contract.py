@@ -8,6 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 APP_DIR = ROOT / "shell" / "apps" / "openclash-guard"
 GAMING = APP_DIR / "gaming.sh"
+DATAPLANE = APP_DIR / "dataplane.sh"
 KILLSWITCH = APP_DIR / "killswitch.sh"
 POLICY = APP_DIR / "policy.sh"
 MAIN = APP_DIR / "main.sh"
@@ -36,9 +37,25 @@ class OpenClashGuardGamingContractTests(unittest.TestCase):
         ):
             self.assertNotIn(forbidden, text)
 
+    def test_openclash_specifics_are_isolated_in_dataplane_adapter(self) -> None:
+        text = DATAPLANE.read_text(encoding="utf-8")
+        self.assertIn("openclash_mangle", text)
+        self.assertIn("openclash_upnp", text)
+        self.assertNotIn("0x162", text)
+        for forbidden in ("4950", "4955", "27015", "27000", "27250"):
+            self.assertNotIn(forbidden, text)
+
     def test_shell_sources_are_syntax_valid(self) -> None:
         result = subprocess.run(
-            ["/bin/sh", "-n", str(GAMING), str(KILLSWITCH), str(POLICY), str(MAIN)],
+            [
+                "/bin/sh",
+                "-n",
+                str(GAMING),
+                str(DATAPLANE),
+                str(KILLSWITCH),
+                str(POLICY),
+                str(MAIN),
+            ],
             cwd=ROOT,
             capture_output=True,
             text=True,
@@ -113,14 +130,24 @@ guard_game_flow_eligible udp 9999 3074 10.0.0.11 203.0.113.10 || exit 21
         result = self.run_shell(script)
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
 
-    def test_renderer_has_separate_source_and_destination_port_rules(self) -> None:
+    def test_renderer_has_directional_rules_and_direct_egress_constraint(self) -> None:
         text = GAMING.read_text(encoding="utf-8")
-        self.assertIn("udp sport @gaming_udp_source accept", text)
-        self.assertIn("udp dport @gaming_udp_destination accept", text)
+        self.assertIn("udp sport @gaming_udp_source", text)
+        self.assertIn("udp dport @gaming_udp_destination", text)
+        self.assertIn('oifname \\"$_guard_gr_oif\\"'.replace('\\\\', '\\'), text)
+        self.assertIn("guard_dataplane_prepare", text)
+        self.assertIn("guard_dataplane_render", text)
+        self.assertIn("guard_game_protected_udp_ports", text)
+        self.assertIn("gaming_egress", text)
+        self.assertIn("priority -151", text)
+        self.assertIn("oifname !=", text)
+        self.assertIn("udp dport != @protected_udp", text)
+        self.assertIn("ip daddr != @lan_rfc1918", text)
         self.assertIn("gaming.udpSourcePorts", text)
         self.assertIn("gaming.udpDestinationPorts", text)
         protected = KILLSWITCH.read_text(encoding="utf-8")
         self.assertIn("udp dport @protected_udp reject", protected)
+        self.assertIn("guard_dataplane_remove", protected)
 
     def test_orchestrator_orders_scoped_gaming_before_final_kill_switch(self) -> None:
         text = MAIN.read_text(encoding="utf-8")
