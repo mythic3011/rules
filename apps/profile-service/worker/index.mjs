@@ -65,7 +65,8 @@ async function enforceWriteRateLimit(request, env) {
 
 async function parseJson(request) {
   const contentType = request.headers.get("content-type") ?? "";
-  if (!contentType.toLowerCase().startsWith("application/json")) {
+  const mimeType = contentType.split(";")[0].trim().toLowerCase();
+  if (mimeType !== "application/json") {
     throw new ProfileSpecError("Content-Type must be application/json", "invalid_content_type");
   }
   const text = await request.text();
