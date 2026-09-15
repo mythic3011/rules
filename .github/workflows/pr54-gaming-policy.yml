@@ -1,0 +1,52 @@
+name: PR54 gaming policy verifier
+
+on:
+  push:
+    branches:
+      - automation/pr54-gaming-policy
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: automation/pr54-gaming-policy
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9
+      - run: uv pip install --system -r requirements-dev.txt
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Apply gaming policy patch
+        run: python3 tools/pr54_gaming_policy_temp.py
+      - name: Focused runtime tests
+        run: python3 -m unittest tests.test_openclash_guard_runtime tests.test_openclash_guard_dataplane tests.test_openclash_guard_gaming_contract
+      - name: Generate deterministic outputs
+        run: make generate
+      - name: Full CI
+        run: make ci
+      - name: Commit verified result
+        run: |
+          if git diff --quiet -- internal/config/openclash-guard/gaming.yaml internal/python/generate_openclash_guard_runtime.py tests/test_openclash_guard_runtime.py docs/openclash-guard-gaming-dataplane.md cfg/runtime/openclash-guard.json dist/manifest.json dist/openclash-guard.sh dist/openclash-guard.sha256; then
+            echo 'No generated changes to commit'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add internal/config/openclash-guard/gaming.yaml \
+                  internal/python/generate_openclash_guard_runtime.py \
+                  tests/test_openclash_guard_runtime.py \
+                  docs/openclash-guard-gaming-dataplane.md \
+                  cfg/runtime/openclash-guard.json \
+                  dist/manifest.json dist/openclash-guard.sh dist/openclash-guard.sha256
+          git commit -m 'feat(openclash-guard): encode gaming direct port ranges [skip ci]'
+          git push origin HEAD:automation/pr54-gaming-policy
