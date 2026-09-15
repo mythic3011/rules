@@ -15,7 +15,7 @@ def replace_once(path: Path, old: str, new: str) -> None:
 # encode Steam/Deadlock game traffic as a human-readable destination range.
 gaming = ROOT / "internal/config/openclash-guard/gaming.yaml"
 gaming.write_text(
-    """# Gaming direct exceptions are endpoint-direction aware. Protected UDP ports\n"
+    "# Gaming direct exceptions are endpoint-direction aware. Protected UDP ports\n"
     "# apply to the remote/destination endpoint and are never bypass candidates.\n"
     "# Range fields are canonical-authoring sugar and compile to runtime port lists.\n"
     "gaming:\n"
@@ -26,8 +26,7 @@ gaming.write_text(
     "    - [27000, 27250]\n"
     "  tcpPorts: []\n"
     "  protectedUdpPorts: [443]\n"
-    "  destinationCidrs: []\n"
-    """,
+    "  destinationCidrs: []\n",
     encoding="utf-8",
 )
 
@@ -57,6 +56,11 @@ replace_once(
     test,
     """        self.assertEqual(document[\"gaming\"][\"udpSourcePorts\"], [443, 3074])\n        self.assertNotIn(443, document[\"gaming\"][\"udpDestinationPorts\"])\n        self.assertEqual(document[\"gaming\"][\"udpDestinationPorts\"], [27015])\n        self.assertEqual(document[\"gaming\"][\"udpPorts\"], [27015])\n""",
     """        self.assertEqual(document[\"gaming\"][\"udpSourcePorts\"], [443, 3074, 4000, 4001, 4002])\n        self.assertNotIn(443, document[\"gaming\"][\"udpDestinationPorts\"])\n        self.assertEqual(document[\"gaming\"][\"udpDestinationPorts\"], [27015, 27016, 27017, 27018])\n        self.assertEqual(document[\"gaming\"][\"udpPorts\"], [27015, 27016, 27017, 27018])\n""",
+)
+replace_once(
+    test,
+    """        guard = GUARD_YAML.replace(\n            \"  udpSourcePorts: [443, 3074]\\n  udpDestinationPorts: [443, 27015]\\n\",\n            \"  udpPorts: [3074]\\n\",\n        )\n""",
+    """        guard = GUARD_YAML.replace(\n            \"  udpSourcePorts: [443, 3074]\\n  udpSourcePortRanges: [[4000, 4002]]\\n  udpDestinationPorts: [443, 27015]\\n  udpDestinationPortRanges: [[27016, 27018]]\\n\",\n            \"  udpPorts: [3074]\\n\",\n        )\n""",
 )
 replace_once(
     test,
