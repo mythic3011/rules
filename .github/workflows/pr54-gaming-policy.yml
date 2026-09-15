@@ -28,10 +28,10 @@ jobs:
       - run: npm ci
       - name: Apply gaming policy patch
         run: python3 tools/pr54_gaming_policy_temp.py
-      - name: Focused runtime tests
-        run: python3 -m unittest tests.test_openclash_guard_runtime tests.test_openclash_guard_dataplane tests.test_openclash_guard_gaming_contract
       - name: Generate deterministic outputs
         run: make generate
+      - name: Focused runtime tests
+        run: python3 -m unittest tests.test_openclash_guard_runtime tests.test_openclash_guard_dataplane tests.test_openclash_guard_gaming_contract
       - name: Full CI
         run: make ci
       - name: Commit verified result
