@@ -445,6 +445,7 @@ guard_cmd_geo() {
 guard_cmd_eval() {
     _guard_ev_svc=
     _guard_ev_proto=udp
+    _guard_ev_sport=
     _guard_ev_dport=
     _guard_ev_src=
     _guard_ev_dest=
@@ -457,6 +458,10 @@ guard_cmd_eval() {
                 ;;
             --proto)
                 _guard_ev_proto=$2
+                shift 2
+                ;;
+            --sport)
+                _guard_ev_sport=$2
                 shift 2
                 ;;
             --dport)
@@ -477,12 +482,13 @@ guard_cmd_eval() {
         esac
     done
     _guard_prepare || return $?
-    _guard_ev_verdict=$(guard_policy_eval "$_guard_ev_svc" "$_guard_ev_proto" "$_guard_ev_dport" "$_guard_ev_src" "$_guard_ev_dest")
+    _guard_ev_verdict=$(guard_policy_eval "$_guard_ev_svc" "$_guard_ev_proto" "$_guard_ev_dport" "$_guard_ev_src" "$_guard_ev_dest" "$_guard_ev_sport")
     if [ "$_GUARD_JSON" = 1 ]; then
-        printf '{"verdict":"%s","service":"%s","proto":"%s","dport":"%s","src":"%s","dest":"%s"}\n' \
+        printf '{"verdict":"%s","service":"%s","proto":"%s","sport":"%s","dport":"%s","src":"%s","dest":"%s"}\n' \
             "$(_guard_env_json_string "$_guard_ev_verdict")" \
             "$(_guard_env_json_string "$_guard_ev_svc")" \
             "$(_guard_env_json_string "$_guard_ev_proto")" \
+            "$(_guard_env_json_string "$_guard_ev_sport")" \
             "$(_guard_env_json_string "$_guard_ev_dport")" \
             "$(_guard_env_json_string "$_guard_ev_src")" \
             "$(_guard_env_json_string "$_guard_ev_dest")"

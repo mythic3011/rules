@@ -149,34 +149,41 @@
       }
     },
     "gaming": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["udpPorts", "tcpPorts", "protectedUdpPorts", "destinationCidrs"],
-      "properties": {
-        "udpPorts": {
-          "$ref": "#/$defs/portList"
-        },
-        "tcpPorts": {
-          "$ref": "#/$defs/portList"
-        },
-        "protectedUdpPorts": {
-          "type": "array",
-          "minItems": 1,
-          "uniqueItems": true,
-          "items": {
-            "$ref": "#/$defs/port"
-          }
-        },
-        "destinationCidrs": {
-          "type": "array",
-          "uniqueItems": true,
-          "items": {
-            "type": "string",
-            "minLength": 1
-          }
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["udpSourcePorts", "udpDestinationPorts", "udpPorts", "tcpPorts", "protectedUdpPorts", "destinationCidrs"],
+    "properties": {
+      "udpSourcePorts": {
+        "$ref": "#/$defs/portList"
+      },
+      "udpDestinationPorts": {
+        "$ref": "#/$defs/portList"
+      },
+      "udpPorts": {
+        "$ref": "#/$defs/portList",
+        "description": "Deprecated schema-v1 compatibility projection of udpDestinationPorts."
+      },
+      "tcpPorts": {
+        "$ref": "#/$defs/portList"
+      },
+      "protectedUdpPorts": {
+        "type": "array",
+        "minItems": 1,
+        "uniqueItems": true,
+        "items": {
+          "$ref": "#/$defs/port"
+        }
+      },
+      "destinationCidrs": {
+        "type": "array",
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "minLength": 1
         }
       }
-    },
+    }
+  },
     "geoProviders": {
       "type": "array",
       "items": {
