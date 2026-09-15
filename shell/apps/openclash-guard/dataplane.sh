@@ -17,6 +17,7 @@ _GUARD_DATAPLANE_SRC_SET_EXISTS=0
 _GUARD_DATAPLANE_SPORT_SET_EXISTS=0
 _GUARD_DATAPLANE_DPORT_SET_EXISTS=0
 _GUARD_DATAPLANE_DST_SET_EXISTS=0
+_GUARD_DATAPLANE_PROTECTED_SET_EXISTS=0
 _GUARD_DATAPLANE_TARGET_HANDLE=
 _GUARD_DATAPLANE_OLD_JUMP_HANDLES=
 _GUARD_DATAPLANE_DIRECT_IFACE=
@@ -24,11 +25,13 @@ _GUARD_DATAPLANE_SRCS=
 _GUARD_DATAPLANE_SOURCE_PORTS=
 _GUARD_DATAPLANE_DESTINATION_PORTS=
 _GUARD_DATAPLANE_DESTINATION_CIDRS=
+_GUARD_DATAPLANE_PROTECTED_PORTS=
 
 _guard_dataplane_src_set() { printf '%ssrc\n' "$_GUARD_DATAPLANE_SET_PREFIX"; }
 _guard_dataplane_sport_set() { printf '%ssport\n' "$_GUARD_DATAPLANE_SET_PREFIX"; }
 _guard_dataplane_dport_set() { printf '%sdport\n' "$_GUARD_DATAPLANE_SET_PREFIX"; }
 _guard_dataplane_dst_set() { printf '%sdst\n' "$_GUARD_DATAPLANE_SET_PREFIX"; }
+_guard_dataplane_protected_set() { printf '%sprotected\n' "$_GUARD_DATAPLANE_SET_PREFIX"; }
 
 _guard_dataplane_reset() {
     _GUARD_DATAPLANE_READY=0
@@ -39,6 +42,7 @@ _guard_dataplane_reset() {
     _GUARD_DATAPLANE_SPORT_SET_EXISTS=0
     _GUARD_DATAPLANE_DPORT_SET_EXISTS=0
     _GUARD_DATAPLANE_DST_SET_EXISTS=0
+    _GUARD_DATAPLANE_PROTECTED_SET_EXISTS=0
     _GUARD_DATAPLANE_TARGET_HANDLE=
     _GUARD_DATAPLANE_OLD_JUMP_HANDLES=
     _GUARD_DATAPLANE_DIRECT_IFACE=
@@ -154,6 +158,9 @@ _guard_dataplane_capture_owned_state() {
     if nft_set_exists "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_dst_set)"; then
         _GUARD_DATAPLANE_DST_SET_EXISTS=1
     fi
+    if nft_set_exists "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_protected_set)"; then
+        _GUARD_DATAPLANE_PROTECTED_SET_EXISTS=1
+    fi
 }
 
 guard_dataplane_prepare() {
@@ -162,6 +169,7 @@ guard_dataplane_prepare() {
     _GUARD_DATAPLANE_SOURCE_PORTS=${2:-}
     _GUARD_DATAPLANE_DESTINATION_PORTS=${3:-}
     _GUARD_DATAPLANE_DESTINATION_CIDRS=${4:-}
+    _GUARD_DATAPLANE_PROTECTED_PORTS=${5:-}
 
     if ! nft_table_exists "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE"; then
         return 0
@@ -174,6 +182,8 @@ guard_dataplane_prepare() {
     if [ -z "$_GUARD_DATAPLANE_SOURCE_PORTS" ] && [ -z "$_GUARD_DATAPLANE_DESTINATION_PORTS" ]; then
         return 0
     fi
+    # Missing protected-destination metadata disables DIRECT bypass creation.
+    [ -n "$_GUARD_DATAPLANE_PROTECTED_PORTS" ] || return 0
     [ "$_GUARD_DATAPLANE_TARGET_EXISTS" = 1 ] || return 0
 
     _GUARD_DATAPLANE_DIRECT_IFACE=$(guard_dataplane_resolve_direct_iface 2>/dev/null) || _GUARD_DATAPLANE_DIRECT_IFACE=
@@ -248,6 +258,7 @@ guard_dataplane_render() {
     [ "$_GUARD_DATAPLANE_SPORT_SET_EXISTS" = 1 ] && printf 'flush set %s %s %s\n' "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_sport_set)"
     [ "$_GUARD_DATAPLANE_DPORT_SET_EXISTS" = 1 ] && printf 'flush set %s %s %s\n' "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_dport_set)"
     [ "$_GUARD_DATAPLANE_DST_SET_EXISTS" = 1 ] && printf 'flush set %s %s %s\n' "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_dst_set)"
+    [ "$_GUARD_DATAPLANE_PROTECTED_SET_EXISTS" = 1 ] && printf 'flush set %s %s %s\n' "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_protected_set)"
 
     guard_dataplane_ready || return 0
 
@@ -260,6 +271,11 @@ guard_dataplane_render() {
     _guard_dataplane_render_set "$_guard_dp_rr_src_set" ipv4_addr "$_GUARD_DATAPLANE_SRC_SET_EXISTS" interval
     # shellcheck disable=SC2086
     _guard_dataplane_render_elements "$_guard_dp_rr_src_set" $_GUARD_DATAPLANE_SRCS
+
+    _guard_dp_rr_protected_set=$(_guard_dataplane_protected_set)
+    _guard_dataplane_render_set "$_guard_dp_rr_protected_set" inet_service "$_GUARD_DATAPLANE_PROTECTED_SET_EXISTS"
+    # shellcheck disable=SC2086
+    _guard_dataplane_render_elements "$_guard_dp_rr_protected_set" $_GUARD_DATAPLANE_PROTECTED_PORTS
 
     _guard_dp_rr_dst_match=
     if [ -n "$_GUARD_DATAPLANE_DESTINATION_CIDRS" ]; then
@@ -275,9 +291,9 @@ guard_dataplane_render() {
         _guard_dataplane_render_set "$_guard_dp_rr_sport_set" inet_service "$_GUARD_DATAPLANE_SPORT_SET_EXISTS"
         # shellcheck disable=SC2086
         _guard_dataplane_render_elements "$_guard_dp_rr_sport_set" $_GUARD_DATAPLANE_SOURCE_PORTS
-        printf 'add rule %s %s %s ip saddr @%s %sudp sport @%s return comment "%s:source"\n' \
+        printf 'add rule %s %s %s ip saddr @%s %sudp dport != @%s udp sport @%s return comment "%s:source"\n' \
             "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$_GUARD_DATAPLANE_CHAIN" \
-            "$_guard_dp_rr_src_set" "$_guard_dp_rr_dst_match" "$_guard_dp_rr_sport_set" "$_GUARD_DATAPLANE_COMMENT_PREFIX"
+            "$_guard_dp_rr_src_set" "$_guard_dp_rr_dst_match" "$_guard_dp_rr_protected_set" "$_guard_dp_rr_sport_set" "$_GUARD_DATAPLANE_COMMENT_PREFIX"
     fi
 
     if [ -n "$_GUARD_DATAPLANE_DESTINATION_PORTS" ]; then
@@ -285,9 +301,9 @@ guard_dataplane_render() {
         _guard_dataplane_render_set "$_guard_dp_rr_dport_set" inet_service "$_GUARD_DATAPLANE_DPORT_SET_EXISTS"
         # shellcheck disable=SC2086
         _guard_dataplane_render_elements "$_guard_dp_rr_dport_set" $_GUARD_DATAPLANE_DESTINATION_PORTS
-        printf 'add rule %s %s %s ip saddr @%s %sudp dport @%s return comment "%s:destination"\n' \
+        printf 'add rule %s %s %s ip saddr @%s %sudp dport != @%s udp dport @%s return comment "%s:destination"\n' \
             "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$_GUARD_DATAPLANE_CHAIN" \
-            "$_guard_dp_rr_src_set" "$_guard_dp_rr_dst_match" "$_guard_dp_rr_dport_set" "$_GUARD_DATAPLANE_COMMENT_PREFIX"
+            "$_guard_dp_rr_src_set" "$_guard_dp_rr_dst_match" "$_guard_dp_rr_protected_set" "$_guard_dp_rr_dport_set" "$_GUARD_DATAPLANE_COMMENT_PREFIX"
     fi
 
     printf 'insert rule %s %s %s position %s ip saddr @%s meta l4proto udp jump %s comment "%s:jump"\n' \
@@ -313,4 +329,5 @@ guard_dataplane_remove() {
     nft_delete_owned_set "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_sport_set)" "$_GUARD_DATAPLANE_SET_PREFIX" || return $?
     nft_delete_owned_set "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_dport_set)" "$_GUARD_DATAPLANE_SET_PREFIX" || return $?
     nft_delete_owned_set "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_dst_set)" "$_GUARD_DATAPLANE_SET_PREFIX" || return $?
+    nft_delete_owned_set "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_protected_set)" "$_GUARD_DATAPLANE_SET_PREFIX" || return $?
 }

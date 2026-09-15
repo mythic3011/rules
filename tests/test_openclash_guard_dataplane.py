@@ -26,7 +26,7 @@ class OpenClashGuardDataplaneTests(unittest.TestCase):
         text = DATAPLANE.read_text(encoding="utf-8")
         self.assertIsNone(re.search(r"\bposition\s+\d+\b", text))
         self.assertNotIn("0x162", text)
-        for forbidden in ("4950", "4955", "27015", "27000", "27250"):
+        for forbidden in ("443", "4950", "4955", "27015", "27000", "27250"):
             self.assertNotIn(forbidden, text)
 
     def test_reconcile_rediscovers_anchor_and_replaces_only_owned_jump(self) -> None:
@@ -47,6 +47,7 @@ nft() {{
         "list set inet fw4 openclash_guard_gaming_sport") return 1 ;;
         "list set inet fw4 openclash_guard_gaming_dport") return 1 ;;
         "list set inet fw4 openclash_guard_gaming_dst") return 1 ;;
+        "list set inet fw4 openclash_guard_gaming_protected") return 1 ;;
         "-a list chain inet fw4 openclash_mangle")
             cat <<'EOF'
 chain openclash_mangle {{
@@ -61,7 +62,7 @@ EOF
     esac
 }}
 
-guard_dataplane_prepare "10.0.0.11" "" "30000 30001" "" || exit 10
+guard_dataplane_prepare "10.0.0.11" "" "30000 30001" "" "443" || exit 10
 guard_dataplane_ready || exit 11
 guard_dataplane_render
 '''
@@ -71,7 +72,8 @@ guard_dataplane_render
         self.assertNotIn("handle 76\n", result.stdout)
         self.assertIn("insert rule inet fw4 openclash_mangle position 88", result.stdout)
         self.assertIn("ip saddr @openclash_guard_gaming_src", result.stdout)
-        self.assertIn("udp dport @openclash_guard_gaming_dport return", result.stdout)
+        self.assertIn("udp dport != @openclash_guard_gaming_protected udp dport @openclash_guard_gaming_dport return", result.stdout)
+        self.assertIn("udp dport != @openclash_guard_gaming_protected", result.stdout)
 
     def test_existing_owned_objects_are_flushed_not_duplicated(self) -> None:
         script = f'''
@@ -91,6 +93,7 @@ nft() {{
         "list set inet fw4 openclash_guard_gaming_sport") return 1 ;;
         "list set inet fw4 openclash_guard_gaming_dport") return 0 ;;
         "list set inet fw4 openclash_guard_gaming_dst") return 1 ;;
+        "list set inet fw4 openclash_guard_gaming_protected") return 1 ;;
         "-a list chain inet fw4 openclash_mangle")
             cat <<'EOF'
 chain openclash_mangle {{
@@ -103,7 +106,7 @@ EOF
     esac
 }}
 
-guard_dataplane_prepare "10.0.0.11" "" "30000" "" || exit 15
+guard_dataplane_prepare "10.0.0.11" "" "30000" "" "443" || exit 15
 guard_dataplane_ready || exit 16
 guard_dataplane_render
 '''
@@ -112,10 +115,16 @@ guard_dataplane_render
         self.assertIn("flush chain inet fw4 openclash_guard_gaming_direct", result.stdout)
         self.assertIn("flush set inet fw4 openclash_guard_gaming_src", result.stdout)
         self.assertIn("flush set inet fw4 openclash_guard_gaming_dport", result.stdout)
+        self.assertIn("add set inet fw4 openclash_guard_gaming_protected", result.stdout)
         self.assertNotIn("add chain inet fw4 openclash_guard_gaming_direct", result.stdout)
         self.assertNotIn("add set inet fw4 openclash_guard_gaming_src", result.stdout)
         self.assertNotIn("add set inet fw4 openclash_guard_gaming_dport", result.stdout)
         self.assertEqual(result.stdout.count("insert rule inet fw4 openclash_mangle position 388"), 1)
+
+    def test_missing_protected_metadata_disables_direct_bypass(self) -> None:
+        text = DATAPLANE.read_text(encoding="utf-8")
+        self.assertIn('[ -n "$_GUARD_DATAPLANE_PROTECTED_PORTS" ] || return 0', text)
+        self.assertIn("udp dport != @%s", text)
 
     def test_unresolved_direct_iface_fails_closed_and_only_cleans_stale_jump(self) -> None:
         script = f'''
@@ -141,6 +150,7 @@ nft() {{
         "list set inet fw4 openclash_guard_gaming_sport") return 1 ;;
         "list set inet fw4 openclash_guard_gaming_dport") return 1 ;;
         "list set inet fw4 openclash_guard_gaming_dst") return 1 ;;
+        "list set inet fw4 openclash_guard_gaming_protected") return 1 ;;
         "-a list chain inet fw4 openclash_mangle")
             cat <<'EOF'
 chain openclash_mangle {{
@@ -153,7 +163,7 @@ EOF
     esac
 }}
 
-guard_dataplane_prepare "10.0.0.11" "" "30000" "" || exit 20
+guard_dataplane_prepare "10.0.0.11" "" "30000" "" "443" || exit 20
 if guard_dataplane_ready; then exit 21; fi
 guard_dataplane_render
 '''
@@ -181,6 +191,7 @@ nft() {{
         "list set inet fw4 openclash_guard_gaming_sport") return 1 ;;
         "list set inet fw4 openclash_guard_gaming_dport") return 1 ;;
         "list set inet fw4 openclash_guard_gaming_dst") return 1 ;;
+        "list set inet fw4 openclash_guard_gaming_protected") return 1 ;;
         "-a list chain inet fw4 openclash_mangle")
             printf '%s\\n' 'ip protocol udp counter packets 1 bytes 1 jump openclash_upnp # handle 288'
             ;;
@@ -188,7 +199,7 @@ nft() {{
     esac
 }}
 
-guard_dataplane_prepare "10.0.0.11" "30000" "" "" || exit 30
+guard_dataplane_prepare "10.0.0.11" "30000" "" "" "443" || exit 30
 if guard_dataplane_ready; then exit 31; fi
 guard_dataplane_render
 '''

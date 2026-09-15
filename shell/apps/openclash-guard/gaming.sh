@@ -34,6 +34,10 @@ guard_game_udp_destination_ports() {
     json_list "$_GUARD_POLICY_FILE" gaming.udpPorts 2>/dev/null || true
 }
 
+guard_game_protected_udp_ports() {
+    json_list "$_GUARD_POLICY_FILE" gaming.protectedUdpPorts 2>/dev/null || true
+}
+
 guard_game_safe_udp_destination_ports() {
     _guard_gsdp_ports=$(guard_game_udp_destination_ports)
     for _guard_gsdp_port in $_guard_gsdp_ports
@@ -187,19 +191,15 @@ _guard_game_render_scoped() {
     guard_dataplane_ready || return 0
     _guard_gr_oif=$(guard_dataplane_direct_iface 2>/dev/null) || _guard_gr_oif=
     [ -n "$_guard_gr_oif" ] || return 0
-
     _guard_gr_srcs=$(guard_game_src_ips)
     [ -n "$_guard_gr_srcs" ] || return 0
     _guard_gr_source_ports=$(guard_game_udp_source_ports)
     _guard_gr_destination_ports=$(guard_game_safe_udp_destination_ports)
-    if [ -z "$_guard_gr_source_ports" ] && [ -z "$_guard_gr_destination_ports" ]; then
-        return 0
-    fi
+    if [ -z "$_guard_gr_source_ports" ] && [ -z "$_guard_gr_destination_ports" ]; then return 0; fi
 
     _guard_kill_add_set gaming_src ipv4_addr gaming-src interval
     # shellcheck disable=SC2086
     _guard_kill_add_elements gaming_src $_guard_gr_srcs
-
     _guard_gr_cidrs=$(json_list "$_GUARD_POLICY_FILE" gaming.destinationCidrs 2>/dev/null) || _guard_gr_cidrs=
     _guard_gr_dst_match=
     if [ -n "$_guard_gr_cidrs" ]; then
@@ -208,17 +208,27 @@ _guard_game_render_scoped() {
         _guard_kill_add_elements gaming_dst $_guard_gr_cidrs
         _guard_gr_dst_match='ip daddr @gaming_dst '
     fi
-
     if [ -n "$_guard_gr_source_ports" ]; then
         _guard_kill_add_set gaming_udp_source inet_service gaming-udp-source
         # shellcheck disable=SC2086
         _guard_kill_add_elements gaming_udp_source $_guard_gr_source_ports
-        _guard_kill_add_rule forward "ip saddr @gaming_src ${_guard_gr_dst_match}oifname \"$_guard_gr_oif\" udp sport @gaming_udp_source accept" game-udp-source
     fi
     if [ -n "$_guard_gr_destination_ports" ]; then
         _guard_kill_add_set gaming_udp_destination inet_service gaming-udp-destination
         # shellcheck disable=SC2086
         _guard_kill_add_elements gaming_udp_destination $_guard_gr_destination_ports
+    fi
+
+    # Run before the main Guard forward chain so established outbound gaming
+    # flows cannot survive a route change onto an unintended egress.
+    printf 'add chain %s %s gaming_egress { type filter hook forward priority -151; policy accept; }\n' \
+        "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE"
+    if [ -n "$_guard_gr_source_ports" ]; then
+        _guard_kill_add_rule gaming_egress "ip saddr @gaming_src ip daddr != @lan_rfc1918 ${_guard_gr_dst_match}oifname != \"$_guard_gr_oif\" udp dport != @protected_udp udp sport @gaming_udp_source reject" game-udp-source-egress
+        _guard_kill_add_rule forward "ip saddr @gaming_src ${_guard_gr_dst_match}oifname \"$_guard_gr_oif\" udp sport @gaming_udp_source accept" game-udp-source
+    fi
+    if [ -n "$_guard_gr_destination_ports" ]; then
+        _guard_kill_add_rule gaming_egress "ip saddr @gaming_src ip daddr != @lan_rfc1918 ${_guard_gr_dst_match}oifname != \"$_guard_gr_oif\" udp dport @gaming_udp_destination reject" game-udp-destination-egress
         _guard_kill_add_rule forward "ip saddr @gaming_src ${_guard_gr_dst_match}oifname \"$_guard_gr_oif\" udp dport @gaming_udp_destination accept" game-udp-destination
     fi
 }
@@ -232,12 +242,14 @@ guard_game_render() {
     _guard_game_dp_sports=$(guard_game_udp_source_ports)
     _guard_game_dp_dports=$(guard_game_safe_udp_destination_ports)
     _guard_game_dp_cidrs=$(json_list "$_GUARD_POLICY_FILE" gaming.destinationCidrs 2>/dev/null) || _guard_game_dp_cidrs=
+    _guard_game_dp_protected=$(guard_game_protected_udp_ports)
 
     guard_dataplane_prepare \
         "$_guard_game_dp_srcs" \
         "$_guard_game_dp_sports" \
         "$_guard_game_dp_dports" \
-        "$_guard_game_dp_cidrs" || return $?
+        "$_guard_game_dp_cidrs" \
+        "$_guard_game_dp_protected" || return $?
     _guard_game_render_scoped
     guard_dataplane_render
 }

@@ -15,7 +15,8 @@ Both halves must be present. Either half on its own is incomplete.
 
 - Never persist nftables numeric handles; discover current handles after every OpenClash/fw4 reload.
 - Never create a source-host + any-UDP bypass.
-- Preserve protected destination UDP ports, including UDP/443, as fail-closed boundaries.
+- Preserve protected destination UDP ports, including UDP/443, as fail-closed boundaries in both the Guard and pre-TUN dataplane adapter.
+- Reject configured gaming DIRECT candidates on a wrong egress interface before the generic established/related Guard accept, so established flows cannot silently survive WAN/TUN failover.
 - Keep game/application-specific ports out of shell implementation code; the runtime gaming policy remains the source of truth.
 - Keep OpenClash-specific nftables details isolated from `gaming.sh` in a dedicated adapter module.
 - Require a trusted gaming client and an explicit configured source or destination UDP port before installing a dataplane bypass.
@@ -94,7 +95,7 @@ trusted gaming client
     → accept before terminal kill-switch
 ```
 
-Directional source-port policy follows the same model with `udp sport`.
+Directional source-port policy follows the same model with `udp sport`, while excluding all protected remote destination ports. An earlier narrow Guard egress-check chain also rejects configured gaming DIRECT candidates if their output interface no longer matches the resolved direct WAN, including already-established flows.
 
 The adapter uses an owned regular chain and owned sets inside `fw4`. The only mutation to `openclash_mangle` is a stable-comment-owned jump inserted before the freshly rediscovered generic UDP interception rule. Foreign rules are not flushed or rewritten.
 
