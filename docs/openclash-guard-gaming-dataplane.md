@@ -131,3 +131,19 @@ The last item is deliberately still open: the Guard base chain currently accepts
 ## Scope boundary
 
 This follow-up does not add a game-specific default such as Deadlock or Warframe ports. It supplies the generic synchronization mechanism so configured directional gaming policy can control both the OpenClash pre-TUN dataplane and the Guard fail-closed enforcement plane without broadening the security boundary.
+
+## Canonical gaming port ranges
+
+Canonical `internal/config/openclash-guard/gaming.yaml` may use
+`udpSourcePortRanges` and `udpDestinationPortRanges` as inclusive `[start, end]`
+pairs. The generator validates and expands those ranges into the existing
+schema-v1 `udpSourcePorts` / `udpDestinationPorts` integer arrays; the runtime
+contract and older `udpPorts` destination-only compatibility projection remain
+unchanged.
+
+The checked-in policy records the live-RCA gaming cases without teaching the
+OpenClash adapter any game-specific ports: Warframe uses UDP source ports 4950
+and 4955, while Steam/Deadlock game traffic uses remote UDP 27000-27250.
+Trusted source clients are still supplied separately by UCI and protected
+remote UDP ports remain excluded from DIRECT policy.
+
