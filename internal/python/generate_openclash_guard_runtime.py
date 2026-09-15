@@ -292,6 +292,26 @@ def _ports(values: object, field: str) -> list[int]:
     return sorted(ports)
 
 
+def _port_ranges(values: object, field: str) -> list[int]:
+    if values is None:
+        values = []
+    if not isinstance(values, list):
+        raise RuntimeError(f"{field} must be a list")
+    ports: set[int] = set()
+    for index, value in enumerate(values):
+        item_field = f"{field}[{index}]"
+        if not isinstance(value, list) or len(value) != 2:
+            raise RuntimeError(f"{item_field} must be [start, end]")
+        start = _as_int(value[0], f"{item_field}[0]")
+        end = _as_int(value[1], f"{item_field}[1]")
+        if start < 1 or start > 65535 or end < 1 or end > 65535:
+            raise RuntimeError(f"{item_field} port out of range: {start}-{end}")
+        if start > end:
+            raise RuntimeError(f"{item_field} start must be <= end: {start}-{end}")
+        ports.update(range(start, end + 1))
+    return sorted(ports)
+
+
 def _cidrs(values: object, field: str) -> list[str]:
     if values is None:
         values = []
@@ -523,10 +543,21 @@ def compile_gaming(spec: object) -> dict[str, Any]:
         protected.append(PROTECTED_UDP_PORT)
     protected = sorted(set(protected))
     protected_set = set(protected)
-    udp_source_ports = _ports(spec.get("udpSourcePorts"), "gaming.udpSourcePorts")
+    udp_source_ports = sorted(
+        set(_ports(spec.get("udpSourcePorts"), "gaming.udpSourcePorts"))
+        | set(_port_ranges(spec.get("udpSourcePortRanges"), "gaming.udpSourcePortRanges"))
+    )
     udp_destination_ports = [
         port
-        for port in _ports(spec.get("udpDestinationPorts"), "gaming.udpDestinationPorts")
+        for port in sorted(
+            set(_ports(spec.get("udpDestinationPorts"), "gaming.udpDestinationPorts"))
+            | set(
+                _port_ranges(
+                    spec.get("udpDestinationPortRanges"),
+                    "gaming.udpDestinationPortRanges",
+                )
+            )
+        )
         if port not in protected_set
     ]
     tcp_ports = [
