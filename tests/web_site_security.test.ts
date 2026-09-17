@@ -37,6 +37,22 @@ test('web/site report.html sanitizes dynamic URL schemes before setting href', (
   );
 });
 
+test('web/site report.html validates category search parameter format before fetch', () => {
+  const content = fs.readFileSync(path.join(SITE_DIR, 'report.html'), 'utf8');
+
+  assert.match(
+    content,
+    /CATEGORY_RE\s*=\s*\/\^\[a-zA-Z0-9_-\]\+\$\//,
+    'report.html should define CATEGORY_RE regex to validate category parameters.'
+  );
+
+  assert.match(
+    content,
+    /CATEGORY_RE\.test\s*\(\s*category\s*\)/,
+    'report.html should check category against CATEGORY_RE before fetching report assets.'
+  );
+});
+
 test('web/site HTML files include Pico CSS framework', () => {
   const htmlFiles = fs.readdirSync(SITE_DIR).filter(file => file.endsWith('.html'));
 

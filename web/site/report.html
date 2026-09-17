@@ -153,8 +153,12 @@
         sourcesEl.replaceChildren(tr);
       }
 
+      const CATEGORY_RE = /^[a-zA-Z0-9_-]+$/;
+
       if (!category) {
         fail("Missing category query parameter.");
+      } else if (!CATEGORY_RE.test(category)) {
+        fail("Invalid category query parameter.");
       } else {
         fetch(`./reports/${encodeURIComponent(category)}.summary.json`)
           .then((response) => {
