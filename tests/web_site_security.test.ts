@@ -37,6 +37,22 @@ test('web/site report.html sanitizes dynamic URL schemes before setting href', (
   );
 });
 
+test('web/site report.html validates category parameter to prevent path traversal', () => {
+  const content = fs.readFileSync(path.join(SITE_DIR, 'report.html'), 'utf8');
+
+  assert.match(
+    content,
+    /isValidCategory\s*\(/,
+    'report.html should validate the category parameter.'
+  );
+
+  assert.match(
+    content,
+    /\/\^\[a-z0-9_-\]\+\$\/i/,
+    'report.html category validator should enforce strict alphanumeric, dash, and underscore character limits.'
+  );
+});
+
 test('web/site HTML files include Pico CSS framework', () => {
   const htmlFiles = fs.readdirSync(SITE_DIR).filter(file => file.endsWith('.html'));
 

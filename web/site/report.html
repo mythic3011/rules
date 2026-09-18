@@ -153,10 +153,16 @@
         sourcesEl.replaceChildren(tr);
       }
 
+      function isValidCategory(cat) {
+        return typeof cat === "string" && /^[a-z0-9_-]+$/i.test(cat.trim());
+      }
+
       if (!category) {
         fail("Missing category query parameter.");
+      } else if (!isValidCategory(category)) {
+        fail("Invalid category query parameter.");
       } else {
-        fetch(`./reports/${encodeURIComponent(category)}.summary.json`)
+        fetch(`./reports/${encodeURIComponent(category.trim())}.summary.json`)
           .then((response) => {
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             return response.json();
