@@ -146,12 +146,22 @@
         "uci"
       ]
     },
+    "guard-dataplane": {
+      "path": "shell/apps/openclash-guard/dataplane.sh",
+      "depends": [
+        "nft"
+      ],
+      "after": [
+        "guard-killswitch"
+      ]
+    },
     "guard-gaming": {
       "path": "shell/apps/openclash-guard/gaming.sh",
       "depends": [
         "json",
         "uci",
-        "guard-policy"
+        "guard-policy",
+        "guard-dataplane"
       ],
       "after": [
         "guard-killswitch"
@@ -196,6 +206,7 @@
       "depends": [
         "cli",
         "file",
+        "fetch",
         "distribution",
         "uci",
         "guard-environment",
@@ -228,6 +239,7 @@
         "guard-policy",
         "guard-dns",
         "guard-killswitch",
+        "guard-dataplane",
         "guard-gaming",
         "guard-migration",
         "guard-geo",
@@ -272,6 +284,7 @@
         "guard-policy",
         "guard-dns",
         "guard-killswitch",
+        "guard-dataplane",
         "guard-gaming",
         "guard-migration",
         "guard-geo",

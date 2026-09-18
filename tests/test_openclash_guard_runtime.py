@@ -29,7 +29,9 @@ nft:
   commentPrefix: openclash-guard
 gaming:
   udpSourcePorts: [443, 3074]
+  udpSourcePortRanges: [[4000, 4002]]
   udpDestinationPorts: [443, 27015]
+  udpDestinationPortRanges: [[27016, 27018]]
   tcpPorts: []
   protectedUdpPorts: []
   destinationCidrs: []
@@ -171,10 +173,10 @@ class SyntheticCatalogTest(unittest.TestCase):
         self.assertEqual(document["protectionClasses"]["direct-capable"]["quic"], "allow")
         self.assertEqual(document["protectionClasses"]["proxy-required"]["quic"], "proxy-or-reject")
         self.assertIn(443, document["gaming"]["protectedUdpPorts"])
-        self.assertEqual(document["gaming"]["udpSourcePorts"], [443, 3074])
+        self.assertEqual(document["gaming"]["udpSourcePorts"], [443, 3074, 4000, 4001, 4002])
         self.assertNotIn(443, document["gaming"]["udpDestinationPorts"])
-        self.assertEqual(document["gaming"]["udpDestinationPorts"], [27015])
-        self.assertEqual(document["gaming"]["udpPorts"], [27015])
+        self.assertEqual(document["gaming"]["udpDestinationPorts"], [27015, 27016, 27017, 27018])
+        self.assertEqual(document["gaming"]["udpPorts"], [27015, 27016, 27017, 27018])
         self.assertEqual(document["geoProviders"][0]["cacheTtlSeconds"], 300)
 
     def test_real_flow_music_dependency_is_config_driven(self) -> None:
@@ -278,11 +280,20 @@ geoProviders:
 
     def test_ambiguous_canonical_udp_ports_are_rejected(self) -> None:
         guard = GUARD_YAML.replace(
-            "  udpSourcePorts: [443, 3074]\n  udpDestinationPorts: [443, 27015]\n",
+            "  udpSourcePorts: [443, 3074]\n  udpSourcePortRanges: [[4000, 4002]]\n  udpDestinationPorts: [443, 27015]\n  udpDestinationPortRanges: [[27016, 27018]]\n",
             "  udpPorts: [3074]\n",
         )
         with tempfile.TemporaryDirectory() as raw:
             with self.assertRaisesRegex(RuntimeError, "gaming.udpPorts is ambiguous"):
+                _compile(Path(raw), guard=guard)
+
+    def test_invalid_gaming_port_range_is_rejected(self) -> None:
+        guard = GUARD_YAML.replace(
+            "  udpDestinationPortRanges: [[27016, 27018]]\n",
+            "  udpDestinationPortRanges: [[27250, 27000]]\n",
+        )
+        with tempfile.TemporaryDirectory() as raw:
+            with self.assertRaisesRegex(RuntimeError, "start must be <= end"):
                 _compile(Path(raw), guard=guard)
 
     def test_firewall_kill_switch_defaults_fail_mode_to_reject(self) -> None:
@@ -338,6 +349,21 @@ class ProductionContractTest(unittest.TestCase):
 
     def test_protected_udp_ports_contain_443(self) -> None:
         self.assertIn(443, self.checked_in["gaming"]["protectedUdpPorts"])
+
+    def test_production_gaming_policy_contains_proven_direct_ports(self) -> None:
+        source = self.checked_in["gaming"]["udpSourcePorts"]
+        destination = self.checked_in["gaming"]["udpDestinationPorts"]
+        self.assertEqual(source, [4950, 4955])
+        self.assertEqual(len(destination), 353)
+        self.assertEqual(destination[0], 26500)
+        self.assertEqual(destination[100], 26600)
+        self.assertEqual(destination[101], 27000)
+        self.assertEqual(destination[-2], 27250)
+        self.assertEqual(destination[-1], 29523)
+        self.assertIn(26515, destination)
+        self.assertIn(26516, destination)
+        self.assertNotIn(443, destination)
+        self.assertEqual(self.checked_in["gaming"]["udpPorts"], destination)
 
     def test_revision_is_deterministic_hex(self) -> None:
         revision = self.checked_in["revision"]

@@ -3909,6 +3909,12 @@ guard_kill_delete_table() {
     if [ "$_GUARD_NFT_AVAILABLE" != 1 ]; then
         return 0
     fi
+    # The OpenClash dataplane exemption and the Guard allow are one policy.
+    # Remove Guard-owned pre-TUN state first so disabling/removing Guard cannot
+    # leave a stale direct-routing bypass behind.
+    if command -v guard_dataplane_remove >/dev/null 2>&1; then
+        guard_dataplane_remove || return $?
+    fi
     if nft_table_exists "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE"; then
         nft delete table "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE"
     fi
@@ -3983,6 +3989,352 @@ guard_kill_apply_batch() {
 }
 # END MODULE: guard-killswitch
 
+# BEGIN MODULE: guard-dataplane
+# Guard-owned OpenClash gaming dataplane reconciliation.
+# Prefix: guard_dataplane_
+set -eu
+
+_GUARD_DATAPLANE_FAMILY=${GUARD_OPENCLASH_NFT_FAMILY:-inet}
+_GUARD_DATAPLANE_TABLE=${GUARD_OPENCLASH_NFT_TABLE:-fw4}
+_GUARD_DATAPLANE_TARGET_CHAIN=${GUARD_OPENCLASH_MANGLE_CHAIN:-openclash_mangle}
+_GUARD_DATAPLANE_CHAIN=${GUARD_DATAPLANE_CHAIN:-openclash_guard_gaming_direct}
+_GUARD_DATAPLANE_SET_PREFIX=${GUARD_DATAPLANE_SET_PREFIX:-openclash_guard_gaming_}
+_GUARD_DATAPLANE_COMMENT_PREFIX=${GUARD_DATAPLANE_COMMENT_PREFIX:-openclash-guard:gaming-direct}
+_GUARD_DATAPLANE_CAPABILITY_MARK=${GUARD_DATAPLANE_CAPABILITY_MARK:-0x40000000}
+_GUARD_DATAPLANE_READY=0
+_GUARD_DATAPLANE_TABLE_EXISTS=0
+_GUARD_DATAPLANE_TARGET_EXISTS=0
+_GUARD_DATAPLANE_CHAIN_EXISTS=0
+_GUARD_DATAPLANE_SRC_SET_EXISTS=0
+_GUARD_DATAPLANE_SPORT_SET_EXISTS=0
+_GUARD_DATAPLANE_DPORT_SET_EXISTS=0
+_GUARD_DATAPLANE_DST_SET_EXISTS=0
+_GUARD_DATAPLANE_PROTECTED_SET_EXISTS=0
+_GUARD_DATAPLANE_TARGET_HANDLE=
+_GUARD_DATAPLANE_OLD_JUMP_HANDLES=
+_GUARD_DATAPLANE_DIRECT_IFACE=
+_GUARD_DATAPLANE_SRCS=
+_GUARD_DATAPLANE_SOURCE_PORTS=
+_GUARD_DATAPLANE_DESTINATION_PORTS=
+_GUARD_DATAPLANE_DESTINATION_CIDRS=
+_GUARD_DATAPLANE_PROTECTED_PORTS=
+
+_guard_dataplane_src_set() { printf '%ssrc\n' "$_GUARD_DATAPLANE_SET_PREFIX"; }
+_guard_dataplane_sport_set() { printf '%ssport\n' "$_GUARD_DATAPLANE_SET_PREFIX"; }
+_guard_dataplane_dport_set() { printf '%sdport\n' "$_GUARD_DATAPLANE_SET_PREFIX"; }
+_guard_dataplane_dst_set() { printf '%sdst\n' "$_GUARD_DATAPLANE_SET_PREFIX"; }
+_guard_dataplane_protected_set() { printf '%sprotected\n' "$_GUARD_DATAPLANE_SET_PREFIX"; }
+
+guard_dataplane_capability_mark() {
+    case $_GUARD_DATAPLANE_CAPABILITY_MARK in
+        0x[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]) ;;
+        *) return 1 ;;
+    esac
+    [ "$_GUARD_DATAPLANE_CAPABILITY_MARK" != 0x00000000 ] || return 1
+    printf '%s\n' "$_GUARD_DATAPLANE_CAPABILITY_MARK"
+}
+
+_guard_dataplane_reset() {
+    _GUARD_DATAPLANE_READY=0
+    _GUARD_DATAPLANE_TABLE_EXISTS=0
+    _GUARD_DATAPLANE_TARGET_EXISTS=0
+    _GUARD_DATAPLANE_CHAIN_EXISTS=0
+    _GUARD_DATAPLANE_SRC_SET_EXISTS=0
+    _GUARD_DATAPLANE_SPORT_SET_EXISTS=0
+    _GUARD_DATAPLANE_DPORT_SET_EXISTS=0
+    _GUARD_DATAPLANE_DST_SET_EXISTS=0
+    _GUARD_DATAPLANE_PROTECTED_SET_EXISTS=0
+    _GUARD_DATAPLANE_TARGET_HANDLE=
+    _GUARD_DATAPLANE_OLD_JUMP_HANDLES=
+    _GUARD_DATAPLANE_DIRECT_IFACE=
+}
+
+_guard_dataplane_valid_iface() {
+    case ${1:-} in
+        ''|*[!A-Za-z0-9_.:@-]*) return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
+_guard_dataplane_iface_usable() {
+    _guard_dp_iu_iface=${1:-}
+    _guard_dataplane_valid_iface "$_guard_dp_iu_iface" || return 1
+    if command -v ip >/dev/null 2>&1; then
+        ip link show dev "$_guard_dp_iu_iface" >/dev/null 2>&1 || return 1
+    fi
+    return 0
+}
+
+guard_dataplane_resolve_direct_iface() {
+    _guard_dp_rd_iface=${GUARD_DIRECT_WAN_IFACE:-}
+    if [ -z "$_guard_dp_rd_iface" ] && command -v uci >/dev/null 2>&1; then
+        _guard_dp_rd_iface=$(uci -q get openclash_guard.udp.direct_iface 2>/dev/null) || _guard_dp_rd_iface=
+    fi
+    if [ -z "$_guard_dp_rd_iface" ] && command -v ubus >/dev/null 2>&1 && command -v jsonfilter >/dev/null 2>&1; then
+        _guard_dp_rd_status=$(ubus call network.interface.wan status 2>/dev/null) || _guard_dp_rd_status=
+        if [ -n "$_guard_dp_rd_status" ]; then
+            _guard_dp_rd_iface=$(jsonfilter -s "$_guard_dp_rd_status" -e '@.l3_device' 2>/dev/null) || _guard_dp_rd_iface=
+        fi
+    fi
+    if [ -z "$_guard_dp_rd_iface" ] && command -v uci >/dev/null 2>&1; then
+        _guard_dp_rd_iface=$(uci -q get network.wan.device 2>/dev/null) || _guard_dp_rd_iface=
+        if [ -z "$_guard_dp_rd_iface" ]; then
+            _guard_dp_rd_iface=$(uci -q get network.wan.ifname 2>/dev/null) || _guard_dp_rd_iface=
+            set -- $_guard_dp_rd_iface
+            _guard_dp_rd_iface=${1:-}
+        fi
+    fi
+    if [ -z "$_guard_dp_rd_iface" ] && command -v ip >/dev/null 2>&1; then
+        _guard_dp_rd_iface=$(ip -4 route show default 2>/dev/null | awk '
+            $1 == "default" {
+                for (i = 1; i <= NF; i++) if ($i == "dev" && (i + 1) <= NF) { print $(i + 1); exit }
+            }
+        ') || _guard_dp_rd_iface=
+    fi
+    _guard_dataplane_iface_usable "$_guard_dp_rd_iface" || return 1
+    printf '%s\n' "$_guard_dp_rd_iface"
+}
+
+_guard_dataplane_handle_from_line() {
+    awk '
+        {
+            if (match($0, /# handle [0-9]+/)) {
+                value = substr($0, RSTART + 9)
+                gsub(/[^0-9].*/, "", value)
+                if (value != "") { print value; exit }
+            }
+        }
+    '
+}
+
+guard_dataplane_find_target_handle() {
+    _guard_dp_ft_listing=$(nft -a list chain "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$_GUARD_DATAPLANE_TARGET_CHAIN" 2>/dev/null) || return 1
+    _guard_dp_ft_anchor=${GUARD_OPENCLASH_UDP_ANCHOR:-jump openclash_upnp}
+    _guard_dp_ft_handle=$(printf '%s\n' "$_guard_dp_ft_listing" | awk -v anchor="$_guard_dp_ft_anchor" '
+        index($0, anchor) && ($0 ~ /ip protocol udp/ || $0 ~ /meta l4proto udp/) &&
+        $0 !~ /saddr|daddr|sport|dport|iifname|oifname/ {
+            if (match($0, /# handle [0-9]+/)) {
+                value = substr($0, RSTART + 9)
+                gsub(/[^0-9].*/, "", value)
+                if (value != "") { print value; exit }
+            }
+        }
+    ')
+    if [ -z "$_guard_dp_ft_handle" ]; then
+        _guard_dp_ft_handle=$(printf '%s\n' "$_guard_dp_ft_listing" | awk '
+            /meta l4proto udp/ && /meta mark set/ &&
+            $0 !~ /saddr|daddr|sport|dport|iifname|oifname/ {
+                if (match($0, /# handle [0-9]+/)) {
+                    value = substr($0, RSTART + 9)
+                    gsub(/[^0-9].*/, "", value)
+                    if (value != "") { print value; exit }
+                }
+            }
+        ')
+    fi
+    [ -n "$_guard_dp_ft_handle" ] || return 1
+    printf '%s\n' "$_guard_dp_ft_handle"
+}
+
+_guard_dataplane_capture_owned_state() {
+    [ "$_GUARD_DATAPLANE_TABLE_EXISTS" = 1 ] || return 0
+    if nft_chain_exists "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$_GUARD_DATAPLANE_TARGET_CHAIN"; then
+        _GUARD_DATAPLANE_TARGET_EXISTS=1
+        _GUARD_DATAPLANE_OLD_JUMP_HANDLES=$(nft_rule_handles_by_comment \
+            "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$_GUARD_DATAPLANE_TARGET_CHAIN" \
+            "$_GUARD_DATAPLANE_COMMENT_PREFIX" 2>/dev/null) || _GUARD_DATAPLANE_OLD_JUMP_HANDLES=
+    fi
+    if nft_chain_exists "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$_GUARD_DATAPLANE_CHAIN"; then
+        _GUARD_DATAPLANE_CHAIN_EXISTS=1
+    fi
+    if nft_set_exists "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_src_set)"; then
+        _GUARD_DATAPLANE_SRC_SET_EXISTS=1
+    fi
+    if nft_set_exists "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_sport_set)"; then
+        _GUARD_DATAPLANE_SPORT_SET_EXISTS=1
+    fi
+    if nft_set_exists "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_dport_set)"; then
+        _GUARD_DATAPLANE_DPORT_SET_EXISTS=1
+    fi
+    if nft_set_exists "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_dst_set)"; then
+        _GUARD_DATAPLANE_DST_SET_EXISTS=1
+    fi
+    if nft_set_exists "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_protected_set)"; then
+        _GUARD_DATAPLANE_PROTECTED_SET_EXISTS=1
+    fi
+}
+
+guard_dataplane_prepare() {
+    _guard_dataplane_reset
+    _GUARD_DATAPLANE_SRCS=${1:-}
+    _GUARD_DATAPLANE_SOURCE_PORTS=${2:-}
+    _GUARD_DATAPLANE_DESTINATION_PORTS=${3:-}
+    _GUARD_DATAPLANE_DESTINATION_CIDRS=${4:-}
+    _GUARD_DATAPLANE_PROTECTED_PORTS=${5:-}
+
+    if ! nft_table_exists "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE"; then
+        return 0
+    fi
+    _GUARD_DATAPLANE_TABLE_EXISTS=1
+    _guard_dataplane_capture_owned_state
+
+    [ "${_GUARD_OC_HEALTHY:-0}" = 1 ] || return 0
+    [ -n "$_GUARD_DATAPLANE_SRCS" ] || return 0
+    if [ -z "$_GUARD_DATAPLANE_SOURCE_PORTS" ] && [ -z "$_GUARD_DATAPLANE_DESTINATION_PORTS" ]; then
+        return 0
+    fi
+    # Missing protected-destination metadata disables DIRECT bypass creation.
+    [ -n "$_GUARD_DATAPLANE_PROTECTED_PORTS" ] || return 0
+    guard_dataplane_capability_mark >/dev/null 2>&1 || return 0
+    [ "$_GUARD_DATAPLANE_TARGET_EXISTS" = 1 ] || return 0
+
+    _GUARD_DATAPLANE_DIRECT_IFACE=$(guard_dataplane_resolve_direct_iface 2>/dev/null) || _GUARD_DATAPLANE_DIRECT_IFACE=
+    [ -n "$_GUARD_DATAPLANE_DIRECT_IFACE" ] || return 0
+    _GUARD_DATAPLANE_TARGET_HANDLE=$(guard_dataplane_find_target_handle 2>/dev/null) || _GUARD_DATAPLANE_TARGET_HANDLE=
+    [ -n "$_GUARD_DATAPLANE_TARGET_HANDLE" ] || return 0
+    _GUARD_DATAPLANE_READY=1
+}
+
+guard_dataplane_ready() {
+    [ "$_GUARD_DATAPLANE_READY" = 1 ]
+}
+
+guard_dataplane_direct_iface() {
+    guard_dataplane_ready || return 1
+    printf '%s\n' "$_GUARD_DATAPLANE_DIRECT_IFACE"
+}
+
+_guard_dataplane_csv() {
+    _guard_dp_csv_out=
+    for _guard_dp_csv_item in "$@"
+    do
+        [ -n "$_guard_dp_csv_item" ] || continue
+        if [ -z "$_guard_dp_csv_out" ]; then
+            _guard_dp_csv_out=$_guard_dp_csv_item
+        else
+            _guard_dp_csv_out="$_guard_dp_csv_out, $_guard_dp_csv_item"
+        fi
+    done
+    printf '%s' "$_guard_dp_csv_out"
+}
+
+_guard_dataplane_render_set() {
+    _guard_dp_rs_name=$1
+    _guard_dp_rs_type=$2
+    _guard_dp_rs_exists=$3
+    _guard_dp_rs_flags=${4:-}
+    if [ "$_guard_dp_rs_exists" = 1 ]; then
+        printf 'flush set %s %s %s\n' "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$_guard_dp_rs_name"
+    else
+        _guard_dp_rs_extra=
+        [ -n "$_guard_dp_rs_flags" ] && _guard_dp_rs_extra=" flags $_guard_dp_rs_flags;"
+        printf 'add set %s %s %s { type %s;%s comment "%s:set"; }\n' \
+            "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$_guard_dp_rs_name" \
+            "$_guard_dp_rs_type" "$_guard_dp_rs_extra" "$_GUARD_DATAPLANE_COMMENT_PREFIX"
+    fi
+}
+
+_guard_dataplane_render_elements() {
+    _guard_dp_re_name=$1
+    shift
+    _guard_dp_re_csv=$(_guard_dataplane_csv "$@")
+    [ -n "$_guard_dp_re_csv" ] || return 0
+    printf 'add element %s %s %s { %s }\n' \
+        "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$_guard_dp_re_name" "$_guard_dp_re_csv"
+}
+
+guard_dataplane_render() {
+    [ "$_GUARD_DATAPLANE_TABLE_EXISTS" = 1 ] || return 0
+
+    for _guard_dp_rr_handle in $_GUARD_DATAPLANE_OLD_JUMP_HANDLES
+    do
+        [ -n "$_guard_dp_rr_handle" ] || continue
+        printf 'delete rule %s %s %s handle %s\n' \
+            "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$_GUARD_DATAPLANE_TARGET_CHAIN" "$_guard_dp_rr_handle"
+    done
+
+    # Migrate away from the old child-chain jump. A child-chain return
+    # resumes at the next rule in openclash_mangle, so it cannot bypass the
+    # later generic OpenClash UDP mark. Direct verdicts must live in the
+    # OpenClash mangle chain itself.
+    if [ "$_GUARD_DATAPLANE_CHAIN_EXISTS" = 1 ]; then
+        printf 'flush chain %s %s %s\n' "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$_GUARD_DATAPLANE_CHAIN"
+        printf 'delete chain %s %s %s\n' "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$_GUARD_DATAPLANE_CHAIN"
+    fi
+    [ "$_GUARD_DATAPLANE_SRC_SET_EXISTS" = 1 ] && printf 'flush set %s %s %s\n' "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_src_set)"
+    [ "$_GUARD_DATAPLANE_SPORT_SET_EXISTS" = 1 ] && printf 'flush set %s %s %s\n' "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_sport_set)"
+    [ "$_GUARD_DATAPLANE_DPORT_SET_EXISTS" = 1 ] && printf 'flush set %s %s %s\n' "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_dport_set)"
+    [ "$_GUARD_DATAPLANE_DST_SET_EXISTS" = 1 ] && printf 'flush set %s %s %s\n' "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_dst_set)"
+    [ "$_GUARD_DATAPLANE_PROTECTED_SET_EXISTS" = 1 ] && printf 'flush set %s %s %s\n' "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_protected_set)"
+
+    guard_dataplane_ready || return 0
+
+    _guard_dp_rr_src_set=$(_guard_dataplane_src_set)
+    _guard_dataplane_render_set "$_guard_dp_rr_src_set" ipv4_addr "$_GUARD_DATAPLANE_SRC_SET_EXISTS" interval
+    # shellcheck disable=SC2086
+    _guard_dataplane_render_elements "$_guard_dp_rr_src_set" $_GUARD_DATAPLANE_SRCS
+
+    _guard_dp_rr_protected_set=$(_guard_dataplane_protected_set)
+    _guard_dataplane_render_set "$_guard_dp_rr_protected_set" inet_service "$_GUARD_DATAPLANE_PROTECTED_SET_EXISTS"
+    # shellcheck disable=SC2086
+    _guard_dataplane_render_elements "$_guard_dp_rr_protected_set" $_GUARD_DATAPLANE_PROTECTED_PORTS
+
+    _guard_dp_rr_dst_match=
+    if [ -n "$_GUARD_DATAPLANE_DESTINATION_CIDRS" ]; then
+        _guard_dp_rr_dst_set=$(_guard_dataplane_dst_set)
+        _guard_dataplane_render_set "$_guard_dp_rr_dst_set" ipv4_addr "$_GUARD_DATAPLANE_DST_SET_EXISTS" interval
+        # shellcheck disable=SC2086
+        _guard_dataplane_render_elements "$_guard_dp_rr_dst_set" $_GUARD_DATAPLANE_DESTINATION_CIDRS
+        _guard_dp_rr_dst_match="ip daddr @$_guard_dp_rr_dst_set "
+    fi
+
+    if [ -n "$_GUARD_DATAPLANE_SOURCE_PORTS" ]; then
+        _guard_dp_rr_sport_set=$(_guard_dataplane_sport_set)
+        _guard_dataplane_render_set "$_guard_dp_rr_sport_set" inet_service "$_GUARD_DATAPLANE_SPORT_SET_EXISTS"
+        # shellcheck disable=SC2086
+        _guard_dataplane_render_elements "$_guard_dp_rr_sport_set" $_GUARD_DATAPLANE_SOURCE_PORTS
+        _guard_dp_rr_cap=$(guard_dataplane_capability_mark) || return 1
+        printf 'insert rule %s %s %s position %s meta mark 0 ip saddr @%s %sudp dport != @%s udp sport @%s meta mark set %s return comment "%s:source"\n' \
+            "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$_GUARD_DATAPLANE_TARGET_CHAIN" \
+            "$_GUARD_DATAPLANE_TARGET_HANDLE" "$_guard_dp_rr_src_set" "$_guard_dp_rr_dst_match" \
+            "$_guard_dp_rr_protected_set" "$_guard_dp_rr_sport_set" "$_guard_dp_rr_cap" "$_GUARD_DATAPLANE_COMMENT_PREFIX"
+    fi
+
+    if [ -n "$_GUARD_DATAPLANE_DESTINATION_PORTS" ]; then
+        _guard_dp_rr_dport_set=$(_guard_dataplane_dport_set)
+        _guard_dataplane_render_set "$_guard_dp_rr_dport_set" inet_service "$_GUARD_DATAPLANE_DPORT_SET_EXISTS"
+        # shellcheck disable=SC2086
+        _guard_dataplane_render_elements "$_guard_dp_rr_dport_set" $_GUARD_DATAPLANE_DESTINATION_PORTS
+        _guard_dp_rr_cap=$(guard_dataplane_capability_mark) || return 1
+        printf 'insert rule %s %s %s position %s meta mark 0 ip saddr @%s %sudp dport != @%s udp dport @%s meta mark set %s return comment "%s:destination"\n' \
+            "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$_GUARD_DATAPLANE_TARGET_CHAIN" \
+            "$_GUARD_DATAPLANE_TARGET_HANDLE" "$_guard_dp_rr_src_set" "$_guard_dp_rr_dst_match" \
+            "$_guard_dp_rr_protected_set" "$_guard_dp_rr_dport_set" "$_guard_dp_rr_cap" "$_GUARD_DATAPLANE_COMMENT_PREFIX"
+    fi
+}
+
+guard_dataplane_remove() {
+    [ "${GUARD_DRY_RUN:-0}" != 1 ] || return 0
+    command -v nft >/dev/null 2>&1 || return 0
+    nft_table_exists "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" || return 0
+
+    if nft_chain_exists "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$_GUARD_DATAPLANE_TARGET_CHAIN"; then
+        nft_delete_rules_by_comment \
+            "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$_GUARD_DATAPLANE_TARGET_CHAIN" \
+            "$_GUARD_DATAPLANE_COMMENT_PREFIX" || return $?
+    fi
+    if nft_chain_exists "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$_GUARD_DATAPLANE_CHAIN"; then
+        nft flush chain "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$_GUARD_DATAPLANE_CHAIN" || return $?
+        nft delete chain "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$_GUARD_DATAPLANE_CHAIN" || return $?
+    fi
+    nft_delete_owned_set "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_src_set)" "$_GUARD_DATAPLANE_SET_PREFIX" || return $?
+    nft_delete_owned_set "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_sport_set)" "$_GUARD_DATAPLANE_SET_PREFIX" || return $?
+    nft_delete_owned_set "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_dport_set)" "$_GUARD_DATAPLANE_SET_PREFIX" || return $?
+    nft_delete_owned_set "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_dst_set)" "$_GUARD_DATAPLANE_SET_PREFIX" || return $?
+    nft_delete_owned_set "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_protected_set)" "$_GUARD_DATAPLANE_SET_PREFIX" || return $?
+}
+# END MODULE: guard-dataplane
+
 # BEGIN MODULE: guard-gaming
 # Scoped gaming exceptions. Never saddr+any-UDP. Protected UDP ports are destination-only.
 # Prefix: guard_game_
@@ -4018,6 +4370,10 @@ guard_game_udp_destination_ports() {
     # Backward compatibility for installed schema-v1 runtime files. The
     # ambiguous legacy field is interpreted only as a destination-port list.
     json_list "$_GUARD_POLICY_FILE" gaming.udpPorts 2>/dev/null || true
+}
+
+guard_game_protected_udp_ports() {
+    json_list "$_GUARD_POLICY_FILE" gaming.protectedUdpPorts 2>/dev/null || true
 }
 
 guard_game_safe_udp_destination_ports() {
@@ -4170,18 +4526,20 @@ guard_game_flow_eligible() {
 
 _guard_game_render_scoped() {
     guard_game_direct_available || return 0
+    guard_dataplane_ready || return 0
+    _guard_gr_oif=$(guard_dataplane_direct_iface 2>/dev/null) || _guard_gr_oif=
+    [ -n "$_guard_gr_oif" ] || return 0
+    _guard_gr_cap=$(guard_dataplane_capability_mark 2>/dev/null) || _guard_gr_cap=
+    [ -n "$_guard_gr_cap" ] || return 0
     _guard_gr_srcs=$(guard_game_src_ips)
     [ -n "$_guard_gr_srcs" ] || return 0
     _guard_gr_source_ports=$(guard_game_udp_source_ports)
     _guard_gr_destination_ports=$(guard_game_safe_udp_destination_ports)
-    if [ -z "$_guard_gr_source_ports" ] && [ -z "$_guard_gr_destination_ports" ]; then
-        return 0
-    fi
+    if [ -z "$_guard_gr_source_ports" ] && [ -z "$_guard_gr_destination_ports" ]; then return 0; fi
 
     _guard_kill_add_set gaming_src ipv4_addr gaming-src interval
     # shellcheck disable=SC2086
     _guard_kill_add_elements gaming_src $_guard_gr_srcs
-
     _guard_gr_cidrs=$(json_list "$_GUARD_POLICY_FILE" gaming.destinationCidrs 2>/dev/null) || _guard_gr_cidrs=
     _guard_gr_dst_match=
     if [ -n "$_guard_gr_cidrs" ]; then
@@ -4190,26 +4548,52 @@ _guard_game_render_scoped() {
         _guard_kill_add_elements gaming_dst $_guard_gr_cidrs
         _guard_gr_dst_match='ip daddr @gaming_dst '
     fi
-
     if [ -n "$_guard_gr_source_ports" ]; then
         _guard_kill_add_set gaming_udp_source inet_service gaming-udp-source
         # shellcheck disable=SC2086
         _guard_kill_add_elements gaming_udp_source $_guard_gr_source_ports
-        _guard_kill_add_rule forward "ip saddr @gaming_src ${_guard_gr_dst_match}udp sport @gaming_udp_source accept" game-udp-source
     fi
     if [ -n "$_guard_gr_destination_ports" ]; then
         _guard_kill_add_set gaming_udp_destination inet_service gaming-udp-destination
         # shellcheck disable=SC2086
         _guard_kill_add_elements gaming_udp_destination $_guard_gr_destination_ports
-        _guard_kill_add_rule forward "ip saddr @gaming_src ${_guard_gr_dst_match}udp dport @gaming_udp_destination accept" game-udp-destination
+    fi
+
+    # Run before the main Guard forward chain so established outbound gaming
+    # flows cannot survive a route change onto an unintended egress.
+    printf 'add chain %s %s gaming_egress { type filter hook forward priority -151; policy accept; }\n' \
+        "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE"
+    if [ -n "$_guard_gr_source_ports" ]; then
+        _guard_kill_add_rule gaming_egress "ip saddr @gaming_src ip daddr != @lan_rfc1918 ${_guard_gr_dst_match}udp dport != @protected_udp udp sport @gaming_udp_source meta mark != $_guard_gr_cap reject" game-udp-source-capability
+        _guard_kill_add_rule gaming_egress "ip saddr @gaming_src ip daddr != @lan_rfc1918 ${_guard_gr_dst_match}meta mark $_guard_gr_cap oifname != \"$_guard_gr_oif\" udp dport != @protected_udp udp sport @gaming_udp_source reject" game-udp-source-egress
+        _guard_kill_add_rule forward "ip saddr @gaming_src ${_guard_gr_dst_match}meta mark $_guard_gr_cap oifname \"$_guard_gr_oif\" udp sport @gaming_udp_source meta mark set 0 accept" game-udp-source
+    fi
+    if [ -n "$_guard_gr_destination_ports" ]; then
+        _guard_kill_add_rule gaming_egress "ip saddr @gaming_src ip daddr != @lan_rfc1918 ${_guard_gr_dst_match}udp dport @gaming_udp_destination meta mark != $_guard_gr_cap reject" game-udp-destination-capability
+        _guard_kill_add_rule gaming_egress "ip saddr @gaming_src ip daddr != @lan_rfc1918 ${_guard_gr_dst_match}meta mark $_guard_gr_cap oifname != \"$_guard_gr_oif\" udp dport @gaming_udp_destination reject" game-udp-destination-egress
+        _guard_kill_add_rule forward "ip saddr @gaming_src ${_guard_gr_dst_match}meta mark $_guard_gr_cap oifname \"$_guard_gr_oif\" udp dport @gaming_udp_destination meta mark set 0 accept" game-udp-destination
     fi
 }
 
-# Render only the scoped gaming exception. Global firewall finalization belongs
-# to the orchestration layer so other scoped exception modules can be ordered
-# explicitly before the final fail-closed rule.
+# Reconcile both halves from the same normalized directional policy. The Guard
+# accept is emitted only when the OpenClash dataplane target and direct egress
+# interface have been validated; otherwise only stale Guard-owned dataplane
+# state is removed and the final kill-switch remains authoritative.
 guard_game_render() {
+    _guard_game_dp_srcs=$(guard_game_src_ips)
+    _guard_game_dp_sports=$(guard_game_udp_source_ports)
+    _guard_game_dp_dports=$(guard_game_safe_udp_destination_ports)
+    _guard_game_dp_cidrs=$(json_list "$_GUARD_POLICY_FILE" gaming.destinationCidrs 2>/dev/null) || _guard_game_dp_cidrs=
+    _guard_game_dp_protected=$(guard_game_protected_udp_ports)
+
+    guard_dataplane_prepare \
+        "$_guard_game_dp_srcs" \
+        "$_guard_game_dp_sports" \
+        "$_guard_game_dp_dports" \
+        "$_guard_game_dp_cidrs" \
+        "$_guard_game_dp_protected" || return $?
     _guard_game_render_scoped
+    guard_dataplane_render
 }
 # END MODULE: guard-gaming
 
@@ -4945,8 +5329,78 @@ _guard_install_oc_hook() {
     printf '%s/usr/lib/openclash-guard/on-openclash-restart\n' "$(_guard_install_root)"
 }
 
+_guard_install_oc_custom_hook() {
+    printf '%s/etc/openclash/custom/openclash_custom_firewall_rules.sh\n' "$(_guard_install_root)"
+}
+
 _guard_install_observations() {
     printf '%s/environment.json\n' "$(_guard_install_etc)"
+}
+
+_GUARD_INSTALL_OC_BEGIN='# BEGIN OPENCLASH-GUARD MANAGED'
+_GUARD_INSTALL_OC_END='# END OPENCLASH-GUARD MANAGED'
+_GUARD_INSTALL_VERSION_WARNING='WARNING: NO AUTO-UPGRADE AND NO AUTO-INSTALL. This checker is read-only; it never runs the installer or changes the runtime.'
+
+_guard_install_published_sha() {
+    _guard_ips_source=${1:-auto}
+    case $_guard_ips_source in
+        auto) _guard_ips_sources='github-raw jsdelivr' ;;
+        github-raw|raw|jsdelivr|cdn) _guard_ips_sources=$_guard_ips_source ;;
+        *) return 2 ;;
+    esac
+    for _guard_ips_item in $_guard_ips_sources
+    do
+        _guard_ips_manifest=$(file_mktemp) || return 1
+        _guard_ips_url=$(_guard_distribution_url "$_guard_ips_item" "$_GUARD_DISTRIBUTION_MANIFEST") || {
+            rm -f "$_guard_ips_manifest"
+            continue
+        }
+        _guard_ips_sha=
+        if fetch_http "$_guard_ips_url" "$_guard_ips_manifest"; then
+            _guard_ips_sha=$(sed -n 's/.*"sha256"[[:space:]]*:[[:space:]]*"\([0-9a-fA-F]*\)".*/\1/p' "$_guard_ips_manifest" | head -n 1 | tr 'A-F' 'a-f')
+        fi
+        rm -f "$_guard_ips_manifest"
+        [ "${#_guard_ips_sha}" -eq 64 ] || continue
+        case $_guard_ips_sha in
+            *[!0-9a-f]*) continue ;;
+        esac
+        printf '%s\n' "$_guard_ips_sha"
+        return 0
+    done
+    return 1
+}
+
+_guard_install_check_version() {
+    _guard_icv_installed=$(_guard_install_bin)
+    _guard_icv_installed_sha=
+    _guard_icv_published_sha=
+    _guard_icv_status=unavailable
+    if [ -f "$_guard_icv_installed" ]; then
+        _guard_icv_installed_sha=$(file_sha256 "$_guard_icv_installed" 2>/dev/null) || _guard_icv_installed_sha=
+    fi
+    _guard_icv_published_sha=$(_guard_install_published_sha auto 2>/dev/null) || _guard_icv_published_sha=
+    if [ -n "$_guard_icv_published_sha" ]; then
+        if [ -z "$_guard_icv_installed_sha" ]; then
+            _guard_icv_status=not-installed
+        elif [ "$_guard_icv_installed_sha" = "$_guard_icv_published_sha" ]; then
+            _guard_icv_status=current
+        else
+            _guard_icv_status=different
+        fi
+    fi
+    if [ "${_GUARD_JSON:-0}" = 1 ]; then
+        printf '{"status":"%s","installedSha256":"%s","publishedSha256":"%s","autoUpgrade":false,"autoInstall":false}\n' \
+            "$(_guard_env_json_string "$_guard_icv_status")" \
+            "$(_guard_env_json_string "$_guard_icv_installed_sha")" \
+            "$(_guard_env_json_string "$_guard_icv_published_sha")"
+    else
+        cli_section "OpenClash Guard version check"
+        cli_kv installed.sha256 "${_guard_icv_installed_sha:-not-installed}"
+        cli_kv published.sha256 "${_guard_icv_published_sha:-unavailable}"
+        cli_kv status "$_guard_icv_status"
+        cli_warn "$_GUARD_INSTALL_VERSION_WARNING"
+    fi
+    [ "$_guard_icv_status" != unavailable ]
 }
 
 _guard_install_write() {
@@ -5075,9 +5529,142 @@ ${_guard_ih_body}"
 ${_guard_ih_body}"
     _guard_ih_oc="$(_guard_install_root)/etc/openclash"
     if [ -d "$_guard_ih_oc" ]; then
-        _guard_install_script "${_guard_ih_oc}/openclash-guard-hook.sh" "/bin/sh" "# Drop-in observer.
+        _guard_install_script "${_guard_ih_oc}/openclash-guard-hook.sh" "/bin/sh" "# Legacy drop-in observer; lifecycle wiring uses OpenClash's documented custom firewall hook.
 ${_guard_ih_body}"
     fi
+}
+
+_guard_install_fw4_registration_valid() {
+    command -v uci >/dev/null 2>&1 || return 1
+    [ "$(uci_get_default firewall.openclash_guard '' 2>/dev/null || true)" = include ] || return 1
+    [ "$(uci_get_default firewall.openclash_guard.type '' 2>/dev/null || true)" = script ] || return 1
+    [ "$(uci_get_default firewall.openclash_guard.path '' 2>/dev/null || true)" = "$(_guard_install_fw4)" ] || return 1
+    [ "$(uci_get_default firewall.openclash_guard.enabled 0 2>/dev/null || printf 0)" = 1 ] || return 1
+}
+
+_guard_install_register_fw4_include() {
+    if [ "${GUARD_DRY_RUN:-0}" = 1 ]; then
+        printf 'would register firewall.openclash_guard -> %s\n' "$(_guard_install_fw4)"
+        return 0
+    fi
+    command -v uci >/dev/null 2>&1 || return 127
+    uci_set firewall.openclash_guard include
+    uci_set firewall.openclash_guard.type script
+    uci_set firewall.openclash_guard.path "$(_guard_install_fw4)"
+    uci_set firewall.openclash_guard.enabled 1
+    uci_commit_if_changed firewall
+}
+
+_guard_install_openclash_hook_valid() {
+    _guard_iohv_root="$(_guard_install_root)/etc/openclash"
+    [ -d "$_guard_iohv_root" ] || return 0
+    _guard_iohv_file=$(_guard_install_oc_custom_hook)
+    _guard_iohv_target=$(_guard_install_oc_hook)
+    _guard_iohv_call="[ -x \"$_guard_iohv_target\" ] && \"$_guard_iohv_target\""
+    [ -x "$_guard_iohv_file" ] || return 1
+    [ "$(grep -Fxc "$_GUARD_INSTALL_OC_BEGIN" "$_guard_iohv_file" 2>/dev/null || true)" -eq 1 ] || return 1
+    [ "$(grep -Fxc "$_GUARD_INSTALL_OC_END" "$_guard_iohv_file" 2>/dev/null || true)" -eq 1 ] || return 1
+    grep -Fqx "$_guard_iohv_call" "$_guard_iohv_file" >/dev/null 2>&1
+}
+
+_guard_install_wire_openclash_hook() {
+    _guard_iow_root="$(_guard_install_root)/etc/openclash"
+    [ -d "$_guard_iow_root" ] || return 0
+    _guard_iow_file=$(_guard_install_oc_custom_hook)
+    _guard_iow_target=$(_guard_install_oc_hook)
+    _guard_iow_call="[ -x \"$_guard_iow_target\" ] && \"$_guard_iow_target\""
+    if [ "${GUARD_DRY_RUN:-0}" = 1 ]; then
+        printf 'would manage OpenClash lifecycle block in %s\n' "$_guard_iow_file"
+        return 0
+    fi
+    mkdir -p "$(dirname "$_guard_iow_file")"
+    if [ -f "$_guard_iow_file" ]; then
+        _guard_iow_begin=$(grep -Fxc "$_GUARD_INSTALL_OC_BEGIN" "$_guard_iow_file" 2>/dev/null || true)
+        _guard_iow_end=$(grep -Fxc "$_GUARD_INSTALL_OC_END" "$_guard_iow_file" 2>/dev/null || true)
+        if [ "$_guard_iow_begin" -ne "$_guard_iow_end" ] || [ "$_guard_iow_begin" -gt 1 ]; then
+            cli_error "refusing to modify malformed OpenClash Guard managed block in $_guard_iow_file"
+            return 1
+        fi
+        if [ "$_guard_iow_begin" -eq 1 ] && grep -Fqx "$_guard_iow_call" "$_guard_iow_file" >/dev/null 2>&1; then
+            chmod 0755 "$_guard_iow_file"
+            return 0
+        fi
+    fi
+    _guard_iow_stripped=$(file_mktemp) || return 1
+    _guard_iow_candidate=$(file_mktemp) || { rm -f "$_guard_iow_stripped"; return 1; }
+    if [ -f "$_guard_iow_file" ]; then
+        awk -v begin="$_GUARD_INSTALL_OC_BEGIN" -v end="$_GUARD_INSTALL_OC_END" '
+            $0 == begin { skip=1; next }
+            $0 == end { skip=0; next }
+            !skip { print }
+        ' "$_guard_iow_file" > "$_guard_iow_stripped"
+    else
+        printf '%s%s\n\n%s\n' '#!' '/bin/sh' 'exit 0' > "$_guard_iow_stripped"
+    fi
+    awk -v begin="$_GUARD_INSTALL_OC_BEGIN" -v call="$_guard_iow_call" -v end="$_GUARD_INSTALL_OC_END" '
+        !inserted && $0 ~ /^[[:space:]]*exit[[:space:]]+0[[:space:]]*$/ {
+            print begin
+            print call
+            print end
+            print ""
+            inserted=1
+        }
+        { print }
+        END {
+            if (!inserted) {
+                print ""
+                print begin
+                print call
+                print end
+            }
+        }
+    ' "$_guard_iow_stripped" > "$_guard_iow_candidate"
+    if ! _guard_install_write "$_guard_iow_file" 0755 < "$_guard_iow_candidate"; then
+        rm -f "$_guard_iow_stripped" "$_guard_iow_candidate"
+        return 1
+    fi
+    rm -f "$_guard_iow_stripped" "$_guard_iow_candidate"
+}
+
+_guard_install_unwire_openclash_hook() {
+    _guard_iuoh_file=$(_guard_install_oc_custom_hook)
+    [ -f "$_guard_iuoh_file" ] || return 0
+    _guard_iuoh_begin=$(grep -Fxc "$_GUARD_INSTALL_OC_BEGIN" "$_guard_iuoh_file" 2>/dev/null || true)
+    _guard_iuoh_end=$(grep -Fxc "$_GUARD_INSTALL_OC_END" "$_guard_iuoh_file" 2>/dev/null || true)
+    [ "$_guard_iuoh_begin" -eq 0 ] && [ "$_guard_iuoh_end" -eq 0 ] && return 0
+    if [ "$_guard_iuoh_begin" -ne 1 ] || [ "$_guard_iuoh_end" -ne 1 ]; then
+        cli_warn "preserving malformed OpenClash custom firewall hook: $_guard_iuoh_file"
+        return 1
+    fi
+    _guard_iuoh_tmp=$(file_mktemp) || return 1
+    awk -v begin="$_GUARD_INSTALL_OC_BEGIN" -v end="$_GUARD_INSTALL_OC_END" '
+        $0 == begin { skip=1; next }
+        $0 == end { skip=0; next }
+        !skip { print }
+    ' "$_guard_iuoh_file" > "$_guard_iuoh_tmp"
+    if ! _guard_install_write "$_guard_iuoh_file" 0755 < "$_guard_iuoh_tmp"; then
+        rm -f "$_guard_iuoh_tmp"
+        return 1
+    fi
+    rm -f "$_guard_iuoh_tmp"
+}
+
+_guard_install_register_lifecycle() {
+    _guard_install_register_fw4_include || return $?
+    _guard_install_wire_openclash_hook
+}
+
+_guard_install_unregister_lifecycle() {
+    _guard_iul_rc=0
+    _guard_install_unwire_openclash_hook || _guard_iul_rc=1
+    if command -v uci >/dev/null 2>&1; then
+        uci_delete firewall.openclash_guard.enabled
+        uci_delete firewall.openclash_guard.path
+        uci_delete firewall.openclash_guard.type
+        uci_delete firewall.openclash_guard
+        uci_commit_if_changed firewall || _guard_iul_rc=1
+    fi
+    return "$_guard_iul_rc"
 }
 
 _guard_install_service_control() {
@@ -5323,6 +5910,14 @@ guard_install_validate() {
             return 1
         fi
     done
+    if ! _guard_install_fw4_registration_valid; then
+        _GUARD_SETUP_INVALID_REASON="fw4 include is not registered in firewall UCI"
+        return 1
+    fi
+    if ! _guard_install_openclash_hook_valid; then
+        _GUARD_SETUP_INVALID_REASON="OpenClash post-firewall lifecycle hook is not wired"
+        return 1
+    fi
     if ! command -v uci >/dev/null 2>&1 || \
        [ "$(uci_get_default openclash_guard.main.enabled 0 2>/dev/null || printf 0)" != 1 ] || \
        [ "$(uci_get_default openclash_guard.main.dns_ownership "" 2>/dev/null || true)" != preserve ] || \
@@ -5374,6 +5969,7 @@ guard_cmd_install() {
     _guard_in_game=
     _guard_in_norefresh=0
     _guard_in_clients=
+    _guard_in_check_version=0
     while [ "$#" -gt 0 ]
     do
         case $1 in
@@ -5417,6 +6013,10 @@ guard_cmd_install() {
                 _guard_in_norefresh=1
                 shift
                 ;;
+            --check-version)
+                _guard_in_check_version=1
+                shift
+                ;;
             --yes|-y)
                 cli_set_assume_yes 1
                 shift
@@ -5434,8 +6034,12 @@ guard_cmd_install() {
                 ;;
         esac
     done
-    case $_guard_in_mode in
-        auto|strict|manual)
+if [ "$_guard_in_check_version" = 1 ]; then
+    _guard_install_check_version
+    return $?
+fi
+case $_guard_in_mode in
+    auto|strict|manual)
             ;;
         *)
             cli_error "invalid --mode: $_guard_in_mode (auto|strict|manual)"
@@ -5492,6 +6096,7 @@ guard_cmd_install() {
     _guard_install_self || return $?
     _guard_install_policy_files || return $?
     _guard_install_hooks || return $?
+    _guard_install_register_lifecycle || return $?
     guard_rules_init || return $?
     _guard_install_write_uci "$_guard_in_mode" "$_guard_in_ks_eff" "$_guard_in_dns_eff" "$_guard_in_game_eff" "$_guard_in_url" "$_guard_in_clients" || return $?
     _guard_install_write_observations || return $?
@@ -5599,6 +6204,7 @@ guard_cmd_uninstall() {
     fi
     guard_cmd_remove || _guard_un_rc=1
     _guard_install_stop_disable_service || _guard_un_rc=1
+    _guard_install_unregister_lifecycle || _guard_un_rc=1
     if command -v uci >/dev/null 2>&1; then
         for _guard_un_uci in \
             openclash_guard.main.enabled \

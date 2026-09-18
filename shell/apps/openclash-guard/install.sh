@@ -31,8 +31,78 @@ _guard_install_oc_hook() {
     printf '%s/usr/lib/openclash-guard/on-openclash-restart\n' "$(_guard_install_root)"
 }
 
+_guard_install_oc_custom_hook() {
+    printf '%s/etc/openclash/custom/openclash_custom_firewall_rules.sh\n' "$(_guard_install_root)"
+}
+
 _guard_install_observations() {
     printf '%s/environment.json\n' "$(_guard_install_etc)"
+}
+
+_GUARD_INSTALL_OC_BEGIN='# BEGIN OPENCLASH-GUARD MANAGED'
+_GUARD_INSTALL_OC_END='# END OPENCLASH-GUARD MANAGED'
+_GUARD_INSTALL_VERSION_WARNING='WARNING: NO AUTO-UPGRADE AND NO AUTO-INSTALL. This checker is read-only; it never runs the installer or changes the runtime.'
+
+_guard_install_published_sha() {
+    _guard_ips_source=${1:-auto}
+    case $_guard_ips_source in
+        auto) _guard_ips_sources='github-raw jsdelivr' ;;
+        github-raw|raw|jsdelivr|cdn) _guard_ips_sources=$_guard_ips_source ;;
+        *) return 2 ;;
+    esac
+    for _guard_ips_item in $_guard_ips_sources
+    do
+        _guard_ips_manifest=$(file_mktemp) || return 1
+        _guard_ips_url=$(_guard_distribution_url "$_guard_ips_item" "$_GUARD_DISTRIBUTION_MANIFEST") || {
+            rm -f "$_guard_ips_manifest"
+            continue
+        }
+        _guard_ips_sha=
+        if fetch_http "$_guard_ips_url" "$_guard_ips_manifest"; then
+            _guard_ips_sha=$(sed -n 's/.*"sha256"[[:space:]]*:[[:space:]]*"\([0-9a-fA-F]*\)".*/\1/p' "$_guard_ips_manifest" | head -n 1 | tr 'A-F' 'a-f')
+        fi
+        rm -f "$_guard_ips_manifest"
+        [ "${#_guard_ips_sha}" -eq 64 ] || continue
+        case $_guard_ips_sha in
+            *[!0-9a-f]*) continue ;;
+        esac
+        printf '%s\n' "$_guard_ips_sha"
+        return 0
+    done
+    return 1
+}
+
+_guard_install_check_version() {
+    _guard_icv_installed=$(_guard_install_bin)
+    _guard_icv_installed_sha=
+    _guard_icv_published_sha=
+    _guard_icv_status=unavailable
+    if [ -f "$_guard_icv_installed" ]; then
+        _guard_icv_installed_sha=$(file_sha256 "$_guard_icv_installed" 2>/dev/null) || _guard_icv_installed_sha=
+    fi
+    _guard_icv_published_sha=$(_guard_install_published_sha auto 2>/dev/null) || _guard_icv_published_sha=
+    if [ -n "$_guard_icv_published_sha" ]; then
+        if [ -z "$_guard_icv_installed_sha" ]; then
+            _guard_icv_status=not-installed
+        elif [ "$_guard_icv_installed_sha" = "$_guard_icv_published_sha" ]; then
+            _guard_icv_status=current
+        else
+            _guard_icv_status=different
+        fi
+    fi
+    if [ "${_GUARD_JSON:-0}" = 1 ]; then
+        printf '{"status":"%s","installedSha256":"%s","publishedSha256":"%s","autoUpgrade":false,"autoInstall":false}\n' \
+            "$(_guard_env_json_string "$_guard_icv_status")" \
+            "$(_guard_env_json_string "$_guard_icv_installed_sha")" \
+            "$(_guard_env_json_string "$_guard_icv_published_sha")"
+    else
+        cli_section "OpenClash Guard version check"
+        cli_kv installed.sha256 "${_guard_icv_installed_sha:-not-installed}"
+        cli_kv published.sha256 "${_guard_icv_published_sha:-unavailable}"
+        cli_kv status "$_guard_icv_status"
+        cli_warn "$_GUARD_INSTALL_VERSION_WARNING"
+    fi
+    [ "$_guard_icv_status" != unavailable ]
 }
 
 _guard_install_write() {
@@ -161,9 +231,142 @@ ${_guard_ih_body}"
 ${_guard_ih_body}"
     _guard_ih_oc="$(_guard_install_root)/etc/openclash"
     if [ -d "$_guard_ih_oc" ]; then
-        _guard_install_script "${_guard_ih_oc}/openclash-guard-hook.sh" "/bin/sh" "# Drop-in observer.
+        _guard_install_script "${_guard_ih_oc}/openclash-guard-hook.sh" "/bin/sh" "# Legacy drop-in observer; lifecycle wiring uses OpenClash's documented custom firewall hook.
 ${_guard_ih_body}"
     fi
+}
+
+_guard_install_fw4_registration_valid() {
+    command -v uci >/dev/null 2>&1 || return 1
+    [ "$(uci_get_default firewall.openclash_guard '' 2>/dev/null || true)" = include ] || return 1
+    [ "$(uci_get_default firewall.openclash_guard.type '' 2>/dev/null || true)" = script ] || return 1
+    [ "$(uci_get_default firewall.openclash_guard.path '' 2>/dev/null || true)" = "$(_guard_install_fw4)" ] || return 1
+    [ "$(uci_get_default firewall.openclash_guard.enabled 0 2>/dev/null || printf 0)" = 1 ] || return 1
+}
+
+_guard_install_register_fw4_include() {
+    if [ "${GUARD_DRY_RUN:-0}" = 1 ]; then
+        printf 'would register firewall.openclash_guard -> %s\n' "$(_guard_install_fw4)"
+        return 0
+    fi
+    command -v uci >/dev/null 2>&1 || return 127
+    uci_set firewall.openclash_guard include
+    uci_set firewall.openclash_guard.type script
+    uci_set firewall.openclash_guard.path "$(_guard_install_fw4)"
+    uci_set firewall.openclash_guard.enabled 1
+    uci_commit_if_changed firewall
+}
+
+_guard_install_openclash_hook_valid() {
+    _guard_iohv_root="$(_guard_install_root)/etc/openclash"
+    [ -d "$_guard_iohv_root" ] || return 0
+    _guard_iohv_file=$(_guard_install_oc_custom_hook)
+    _guard_iohv_target=$(_guard_install_oc_hook)
+    _guard_iohv_call="[ -x \"$_guard_iohv_target\" ] && \"$_guard_iohv_target\""
+    [ -x "$_guard_iohv_file" ] || return 1
+    [ "$(grep -Fxc "$_GUARD_INSTALL_OC_BEGIN" "$_guard_iohv_file" 2>/dev/null || true)" -eq 1 ] || return 1
+    [ "$(grep -Fxc "$_GUARD_INSTALL_OC_END" "$_guard_iohv_file" 2>/dev/null || true)" -eq 1 ] || return 1
+    grep -Fqx "$_guard_iohv_call" "$_guard_iohv_file" >/dev/null 2>&1
+}
+
+_guard_install_wire_openclash_hook() {
+    _guard_iow_root="$(_guard_install_root)/etc/openclash"
+    [ -d "$_guard_iow_root" ] || return 0
+    _guard_iow_file=$(_guard_install_oc_custom_hook)
+    _guard_iow_target=$(_guard_install_oc_hook)
+    _guard_iow_call="[ -x \"$_guard_iow_target\" ] && \"$_guard_iow_target\""
+    if [ "${GUARD_DRY_RUN:-0}" = 1 ]; then
+        printf 'would manage OpenClash lifecycle block in %s\n' "$_guard_iow_file"
+        return 0
+    fi
+    mkdir -p "$(dirname "$_guard_iow_file")"
+    if [ -f "$_guard_iow_file" ]; then
+        _guard_iow_begin=$(grep -Fxc "$_GUARD_INSTALL_OC_BEGIN" "$_guard_iow_file" 2>/dev/null || true)
+        _guard_iow_end=$(grep -Fxc "$_GUARD_INSTALL_OC_END" "$_guard_iow_file" 2>/dev/null || true)
+        if [ "$_guard_iow_begin" -ne "$_guard_iow_end" ] || [ "$_guard_iow_begin" -gt 1 ]; then
+            cli_error "refusing to modify malformed OpenClash Guard managed block in $_guard_iow_file"
+            return 1
+        fi
+        if [ "$_guard_iow_begin" -eq 1 ] && grep -Fqx "$_guard_iow_call" "$_guard_iow_file" >/dev/null 2>&1; then
+            chmod 0755 "$_guard_iow_file"
+            return 0
+        fi
+    fi
+    _guard_iow_stripped=$(file_mktemp) || return 1
+    _guard_iow_candidate=$(file_mktemp) || { rm -f "$_guard_iow_stripped"; return 1; }
+    if [ -f "$_guard_iow_file" ]; then
+        awk -v begin="$_GUARD_INSTALL_OC_BEGIN" -v end="$_GUARD_INSTALL_OC_END" '
+            $0 == begin { skip=1; next }
+            $0 == end { skip=0; next }
+            !skip { print }
+        ' "$_guard_iow_file" > "$_guard_iow_stripped"
+    else
+        printf '%s%s\n\n%s\n' '#!' '/bin/sh' 'exit 0' > "$_guard_iow_stripped"
+    fi
+    awk -v begin="$_GUARD_INSTALL_OC_BEGIN" -v call="$_guard_iow_call" -v end="$_GUARD_INSTALL_OC_END" '
+        !inserted && $0 ~ /^[[:space:]]*exit[[:space:]]+0[[:space:]]*$/ {
+            print begin
+            print call
+            print end
+            print ""
+            inserted=1
+        }
+        { print }
+        END {
+            if (!inserted) {
+                print ""
+                print begin
+                print call
+                print end
+            }
+        }
+    ' "$_guard_iow_stripped" > "$_guard_iow_candidate"
+    if ! _guard_install_write "$_guard_iow_file" 0755 < "$_guard_iow_candidate"; then
+        rm -f "$_guard_iow_stripped" "$_guard_iow_candidate"
+        return 1
+    fi
+    rm -f "$_guard_iow_stripped" "$_guard_iow_candidate"
+}
+
+_guard_install_unwire_openclash_hook() {
+    _guard_iuoh_file=$(_guard_install_oc_custom_hook)
+    [ -f "$_guard_iuoh_file" ] || return 0
+    _guard_iuoh_begin=$(grep -Fxc "$_GUARD_INSTALL_OC_BEGIN" "$_guard_iuoh_file" 2>/dev/null || true)
+    _guard_iuoh_end=$(grep -Fxc "$_GUARD_INSTALL_OC_END" "$_guard_iuoh_file" 2>/dev/null || true)
+    [ "$_guard_iuoh_begin" -eq 0 ] && [ "$_guard_iuoh_end" -eq 0 ] && return 0
+    if [ "$_guard_iuoh_begin" -ne 1 ] || [ "$_guard_iuoh_end" -ne 1 ]; then
+        cli_warn "preserving malformed OpenClash custom firewall hook: $_guard_iuoh_file"
+        return 1
+    fi
+    _guard_iuoh_tmp=$(file_mktemp) || return 1
+    awk -v begin="$_GUARD_INSTALL_OC_BEGIN" -v end="$_GUARD_INSTALL_OC_END" '
+        $0 == begin { skip=1; next }
+        $0 == end { skip=0; next }
+        !skip { print }
+    ' "$_guard_iuoh_file" > "$_guard_iuoh_tmp"
+    if ! _guard_install_write "$_guard_iuoh_file" 0755 < "$_guard_iuoh_tmp"; then
+        rm -f "$_guard_iuoh_tmp"
+        return 1
+    fi
+    rm -f "$_guard_iuoh_tmp"
+}
+
+_guard_install_register_lifecycle() {
+    _guard_install_register_fw4_include || return $?
+    _guard_install_wire_openclash_hook
+}
+
+_guard_install_unregister_lifecycle() {
+    _guard_iul_rc=0
+    _guard_install_unwire_openclash_hook || _guard_iul_rc=1
+    if command -v uci >/dev/null 2>&1; then
+        uci_delete firewall.openclash_guard.enabled
+        uci_delete firewall.openclash_guard.path
+        uci_delete firewall.openclash_guard.type
+        uci_delete firewall.openclash_guard
+        uci_commit_if_changed firewall || _guard_iul_rc=1
+    fi
+    return "$_guard_iul_rc"
 }
 
 _guard_install_service_control() {
@@ -409,6 +612,14 @@ guard_install_validate() {
             return 1
         fi
     done
+    if ! _guard_install_fw4_registration_valid; then
+        _GUARD_SETUP_INVALID_REASON="fw4 include is not registered in firewall UCI"
+        return 1
+    fi
+    if ! _guard_install_openclash_hook_valid; then
+        _GUARD_SETUP_INVALID_REASON="OpenClash post-firewall lifecycle hook is not wired"
+        return 1
+    fi
     if ! command -v uci >/dev/null 2>&1 || \
        [ "$(uci_get_default openclash_guard.main.enabled 0 2>/dev/null || printf 0)" != 1 ] || \
        [ "$(uci_get_default openclash_guard.main.dns_ownership "" 2>/dev/null || true)" != preserve ] || \
@@ -460,6 +671,7 @@ guard_cmd_install() {
     _guard_in_game=
     _guard_in_norefresh=0
     _guard_in_clients=
+    _guard_in_check_version=0
     while [ "$#" -gt 0 ]
     do
         case $1 in
@@ -503,6 +715,10 @@ guard_cmd_install() {
                 _guard_in_norefresh=1
                 shift
                 ;;
+            --check-version)
+                _guard_in_check_version=1
+                shift
+                ;;
             --yes|-y)
                 cli_set_assume_yes 1
                 shift
@@ -520,8 +736,12 @@ guard_cmd_install() {
                 ;;
         esac
     done
-    case $_guard_in_mode in
-        auto|strict|manual)
+if [ "$_guard_in_check_version" = 1 ]; then
+    _guard_install_check_version
+    return $?
+fi
+case $_guard_in_mode in
+    auto|strict|manual)
             ;;
         *)
             cli_error "invalid --mode: $_guard_in_mode (auto|strict|manual)"
@@ -578,6 +798,7 @@ guard_cmd_install() {
     _guard_install_self || return $?
     _guard_install_policy_files || return $?
     _guard_install_hooks || return $?
+    _guard_install_register_lifecycle || return $?
     guard_rules_init || return $?
     _guard_install_write_uci "$_guard_in_mode" "$_guard_in_ks_eff" "$_guard_in_dns_eff" "$_guard_in_game_eff" "$_guard_in_url" "$_guard_in_clients" || return $?
     _guard_install_write_observations || return $?
@@ -685,6 +906,7 @@ guard_cmd_uninstall() {
     fi
     guard_cmd_remove || _guard_un_rc=1
     _guard_install_stop_disable_service || _guard_un_rc=1
+    _guard_install_unregister_lifecycle || _guard_un_rc=1
     if command -v uci >/dev/null 2>&1; then
         for _guard_un_uci in \
             openclash_guard.main.enabled \
