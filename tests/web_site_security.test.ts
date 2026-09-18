@@ -21,19 +21,29 @@ test('web/site HTML files do not use dangerous innerHTML string interpolation', 
   }
 });
 
-test('web/site report.html sanitizes dynamic URL schemes before setting href', () => {
-  const content = fs.readFileSync(path.join(SITE_DIR, 'report.html'), 'utf8');
+test('web/site report page sanitizes dynamic URL schemes before setting href', () => {
+  const htmlContent = fs.readFileSync(path.join(SITE_DIR, 'report.html'), 'utf8');
+  let jsContent = '';
+  const assetsDir = path.join(SITE_DIR, 'assets');
+  if (fs.existsSync(assetsDir)) {
+    jsContent = fs
+      .readdirSync(assetsDir)
+      .filter((f) => f.endsWith('.js'))
+      .map((f) => fs.readFileSync(path.join(assetsDir, f), 'utf8'))
+      .join('\n');
+  }
+  const content = htmlContent + '\n' + jsContent;
 
   assert.match(
     content,
     /safeUrl\s*\(/,
-    'report.html should use a URL scheme sanitizer for dynamic upstream links.'
+    'report page should use a URL scheme sanitizer for dynamic upstream links.'
   );
 
   assert.match(
     content,
     /\/\^https\?:\\\/\\\//i,
-    'report.html URL sanitizer should require http:// or https:// schemes.'
+    'report page URL sanitizer should require http:// or https:// schemes.'
   );
 });
 

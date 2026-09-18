@@ -3,107 +3,104 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>mythic3011/rules</title>
+  <title>mythic3011/rules - Technical Operations Console</title>
+  <link rel="icon" href="./favicon.ico" sizes="any" />
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
-  <style>
-    :root {
-      --pico-font-family: system-ui, -apple-system, sans-serif;
-    }
-    h1 { font-size: clamp(2rem, 6vw, 4rem); margin: 0 0 12px; letter-spacing: -0.04em; }
-    h2 { margin-top: 42px; }
-    p { line-height: 1.65; max-width: 760px; }
-    .muted { opacity: .72; }
-    .grid-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin-top: 20px; }
-    .card { border-radius: 14px; padding: 18px; }
-    .card h3 { margin: 0 0 8px; }
-    .card p { margin: 0 0 16px; font-size: .95rem; }
-    code { word-break: break-all; }
-    table { width: 100%; border-collapse: collapse; margin-top: 16px; }
-    nav { display: flex; gap: 14px; flex-wrap: wrap; margin: 18px 0 0; }
-  </style>
+  <link rel="stylesheet" href="./assets/site.css" />
 </head>
 <body>
-<main class="container">
-  <h1>mythic3011/rules</h1>
-  <p>Ready-to-use OpenClash/Mihomo profiles, AI/service routing rules, and DNS filtering assets. Consumers use the published files directly; the compiler and source-of-truth configuration stay behind the public surface.</p>
-  <nav>
-    <a href="https://github.com/mythic3011/rules" role="button" class="outline">GitHub</a>
-    <a href="https://github.com/mythic3011/rules/blob/main/docs/getting-started.md" role="button" class="outline">Setup guide</a>
-    <a href="./report.html?category=adblock" role="button" class="outline">Filter reports</a>
-    <a href="./ip-lookup.html" role="button" class="outline">IP Lookup</a>
-  </nav>
-
-  <h2>Start here</h2>
-  <div class="grid-cards">
-    <article class="card">
-      <h3>AI Balanced</h3>
-      <p>Recommended relaxed OpenClash/Mihomo profile for HK-oriented AI and service routing.</p>
-      <a role="button" href="https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/cfg/yaml/Custom_Clash_AI.yaml">Download YAML</a>
-    </article>
-    <article class="card">
-      <h3>AI Strict</h3>
-      <p>Fail-closed profile for stricter routing and account-sensitive traffic.</p>
-      <a role="button" href="https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/cfg/yaml/Custom_Clash_AI_Strict.yaml">Download YAML</a>
-    </article>
-    <article class="card">
-      <h3>Subconverter AI</h3>
-      <p>AI-aware subscription-conversion template. This is an INI template, not runtime YAML.</p>
-      <a role="button" href="https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/cfg/Custom_Clash_AI.ini">Open INI</a>
-    </article>
+<header class="app-header">
+  <div class="container">
+    <div class="brand-group">
+      <a href="./index.html" class="brand-title">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+        mythic3011/rules
+      </a>
+      <span class="status-badge"><span class="status-dot"></span> OPERATIONAL</span>
+    </div>
+    <nav class="nav-links">
+      <a href="./index.html" class="nav-link active">Overview</a>
+      <a href="./ip-lookup.html" class="nav-link">IP Lookup</a>
+      <a href="./report.html?category=adblock" class="nav-link">Reports</a>
+      <a href="https://github.com/mythic3011/rules/blob/main/docs/getting-started.md" class="nav-link">Setup Guide</a>
+      <a href="https://github.com/mythic3011/rules" class="nav-link" target="_blank" rel="noreferrer">GitHub ↗</a>
+    </nav>
   </div>
+</header>
 
-  <h2>Generated filtering status</h2>
-  <p class="muted">This table is loaded from the repository's generated report index. It is operational visibility, not part of the setup path.</p>
-  <table>
-    <thead><tr><th>Category</th><th>Domains</th><th>Sources</th><th>Outputs</th></tr></thead>
-    <tbody id="rows"><tr><td colspan="4">Loading…</td></tr></tbody>
-  </table>
+<main class="main-content">
+  <section class="hero-banner">
+    <div class="hero-eyebrow">Routing & DNS Asset Console</div>
+    <h1 class="hero-title">Network Routing Profiles & DNS Filtering Assets</h1>
+    <p class="hero-lead">Ready-to-use OpenClash/Mihomo profiles, AI/service routing rules, and DNS filtering assets. Consumers use the published files directly; the compiler and source-of-truth configuration stay behind the public surface.</p>
+  </section>
+
+  <section>
+    <div class="section-header">
+      <h2 class="section-title">Start here</h2>
+      <span class="badge badge-cyan">PROFILES</span>
+    </div>
+    <div class="card-grid">
+      <article class="card-panel">
+        <div class="card-kicker">Clash / Mihomo Core</div>
+        <div class="card-title">AI Balanced <span class="badge badge-cyan">RECOMMENDED</span></div>
+        <p class="card-label">Recommended relaxed OpenClash/Mihomo profile for HK-oriented AI and service routing.</p>
+        <div>
+          <a role="button" class="btn-outline" href="https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/cfg/yaml/Custom_Clash_AI.yaml">Download YAML</a>
+        </div>
+      </article>
+
+      <article class="card-panel">
+        <div class="card-kicker">Strict Fail-Closed</div>
+        <div class="card-title">AI Strict <span class="badge badge-amber">FAIL-CLOSED</span></div>
+        <p class="card-label">Fail-closed profile for stricter routing and account-sensitive traffic.</p>
+        <div>
+          <a role="button" class="btn-outline" href="https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/cfg/yaml/Custom_Clash_AI_Strict.yaml">Download YAML</a>
+        </div>
+      </article>
+
+      <article class="card-panel">
+        <div class="card-kicker">Subconverter ACL4SSR</div>
+        <div class="card-title">Subconverter AI <span class="badge badge-purple">INI TEMPLATE</span></div>
+        <p class="card-label">AI-aware subscription-conversion template. This is an INI template, not runtime YAML.</p>
+        <div>
+          <a role="button" class="btn-outline" href="https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/cfg/Custom_Clash_AI.ini">Open INI</a>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section class="section-panel">
+    <div class="section-header">
+      <h2 class="section-title">Generated filtering status</h2>
+      <span class="badge badge-emerald">AUTOMATED REPORT INDEX</span>
+    </div>
+    <p class="section-desc">This table is loaded from the repository's generated report index. It is operational visibility, not part of the setup path.</p>
+    <div class="table-container">
+      <table class="console-table">
+        <thead>
+          <tr>
+            <th>Category</th>
+            <th>Domains</th>
+            <th>Sources</th>
+            <th>Outputs</th>
+          </tr>
+        </thead>
+        <tbody id="rows">
+          <tr><td colspan="4" class="mono">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
 </main>
-<script>
-  const fmt = new Intl.NumberFormat();
-  const rowsEl = document.querySelector('#rows');
-  fetch('./reports/index.json')
-    .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-    .then(index => {
-      const fragment = document.createDocumentFragment();
-      for (const item of index.categories) {
-        const tr = document.createElement('tr');
 
-        const tdCategory = document.createElement('td');
-        const aCategory = document.createElement('a');
-        aCategory.href = `./report.html?category=${encodeURIComponent(item.category)}`;
-        aCategory.textContent = item.category;
-        tdCategory.append(aCategory);
+<footer class="app-footer">
+  <div class="container">
+    mythic3011/rules · Network Routing Operations Console
+  </div>
+</footer>
 
-        const tdDomains = document.createElement('td');
-        tdDomains.textContent = fmt.format(item.final_domain_count);
-
-        const tdSources = document.createElement('td');
-        tdSources.textContent = fmt.format(item.source_count);
-
-        const tdOutputs = document.createElement('td');
-        const aHosts = document.createElement('a');
-        aHosts.href = `./${encodeURIComponent(item.hosts_output)}`;
-        aHosts.textContent = 'hosts';
-
-        const aClash = document.createElement('a');
-        aClash.href = `./${encodeURIComponent(item.clash_output)}`;
-        aClash.textContent = 'clash';
-
-        tdOutputs.append(aHosts, ' · ', aClash);
-        tr.append(tdCategory, tdDomains, tdSources, tdOutputs);
-        fragment.append(tr);
-      }
-      rowsEl.replaceChildren(fragment);
-    })
-    .catch(err => {
-      const tr = document.createElement('tr');
-      const td = document.createElement('td');
-      td.colSpan = 4;
-      td.textContent = `Unavailable: ${err.message}`;
-      tr.append(td);
-      rowsEl.replaceChildren(tr);
-    });
-</script>
+<script type="module" src="./assets/index.js"></script>
 </body>
 </html>
