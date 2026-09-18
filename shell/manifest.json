@@ -245,6 +245,7 @@
         "guard-geo",
         "guard-template",
         "guard-install",
+        "guard-health",
         "guard-overlay",
         "guard-rules",
         "guard-preflight",
@@ -262,6 +263,21 @@
         "guard-geo",
         "guard-policy",
         "guard-template",
+        "guard-install"
+      ]
+    },
+    "guard-health": {
+      "path": "shell/apps/openclash-guard/health.sh",
+      "depends": [
+        "json",
+        "nft",
+        "guard-environment",
+        "guard-policy",
+        "guard-dataplane",
+        "guard-gaming",
+        "guard-install"
+      ],
+      "after": [
         "guard-install"
       ]
     }
