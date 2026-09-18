@@ -545,7 +545,7 @@ _guard_dispatch() {
         reconcile) guard_cmd_reconcile || _guard_dispatch_rc=$? ;;
         status) guard_cmd_status || _guard_dispatch_rc=$? ;;
         doctor) guard_cmd_doctor "$@" || _guard_dispatch_rc=$? ;;
-        health-check) guard_cmd_health_check "$@" || _guard_dispatch_rc=$? ;;
+        health-check) guard_health_check_run "$@" || _guard_dispatch_rc=$? ;;
         refresh) guard_cmd_refresh "$@" || _guard_dispatch_rc=$? ;;
         remove) guard_cmd_remove || _guard_dispatch_rc=$? ;;
         eval) guard_cmd_eval "$@" || _guard_dispatch_rc=$? ;;
