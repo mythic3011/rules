@@ -19,7 +19,11 @@
     "typecheck": "tsc --noEmit",
     "test:routing": "node --import tsx --test tests/routing/*.test.ts",
     "generate:profile-service-runtime": "python3 internal/python/generate_profile_service_runtime.py",
-    "test:profile-service": "node --test apps/profile-service/test/*.test.mjs"
+    "test:profile-service": "node --test apps/profile-service/test/*.test.mjs",
+    "web:build": "vite build",
+    "web:dev": "vite",
+    "web:preview": "vite preview",
+    "test:web": "node --test tests/web_site_security.test.ts"
   },
   "dependencies": {
     "yaml": "^2.8.0",
@@ -28,6 +32,7 @@
   "devDependencies": {
     "@types/node": "^24.13.3",
     "tsx": "^4.20.0",
-    "typescript": "^5.9.0"
+    "typescript": "^5.9.0",
+    "vite": "^8.3.0"
   }
 }

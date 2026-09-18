@@ -3,274 +3,82 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Rules Report Detail</title>
+    <title>Rules Report Detail - mythic3011/rules</title>
     <link rel="icon" href="./favicon.ico" sizes="any" />
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
-    <style>
-      :root {
-        --pico-font-family: system-ui, -apple-system, sans-serif;
-      }
-      .back {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        margin-bottom: 18px;
-        text-decoration: none;
-      }
-      .eyebrow {
-        font-size: 12px;
-        letter-spacing: 0.16em;
-        text-transform: uppercase;
-        color: var(--pico-primary);
-        font-weight: bold;
-      }
-      .grid-cards {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        gap: 16px;
-        margin: 24px 0;
-      }
-      .kicker {
-        margin: 0 0 10px;
-        font-size: 12px;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
-        color: var(--pico-secondary);
-      }
-      .value {
-        margin: 0;
-        font-size: 36px;
-        font-weight: bold;
-        line-height: 1;
-      }
-      .label {
-        margin: 8px 0 0;
-        font-size: 14px;
-        color: var(--pico-muted-color);
-      }
-      .meta-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-        gap: 12px 18px;
-      }
-      .meta-item {
-        border-top: 1px solid var(--pico-border-color);
-        padding-top: 10px;
-      }
-      .meta-item strong {
-        display: block;
-        font-size: 12px;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        color: var(--pico-muted-color);
-        margin-bottom: 6px;
-      }
-      .mono {
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        font-size: 13px;
-        word-break: break-all;
-      }
-      .error {
-        color: var(--pico-del-color, #e53e3e);
-        font-weight: bold;
-      }
-    </style>
+    <link rel="stylesheet" href="./assets/site.css" />
   </head>
   <body>
-    <main class="container">
-      <a class="back" href="./index.html">← Back to dashboard</a>
-      <section class="hero">
-        <div class="eyebrow">Category Detail</div>
-        <h1 id="title">Loading report...</h1>
-        <p class="lead" id="lead">
+    <header class="app-header">
+      <div class="container">
+        <div class="brand-group">
+          <a href="./index.html" class="brand-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+            mythic3011/rules
+          </a>
+          <span class="status-badge"><span class="status-dot"></span> OPERATIONAL</span>
+        </div>
+        <nav class="nav-links">
+          <a href="./index.html" class="nav-link">Overview</a>
+          <a href="./ip-lookup.html" class="nav-link">IP Lookup</a>
+          <a href="./report.html?category=adblock" class="nav-link active">Reports</a>
+          <a href="https://github.com/mythic3011/rules/blob/main/docs/getting-started.md" class="nav-link">Setup Guide</a>
+          <a href="https://github.com/mythic3011/rules" class="nav-link" target="_blank" rel="noreferrer">GitHub ↗</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="main-content">
+      <section class="hero-banner">
+        <div class="hero-eyebrow">Category Detail</div>
+        <h1 class="hero-title" id="title">Loading report...</h1>
+        <p class="hero-lead" id="lead">
           Loading category summary and upstream source metadata from the generated reports folder.
         </p>
       </section>
 
-      <section class="grid-cards" id="stats"></section>
+      <section class="card-grid" id="stats"></section>
 
-      <article class="panel">
-        <h2>Metadata</h2>
+      <section class="section-panel">
+        <div class="section-header">
+          <h2 class="section-title">Metadata</h2>
+          <span class="badge badge-cyan">PIPELINE CONFIG</span>
+        </div>
         <div class="meta-grid" id="metadata"></div>
-      </article>
+      </section>
 
-      <article class="panel">
-        <h2>Upstream Sources</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Count</th>
-              <th>Format</th>
-              <th>Homepage</th>
-            </tr>
-          </thead>
-          <tbody id="sources">
-            <tr>
-              <td colspan="4" class="error">Loading sources...</td>
-            </tr>
-          </tbody>
-        </table>
-      </article>
+      <section class="section-panel">
+        <div class="section-header">
+          <h2 class="section-title">Upstream Sources</h2>
+          <span class="badge badge-emerald">FEED PROVENANCE</span>
+        </div>
+        <div class="table-container">
+          <table class="console-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Count</th>
+                <th>Format</th>
+                <th>Homepage</th>
+              </tr>
+            </thead>
+            <tbody id="sources">
+              <tr>
+                <td colspan="4" class="error mono">Loading sources...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
     </main>
 
-    <script>
-      const params = new URLSearchParams(window.location.search);
-      const category = params.get("category");
+    <footer class="app-footer">
+      <div class="container">
+        mythic3011/rules · Network Routing Operations Console
+      </div>
+    </footer>
 
-      const titleEl = document.getElementById("title");
-      const leadEl = document.getElementById("lead");
-      const statsEl = document.getElementById("stats");
-      const metadataEl = document.getElementById("metadata");
-      const sourcesEl = document.getElementById("sources");
-
-      function fmt(n) {
-        return new Intl.NumberFormat("en-US").format(n || 0);
-      }
-
-      function safeUrl(url) {
-        if (typeof url !== "string") return null;
-        const trimmed = url.trim();
-        if (/^https?:\/\//i.test(trimmed)) return trimmed;
-        return null;
-      }
-
-      function fail(message) {
-        titleEl.textContent = "Report unavailable";
-
-        const errorSpan = document.createElement("span");
-        errorSpan.className = "error";
-        errorSpan.textContent = message;
-        leadEl.replaceChildren(errorSpan);
-
-        const tr = document.createElement("tr");
-        const td = document.createElement("td");
-        td.colSpan = 4;
-        td.className = "error";
-        td.textContent = message;
-        tr.appendChild(td);
-        sourcesEl.replaceChildren(tr);
-      }
-
-      if (!category) {
-        fail("Missing category query parameter.");
-      } else {
-        fetch(`./reports/${encodeURIComponent(category)}.summary.json`)
-          .then((response) => {
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            return response.json();
-          })
-          .then((summary) => {
-            titleEl.textContent = summary.category;
-            leadEl.textContent =
-              `Generated at ${summary.generated_at}. This view shows source provenance, final category size, and the exact output files produced for this block family.`;
-
-            const cards = [
-              ["Final DNS", summary.final_domain_count, "Domains in dnsmasq / hosts output"],
-              ["Clash Lite", summary.clash_domain_count, "Domains in lite Clash payload"],
-              ["Upstreams", summary.sources.length, "Active source inputs"],
-              ["Local Blocklist", summary.local_blocklist_count, "Domains added locally"],
-            ];
-            statsEl.replaceChildren(
-              ...cards.map(([k, v, label]) => {
-                const article = document.createElement("article");
-                article.className = "card";
-
-                const kicker = document.createElement("p");
-                kicker.className = "kicker";
-                kicker.textContent = k;
-
-                const val = document.createElement("p");
-                val.className = "value";
-                val.textContent = fmt(v);
-
-                const lbl = document.createElement("p");
-                lbl.className = "label";
-                lbl.textContent = label;
-
-                article.append(kicker, val, lbl);
-                return article;
-              })
-            );
-
-            const meta = [
-              ["Generated At", summary.generated_at],
-              ["Source Config", summary.source_config],
-              ["Custom Source Config", summary.custom_source_config],
-              ["Allowlist", summary.allowlist],
-              ["Blocklist", summary.blocklist],
-              ["DNSMasq Output", summary.dnsmasq_output],
-              ["Hosts Output", summary.hosts_output],
-              ["Clash Output", summary.clash_output],
-              ["Merged Pre-Allowlist", fmt(summary.merged_pre_allowlist_count)],
-              ["Post-Allowlist", fmt(summary.post_allowlist_count)],
-              ["Upstream Unique", fmt(summary.upstream_unique_count)],
-            ];
-            metadataEl.replaceChildren(
-              ...meta.map(([k, v]) => {
-                const item = document.createElement("div");
-                item.className = "meta-item";
-
-                const strong = document.createElement("strong");
-                strong.textContent = k;
-
-                const mono = document.createElement("div");
-                mono.className = "mono";
-                mono.textContent = String(v);
-
-                item.append(strong, mono);
-                return item;
-              })
-            );
-
-            if (!summary.sources || !summary.sources.length) {
-              const tr = document.createElement("tr");
-              const td = document.createElement("td");
-              td.colSpan = 4;
-              td.className = "error";
-              td.textContent = "No active upstream sources for this category.";
-              tr.appendChild(td);
-              sourcesEl.replaceChildren(tr);
-              return;
-            }
-
-            sourcesEl.replaceChildren(
-              ...summary.sources.map((source) => {
-                const tr = document.createElement("tr");
-
-                const tdId = document.createElement("td");
-                tdId.className = "mono";
-                tdId.textContent = source.id;
-
-                const tdCount = document.createElement("td");
-                tdCount.className = "mono";
-                tdCount.textContent = fmt(source.count);
-
-                const tdFormat = document.createElement("td");
-                tdFormat.className = "mono";
-                tdFormat.textContent = source.format;
-
-                const tdUrl = document.createElement("td");
-                tdUrl.className = "mono";
-                const rawUrl = source.homepage || source.url;
-                const href = safeUrl(rawUrl);
-                if (href) {
-                  const link = document.createElement("a");
-                  link.href = href;
-                  link.textContent = href;
-                  tdUrl.appendChild(link);
-                } else {
-                  tdUrl.textContent = String(rawUrl ?? "");
-                }
-
-                tr.append(tdId, tdCount, tdFormat, tdUrl);
-                return tr;
-              })
-            );
-          })
-          .catch((error) => fail(`Failed to load category report: ${error.message}`));
-      }
-    </script>
+    <script type="module" src="./assets/report.js"></script>
   </body>
 </html>

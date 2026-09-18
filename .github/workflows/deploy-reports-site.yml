@@ -34,6 +34,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend site
+        run: npm run web:build
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
@@ -41,7 +53,7 @@ jobs:
         run: |
           rm -rf _site
           mkdir -p _site/reports _site/dns _site/rule
-          cp -R web/site/. _site/
+          cp -R dist/site/. _site/
           cp -R web/reports/. _site/reports/
           cp -R dns/. _site/dns/
           cp -R rule/. _site/rule/
