@@ -275,10 +275,23 @@
         "guard-policy",
         "guard-dataplane",
         "guard-gaming",
-        "guard-install"
+        "guard-install",
+        "guard-tunnel-health"
       ],
       "after": [
         "guard-install"
+      ]
+    },
+    "guard-tunnel-health": {
+      "path": "shell/apps/openclash-guard/tunnel-health.sh",
+      "depends": [
+        "nft",
+        "guard-environment",
+        "guard-policy",
+        "guard-killswitch"
+      ],
+      "after": [
+        "guard-killswitch"
       ]
     }
   },
