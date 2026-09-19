@@ -48,7 +48,7 @@ jobs:
       - name: Run focused release trust regressions
         run: |
           python3 -m unittest tests.test_openclash_guard_release_trust -v
-          python3 -m unittest tests.test_distribution_manifest -v
+          PYTHONPATH=internal/python python3 -m unittest tests.test_distribution_manifest -v
 
       - name: Generate deterministic outputs
         run: make generate
@@ -56,7 +56,7 @@ jobs:
       - name: Re-run focused tests after generation
         run: |
           python3 -m unittest tests.test_openclash_guard_release_trust -v
-          python3 -m unittest tests.test_distribution_manifest -v
+          PYTHONPATH=internal/python python3 -m unittest tests.test_distribution_manifest -v
 
       - name: Run repository checks
         run: make check-all
