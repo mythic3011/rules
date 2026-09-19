@@ -72,9 +72,43 @@ jobs:
 
           python3 - <<'PY'
           from pathlib import Path
-          path = Path('tests/test_openclash_guard_release_state.py')
-          lines = path.read_text().splitlines(keepends=True)
-          path.write_text(''.join(line[4:] if line.startswith('    ') else line for line in lines))
+
+          # Normalize the one outer indentation level used only by the temporary
+          # generator around the embedded shell snippets.
+          test = Path('tests/test_openclash_guard_release_state.py')
+          lines = test.read_text().splitlines(keepends=True)
+          test.write_text(''.join(line[4:] if line.startswith('    ') else line for line in lines))
+
+          # Refresh can legitimately bootstrap policy/templates before the Guard
+          # binary has been installed into GUARD_PREFIX (the existing test harness
+          # exercises exactly this). Advance authenticated anti-rollback state in
+          # that case, but leave installedBundleSha256 empty. An explicit install
+          # later records the actual installed binary hash; never substitute the
+          # remote bundle hash for bytes that are not installed locally.
+          dist = Path('shell/lib/distribution.sh')
+          text = dist.read_text()
+          old = '''    [ -s "$_guard_drs_bundle" ] && [ -s "$_guard_drs_policy" ] && [ -s "$_guard_drs_templates" ] || return 1
+              _guard_drs_bundle_sha=$(file_sha256 "$_guard_drs_bundle" 2>/dev/null) || return 1
+              _guard_drs_policy_sha=$(file_sha256 "$_guard_drs_policy" 2>/dev/null) || return 1
+              _guard_drs_templates_sha=$(file_sha256 "$_guard_drs_templates" 2>/dev/null) || return 1
+              _guard_drs_bundle_sha=$(_guard_distribution_valid_sha256 "$_guard_drs_bundle_sha") || return 1
+              _guard_drs_policy_sha=$(_guard_distribution_valid_sha256 "$_guard_drs_policy_sha") || return 1
+              _guard_drs_templates_sha=$(_guard_distribution_valid_sha256 "$_guard_drs_templates_sha") || return 1
+          '''
+          new = '''    [ -s "$_guard_drs_policy" ] && [ -s "$_guard_drs_templates" ] || return 1
+              _guard_drs_bundle_sha=
+              if [ -s "$_guard_drs_bundle" ]; then
+                  _guard_drs_bundle_sha=$(file_sha256 "$_guard_drs_bundle" 2>/dev/null) || return 1
+                  _guard_drs_bundle_sha=$(_guard_distribution_valid_sha256 "$_guard_drs_bundle_sha") || return 1
+              fi
+              _guard_drs_policy_sha=$(file_sha256 "$_guard_drs_policy" 2>/dev/null) || return 1
+              _guard_drs_templates_sha=$(file_sha256 "$_guard_drs_templates" 2>/dev/null) || return 1
+              _guard_drs_policy_sha=$(_guard_distribution_valid_sha256 "$_guard_drs_policy_sha") || return 1
+              _guard_drs_templates_sha=$(_guard_distribution_valid_sha256 "$_guard_drs_templates_sha") || return 1
+          '''
+          if old not in text:
+              raise SystemExit('release receipt local hash anchor not found')
+          dist.write_text(text.replace(old, new, 1))
           PY
           python3 -m py_compile tests/test_openclash_guard_release_state.py
 
