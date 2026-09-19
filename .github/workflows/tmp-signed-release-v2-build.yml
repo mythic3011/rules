@@ -43,7 +43,24 @@ jobs:
         run: npm ci
 
       - name: Apply signed release v2 patch
-        run: python3 tools/tmp_patch_signed_release_v2.py
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('tools/tmp_patch_signed_release_v2.py')
+          text = path.read_text()
+          start = text.index('# Regression coverage for anti-rollback, deterministic metadata, and local integrity.')
+          end = text.index('# Extend catalog regressions for release metadata management.', start)
+          block = text[start:end]
+          block = block.replace("    r'''\n", '    r"""\n', 1)
+          tail = "    ''',\n)\n\n\n"
+          if tail not in block:
+              raise SystemExit('temporary test literal closing anchor not found')
+          block = block.replace(tail, '    """,\n)\n\n\n', 1)
+          path.write_text(text[:start] + block + text[end:])
+          PY
+          python3 -m py_compile tools/tmp_patch_signed_release_v2.py
+          python3 tools/tmp_patch_signed_release_v2.py
 
       - name: Generate deterministic outputs including release metadata
         run: make generate
