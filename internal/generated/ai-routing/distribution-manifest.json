@@ -292,6 +292,15 @@
       }
     },
     {
+      "path": "dist/openclash-guard.release.json",
+      "urls": {
+        "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/dist/openclash-guard.release.json",
+        "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/dist/openclash-guard.release.json",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/dist/openclash-guard.release.json",
+        "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/dist/openclash-guard.release.json"
+      }
+    },
+    {
       "path": "setup/openclash/install.sh",
       "urls": {
         "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/setup/openclash/install.sh",

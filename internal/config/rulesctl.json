@@ -13,13 +13,25 @@
       "tools",
       "shell"
     ],
-    "tools": ["python3", "node", "npm"]
+    "tools": [
+      "python3",
+      "node",
+      "npm"
+    ]
   },
-  "compilePaths": ["internal/python", "tests", "tools"],
+  "compilePaths": [
+    "internal/python",
+    "tests",
+    "tools"
+  ],
   "pipelines": {
     "check": [
       {
-        "argv": ["{python}", "tools/shbundle.py", "check"]
+        "argv": [
+          "{python}",
+          "tools/shbundle.py",
+          "check"
+        ]
       },
       {
         "argv": [
@@ -41,23 +53,81 @@
       }
     ],
     "checkNode": [
-      { "argv": ["npm", "run", "routing:validate"] },
-      { "argv": ["npm", "run", "typecheck"] },
-      { "argv": ["npm", "run", "test:routing"] },
-      { "argv": ["npm", "run", "routing:check"] }
+      {
+        "argv": [
+          "npm",
+          "run",
+          "routing:validate"
+        ]
+      },
+      {
+        "argv": [
+          "npm",
+          "run",
+          "typecheck"
+        ]
+      },
+      {
+        "argv": [
+          "npm",
+          "run",
+          "test:routing"
+        ]
+      },
+      {
+        "argv": [
+          "npm",
+          "run",
+          "routing:check"
+        ]
+      }
     ],
     "generate": [
-      { "argv": ["{python}", "internal/python/generate_distribution_bootstrap.py"] },
-      { "argv": ["{python}", "internal/python/generate_service_intake_form.py"] },
-      { "argv": ["{python}", "internal/python/generate_ai_profiles.py"] },
+      {
+        "argv": [
+          "{python}",
+          "internal/python/generate_distribution_bootstrap.py"
+        ]
+      },
+      {
+        "argv": [
+          "{python}",
+          "internal/python/generate_service_intake_form.py"
+        ]
+      },
+      {
+        "argv": [
+          "{python}",
+          "internal/python/generate_ai_profiles.py"
+        ]
+      },
       {
         "argv": [
           "{python}",
           "internal/python/generate_openclash_guard_runtime.py"
         ]
       },
-      { "argv": ["{python}", "tools/shbundle.py", "check"] },
-      { "argv": ["{python}", "tools/shbundle.py", "build", "--all"] },
+      {
+        "argv": [
+          "{python}",
+          "tools/shbundle.py",
+          "check"
+        ]
+      },
+      {
+        "argv": [
+          "{python}",
+          "tools/shbundle.py",
+          "build",
+          "--all"
+        ]
+      },
+      {
+        "argv": [
+          "{python}",
+          "internal/python/generate_openclash_guard_release.py"
+        ]
+      },
       {
         "when": {
           "which": "npm",
@@ -66,7 +136,13 @@
         "otherwise": "skip",
         "skipMessage": "note: Node dependencies are not installed; TypeScript-owned generated artifacts were skipped",
         "steps": [
-          { "argv": ["npm", "run", "routing:generate"] }
+          {
+            "argv": [
+              "npm",
+              "run",
+              "routing:generate"
+            ]
+          }
         ]
       },
       {
@@ -91,15 +167,38 @@
           "--refresh-upstream-hosts"
         ]
       },
-      { "argv": ["{python}", "internal/python/generate_ai_profiles.py"] },
+      {
+        "argv": [
+          "{python}",
+          "internal/python/generate_ai_profiles.py"
+        ]
+      },
       {
         "argv": [
           "{python}",
           "internal/python/generate_openclash_guard_runtime.py"
         ]
       },
-      { "argv": ["{python}", "internal/python/generate_adblock_outputs.py"] },
-      { "argv": ["{python}", "tools/shbundle.py", "build", "--all"] },
+      {
+        "argv": [
+          "{python}",
+          "internal/python/generate_adblock_outputs.py"
+        ]
+      },
+      {
+        "argv": [
+          "{python}",
+          "tools/shbundle.py",
+          "build",
+          "--all"
+        ]
+      },
+      {
+        "argv": [
+          "{python}",
+          "internal/python/generate_openclash_guard_release.py"
+        ]
+      },
       {
         "when": {
           "which": "npm",
@@ -108,7 +207,13 @@
         "otherwise": "skip",
         "skipMessage": "note: Node dependencies are not installed; TypeScript-owned generated artifacts were skipped",
         "steps": [
-          { "argv": ["npm", "run", "routing:generate"] }
+          {
+            "argv": [
+              "npm",
+              "run",
+              "routing:generate"
+            ]
+          }
         ]
       },
       {

@@ -6,7 +6,7 @@ _GUARD_JSON=0
 _GUARD_LOCK_HELD=0
 
 guard_usage() {
-    printf '%s\n' "usage: openclash-guard apply|reconcile|status|doctor [SERVICE]|health-check|refresh|remove|eval|template|install|uninstall|geo|rules [--json] [--yes] [--dry-run] [--policy-file FILE]"
+    printf '%s\n' "usage: openclash-guard apply|reconcile|status|doctor [SERVICE]|health-check|version-check|integrity-check|refresh|remove|eval|template|install|uninstall|geo|rules [--json] [--yes] [--dry-run] [--policy-file FILE]"
 }
 
 _guard_lock_path() {
@@ -207,31 +207,10 @@ guard_cmd_refresh() {
         esac
     done
     if [ -n "$_guard_refresh_url" ] || [ -n "$_guard_refresh_templates_url" ]; then
-        if [ -z "$_guard_refresh_url" ] || [ -z "$_guard_refresh_templates_url" ]; then
-            cli_error "--policy-url and --templates-url must be supplied together"
-            return 2
-        fi
-        _guard_refresh_policy=$(file_mktemp) || return 1
-        _guard_refresh_templates=$(file_mktemp) || {
-            rm -f "$_guard_refresh_policy"
-            return 1
-        }
-        if ! fetch_http "$_guard_refresh_url" "$_guard_refresh_policy" || \
-           ! guard_policy_validate_file "$_guard_refresh_policy" || \
-           ! fetch_http "$_guard_refresh_templates_url" "$_guard_refresh_templates" || \
-           ! guard_template_validate_file "$_guard_refresh_templates"; then
-            rm -f "$_guard_refresh_policy" "$_guard_refresh_templates"
-            cli_error "refresh failed; keeping the installed runtime pair"
-            return 1
-        fi
-        _GUARD_PREFLIGHT_POLICY_FILE=$_guard_refresh_policy
-        _GUARD_PREFLIGHT_TEMPLATES_FILE=$_guard_refresh_templates
-        _GUARD_PREFLIGHT_POLICY_TEMP=1
-        _GUARD_PREFLIGHT_TEMPLATES_TEMP=1
-        _GUARD_PREFLIGHT_SOURCE=override
-        _GUARD_PREFLIGHT_POLICY_URL=$_guard_refresh_url
-        _GUARD_PREFLIGHT_TEMPLATES_URL=$_guard_refresh_templates_url
-    elif ! guard_preflight_stage_distribution "$_guard_refresh_source" "$_guard_refresh_base"; then
+        cli_error "unauthenticated --policy-url/--templates-url overrides are disabled; use signed --base-url metadata instead"
+        return 2
+    fi
+    if ! guard_preflight_stage_distribution "$_guard_refresh_source" "$_guard_refresh_base"; then
         cli_error "refresh failed; keeping the installed runtime pair: $_GUARD_PREFLIGHT_SOURCE_REASON"
         return 1
     fi
@@ -252,6 +231,12 @@ guard_cmd_refresh() {
     if ! guard_policy_validate_file "$_guard_dest" || ! guard_template_validate_file "$_guard_templates_dest"; then
         cli_error "published runtime pair failed post-write validation"
         return 1
+    fi
+    if [ "${_GUARD_RELEASE_SIGNATURE_STATE:-}" = verified ]; then
+        if ! guard_distribution_record_release_state             "$(_guard_install_bin)" "$_guard_dest" "$_guard_templates_dest"; then
+            cli_error "runtime pair was published, but authenticated release receipt could not be recorded"
+            return 1
+        fi
     fi
     _guard_distribution_record "$_GUARD_PREFLIGHT_SOURCE" "$_GUARD_PREFLIGHT_POLICY_URL" "$_GUARD_PREFLIGHT_TEMPLATES_URL" || return $?
     cli_success "runtime policy and template catalog refreshed; Apply remains pending"
@@ -499,7 +484,7 @@ guard_cmd_eval() {
 
 _guard_cmd_needs_lock() {
     case $1 in
-        status|doctor|health-check|eval|geo)
+        status|doctor|health-check|version-check|integrity-check|eval|geo)
             return 1
             ;;
         rules)
@@ -546,6 +531,8 @@ _guard_dispatch() {
         status) guard_cmd_status || _guard_dispatch_rc=$? ;;
         doctor) guard_cmd_doctor "$@" || _guard_dispatch_rc=$? ;;
         health-check) guard_health_check_run "$@" || _guard_dispatch_rc=$? ;;
+        version-check) _guard_install_check_version || _guard_dispatch_rc=$? ;;
+        integrity-check) _guard_install_integrity_check || _guard_dispatch_rc=$? ;;
         refresh) guard_cmd_refresh "$@" || _guard_dispatch_rc=$? ;;
         remove) guard_cmd_remove || _guard_dispatch_rc=$? ;;
         eval) guard_cmd_eval "$@" || _guard_dispatch_rc=$? ;;
@@ -597,7 +584,7 @@ main() {
                 guard_usage
                 return 0
                 ;;
-            apply|reconcile|status|doctor|health-check|refresh|remove|eval|template|install|uninstall|geo|rules)
+            apply|reconcile|status|doctor|health-check|version-check|integrity-check|refresh|remove|eval|template|install|uninstall|geo|rules)
                 [ -z "$_guard_cmd" ] || break
                 _guard_cmd=$1
                 shift

@@ -5,28 +5,56 @@ OpenClash Guard is the repository's generated standalone POSIX shell application
 ## Install and Open the Menu
 
 <!-- BEGIN GENERATED OPENCLASH GUARD INSTALL -->
-Use the stable human-facing bootstrap alias:
+OpenClash Guard never auto-upgrades and the version checker never downloads or executes a new bundle. Network distribution is trusted only through signed release metadata.
+
+### Trust anchor
+
+Provision the trusted `usign` public key at `/etc/openclash-guard/trusted-release-key.pub` through a channel independent of the mirror/CDN being checked. Fetching the key from the same unauthenticated channel and immediately trusting it does not protect against MITM.
+
+### Authenticated first install
+
+Download metadata and signature first, authenticate them, then verify the bundle hash before local execution:
 
 ```sh
-curl -fsSL https://analytics.mythic3011.com/q/qdf9961KN | sh
+work=/tmp/openclash-guard-install
+rm -rf "$work" && mkdir -p "$work" && cd "$work"
+curl -fSLo release.json https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/dist/openclash-guard.release.json
+curl -fSLo release.json.sig https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/dist/openclash-guard.release.json.sig
+usign -V -q -m release.json -p /etc/openclash-guard/trusted-release-key.pub -x release.json.sig
+bundle_sha=$(jsonfilter -i release.json -e '@.artifacts.guardBundle.sha256')
+curl -fSLo openclash-guard.sh https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/dist/openclash-guard.sh
+printf '%s  %s\n' "$bundle_sha" openclash-guard.sh | sha256sum -c -
+/bin/sh -n openclash-guard.sh
+/bin/sh ./openclash-guard.sh
 ```
 
-With no arguments and a controlling terminal, the generated guard opens its interactive menu and reads input from `/dev/tty`. The alias is only an onboarding redirect; runtime refresh does not depend on it.
+The CDN may be substituted for the raw source without changing the trust decision because the authenticated metadata, not the transport endpoint, supplies the trusted hash:
 
-### Direct Sources / Fallback
+```text
+https://cdn.jsdelivr.net/gh/mythic3011/rules@main/dist/openclash-guard.release.json
+https://cdn.jsdelivr.net/gh/mythic3011/rules@main/dist/openclash-guard.release.json.sig
+https://cdn.jsdelivr.net/gh/mythic3011/rules@main/dist/openclash-guard.sh
+```
 
-Raw GitHub and CDN commands are generated from the canonical distribution catalog:
+### Read-only version check
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/dist/openclash-guard.sh | sh
-curl -fsSL https://cdn.jsdelivr.net/gh/mythic3011/rules@main/dist/openclash-guard.sh | sh
+openclash-guard version-check
+openclash-guard --json version-check
 ```
 
-For a one-shot headless command:
+This reads the local bundle hash, fetches only small signed release metadata plus its detached signature, verifies the local trust anchor, enforces the locally recorded highest release sequence, and compares hashes. It never installs, reconciles, refreshes, or executes fetched bytes.
+
+After the first authenticated install/refresh, a lower signed release sequence is rejected as rollback and reuse of the same sequence with different signed content is rejected as equivocation. First use cannot prove freshness without an independent trusted time/state source; the trust anchor still prevents a network attacker from forging metadata.
+
+### Local integrity receipt
 
 ```sh
-curl -fsSL https://analytics.mythic3011.com/q/qdf9961KN | sh -s -- status
+openclash-guard integrity-check
+openclash-guard --json integrity-check
 ```
+
+This is network-free and compares the installed bundle, runtime policy, and template catalog against the hashes recorded after the last successful authenticated install/refresh. It detects local byte changes since that explicit operation but does not claim protection against a compromised local root account.
 <!-- END GENERATED OPENCLASH GUARD INSTALL -->
 
 ## Installed Commands
