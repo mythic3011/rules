@@ -247,9 +247,13 @@ guard_health_check_run() {
         _guard_hc_valid=0
         [ -n "$_guard_hc_reason" ] || _guard_hc_reason="gaming DIRECT dataplane: $_GUARD_HEALTH_DP_REASON"
     fi
+    if ! guard_health_tunnel_assess; then
+        _guard_hc_valid=0
+        [ -n "$_guard_hc_reason" ] || _guard_hc_reason="classified tunnel egress: $_GUARD_HEALTH_TUN_REASON"
+    fi
 
     if [ "$_guard_hc_json" = 1 ]; then
-        printf '{"healthy":%s,"service":"%s","firewallHooks":%s,"rules":{"activation":"%s","data":"preserved"},"dataplane":{"expected":%s,"state":"%s","sourceRule":"%s","destinationRule":"%s","reason":"%s"},"reason":"%s"}\n' \
+        printf '{"healthy":%s,"service":"%s","firewallHooks":%s,"rules":{"activation":"%s","data":"preserved"},"dataplane":{"expected":%s,"state":"%s","sourceRule":"%s","destinationRule":"%s","reason":"%s"},"tunnelEgress":{"expected":%s,"state":"%s","mark":"%s","interfaces":"%s","rules":"%s","reason":"%s"},"reason":"%s"}\n' \
             "$(_guard_env_json_bool "$_guard_hc_valid")" \
             "$(_guard_env_json_string "$_guard_hc_service")" \
             "$(_guard_env_json_bool "$([ -x "$(_guard_install_hotplug)" ] && [ -x "$(_guard_install_fw4)" ] && printf 1 || printf 0)")" \
@@ -259,6 +263,12 @@ guard_health_check_run() {
             "$(_guard_env_json_string "$_GUARD_HEALTH_DP_SOURCE_RULE")" \
             "$(_guard_env_json_string "$_GUARD_HEALTH_DP_DESTINATION_RULE")" \
             "$(_guard_env_json_string "$_GUARD_HEALTH_DP_REASON")" \
+            "$(_guard_env_json_bool "$_GUARD_HEALTH_TUN_EXPECTED")" \
+            "$(_guard_env_json_string "$_GUARD_HEALTH_TUN_STATE")" \
+            "$(_guard_env_json_string "$_GUARD_HEALTH_TUN_MARK")" \
+            "$(_guard_env_json_string "$_GUARD_HEALTH_TUN_IFACES")" \
+            "$(_guard_env_json_string "$_GUARD_HEALTH_TUN_RULES")" \
+            "$(_guard_env_json_string "$_GUARD_HEALTH_TUN_REASON")" \
             "$(_guard_env_json_string "$_guard_hc_reason")"
     else
         cli_section "OpenClash Guard health check"
@@ -272,6 +282,12 @@ guard_health_check_run() {
         cli_kv gaming.dataplane.sourceRule "$_GUARD_HEALTH_DP_SOURCE_RULE"
         cli_kv gaming.dataplane.destinationRule "$_GUARD_HEALTH_DP_DESTINATION_RULE"
         [ -z "$_GUARD_HEALTH_DP_REASON" ] || cli_kv gaming.dataplane.reason "$_GUARD_HEALTH_DP_REASON"
+        cli_kv tunnel.egress.expected "$_GUARD_HEALTH_TUN_EXPECTED"
+        cli_kv tunnel.egress.state "$_GUARD_HEALTH_TUN_STATE"
+        [ -z "$_GUARD_HEALTH_TUN_MARK" ] || cli_kv tunnel.egress.mark "$_GUARD_HEALTH_TUN_MARK"
+        [ -z "$_GUARD_HEALTH_TUN_IFACES" ] || cli_kv tunnel.egress.interfaces "$_GUARD_HEALTH_TUN_IFACES"
+        cli_kv tunnel.egress.rules "$_GUARD_HEALTH_TUN_RULES"
+        [ -z "$_GUARD_HEALTH_TUN_REASON" ] || cli_kv tunnel.egress.reason "$_GUARD_HEALTH_TUN_REASON"
         [ -z "$_guard_hc_reason" ] || cli_kv reason "$_guard_hc_reason"
     fi
     [ "$_guard_hc_valid" = 1 ]
