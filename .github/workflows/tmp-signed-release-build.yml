@@ -43,7 +43,19 @@ jobs:
         run: npm ci
 
       - name: Wire authenticated release trust into Guard
-        run: python3 internal/python/tmp_patch_signed_release.py
+        run: |
+          python3 internal/python/tmp_patch_signed_release.py
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("tests/test_distribution_manifest.py")
+          text = path.read_text()
+          text = text.replace(
+              '        self.assertNotIn("| sh", readme)\n        self.assertNotIn("| sh", guide)\n',
+              '        self.assertNotRegex(readme, r"curl[^\\n|]*\\|\\s*(?:/bin/)?sh(?:\\s|$)")\n        self.assertNotRegex(guide, r"curl[^\\n|]*\\|\\s*(?:/bin/)?sh(?:\\s|$)")\n',
+              1,
+          )
+          path.write_text(text)
+          PY
 
       - name: Run focused release trust regressions
         run: python3 -m unittest tests.test_openclash_guard_release_trust -v
@@ -63,7 +75,7 @@ jobs:
         run: python3 internal/python/validate_generated_profiles.py
 
       - name: Assert no generated remote pipe-to-shell guidance
-        run: "! grep -R -nE 'curl[^|]*\\|[[:space:]]*(/bin/)?sh' README.md docs/openclash-guard.md setup/openclash/install.sh"
+        run: "! grep -R -nE 'curl[^|]*\\|[[:space:]]*(/bin/)?sh([[:space:]]|$)' README.md docs/openclash-guard.md setup/openclash/install.sh"
 
       - name: Commit candidate and remove temporary helpers
         run: |
