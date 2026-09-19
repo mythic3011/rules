@@ -3922,7 +3922,7 @@ guard_kill_delete_table() {
 
 # Base order: local accepts and protected-port rejects. Scoped direct exceptions
 # are appended by their feature modules before guard_kill_render_final() emits
-# the global fail-closed rule.
+# the OpenClash tunnel capability and the global fail-closed rule.
 guard_kill_render() {
     if [ "${_GUARD_NFT_TABLE_EXISTS:-0}" = 1 ]; then
         printf 'flush table %s %s\n' "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE"
@@ -3965,8 +3965,104 @@ guard_kill_render() {
     _guard_kill_add_rule forward 'udp dport @protected_udp reject' protected-udp
 }
 
+_guard_kill_valid_iface() {
+    case ${1:-} in
+        ''|*[!A-Za-z0-9_.:@-]*) return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
+# Discover the generic OpenClash UDP routing mark from the current mangle chain
+# instead of pinning a version-specific value. Scoped rules are deliberately
+# excluded. Multiple distinct generic marks are ambiguous and therefore fail
+# closed. nft may render the same mark compactly (0x162) or padded
+# (0x00000162), so normalize equivalent spellings before deciding uniqueness.
+_guard_kill_openclash_tunnel_mark() {
+    _guard_ktm_family=${GUARD_OPENCLASH_NFT_FAMILY:-inet}
+    _guard_ktm_table=${GUARD_OPENCLASH_NFT_TABLE:-fw4}
+    _guard_ktm_chain=${GUARD_OPENCLASH_MANGLE_CHAIN:-openclash_mangle}
+    _guard_ktm_listing=$(nft -a list chain "$_guard_ktm_family" "$_guard_ktm_table" "$_guard_ktm_chain" 2>/dev/null) || return 1
+    printf '%s\n' "$_guard_ktm_listing" | awk '
+        function normalize_mark(raw, hex) {
+            hex = tolower(raw)
+            sub(/^0x/, "", hex)
+            if (hex !~ /^[0-9a-f]+$/ || length(hex) > 8) {
+                return ""
+            }
+            sub(/^0+/, "", hex)
+            if (hex == "") {
+                hex = "0"
+            }
+            return "0x" hex
+        }
+        ($0 ~ /ip protocol udp/ || $0 ~ /meta l4proto udp/) &&
+        $0 ~ /meta mark set 0x[0-9A-Fa-f]+/ &&
+        $0 !~ /saddr|daddr|sport|dport|iifname|oifname/ {
+            if (match($0, /meta mark set 0x[0-9A-Fa-f]+/)) {
+                value = substr($0, RSTART, RLENGTH)
+                sub(/^meta mark set /, "", value)
+                value = normalize_mark(value)
+                if (value != "") {
+                    seen[value] = 1
+                }
+            }
+        }
+        END {
+            count = 0
+            result = ""
+            for (value in seen) {
+                count++
+                result = value
+            }
+            if (count == 1) {
+                print result
+            }
+        }
+    '
+}
+
+# Only emit allows for OpenClash TUN interface candidates that exist at the
+# current reconciliation point. A generic tun0 is intentionally not a default:
+# it is too easy for an unrelated VPN to own that name. Deployments that really
+# use tun0 can opt in explicitly through GUARD_OPENCLASH_TUN_IFACES.
+_guard_kill_openclash_tunnel_ifaces() {
+    command -v ip >/dev/null 2>&1 || return 1
+    _guard_kti_seen=' '
+    _guard_kti_found=0
+    for _guard_kti_iface in ${GUARD_OPENCLASH_TUN_IFACES:-utun Meta utun0}
+    do
+        _guard_kill_valid_iface "$_guard_kti_iface" || continue
+        case $_guard_kti_seen in
+            *" $_guard_kti_iface "*) continue ;;
+        esac
+        ip link show dev "$_guard_kti_iface" >/dev/null 2>&1 || continue
+        printf '%s\n' "$_guard_kti_iface"
+        _guard_kti_seen="$_guard_kti_seen$_guard_kti_iface "
+        _guard_kti_found=1
+    done
+    [ "$_guard_kti_found" = 1 ]
+}
+
+guard_kill_render_tunnel_egress() {
+    # If OpenClash is unhealthy or its current dataplane cannot be identified,
+    # preserve fail-closed behavior rather than broadening the allow to an
+    # interface-only exception.
+    [ "${_GUARD_OC_HEALTHY:-0}" = 1 ] || return 0
+    [ "${_GUARD_NFT_AVAILABLE:-0}" = 1 ] || return 0
+    _guard_kte_mark=$(_guard_kill_openclash_tunnel_mark) || return 0
+    [ -n "$_guard_kte_mark" ] || return 0
+    _guard_kte_ifaces=$(_guard_kill_openclash_tunnel_ifaces) || return 0
+    for _guard_kte_iface in $_guard_kte_ifaces
+    do
+        _guard_kill_add_rule forward \
+            "meta mark $_guard_kte_mark oifname \"$_guard_kte_iface\" accept" \
+            tunnel-egress
+    done
+}
+
 guard_kill_render_final() {
     if [ "$_GUARD_POLICY_ENFORCEMENT" = reject ]; then
+        guard_kill_render_tunnel_egress
         _guard_kill_add_rule forward reject kill-switch
     fi
 }
