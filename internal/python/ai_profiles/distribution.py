@@ -33,6 +33,9 @@ class DistributionCatalog:
     default_ref: str
     bootstrap_alias: str
     manifest_path: str
+    release_metadata_path: str
+    release_signature_path: str
+    trusted_key_path: str
     artifacts: tuple[DistributionArtifact, ...]
     channels: tuple[DistributionChannel, ...]
 
@@ -127,7 +130,7 @@ def load_distribution(path: Path) -> DistributionCatalog:
         raise RuntimeError(f"Distribution catalog is unavailable or invalid: {path}") from exc
     if not isinstance(value, dict) or value.get("schemaVersion") != 1:
         raise RuntimeError(f"Unsupported distribution catalog schema: {path}")
-    if set(value) != {"schemaVersion", "repository", "defaultRef", "bootstrapAlias", "manifestPath", "artifacts", "channels"}:
+    if set(value) != {"schemaVersion", "repository", "defaultRef", "bootstrapAlias", "manifestPath", "releaseMetadataPath", "releaseSignaturePath", "trustedKeyPath", "artifacts", "channels"}:
         raise RuntimeError(f"Distribution catalog has unknown or incomplete shape: {path}")
     raw_channels = value.get("channels")
     if not isinstance(raw_channels, list) or not raw_channels:
@@ -159,6 +162,9 @@ def load_distribution(path: Path) -> DistributionCatalog:
         default_ref=_string(value.get("defaultRef"), "defaultRef"),
         bootstrap_alias=_string(value.get("bootstrapAlias"), "bootstrapAlias"),
         manifest_path=_string(value.get("manifestPath"), "manifestPath"),
+        release_metadata_path=_string(value.get("releaseMetadataPath"), "releaseMetadataPath"),
+        release_signature_path=_string(value.get("releaseSignaturePath"), "releaseSignaturePath"),
+        trusted_key_path=_string(value.get("trustedKeyPath"), "trustedKeyPath"),
         artifacts=tuple(artifacts),
         channels=channels,
     )

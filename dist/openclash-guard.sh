@@ -184,98 +184,6 @@ cli_die() {
 }
 # END MODULE: cli
 
-# BEGIN MODULE: distribution
-# Generated distribution catalog for cold-start runtime policy refresh.
-# Prefix: guard_distribution_
-set -eu
-
-# BEGIN GENERATED DISTRIBUTION CATALOG
-_GUARD_DISTRIBUTION_RAW_BASE="https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main"
-_GUARD_DISTRIBUTION_CDN_BASE="https://cdn.jsdelivr.net/gh/mythic3011/rules@main"
-_GUARD_DISTRIBUTION_ARTIFACT="dist/openclash-guard.sh"
-_GUARD_DISTRIBUTION_MANIFEST="dist/manifest.json"
-_GUARD_DISTRIBUTION_CHECKSUM="dist/openclash-guard.sha256"
-_GUARD_DISTRIBUTION_POLICY="cfg/runtime/openclash-guard.json"
-_GUARD_DISTRIBUTION_TEMPLATES="cfg/runtime/openclash-guard-templates.json"
-# END GENERATED DISTRIBUTION CATALOG
-
-_guard_distribution_base() {
-    _guard_ds_source=${1:-}
-    _guard_ds_override=${2:-}
-    if [ -n "$_guard_ds_override" ]; then
-        printf '%s\n' "${_guard_ds_override%/}"
-        return 0
-    fi
-    case $_guard_ds_source in
-        github-raw|raw) printf '%s\n' "$_GUARD_DISTRIBUTION_RAW_BASE" ;;
-        jsdelivr|cdn) printf '%s\n' "$_GUARD_DISTRIBUTION_CDN_BASE" ;;
-        *) return 1 ;;
-    esac
-}
-
-_guard_distribution_url() {
-    _guard_du_base=$(_guard_distribution_base "${1:-}" "${3:-}") || return $?
-    printf '%s/%s\n' "$_guard_du_base" "${2#/}"
-}
-
-_guard_distribution_policy_url() {
-    _guard_distribution_url "${1:-}" "$_GUARD_DISTRIBUTION_POLICY" "${2:-}"
-}
-
-_guard_distribution_templates_url() {
-    _guard_distribution_url "${1:-}" "$_GUARD_DISTRIBUTION_TEMPLATES" "${2:-}"
-}
-
-guard_distribution_validate_bundle() {
-    _guard_dv_file=${1:-}
-    [ -s "$_guard_dv_file" ] || return 1
-    _guard_dv_shebang=$(printf '%s%s' '#!' '/bin/sh')
-    [ "$(sed -n '1p' "$_guard_dv_file")" = "$_guard_dv_shebang" ] || return 1
-    [ "$(awk -v expected="$_guard_dv_shebang" '$0 == expected { count++ } END { print count + 0 }' "$_guard_dv_file")" -eq 1 ] || return 1
-    [ "$(grep -c '^main "\$@"$' "$_guard_dv_file")" -eq 1 ] || return 1
-    grep -q '^# GENERATED FILE' "$_guard_dv_file" || return 1
-    /bin/sh -n "$_guard_dv_file"
-}
-
-guard_distribution_fetch_bundle() {
-    _guard_df_dest=${1:-}
-    _guard_df_source=${2:-auto}
-    [ -n "$_guard_df_dest" ] || return 2
-    case $_guard_df_source in
-        auto) _guard_df_sources="github-raw jsdelivr" ;;
-        github-raw|raw|jsdelivr|cdn) _guard_df_sources=$_guard_df_source ;;
-        *) return 2 ;;
-    esac
-    mkdir -p "$(dirname "$_guard_df_dest")"
-    for _guard_df_item in $_guard_df_sources; do
-        _guard_df_artifact=$(file_mktemp) || return 1
-        _guard_df_checksum=$(file_mktemp) || { rm -f "$_guard_df_artifact"; return 1; }
-        _guard_df_manifest=$(file_mktemp) || { rm -f "$_guard_df_artifact" "$_guard_df_checksum"; return 1; }
-        _guard_df_artifact_url=$(_guard_distribution_url "$_guard_df_item" "$_GUARD_DISTRIBUTION_ARTIFACT") || continue
-        _guard_df_checksum_url=$(_guard_distribution_url "$_guard_df_item" "$_GUARD_DISTRIBUTION_CHECKSUM") || continue
-        _guard_df_manifest_url=$(_guard_distribution_url "$_guard_df_item" "$_GUARD_DISTRIBUTION_MANIFEST") || continue
-        if fetch_http "$_guard_df_artifact_url" "$_guard_df_artifact" && \
-            fetch_http "$_guard_df_checksum_url" "$_guard_df_checksum" && \
-            fetch_http "$_guard_df_manifest_url" "$_guard_df_manifest"; then
-            _guard_df_expected=$(awk 'NF {print $1; exit}' "$_guard_df_checksum")
-            _guard_df_actual=$(file_sha256 "$_guard_df_artifact") || _guard_df_actual=
-            _guard_df_paired=$(sed -n 's/.*"sha256"[[:space:]]*:[[:space:]]*"\([0-9a-fA-F]*\)".*/\1/p' "$_guard_df_manifest" | head -n 1)
-            if [ -n "$_guard_df_actual" ] && \
-                [ "$_guard_df_actual" = "$_guard_df_expected" ] && \
-                [ "$_guard_df_actual" = "$_guard_df_paired" ] && \
-                guard_distribution_validate_bundle "$_guard_df_artifact" && \
-                file_atomic_replace "$_guard_df_dest" "$_guard_df_artifact"; then
-                chmod 0755 "$_guard_df_dest"
-                rm -f "$_guard_df_artifact" "$_guard_df_checksum" "$_guard_df_manifest"
-                return 0
-            fi
-        fi
-        rm -f "$_guard_df_artifact" "$_guard_df_checksum" "$_guard_df_manifest"
-    done
-    return 1
-}
-# END MODULE: distribution
-
 # BEGIN MODULE: env
 # Generic environment helpers (bool/int/default). Not service detection.
 # Prefix: env_
@@ -2180,6 +2088,273 @@ json_list() {
     '
 }
 # END MODULE: json
+
+# BEGIN MODULE: distribution
+# Generated distribution catalog plus authenticated release metadata helpers.
+# Prefix: guard_distribution_
+set -eu
+
+# BEGIN GENERATED DISTRIBUTION CATALOG
+_GUARD_DISTRIBUTION_RAW_BASE="https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main"
+_GUARD_DISTRIBUTION_CDN_BASE="https://cdn.jsdelivr.net/gh/mythic3011/rules@main"
+_GUARD_DISTRIBUTION_ARTIFACT="dist/openclash-guard.sh"
+_GUARD_DISTRIBUTION_MANIFEST="dist/manifest.json"
+_GUARD_DISTRIBUTION_CHECKSUM="dist/openclash-guard.sha256"
+_GUARD_DISTRIBUTION_BOOTSTRAP="setup/openclash/install.sh"
+_GUARD_DISTRIBUTION_POLICY="cfg/runtime/openclash-guard.json"
+_GUARD_DISTRIBUTION_TEMPLATES="cfg/runtime/openclash-guard-templates.json"
+_GUARD_DISTRIBUTION_RELEASE="dist/openclash-guard.release.json"
+_GUARD_DISTRIBUTION_RELEASE_SIG="dist/openclash-guard.release.json.sig"
+_GUARD_DISTRIBUTION_TRUSTED_KEY="/etc/openclash-guard/trusted-release-key.pub"
+# END GENERATED DISTRIBUTION CATALOG
+
+_GUARD_RELEASE_SOURCE=
+_GUARD_RELEASE_METADATA_URL=
+_GUARD_RELEASE_SIGNATURE_URL=
+_GUARD_RELEASE_SIGNATURE_STATE=unverified
+_GUARD_RELEASE_KEY_FINGERPRINT=
+_GUARD_RELEASE_SEQUENCE=
+_GUARD_RELEASE_REVISION=
+_GUARD_RELEASE_BUNDLE_SHA256=
+_GUARD_RELEASE_BOOTSTRAP_SHA256=
+_GUARD_RELEASE_POLICY_SHA256=
+_GUARD_RELEASE_TEMPLATES_SHA256=
+
+_guard_distribution_base() {
+    _guard_ds_source=${1:-}
+    _guard_ds_override=${2:-}
+    if [ -n "$_guard_ds_override" ]; then
+        printf '%s\n' "${_guard_ds_override%/}"
+        return 0
+    fi
+    case $_guard_ds_source in
+        github-raw|raw) printf '%s\n' "$_GUARD_DISTRIBUTION_RAW_BASE" ;;
+        jsdelivr|cdn) printf '%s\n' "$_GUARD_DISTRIBUTION_CDN_BASE" ;;
+        *) return 1 ;;
+    esac
+}
+
+_guard_distribution_url() {
+    _guard_du_base=$(_guard_distribution_base "${1:-}" "${3:-}") || return $?
+    printf '%s/%s\n' "$_guard_du_base" "${2#/}"
+}
+
+_guard_distribution_policy_url() {
+    _guard_distribution_url "${1:-}" "$_GUARD_DISTRIBUTION_POLICY" "${2:-}"
+}
+
+_guard_distribution_templates_url() {
+    _guard_distribution_url "${1:-}" "$_GUARD_DISTRIBUTION_TEMPLATES" "${2:-}"
+}
+
+_guard_distribution_release_url() {
+    _guard_distribution_url "${1:-}" "$_GUARD_DISTRIBUTION_RELEASE" "${2:-}"
+}
+
+_guard_distribution_release_sig_url() {
+    _guard_distribution_url "${1:-}" "$_GUARD_DISTRIBUTION_RELEASE_SIG" "${2:-}"
+}
+
+_guard_distribution_trusted_key() {
+    if [ -n "${GUARD_TRUSTED_RELEASE_KEY:-}" ]; then
+        printf '%s\n' "$GUARD_TRUSTED_RELEASE_KEY"
+    else
+        printf '%s%s\n' "${GUARD_PREFIX:-}" "$_GUARD_DISTRIBUTION_TRUSTED_KEY"
+    fi
+}
+
+_guard_distribution_reset_release() {
+    _GUARD_RELEASE_SOURCE=
+    _GUARD_RELEASE_METADATA_URL=
+    _GUARD_RELEASE_SIGNATURE_URL=
+    _GUARD_RELEASE_SIGNATURE_STATE=unverified
+    _GUARD_RELEASE_KEY_FINGERPRINT=
+    _GUARD_RELEASE_SEQUENCE=
+    _GUARD_RELEASE_REVISION=
+    _GUARD_RELEASE_BUNDLE_SHA256=
+    _GUARD_RELEASE_BOOTSTRAP_SHA256=
+    _GUARD_RELEASE_POLICY_SHA256=
+    _GUARD_RELEASE_TEMPLATES_SHA256=
+}
+
+_guard_distribution_valid_sha256() {
+    _guard_dvs_value=$(printf '%s' "${1:-}" | tr 'A-F' 'a-f')
+    [ "${#_guard_dvs_value}" -eq 64 ] || return 1
+    case $_guard_dvs_value in
+        *[!0-9a-f]*) return 1 ;;
+    esac
+    printf '%s\n' "$_guard_dvs_value"
+}
+
+_guard_distribution_valid_sequence() {
+    case ${1:-} in
+        ''|0|*[!0-9]*) return 1 ;;
+        *) printf '%s\n' "$1" ;;
+    esac
+}
+
+_guard_distribution_valid_revision() {
+    _guard_dvr_value=${1:-}
+    [ -n "$_guard_dvr_value" ] || return 1
+    [ "${#_guard_dvr_value}" -le 128 ] || return 1
+    case $_guard_dvr_value in
+        *[!A-Za-z0-9._:-]*) return 1 ;;
+    esac
+    printf '%s\n' "$_guard_dvr_value"
+}
+
+guard_distribution_trusted_key_fingerprint() {
+    _guard_dkf_key=$(_guard_distribution_trusted_key)
+    [ -s "$_guard_dkf_key" ] || return 1
+    command -v usign >/dev/null 2>&1 || return 127
+    usign -F -p "$_guard_dkf_key" 2>/dev/null | head -n 1
+}
+
+guard_distribution_verify_release() {
+    _guard_dvr_metadata=${1:-}
+    _guard_dvr_signature=${2:-}
+    [ -s "$_guard_dvr_metadata" ] && [ -s "$_guard_dvr_signature" ] || return 2
+    command -v usign >/dev/null 2>&1 || return 127
+    _guard_dvr_key=$(_guard_distribution_trusted_key)
+    [ -s "$_guard_dvr_key" ] || return 126
+    usign -V -q -m "$_guard_dvr_metadata" -p "$_guard_dvr_key" -x "$_guard_dvr_signature" >/dev/null 2>&1
+}
+
+guard_distribution_load_release() {
+    _guard_dlr_file=${1:-}
+    [ -s "$_guard_dlr_file" ] || return 2
+    json_load "$_guard_dlr_file" >/dev/null 2>&1 || return 1
+
+    _guard_dlr_schema=$(json_get "$_guard_dlr_file" schemaVersion 2>/dev/null) || return 1
+    [ "$_guard_dlr_schema" = 1 ] || return 1
+    _guard_dlr_sequence=$(json_get "$_guard_dlr_file" sequence 2>/dev/null) || return 1
+    _guard_dlr_sequence=$(_guard_distribution_valid_sequence "$_guard_dlr_sequence") || return 1
+    _guard_dlr_revision=$(json_get "$_guard_dlr_file" revision 2>/dev/null) || return 1
+    _guard_dlr_revision=$(_guard_distribution_valid_revision "$_guard_dlr_revision") || return 1
+
+    _guard_dlr_bundle_path=$(json_get "$_guard_dlr_file" artifacts.guardBundle.path 2>/dev/null) || return 1
+    _guard_dlr_bootstrap_path=$(json_get "$_guard_dlr_file" artifacts.bootstrapInstaller.path 2>/dev/null) || return 1
+    _guard_dlr_policy_path=$(json_get "$_guard_dlr_file" artifacts.runtimePolicy.path 2>/dev/null) || return 1
+    _guard_dlr_templates_path=$(json_get "$_guard_dlr_file" artifacts.runtimeTemplates.path 2>/dev/null) || return 1
+    [ "$_guard_dlr_bundle_path" = "$_GUARD_DISTRIBUTION_ARTIFACT" ] || return 1
+    [ "$_guard_dlr_bootstrap_path" = "$_GUARD_DISTRIBUTION_BOOTSTRAP" ] || return 1
+    [ "$_guard_dlr_policy_path" = "$_GUARD_DISTRIBUTION_POLICY" ] || return 1
+    [ "$_guard_dlr_templates_path" = "$_GUARD_DISTRIBUTION_TEMPLATES" ] || return 1
+
+    _guard_dlr_bundle_sha=$(json_get "$_guard_dlr_file" artifacts.guardBundle.sha256 2>/dev/null) || return 1
+    _guard_dlr_bootstrap_sha=$(json_get "$_guard_dlr_file" artifacts.bootstrapInstaller.sha256 2>/dev/null) || return 1
+    _guard_dlr_policy_sha=$(json_get "$_guard_dlr_file" artifacts.runtimePolicy.sha256 2>/dev/null) || return 1
+    _guard_dlr_templates_sha=$(json_get "$_guard_dlr_file" artifacts.runtimeTemplates.sha256 2>/dev/null) || return 1
+    _guard_dlr_bundle_sha=$(_guard_distribution_valid_sha256 "$_guard_dlr_bundle_sha") || return 1
+    _guard_dlr_bootstrap_sha=$(_guard_distribution_valid_sha256 "$_guard_dlr_bootstrap_sha") || return 1
+    _guard_dlr_policy_sha=$(_guard_distribution_valid_sha256 "$_guard_dlr_policy_sha") || return 1
+    _guard_dlr_templates_sha=$(_guard_distribution_valid_sha256 "$_guard_dlr_templates_sha") || return 1
+
+    _GUARD_RELEASE_SEQUENCE=$_guard_dlr_sequence
+    _GUARD_RELEASE_REVISION=$_guard_dlr_revision
+    _GUARD_RELEASE_BUNDLE_SHA256=$_guard_dlr_bundle_sha
+    _GUARD_RELEASE_BOOTSTRAP_SHA256=$_guard_dlr_bootstrap_sha
+    _GUARD_RELEASE_POLICY_SHA256=$_guard_dlr_policy_sha
+    _GUARD_RELEASE_TEMPLATES_SHA256=$_guard_dlr_templates_sha
+}
+
+guard_distribution_fetch_release() {
+    _guard_dfr_source=${1:-auto}
+    _guard_dfr_base=${2:-}
+    case $_guard_dfr_source in
+        auto) _guard_dfr_sources='github-raw jsdelivr' ;;
+        github-raw|raw|jsdelivr|cdn) _guard_dfr_sources=$_guard_dfr_source ;;
+        *) return 2 ;;
+    esac
+    _guard_distribution_reset_release
+    for _guard_dfr_item in $_guard_dfr_sources
+    do
+        _guard_dfr_metadata=$(file_mktemp) || return 1
+        _guard_dfr_signature=$(file_mktemp) || { rm -f "$_guard_dfr_metadata"; return 1; }
+        _guard_dfr_metadata_url=$(_guard_distribution_release_url "$_guard_dfr_item" "$_guard_dfr_base") || {
+            rm -f "$_guard_dfr_metadata" "$_guard_dfr_signature"
+            continue
+        }
+        _guard_dfr_signature_url=$(_guard_distribution_release_sig_url "$_guard_dfr_item" "$_guard_dfr_base") || {
+            rm -f "$_guard_dfr_metadata" "$_guard_dfr_signature"
+            continue
+        }
+        _guard_dfr_ok=1
+        fetch_http "$_guard_dfr_metadata_url" "$_guard_dfr_metadata" "" 1 65536 || _guard_dfr_ok=0
+        [ "$_guard_dfr_ok" = 1 ] && fetch_http "$_guard_dfr_signature_url" "$_guard_dfr_signature" "" 1 16384 || _guard_dfr_ok=0
+        [ "$_guard_dfr_ok" = 1 ] && guard_distribution_verify_release "$_guard_dfr_metadata" "$_guard_dfr_signature" || _guard_dfr_ok=0
+        if [ "$_guard_dfr_ok" = 1 ]; then
+            _GUARD_RELEASE_SIGNATURE_STATE=verified
+            _GUARD_RELEASE_KEY_FINGERPRINT=$(guard_distribution_trusted_key_fingerprint 2>/dev/null) || _GUARD_RELEASE_KEY_FINGERPRINT=
+            if guard_distribution_load_release "$_guard_dfr_metadata"; then
+                _GUARD_RELEASE_SOURCE=$_guard_dfr_item
+                _GUARD_RELEASE_METADATA_URL=$_guard_dfr_metadata_url
+                _GUARD_RELEASE_SIGNATURE_URL=$_guard_dfr_signature_url
+                rm -f "$_guard_dfr_metadata" "$_guard_dfr_signature"
+                return 0
+            fi
+        fi
+        rm -f "$_guard_dfr_metadata" "$_guard_dfr_signature"
+        _guard_distribution_reset_release
+    done
+    return 1
+}
+
+guard_distribution_verify_hash() {
+    _guard_dvh_file=${1:-}
+    _guard_dvh_expected=${2:-}
+    _guard_dvh_expected=$(_guard_distribution_valid_sha256 "$_guard_dvh_expected") || return 2
+    [ -s "$_guard_dvh_file" ] || return 1
+    _guard_dvh_actual=$(file_sha256 "$_guard_dvh_file" 2>/dev/null) || return 1
+    _guard_dvh_actual=$(printf '%s' "$_guard_dvh_actual" | tr 'A-F' 'a-f')
+    [ "$_guard_dvh_actual" = "$_guard_dvh_expected" ]
+}
+
+guard_distribution_validate_bundle() {
+    _guard_dv_file=${1:-}
+    [ -s "$_guard_dv_file" ] || return 1
+    _guard_dv_shebang=$(printf '%s%s' '#!' '/bin/sh')
+    [ "$(sed -n '1p' "$_guard_dv_file")" = "$_guard_dv_shebang" ] || return 1
+    [ "$(awk -v expected="$_guard_dv_shebang" '$0 == expected { count++ } END { print count + 0 }' "$_guard_dv_file")" -eq 1 ] || return 1
+    [ "$(grep -c '^main "\$@"$' "$_guard_dv_file")" -eq 1 ] || return 1
+    grep -q '^# GENERATED FILE' "$_guard_dv_file" || return 1
+    /bin/sh -n "$_guard_dv_file"
+}
+
+guard_distribution_fetch_bundle() {
+    _guard_df_dest=${1:-}
+    _guard_df_source=${2:-auto}
+    _guard_df_base=${3:-}
+    [ -n "$_guard_df_dest" ] || return 2
+    case $_guard_df_source in
+        auto) _guard_df_sources="github-raw jsdelivr" ;;
+        github-raw|raw|jsdelivr|cdn) _guard_df_sources=$_guard_df_source ;;
+        *) return 2 ;;
+    esac
+    mkdir -p "$(dirname "$_guard_df_dest")"
+    for _guard_df_item in $_guard_df_sources
+    do
+        if ! guard_distribution_fetch_release "$_guard_df_item" "$_guard_df_base"; then
+            continue
+        fi
+        _guard_df_artifact=$(file_mktemp) || return 1
+        _guard_df_artifact_url=$(_guard_distribution_url "$_guard_df_item" "$_GUARD_DISTRIBUTION_ARTIFACT" "$_guard_df_base") || {
+            rm -f "$_guard_df_artifact"
+            continue
+        }
+        if fetch_http "$_guard_df_artifact_url" "$_guard_df_artifact" "" 1 8388608 && \
+           guard_distribution_verify_hash "$_guard_df_artifact" "$_GUARD_RELEASE_BUNDLE_SHA256" && \
+           guard_distribution_validate_bundle "$_guard_df_artifact" && \
+           file_atomic_replace "$_guard_df_dest" "$_guard_df_artifact"; then
+            chmod 0755 "$_guard_df_dest"
+            rm -f "$_guard_df_artifact"
+            return 0
+        fi
+        rm -f "$_guard_df_artifact"
+    done
+    return 1
+}
+# END MODULE: distribution
 
 # BEGIN MODULE: guard-geo
 # Geo provider lookup with timeout, fallback, cache, and last-known-good.
@@ -5437,45 +5612,28 @@ _GUARD_INSTALL_OC_BEGIN='# BEGIN OPENCLASH-GUARD MANAGED'
 _GUARD_INSTALL_OC_END='# END OPENCLASH-GUARD MANAGED'
 _GUARD_INSTALL_VERSION_WARNING='WARNING: NO AUTO-UPGRADE AND NO AUTO-INSTALL. This checker is read-only; it never runs the installer or changes the runtime.'
 
-_guard_install_published_sha() {
-    _guard_ips_source=${1:-auto}
-    case $_guard_ips_source in
-        auto) _guard_ips_sources='github-raw jsdelivr' ;;
-        github-raw|raw|jsdelivr|cdn) _guard_ips_sources=$_guard_ips_source ;;
-        *) return 2 ;;
-    esac
-    for _guard_ips_item in $_guard_ips_sources
-    do
-        _guard_ips_manifest=$(file_mktemp) || return 1
-        _guard_ips_url=$(_guard_distribution_url "$_guard_ips_item" "$_GUARD_DISTRIBUTION_MANIFEST") || {
-            rm -f "$_guard_ips_manifest"
-            continue
-        }
-        _guard_ips_sha=
-        if fetch_http "$_guard_ips_url" "$_guard_ips_manifest"; then
-            _guard_ips_sha=$(sed -n 's/.*"sha256"[[:space:]]*:[[:space:]]*"\([0-9a-fA-F]*\)".*/\1/p' "$_guard_ips_manifest" | head -n 1 | tr 'A-F' 'a-f')
-        fi
-        rm -f "$_guard_ips_manifest"
-        [ "${#_guard_ips_sha}" -eq 64 ] || continue
-        case $_guard_ips_sha in
-            *[!0-9a-f]*) continue ;;
-        esac
-        printf '%s\n' "$_guard_ips_sha"
-        return 0
-    done
-    return 1
-}
-
 _guard_install_check_version() {
     _guard_icv_installed=$(_guard_install_bin)
     _guard_icv_installed_sha=
     _guard_icv_published_sha=
-    _guard_icv_status=unavailable
+    _guard_icv_status=untrusted
+    _guard_icv_signature=untrusted
+    _guard_icv_sequence=
+    _guard_icv_revision=
+    _guard_icv_source=
+    _guard_icv_fingerprint=
+    _guard_icv_key=$(_guard_distribution_trusted_key)
+
     if [ -f "$_guard_icv_installed" ]; then
         _guard_icv_installed_sha=$(file_sha256 "$_guard_icv_installed" 2>/dev/null) || _guard_icv_installed_sha=
     fi
-    _guard_icv_published_sha=$(_guard_install_published_sha auto 2>/dev/null) || _guard_icv_published_sha=
-    if [ -n "$_guard_icv_published_sha" ]; then
+    if guard_distribution_fetch_release auto >/dev/null 2>&1; then
+        _guard_icv_signature=$_GUARD_RELEASE_SIGNATURE_STATE
+        _guard_icv_published_sha=$_GUARD_RELEASE_BUNDLE_SHA256
+        _guard_icv_sequence=$_GUARD_RELEASE_SEQUENCE
+        _guard_icv_revision=$_GUARD_RELEASE_REVISION
+        _guard_icv_source=$_GUARD_RELEASE_SOURCE
+        _guard_icv_fingerprint=$_GUARD_RELEASE_KEY_FINGERPRINT
         if [ -z "$_guard_icv_installed_sha" ]; then
             _guard_icv_status=not-installed
         elif [ "$_guard_icv_installed_sha" = "$_guard_icv_published_sha" ]; then
@@ -5484,19 +5642,32 @@ _guard_install_check_version() {
             _guard_icv_status=different
         fi
     fi
+
     if [ "${_GUARD_JSON:-0}" = 1 ]; then
-        printf '{"status":"%s","installedSha256":"%s","publishedSha256":"%s","autoUpgrade":false,"autoInstall":false}\n' \
+        printf '{"status":"%s","installedSha256":"%s","publishedSha256":"%s","release":{"signature":"%s","sequence":"%s","revision":"%s","source":"%s","keyFingerprint":"%s","trustedKey":"%s"},"autoUpgrade":false,"autoInstall":false}\n' \
             "$(_guard_env_json_string "$_guard_icv_status")" \
             "$(_guard_env_json_string "$_guard_icv_installed_sha")" \
-            "$(_guard_env_json_string "$_guard_icv_published_sha")"
+            "$(_guard_env_json_string "$_guard_icv_published_sha")" \
+            "$(_guard_env_json_string "$_guard_icv_signature")" \
+            "$(_guard_env_json_string "$_guard_icv_sequence")" \
+            "$(_guard_env_json_string "$_guard_icv_revision")" \
+            "$(_guard_env_json_string "$_guard_icv_source")" \
+            "$(_guard_env_json_string "$_guard_icv_fingerprint")" \
+            "$(_guard_env_json_string "$_guard_icv_key")"
     else
         cli_section "OpenClash Guard version check"
         cli_kv installed.sha256 "${_guard_icv_installed_sha:-not-installed}"
-        cli_kv published.sha256 "${_guard_icv_published_sha:-unavailable}"
+        cli_kv published.sha256 "${_guard_icv_published_sha:-untrusted}"
+        cli_kv release.signature "$_guard_icv_signature"
+        [ -z "$_guard_icv_sequence" ] || cli_kv release.sequence "$_guard_icv_sequence"
+        [ -z "$_guard_icv_revision" ] || cli_kv release.revision "$_guard_icv_revision"
+        [ -z "$_guard_icv_source" ] || cli_kv release.source "$_guard_icv_source"
+        [ -z "$_guard_icv_fingerprint" ] || cli_kv release.keyFingerprint "$_guard_icv_fingerprint"
+        cli_kv release.trustedKey "$_guard_icv_key"
         cli_kv status "$_guard_icv_status"
         cli_warn "$_GUARD_INSTALL_VERSION_WARNING"
     fi
-    [ "$_guard_icv_status" != unavailable ]
+    [ "$_guard_icv_status" != untrusted ]
 }
 
 _guard_install_write() {
@@ -6448,6 +6619,10 @@ guard_preflight_stage_distribution() {
             rm -f "$_guard_ps_policy"
             return 1
         }
+        if ! guard_distribution_fetch_release "$_guard_ps_item" "$_guard_ps_base"; then
+            rm -f "$_guard_ps_policy" "$_guard_ps_templates"
+            continue
+        fi
         _guard_ps_policy_url=$(_guard_distribution_policy_url "$_guard_ps_item" "$_guard_ps_base") || {
             rm -f "$_guard_ps_policy" "$_guard_ps_templates"
             continue
@@ -6457,9 +6632,11 @@ guard_preflight_stage_distribution() {
             continue
         }
         _guard_ps_ok=1
-        fetch_http "$_guard_ps_policy_url" "$_guard_ps_policy" || _guard_ps_ok=0
+        fetch_http "$_guard_ps_policy_url" "$_guard_ps_policy" "" 1 2097152 || _guard_ps_ok=0
+        [ "$_guard_ps_ok" = 1 ] && guard_distribution_verify_hash "$_guard_ps_policy" "$_GUARD_RELEASE_POLICY_SHA256" || _guard_ps_ok=0
         [ "$_guard_ps_ok" = 1 ] && guard_policy_validate_file "$_guard_ps_policy" || _guard_ps_ok=0
-        [ "$_guard_ps_ok" = 1 ] && fetch_http "$_guard_ps_templates_url" "$_guard_ps_templates" || _guard_ps_ok=0
+        [ "$_guard_ps_ok" = 1 ] && fetch_http "$_guard_ps_templates_url" "$_guard_ps_templates" "" 1 4194304 || _guard_ps_ok=0
+        [ "$_guard_ps_ok" = 1 ] && guard_distribution_verify_hash "$_guard_ps_templates" "$_GUARD_RELEASE_TEMPLATES_SHA256" || _guard_ps_ok=0
         [ "$_guard_ps_ok" = 1 ] && guard_template_validate_file "$_guard_ps_templates" || _guard_ps_ok=0
         if [ "$_guard_ps_ok" = 1 ]; then
             _GUARD_PREFLIGHT_POLICY_FILE=$_guard_ps_policy
@@ -6473,7 +6650,7 @@ guard_preflight_stage_distribution() {
         fi
         rm -f "$_guard_ps_policy" "$_guard_ps_templates"
     done
-    _GUARD_PREFLIGHT_SOURCE_REASON="no distribution source supplied a valid policy and template catalog"
+    _GUARD_PREFLIGHT_SOURCE_REASON="no distribution source supplied authenticated policy and template bytes"
     return 1
 }
 
@@ -7373,7 +7550,7 @@ _GUARD_JSON=0
 _GUARD_LOCK_HELD=0
 
 guard_usage() {
-    printf '%s\n' "usage: openclash-guard apply|reconcile|status|doctor [SERVICE]|health-check|refresh|remove|eval|template|install|uninstall|geo|rules [--json] [--yes] [--dry-run] [--policy-file FILE]"
+    printf '%s\n' "usage: openclash-guard apply|reconcile|status|doctor [SERVICE]|health-check|version-check|refresh|remove|eval|template|install|uninstall|geo|rules [--json] [--yes] [--dry-run] [--policy-file FILE]"
 }
 
 _guard_lock_path() {
@@ -7574,30 +7751,8 @@ guard_cmd_refresh() {
         esac
     done
     if [ -n "$_guard_refresh_url" ] || [ -n "$_guard_refresh_templates_url" ]; then
-        if [ -z "$_guard_refresh_url" ] || [ -z "$_guard_refresh_templates_url" ]; then
-            cli_error "--policy-url and --templates-url must be supplied together"
-            return 2
-        fi
-        _guard_refresh_policy=$(file_mktemp) || return 1
-        _guard_refresh_templates=$(file_mktemp) || {
-            rm -f "$_guard_refresh_policy"
-            return 1
-        }
-        if ! fetch_http "$_guard_refresh_url" "$_guard_refresh_policy" || \
-           ! guard_policy_validate_file "$_guard_refresh_policy" || \
-           ! fetch_http "$_guard_refresh_templates_url" "$_guard_refresh_templates" || \
-           ! guard_template_validate_file "$_guard_refresh_templates"; then
-            rm -f "$_guard_refresh_policy" "$_guard_refresh_templates"
-            cli_error "refresh failed; keeping the installed runtime pair"
-            return 1
-        fi
-        _GUARD_PREFLIGHT_POLICY_FILE=$_guard_refresh_policy
-        _GUARD_PREFLIGHT_TEMPLATES_FILE=$_guard_refresh_templates
-        _GUARD_PREFLIGHT_POLICY_TEMP=1
-        _GUARD_PREFLIGHT_TEMPLATES_TEMP=1
-        _GUARD_PREFLIGHT_SOURCE=override
-        _GUARD_PREFLIGHT_POLICY_URL=$_guard_refresh_url
-        _GUARD_PREFLIGHT_TEMPLATES_URL=$_guard_refresh_templates_url
+        cli_error "raw --policy-url/--templates-url overrides are blocked because they bypass signed release metadata; use --base-url with a mirror that serves the signed release metadata and signature"
+        return 2
     elif ! guard_preflight_stage_distribution "$_guard_refresh_source" "$_guard_refresh_base"; then
         cli_error "refresh failed; keeping the installed runtime pair: $_GUARD_PREFLIGHT_SOURCE_REASON"
         return 1
@@ -7866,7 +8021,7 @@ guard_cmd_eval() {
 
 _guard_cmd_needs_lock() {
     case $1 in
-        status|doctor|health-check|eval|geo)
+        status|doctor|health-check|version-check|eval|geo)
             return 1
             ;;
         rules)
@@ -7913,6 +8068,7 @@ _guard_dispatch() {
         status) guard_cmd_status || _guard_dispatch_rc=$? ;;
         doctor) guard_cmd_doctor "$@" || _guard_dispatch_rc=$? ;;
         health-check) guard_health_check_run "$@" || _guard_dispatch_rc=$? ;;
+        version-check) _guard_install_check_version || _guard_dispatch_rc=$? ;;
         refresh) guard_cmd_refresh "$@" || _guard_dispatch_rc=$? ;;
         remove) guard_cmd_remove || _guard_dispatch_rc=$? ;;
         eval) guard_cmd_eval "$@" || _guard_dispatch_rc=$? ;;
@@ -7964,7 +8120,7 @@ main() {
                 guard_usage
                 return 0
                 ;;
-            apply|reconcile|status|doctor|health-check|refresh|remove|eval|template|install|uninstall|geo|rules)
+            apply|reconcile|status|doctor|health-check|version-check|refresh|remove|eval|template|install|uninstall|geo|rules)
                 [ -z "$_guard_cmd" ] || break
                 _guard_cmd=$1
                 shift

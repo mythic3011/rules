@@ -43,45 +43,28 @@ _GUARD_INSTALL_OC_BEGIN='# BEGIN OPENCLASH-GUARD MANAGED'
 _GUARD_INSTALL_OC_END='# END OPENCLASH-GUARD MANAGED'
 _GUARD_INSTALL_VERSION_WARNING='WARNING: NO AUTO-UPGRADE AND NO AUTO-INSTALL. This checker is read-only; it never runs the installer or changes the runtime.'
 
-_guard_install_published_sha() {
-    _guard_ips_source=${1:-auto}
-    case $_guard_ips_source in
-        auto) _guard_ips_sources='github-raw jsdelivr' ;;
-        github-raw|raw|jsdelivr|cdn) _guard_ips_sources=$_guard_ips_source ;;
-        *) return 2 ;;
-    esac
-    for _guard_ips_item in $_guard_ips_sources
-    do
-        _guard_ips_manifest=$(file_mktemp) || return 1
-        _guard_ips_url=$(_guard_distribution_url "$_guard_ips_item" "$_GUARD_DISTRIBUTION_MANIFEST") || {
-            rm -f "$_guard_ips_manifest"
-            continue
-        }
-        _guard_ips_sha=
-        if fetch_http "$_guard_ips_url" "$_guard_ips_manifest"; then
-            _guard_ips_sha=$(sed -n 's/.*"sha256"[[:space:]]*:[[:space:]]*"\([0-9a-fA-F]*\)".*/\1/p' "$_guard_ips_manifest" | head -n 1 | tr 'A-F' 'a-f')
-        fi
-        rm -f "$_guard_ips_manifest"
-        [ "${#_guard_ips_sha}" -eq 64 ] || continue
-        case $_guard_ips_sha in
-            *[!0-9a-f]*) continue ;;
-        esac
-        printf '%s\n' "$_guard_ips_sha"
-        return 0
-    done
-    return 1
-}
-
 _guard_install_check_version() {
     _guard_icv_installed=$(_guard_install_bin)
     _guard_icv_installed_sha=
     _guard_icv_published_sha=
-    _guard_icv_status=unavailable
+    _guard_icv_status=untrusted
+    _guard_icv_signature=untrusted
+    _guard_icv_sequence=
+    _guard_icv_revision=
+    _guard_icv_source=
+    _guard_icv_fingerprint=
+    _guard_icv_key=$(_guard_distribution_trusted_key)
+
     if [ -f "$_guard_icv_installed" ]; then
         _guard_icv_installed_sha=$(file_sha256 "$_guard_icv_installed" 2>/dev/null) || _guard_icv_installed_sha=
     fi
-    _guard_icv_published_sha=$(_guard_install_published_sha auto 2>/dev/null) || _guard_icv_published_sha=
-    if [ -n "$_guard_icv_published_sha" ]; then
+    if guard_distribution_fetch_release auto >/dev/null 2>&1; then
+        _guard_icv_signature=$_GUARD_RELEASE_SIGNATURE_STATE
+        _guard_icv_published_sha=$_GUARD_RELEASE_BUNDLE_SHA256
+        _guard_icv_sequence=$_GUARD_RELEASE_SEQUENCE
+        _guard_icv_revision=$_GUARD_RELEASE_REVISION
+        _guard_icv_source=$_GUARD_RELEASE_SOURCE
+        _guard_icv_fingerprint=$_GUARD_RELEASE_KEY_FINGERPRINT
         if [ -z "$_guard_icv_installed_sha" ]; then
             _guard_icv_status=not-installed
         elif [ "$_guard_icv_installed_sha" = "$_guard_icv_published_sha" ]; then
@@ -90,19 +73,32 @@ _guard_install_check_version() {
             _guard_icv_status=different
         fi
     fi
+
     if [ "${_GUARD_JSON:-0}" = 1 ]; then
-        printf '{"status":"%s","installedSha256":"%s","publishedSha256":"%s","autoUpgrade":false,"autoInstall":false}\n' \
+        printf '{"status":"%s","installedSha256":"%s","publishedSha256":"%s","release":{"signature":"%s","sequence":"%s","revision":"%s","source":"%s","keyFingerprint":"%s","trustedKey":"%s"},"autoUpgrade":false,"autoInstall":false}\n' \
             "$(_guard_env_json_string "$_guard_icv_status")" \
             "$(_guard_env_json_string "$_guard_icv_installed_sha")" \
-            "$(_guard_env_json_string "$_guard_icv_published_sha")"
+            "$(_guard_env_json_string "$_guard_icv_published_sha")" \
+            "$(_guard_env_json_string "$_guard_icv_signature")" \
+            "$(_guard_env_json_string "$_guard_icv_sequence")" \
+            "$(_guard_env_json_string "$_guard_icv_revision")" \
+            "$(_guard_env_json_string "$_guard_icv_source")" \
+            "$(_guard_env_json_string "$_guard_icv_fingerprint")" \
+            "$(_guard_env_json_string "$_guard_icv_key")"
     else
         cli_section "OpenClash Guard version check"
         cli_kv installed.sha256 "${_guard_icv_installed_sha:-not-installed}"
-        cli_kv published.sha256 "${_guard_icv_published_sha:-unavailable}"
+        cli_kv published.sha256 "${_guard_icv_published_sha:-untrusted}"
+        cli_kv release.signature "$_guard_icv_signature"
+        [ -z "$_guard_icv_sequence" ] || cli_kv release.sequence "$_guard_icv_sequence"
+        [ -z "$_guard_icv_revision" ] || cli_kv release.revision "$_guard_icv_revision"
+        [ -z "$_guard_icv_source" ] || cli_kv release.source "$_guard_icv_source"
+        [ -z "$_guard_icv_fingerprint" ] || cli_kv release.keyFingerprint "$_guard_icv_fingerprint"
+        cli_kv release.trustedKey "$_guard_icv_key"
         cli_kv status "$_guard_icv_status"
         cli_warn "$_GUARD_INSTALL_VERSION_WARNING"
     fi
-    [ "$_guard_icv_status" != unavailable ]
+    [ "$_guard_icv_status" != untrusted ]
 }
 
 _guard_install_write() {

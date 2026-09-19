@@ -22,7 +22,11 @@ class DistributionManifestTest(unittest.TestCase):
         catalog = load_distribution(AI_DISTRIBUTION_PATH)
         readme = (root / "README.md").read_text(encoding="utf-8")
         guide = (root / "docs/openclash-guard.md").read_text(encoding="utf-8")
-        self.assertIn(f"curl -fsSL {catalog.bootstrap_alias} | sh", readme)
+        self.assertNotRegex(readme, r"curl[^\n|]*\|\s*(?:/bin/)?sh(?:\s|$)")
+        self.assertNotRegex(guide, r"curl[^\n|]*\|\s*(?:/bin/)?sh(?:\s|$)")
+        self.assertIn(catalog.release_metadata_path, readme)
+        self.assertIn(catalog.release_signature_path, readme)
+        self.assertIn(catalog.trusted_key_path, readme)
         for source in catalog.channels:
             if source.type in {"github-raw", "cdn"} and source.version_source == "ref" and source.immutable_revision_support:
                 self.assertIn(
@@ -32,7 +36,7 @@ class DistributionManifestTest(unittest.TestCase):
 
     def test_catalog_exposes_required_guard_artifact_roles(self) -> None:
         catalog = load_distribution(AI_DISTRIBUTION_PATH)
-        for role in ("guard-bundle", "guard-manifest", "guard-checksum", "runtime-policy"):
+        for role in ("guard-bundle", "guard-manifest", "guard-checksum", "bootstrap-installer", "runtime-policy", "runtime-templates"):
             self.assertTrue(catalog.artifact(role).path)
 
     def test_publication_validator_accepts_checked_in_generated_guard(self) -> None:

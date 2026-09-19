@@ -5,11 +5,22 @@ Generated OpenClash/Mihomo profiles, routing rules, DNS integrations, and a fail
 ## Quick Start
 
 <!-- BEGIN GENERATED OPENCLASH GUARD QUICK START -->
+OpenClash Guard deliberately does **not** support remote pipe-to-shell installation or automatic upgrades. Provision the trusted release public key out-of-band first, then authenticate signed release metadata before executing any downloaded bytes.
+
 ```sh
-curl -fsSL https://analytics.mythic3011.com/q/qdf9961KN | sh
+work=/tmp/openclash-guard-install
+rm -rf "$work" && mkdir -p "$work" && cd "$work"
+curl -fSLo release.json https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/dist/openclash-guard.release.json
+curl -fSLo release.json.sig https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/dist/openclash-guard.release.json.sig
+usign -V -q -m release.json -p /etc/openclash-guard/trusted-release-key.pub -x release.json.sig
+bundle_sha=$(jsonfilter -i release.json -e '@.artifacts.guardBundle.sha256')
+curl -fSLo openclash-guard.sh https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/dist/openclash-guard.sh
+printf '%s  %s\n' "$bundle_sha" openclash-guard.sh | sha256sum -c -
+/bin/sh -n openclash-guard.sh
+/bin/sh ./openclash-guard.sh
 ```
 
-Opens the interactive OpenClash Guard menu, auto-detects the router environment, and guides first-time setup. See the [OpenClash Guard guide](docs/openclash-guard.md) for direct-source fallback and headless use.
+A checksum fetched beside an artifact is not a trust anchor. The `usign` signature authenticates the metadata that contains the SHA-256 values; the SHA-256 then authenticates the downloaded artifact, following the same trust-chain shape used by OpenWrt package metadata and APT repository metadata.
 <!-- END GENERATED OPENCLASH GUARD QUICK START -->
 
 ## What It Provides
