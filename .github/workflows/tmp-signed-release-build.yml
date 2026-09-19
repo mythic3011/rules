@@ -1,0 +1,464 @@
+name: Temporary signed release trust candidate build
+
+on:
+  push:
+    branches:
+      - hardening/openclash-guard-signed-release
+    paths:
+      - .github/workflows/tmp-signed-release-build.yml
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout candidate branch
+        uses: actions/checkout@v6
+        with:
+          ref: hardening/openclash-guard-signed-release
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+
+      - name: Install Python dependencies
+        run: uv pip install --system -r requirements-dev.txt
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Wire authenticated release trust into Guard
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          def replace_between(path: Path, start: str, end: str, replacement: str) -> None:
+              text = path.read_text()
+              a = text.index(start)
+              b = text.index(end, a)
+              path.write_text(text[:a] + replacement + text[b:])
+
+          # Extend the typed distribution catalog with release trust metadata.
+          path = Path("internal/python/ai_profiles/distribution.py")
+          text = path.read_text()
+          text = text.replace(
+              "    manifest_path: str\n    artifacts: tuple[DistributionArtifact, ...]",
+              "    manifest_path: str\n    release_metadata_path: str\n    release_signature_path: str\n    trusted_key_path: str\n    artifacts: tuple[DistributionArtifact, ...]",
+              1,
+          )
+          text = text.replace(
+              '    if set(value) != {"schemaVersion", "repository", "defaultRef", "bootstrapAlias", "manifestPath", "artifacts", "channels"}:',
+              '    if set(value) != {"schemaVersion", "repository", "defaultRef", "bootstrapAlias", "manifestPath", "releaseMetadataPath", "releaseSignaturePath", "trustedKeyPath", "artifacts", "channels"}:',
+              1,
+          )
+          text = text.replace(
+              '        manifest_path=_string(value.get("manifestPath"), "manifestPath"),\n        artifacts=tuple(artifacts),',
+              '        manifest_path=_string(value.get("manifestPath"), "manifestPath"),\n        release_metadata_path=_string(value.get("releaseMetadataPath"), "releaseMetadataPath"),\n        release_signature_path=_string(value.get("releaseSignaturePath"), "releaseSignaturePath"),\n        trusted_key_path=_string(value.get("trustedKeyPath"), "trustedKeyPath"),\n        artifacts=tuple(artifacts),',
+              1,
+          )
+          path.write_text(text)
+
+          # Make the distribution module dependencies explicit because signed
+          # release verification uses temp files, HTTPS fetch, and JSON parsing.
+          manifest_path = Path("shell/manifest.json")
+          manifest = json.loads(manifest_path.read_text())
+          manifest["modules"]["distribution"]["depends"] = ["file", "fetch", "json"]
+          manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
+
+          # Replace the old unsigned published-hash checker. This path fetches
+          # metadata+signature only; it never fetches/executes the bundle.
+          path = Path("shell/apps/openclash-guard/install.sh")
+          text = path.read_text()
+          start = text.index("_guard_install_published_sha() {")
+          end = text.index("_guard_install_write() {", start)
+          checker = r'''_guard_install_check_version() {
+              _guard_icv_installed=$(_guard_install_bin)
+              _guard_icv_installed_sha=
+              _guard_icv_published_sha=
+              _guard_icv_status=untrusted
+              _guard_icv_signature=untrusted
+              _guard_icv_sequence=
+              _guard_icv_revision=
+              _guard_icv_source=
+              _guard_icv_fingerprint=
+              _guard_icv_key=$(_guard_distribution_trusted_key)
+
+              if [ -f "$_guard_icv_installed" ]; then
+                  _guard_icv_installed_sha=$(file_sha256 "$_guard_icv_installed" 2>/dev/null) || _guard_icv_installed_sha=
+              fi
+              if guard_distribution_fetch_release auto >/dev/null 2>&1; then
+                  _guard_icv_signature=$_GUARD_RELEASE_SIGNATURE_STATE
+                  _guard_icv_published_sha=$_GUARD_RELEASE_BUNDLE_SHA256
+                  _guard_icv_sequence=$_GUARD_RELEASE_SEQUENCE
+                  _guard_icv_revision=$_GUARD_RELEASE_REVISION
+                  _guard_icv_source=$_GUARD_RELEASE_SOURCE
+                  _guard_icv_fingerprint=$_GUARD_RELEASE_KEY_FINGERPRINT
+                  if [ -z "$_guard_icv_installed_sha" ]; then
+                      _guard_icv_status=not-installed
+                  elif [ "$_guard_icv_installed_sha" = "$_guard_icv_published_sha" ]; then
+                      _guard_icv_status=current
+                  else
+                      _guard_icv_status=different
+                  fi
+              fi
+
+              if [ "${_GUARD_JSON:-0}" = 1 ]; then
+                  printf '{"status":"%s","installedSha256":"%s","publishedSha256":"%s","release":{"signature":"%s","sequence":"%s","revision":"%s","source":"%s","keyFingerprint":"%s","trustedKey":"%s"},"autoUpgrade":false,"autoInstall":false}\n' \
+                      "$(_guard_env_json_string "$_guard_icv_status")" \
+                      "$(_guard_env_json_string "$_guard_icv_installed_sha")" \
+                      "$(_guard_env_json_string "$_guard_icv_published_sha")" \
+                      "$(_guard_env_json_string "$_guard_icv_signature")" \
+                      "$(_guard_env_json_string "$_guard_icv_sequence")" \
+                      "$(_guard_env_json_string "$_guard_icv_revision")" \
+                      "$(_guard_env_json_string "$_guard_icv_source")" \
+                      "$(_guard_env_json_string "$_guard_icv_fingerprint")" \
+                      "$(_guard_env_json_string "$_guard_icv_key")"
+              else
+                  cli_section "OpenClash Guard version check"
+                  cli_kv installed.sha256 "${_guard_icv_installed_sha:-not-installed}"
+                  cli_kv published.sha256 "${_guard_icv_published_sha:-untrusted}"
+                  cli_kv release.signature "$_guard_icv_signature"
+                  [ -z "$_guard_icv_sequence" ] || cli_kv release.sequence "$_guard_icv_sequence"
+                  [ -z "$_guard_icv_revision" ] || cli_kv release.revision "$_guard_icv_revision"
+                  [ -z "$_guard_icv_source" ] || cli_kv release.source "$_guard_icv_source"
+                  [ -z "$_guard_icv_fingerprint" ] || cli_kv release.keyFingerprint "$_guard_icv_fingerprint"
+                  cli_kv release.trustedKey "$_guard_icv_key"
+                  cli_kv status "$_guard_icv_status"
+                  cli_warn "$_GUARD_INSTALL_VERSION_WARNING"
+              fi
+              [ "$_guard_icv_status" != untrusted ]
+          }
+
+          '''
+          path.write_text(text[:start] + checker + text[end:])
+
+          # Network preflight must authenticate metadata first, then verify the
+          # policy/template bytes against hashes from that authenticated file.
+          path = Path("shell/apps/openclash-guard/preflight.sh")
+          text = path.read_text()
+          start = text.index("guard_preflight_stage_distribution() {")
+          end = text.index("_guard_preflight_installed_policy() {", start)
+          staged = r'''guard_preflight_stage_distribution() {
+              _guard_ps_source=${1:-auto}
+              _guard_ps_base=${2:-}
+              _guard_ps_sources=$(_guard_preflight_source_list "$_guard_ps_source") || {
+                  _GUARD_PREFLIGHT_SOURCE_REASON="unsupported distribution source: $_guard_ps_source"
+                  return 2
+              }
+              if [ "${_GUARD_PREFLIGHT_POLICY_TEMP:-0}" = 1 ]; then
+                  _guard_preflight_remove_file "${_GUARD_PREFLIGHT_POLICY_FILE:-}"
+              fi
+              if [ "${_GUARD_PREFLIGHT_TEMPLATES_TEMP:-0}" = 1 ]; then
+                  _guard_preflight_remove_file "${_GUARD_PREFLIGHT_TEMPLATES_FILE:-}"
+              fi
+              _GUARD_PREFLIGHT_POLICY_FILE=
+              _GUARD_PREFLIGHT_TEMPLATES_FILE=
+              _GUARD_PREFLIGHT_SOURCE=
+              _GUARD_PREFLIGHT_POLICY_URL=
+              _GUARD_PREFLIGHT_TEMPLATES_URL=
+              _GUARD_PREFLIGHT_SOURCE_REASON=
+              _GUARD_PREFLIGHT_POLICY_TEMP=0
+              _GUARD_PREFLIGHT_TEMPLATES_TEMP=0
+              for _guard_ps_item in $_guard_ps_sources
+              do
+                  _guard_ps_policy=$(file_mktemp) || return 1
+                  _guard_ps_templates=$(file_mktemp) || {
+                      rm -f "$_guard_ps_policy"
+                      return 1
+                  }
+                  if ! guard_distribution_fetch_release "$_guard_ps_item" "$_guard_ps_base"; then
+                      rm -f "$_guard_ps_policy" "$_guard_ps_templates"
+                      continue
+                  fi
+                  _guard_ps_policy_url=$(_guard_distribution_policy_url "$_guard_ps_item" "$_guard_ps_base") || {
+                      rm -f "$_guard_ps_policy" "$_guard_ps_templates"
+                      continue
+                  }
+                  _guard_ps_templates_url=$(_guard_distribution_templates_url "$_guard_ps_item" "$_guard_ps_base") || {
+                      rm -f "$_guard_ps_policy" "$_guard_ps_templates"
+                      continue
+                  }
+                  _guard_ps_ok=1
+                  fetch_http "$_guard_ps_policy_url" "$_guard_ps_policy" "" 1 2097152 || _guard_ps_ok=0
+                  [ "$_guard_ps_ok" = 1 ] && guard_distribution_verify_hash "$_guard_ps_policy" "$_GUARD_RELEASE_POLICY_SHA256" || _guard_ps_ok=0
+                  [ "$_guard_ps_ok" = 1 ] && guard_policy_validate_file "$_guard_ps_policy" || _guard_ps_ok=0
+                  [ "$_guard_ps_ok" = 1 ] && fetch_http "$_guard_ps_templates_url" "$_guard_ps_templates" "" 1 4194304 || _guard_ps_ok=0
+                  [ "$_guard_ps_ok" = 1 ] && guard_distribution_verify_hash "$_guard_ps_templates" "$_GUARD_RELEASE_TEMPLATES_SHA256" || _guard_ps_ok=0
+                  [ "$_guard_ps_ok" = 1 ] && guard_template_validate_file "$_guard_ps_templates" || _guard_ps_ok=0
+                  if [ "$_guard_ps_ok" = 1 ]; then
+                      _GUARD_PREFLIGHT_POLICY_FILE=$_guard_ps_policy
+                      _GUARD_PREFLIGHT_TEMPLATES_FILE=$_guard_ps_templates
+                      _GUARD_PREFLIGHT_SOURCE=$_guard_ps_item
+                      _GUARD_PREFLIGHT_POLICY_URL=$_guard_ps_policy_url
+                      _GUARD_PREFLIGHT_TEMPLATES_URL=$_guard_ps_templates_url
+                      _GUARD_PREFLIGHT_POLICY_TEMP=1
+                      _GUARD_PREFLIGHT_TEMPLATES_TEMP=1
+                      return 0
+                  fi
+                  rm -f "$_guard_ps_policy" "$_guard_ps_templates"
+              done
+              _GUARD_PREFLIGHT_SOURCE_REASON="no distribution source supplied authenticated policy and template bytes"
+              return 1
+          }
+
+          '''
+          path.write_text(text[:start] + staged + text[end:])
+
+          # Expose a top-level read-only version-check and prohibit raw URL
+          # refresh overrides that would bypass signed release metadata.
+          path = Path("shell/apps/openclash-guard/main.sh")
+          text = path.read_text()
+          text = text.replace(
+              "usage: openclash-guard apply|reconcile|status|doctor [SERVICE]|health-check|refresh|remove|eval|template|install|uninstall|geo|rules",
+              "usage: openclash-guard apply|reconcile|status|doctor [SERVICE]|health-check|version-check|refresh|remove|eval|template|install|uninstall|geo|rules",
+              1,
+          )
+          text = text.replace("status|doctor|health-check|eval|geo)", "status|doctor|health-check|version-check|eval|geo)", 1)
+          text = text.replace(
+              "        health-check) guard_health_check_run \"$@\" || _guard_dispatch_rc=$? ;;\n        refresh)",
+              "        health-check) guard_health_check_run \"$@\" || _guard_dispatch_rc=$? ;;\n        version-check) _guard_install_check_version || _guard_dispatch_rc=$? ;;\n        refresh)",
+              1,
+          )
+          text = text.replace(
+              "apply|reconcile|status|doctor|health-check|refresh|remove|eval|template|install|uninstall|geo|rules)",
+              "apply|reconcile|status|doctor|health-check|version-check|refresh|remove|eval|template|install|uninstall|geo|rules)",
+              1,
+          )
+          old = '''    if [ -n "$_guard_refresh_url" ] || [ -n "$_guard_refresh_templates_url" ]; then
+              if [ -z "$_guard_refresh_url" ] || [ -z "$_guard_refresh_templates_url" ]; then
+                  cli_error "--policy-url and --templates-url must be supplied together"
+                  return 2
+              fi
+              _guard_refresh_policy=$(file_mktemp) || return 1
+              _guard_refresh_templates=$(file_mktemp) || {
+                  rm -f "$_guard_refresh_policy"
+                  return 1
+              }
+              if ! fetch_http "$_guard_refresh_url" "$_guard_refresh_policy" || \
+                 ! guard_policy_validate_file "$_guard_refresh_policy" || \
+                 ! fetch_http "$_guard_refresh_templates_url" "$_guard_refresh_templates" || \
+                 ! guard_template_validate_file "$_guard_refresh_templates"; then
+                  rm -f "$_guard_refresh_policy" "$_guard_refresh_templates"
+                  cli_error "refresh failed; keeping the installed runtime pair"
+                  return 1
+              fi
+              _GUARD_PREFLIGHT_POLICY_FILE=$_guard_refresh_policy
+              _GUARD_PREFLIGHT_TEMPLATES_FILE=$_guard_refresh_templates
+              _GUARD_PREFLIGHT_POLICY_TEMP=1
+              _GUARD_PREFLIGHT_TEMPLATES_TEMP=1
+              _GUARD_PREFLIGHT_SOURCE=override
+              _GUARD_PREFLIGHT_POLICY_URL=$_guard_refresh_url
+              _GUARD_PREFLIGHT_TEMPLATES_URL=$_guard_refresh_templates_url
+          elif ! guard_preflight_stage_distribution "$_guard_refresh_source" "$_guard_refresh_base"; then
+          '''
+          new = '''    if [ -n "$_guard_refresh_url" ] || [ -n "$_guard_refresh_templates_url" ]; then
+              cli_error "raw --policy-url/--templates-url overrides are blocked because they bypass signed release metadata; use --base-url with a mirror that serves the signed release metadata and signature"
+              return 2
+          elif ! guard_preflight_stage_distribution "$_guard_refresh_source" "$_guard_refresh_base"; then
+          '''
+          if old not in text:
+              raise SystemExit("refresh override block not found")
+          path.write_text(text.replace(old, new, 1))
+
+          # Update tests that previously required remote pipe-to-shell guidance.
+          path = Path("tests/test_distribution_manifest.py")
+          text = path.read_text()
+          old = '''        self.assertIn(f"curl -fsSL {catalog.bootstrap_alias} | sh", readme)
+          for source in catalog.channels:
+          '''
+          new = '''        self.assertNotIn("| sh", readme)
+          self.assertNotIn("| sh", guide)
+          self.assertIn(catalog.release_metadata_path, readme)
+          self.assertIn(catalog.release_signature_path, readme)
+          self.assertIn(catalog.trusted_key_path, readme)
+          for source in catalog.channels:
+          '''
+          if old not in text:
+              raise SystemExit("distribution readme assertion anchor not found")
+          text = text.replace(old, new, 1)
+          text = text.replace(
+              'for role in ("guard-bundle", "guard-manifest", "guard-checksum", "runtime-policy"):',
+              'for role in ("guard-bundle", "guard-manifest", "guard-checksum", "bootstrap-installer", "runtime-policy", "runtime-templates"):',
+              1,
+          )
+          path.write_text(text)
+
+          # Focused shell regressions for authenticated metadata and the
+          # read-only version-check contract. Tests use a fake usign command;
+          # no production signing key is stored in git.
+          Path("tests/test_openclash_guard_release_trust.py").write_text(r'''from __future__ import annotations
+
+          import hashlib
+          import subprocess
+          import tempfile
+          import unittest
+          from pathlib import Path
+
+          ROOT = Path(__file__).resolve().parents[1]
+          DISTRIBUTION = ROOT / "shell" / "lib" / "distribution.sh"
+          INSTALL = ROOT / "shell" / "apps" / "openclash-guard" / "install.sh"
+
+
+          class OpenClashGuardReleaseTrustTests(unittest.TestCase):
+              def run_shell(self, body: str) -> subprocess.CompletedProcess[str]:
+                  return subprocess.run(
+                      ["/bin/sh", "-c", body], cwd=ROOT, capture_output=True,
+                      text=True, timeout=5, check=False,
+                  )
+
+              def test_release_signature_requires_usign_and_local_key(self) -> None:
+                  with tempfile.TemporaryDirectory() as tmp:
+                      root = Path(tmp)
+                      metadata = root / "release.json"
+                      sig = root / "release.json.sig"
+                      metadata.write_text("{}\n")
+                      sig.write_text("sig\n")
+                      script = f'''set -eu
+          . "{DISTRIBUTION}"
+          GUARD_TRUSTED_RELEASE_KEY="{root / 'missing.pub'}"
+          rc=0
+guard_distribution_verify_release "{metadata}" "{sig}" || rc=$?
+printf 'rc=%s\n' "$rc"
+          '''
+                      result = self.run_shell(script)
+                      self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+                      self.assertNotIn("rc=0", result.stdout)
+
+              def test_release_signature_uses_pinned_key(self) -> None:
+                  with tempfile.TemporaryDirectory() as tmp:
+                      root = Path(tmp)
+                      metadata = root / "release.json"
+                      sig = root / "release.json.sig"
+                      key = root / "trusted.pub"
+                      metadata.write_text("{}\n")
+                      sig.write_text("sig\n")
+                      key.write_text("pub\n")
+                      script = f'''set -eu
+          . "{DISTRIBUTION}"
+          GUARD_TRUSTED_RELEASE_KEY="{key}"
+          usign() {{
+              [ "$1" = -V ] || return 90
+              seen=0
+              while [ "$#" -gt 0 ]; do
+                  [ "$1" = -p ] && {{ shift; [ "$1" = "{key}" ] || return 91; seen=1; }}
+                  shift || true
+              done
+              [ "$seen" = 1 ]
+          }}
+          guard_distribution_verify_release "{metadata}" "{sig}"
+          '''
+                      result = self.run_shell(script)
+                      self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+
+              def test_version_check_never_fetches_or_executes_bundle(self) -> None:
+                  with tempfile.TemporaryDirectory() as tmp:
+                      root = Path(tmp)
+                      installed = root / "usr/bin/openclash-guard"
+                      installed.parent.mkdir(parents=True)
+                      installed.write_text("local-runtime\n")
+                      digest = hashlib.sha256(installed.read_bytes()).hexdigest()
+                      script = f'''set -eu
+          file_sha256() {{ sha256sum "$1" | awk '{{print $1}}'; }}
+          cli_section() {{ :; }}
+          cli_kv() {{ printf '%s=%s\\n' "$1" "$2"; }}
+          cli_warn() {{ :; }}
+          . "{DISTRIBUTION}"
+          . "{INSTALL}"
+          GUARD_PREFIX="{root}"
+          _GUARD_JSON=0
+          guard_distribution_fetch_bundle() {{ echo bundle-fetch-called >&2; return 99; }}
+          guard_distribution_fetch_release() {{
+              _GUARD_RELEASE_SIGNATURE_STATE=verified
+              _GUARD_RELEASE_BUNDLE_SHA256="{digest}"
+              _GUARD_RELEASE_SEQUENCE=7
+              _GUARD_RELEASE_REVISION=deadbeef
+              _GUARD_RELEASE_SOURCE=github-raw
+              _GUARD_RELEASE_KEY_FINGERPRINT=0123456789abcdef
+              return 0
+          }}
+          _guard_distribution_trusted_key() {{ printf '%s\\n' /trusted/release.pub; }}
+          _guard_install_check_version
+          '''
+                      result = self.run_shell(script)
+                      self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+                      self.assertIn("status=current", result.stdout)
+                      self.assertNotIn("bundle-fetch-called", result.stderr)
+
+              def test_hash_verification_rejects_tamper(self) -> None:
+                  with tempfile.TemporaryDirectory() as tmp:
+                      path = Path(tmp) / "artifact"
+                      path.write_text("expected\n")
+                      expected = hashlib.sha256(path.read_bytes()).hexdigest()
+                      path.write_text("tampered\n")
+                      script = f'''set -eu
+          file_sha256() {{ sha256sum "$1" | awk '{{print $1}}'; }}
+          . "{DISTRIBUTION}"
+          rc=0
+guard_distribution_verify_hash "{path}" "{expected}" || rc=$?
+printf 'rc=%s\n' "$rc"
+          '''
+                      result = self.run_shell(script)
+                      self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+                      self.assertIn("rc=1", result.stdout)
+
+
+          if __name__ == "__main__":
+              unittest.main()
+          '''.replace("          ", ""))
+          PY
+
+      - name: Run focused release trust regressions
+        run: |
+          python3 -m unittest tests.test_openclash_guard_release_trust -v
+          python3 -m unittest tests.test_distribution_manifest -v
+
+      - name: Generate deterministic outputs
+        run: make generate
+
+      - name: Run repository checks
+        run: make check-all
+
+      - name: Validate generated outputs
+        run: python3 internal/python/validate_generated_profiles.py
+
+      - name: Assert no generated remote pipe-to-shell guidance
+        run: |
+          ! grep -R -nE 'curl[^|]*\|[[:space:]]*(/bin/)?sh' README.md docs/openclash-guard.md setup/openclash/install.sh
+
+      - name: Commit candidate and remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          mapfile -t managed_paths < <(./rulesctl managed-paths)
+          git add -A -- "${managed_paths[@]}" \
+            internal/config/ai-routing/catalogs/distribution.json \
+            internal/python/ai_profiles/distribution.py \
+            internal/python/generate_distribution_bootstrap.py \
+            shell/apps/openclash-guard/install.sh \
+            shell/apps/openclash-guard/main.sh \
+            shell/apps/openclash-guard/preflight.sh \
+            shell/lib/distribution.sh \
+            shell/manifest.json \
+            setup/openclash/install.sh \
+            tests/test_distribution_manifest.py \
+            tests/test_openclash_guard_release_trust.py
+          git rm .github/workflows/tmp-signed-release-build.yml
+          git commit -m "hardening(openclash-guard): require signed release metadata"
+          git push origin HEAD:hardening/openclash-guard-signed-release
