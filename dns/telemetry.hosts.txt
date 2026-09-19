@@ -2,14 +2,14 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/internal/python/generate_adblock_outputs.py
 # CATEGORY: telemetry
-# GENERATED_AT: 2026-09-18T08:21:16Z
-# TOTAL: 1973
+# GENERATED_AT: 2026-09-19T08:09:08Z
+# TOTAL: 1976
 # FORMAT: hosts
 # UPSTREAM hagezi_native_apple: 108
 # UPSTREAM hagezi_native_apple HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_huawei: 135
 # UPSTREAM hagezi_native_huawei HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_oppo_realme: 483
+# UPSTREAM hagezi_native_oppo_realme: 486
 # UPSTREAM hagezi_native_oppo_realme HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_samsung: 200
 # UPSTREAM hagezi_native_samsung HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -85,6 +85,7 @@
 0.0.0.0 adinstantpage16-normal-useastred.tiktokv.eu.edgesuite.net
 0.0.0.0 adlog.vivo.com
 0.0.0.0 adlog.vivo.com.cn
+0.0.0.0 adm-smc-cn.heytapmobi.com
 0.0.0.0 ads-api.tiktok.com
 0.0.0.0 ads-api.vivo.com
 0.0.0.0 ads-bdapi-my.heytapmobile.com
@@ -140,10 +141,12 @@
 0.0.0.0 adx-dre.op.hicloud.com
 0.0.0.0 adx-drru.op.dbankcloud.com
 0.0.0.0 adx-drru.op.hicloud.com
+0.0.0.0 adx-op-fr-heytapmobilea-a7bbf.fr-w01.cngw.heytapmobile.com
 0.0.0.0 adx-op-fr.heytapmobile.com
 0.0.0.0 adx-op-in.heytapmobile.com
 0.0.0.0 adx-op-ru.heytapmobile.com
 0.0.0.0 adx-op-sg.heytapmobile.com
+0.0.0.0 adx-u-ru.heytapmobile.com
 0.0.0.0 adx-u-sg.heytapmobile.com
 0.0.0.0 adx.ads.oppomobile.com
 0.0.0.0 adx.tv.mi.com
