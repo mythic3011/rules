@@ -70,10 +70,6 @@ jobs:
           python3 -m py_compile tools/tmp_patch_signed_release_v2.py
           python3 tools/tmp_patch_signed_release_v2.py
 
-          # The temporary generator body is indented one level so that it can
-          # coexist with an embedded shell heredoc. Remove exactly that outer
-          # level from generated Python source, leaving relative indentation
-          # and shell-string contents unchanged.
           python3 - <<'PY'
           from pathlib import Path
           path = Path('tests/test_openclash_guard_release_state.py')
@@ -86,6 +82,8 @@ jobs:
         run: make generate
 
       - name: Run focused release trust regressions
+        env:
+          PYTHONPATH: internal/python
         run: |
           python3 -m unittest tests.test_openclash_guard_release_trust -v
           python3 -m unittest tests.test_openclash_guard_release_state -v
