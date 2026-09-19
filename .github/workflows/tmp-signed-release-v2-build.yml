@@ -73,20 +73,16 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          # Normalize the one outer indentation level used only by the temporary
-          # generator around the embedded shell snippets.
           test = Path('tests/test_openclash_guard_release_state.py')
           lines = test.read_text().splitlines(keepends=True)
           test.write_text(''.join(line[4:] if line.startswith('    ') else line for line in lines))
 
-          # Refresh can legitimately bootstrap policy/templates before the Guard
-          # binary has been installed into GUARD_PREFIX (the existing test harness
-          # exercises exactly this). Advance authenticated anti-rollback state in
-          # that case, but leave installedBundleSha256 empty. An explicit install
-          # later records the actual installed binary hash; never substitute the
-          # remote bundle hash for bytes that are not installed locally.
           dist = Path('shell/lib/distribution.sh')
           text = dist.read_text()
+
+          # A signed policy/templates refresh can happen before the Guard binary
+          # is installed. Record exactly the local bytes that exist; never pretend
+          # the remote bundle hash is an installed local bundle hash.
           old = '''    [ -s "$_guard_drs_bundle" ] && [ -s "$_guard_drs_policy" ] && [ -s "$_guard_drs_templates" ] || return 1
               _guard_drs_bundle_sha=$(file_sha256 "$_guard_drs_bundle" 2>/dev/null) || return 1
               _guard_drs_policy_sha=$(file_sha256 "$_guard_drs_policy" 2>/dev/null) || return 1
@@ -108,7 +104,43 @@ jobs:
           '''
           if old not in text:
               raise SystemExit('release receipt local hash anchor not found')
-          dist.write_text(text.replace(old, new, 1))
+          text = text.replace(old, new, 1)
+
+          # Keep the security property that an authenticated refresh must persist
+          # anti-rollback state. For portable/test roots with an explicit policy
+          # path and no GUARD_PREFIX, keep that receipt next to the policy instead
+          # of trying to mutate the host /etc. Production defaults still use the
+          # catalog-owned /etc/openclash-guard/release-state path.
+          old_path = '''_guard_distribution_release_state_path() {
+              if [ -n "${GUARD_RELEASE_STATE_FILE:-}" ]; then
+                  printf '%s\\n' "$GUARD_RELEASE_STATE_FILE"
+              else
+                  printf '%s%s\\n' "${GUARD_PREFIX:-}" "$_GUARD_DISTRIBUTION_RELEASE_STATE"
+              fi
+          }
+          '''
+          new_path = '''_guard_distribution_release_state_path() {
+              if [ -n "${GUARD_RELEASE_STATE_FILE:-}" ]; then
+                  printf '%s\\n' "$GUARD_RELEASE_STATE_FILE"
+                  return 0
+              fi
+              if [ -n "${GUARD_PREFIX:-}" ]; then
+                  printf '%s%s\\n' "$GUARD_PREFIX" "$_GUARD_DISTRIBUTION_RELEASE_STATE"
+                  return 0
+              fi
+              case ${GUARD_POLICY_FILE:-} in
+                  ''|/etc/openclash-guard/openclash-guard.json) ;;
+                  *)
+                      printf '%s/release-state\\n' "$(dirname "$GUARD_POLICY_FILE")"
+                      return 0
+                      ;;
+              esac
+              printf '%s\\n' "$_GUARD_DISTRIBUTION_RELEASE_STATE"
+          }
+          '''
+          if old_path not in text:
+              raise SystemExit('release state path anchor not found')
+          dist.write_text(text.replace(old_path, new_path, 1))
           PY
           python3 -m py_compile tests/test_openclash_guard_release_state.py
 
