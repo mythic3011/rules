@@ -46,14 +46,12 @@ jobs:
         run: python3 internal/python/tmp_patch_signed_release.py
 
       - name: Run focused release trust regressions
-        run: |
-          python3 -m unittest tests.test_openclash_guard_release_trust -v
-          PYTHONPATH=internal/python python3 -m unittest tests.test_distribution_manifest -v
+        run: python3 -m unittest tests.test_openclash_guard_release_trust -v
 
       - name: Generate deterministic outputs
         run: make generate
 
-      - name: Re-run focused tests after generation
+      - name: Run generated projection regressions
         run: |
           python3 -m unittest tests.test_openclash_guard_release_trust -v
           PYTHONPATH=internal/python python3 -m unittest tests.test_distribution_manifest -v
