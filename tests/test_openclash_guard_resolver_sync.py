@@ -64,9 +64,9 @@ if args[:3] == ["-a", "list", "chain"] and len(args) == 6:
     print("table inet openclash_guard {")
     print("\tchain forward {")
     if mode != "missing-v4-consumer":
-        print('''\t\tip daddr @resolver_sync_v4 reject comment "openclash-guard:resolver-sync-v4" # handle 10''')
+        print('\t\tip daddr @resolver_sync_v4 reject comment "openclash-guard:resolver-sync-v4" # handle 10')
     if mode != "missing-v6-consumer":
-        print('''\t\tip6 daddr @resolver_sync_v6 reject comment "openclash-guard:resolver-sync-v6" # handle 11''')
+        print('\t\tip6 daddr @resolver_sync_v6 reject comment "openclash-guard:resolver-sync-v6" # handle 11')
     print("\t}")
     print("}")
     sys.exit(0)
