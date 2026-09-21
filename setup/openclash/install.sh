@@ -185,23 +185,39 @@ verify_release() {
   }
 }
 
-
 check_release_state() {
   metadata=$1
   state=${OPENCLASH_GUARD_RELEASE_STATE:-$SOURCE_GUARD_RELEASE_STATE}
   [ -f "$state" ] || return 0
+  key=${OPENCLASH_GUARD_TRUSTED_KEY:-$SOURCE_GUARD_TRUSTED_KEY}
   remote_sequence=$(jsonfilter -i "$metadata" -e '@.sequence' 2>/dev/null || true)
   remote_revision=$(jsonfilter -i "$metadata" -e '@.revision' 2>/dev/null || true)
+  remote_bundle_sha=$(jsonfilter -i "$metadata" -e '@.artifacts.guardBundle.sha256' 2>/dev/null || true)
+  remote_bundle_sha=$(valid_sha256 "$remote_bundle_sha" 2>/dev/null) || {
+    echo "invalid signed release bundle hash" >&2
+    return 1
+  }
+  remote_fingerprint=$(usign -F -p "$key" 2>/dev/null | head -n 1) || remote_fingerprint=
   stored_sequence=$(sed -n 's/^highestSequence=//p' "$state" | head -n 1)
   stored_revision=$(sed -n 's/^highestRevision=//p' "$state" | head -n 1)
+  stored_bundle_sha=$(sed -n 's/^remoteBundleSha256=//p' "$state" | head -n 1)
+  stored_fingerprint=$(sed -n 's/^signerFingerprint=//p' "$state" | head -n 1)
   case "$remote_sequence:$stored_sequence" in
     *[!0-9:]*|:*|*:) echo "invalid local or remote release sequence" >&2; return 1 ;;
   esac
+  [ -n "$remote_revision" ] && [ -n "$remote_fingerprint" ] || {
+    echo "invalid signed release identity" >&2
+    return 1
+  }
   if [ "$remote_sequence" -lt "$stored_sequence" ]; then
     echo "refusing signed release rollback: $remote_sequence < $stored_sequence" >&2
     return 1
   fi
-  if [ "$remote_sequence" -eq "$stored_sequence" ] && [ "$remote_revision" != "$stored_revision" ]; then
+  if [ "$remote_sequence" -eq "$stored_sequence" ] && {
+       [ "$remote_revision" != "$stored_revision" ] ||
+       [ "$remote_bundle_sha" != "$stored_bundle_sha" ] ||
+       [ "$remote_fingerprint" != "$stored_fingerprint" ];
+     }; then
     echo "refusing signed release equivocation at sequence $remote_sequence" >&2
     return 1
   fi
