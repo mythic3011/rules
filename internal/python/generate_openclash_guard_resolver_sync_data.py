@@ -83,7 +83,10 @@ def parse_source(path: Path = SOURCE) -> tuple[tuple[str, str, str], list[tuple[
 
 
 def shell_single(value: str) -> str:
-    if "'" in value or "\n" in value or "\r" in value:
+    # POSIX shell permits literal newlines inside a single-quoted string.  The
+    # source parser already tokenizes every selector/exclusion field, so the
+    # only character that can terminate the generated literal is a single quote.
+    if "'" in value or "\r" in value:
         raise RuntimeError("generated shell data contains unsafe quoting characters")
     return f"'{value}'"
 
