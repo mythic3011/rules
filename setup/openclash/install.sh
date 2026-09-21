@@ -211,31 +211,50 @@ URL="$(source_url "${SOURCES%% *}")"
 if [ "$INSTALL" -eq 1 ] && [ "$PROFILE_MODE" -eq 1 ]; then
   TARGET="/etc/openclash/config/mythic3011-${PROFILE}.yaml"
 elif [ "$INSTALL" -eq 1 ]; then
-  TARGET="/usr/bin/openclash-guard"
+  TARGET=${OPENCLASH_GUARD_BIN:-/usr/bin/openclash-guard}
 fi
 if [ -z "$TARGET" ]; then
   printf '%s\n' "$URL"
   exit 0
 fi
 
-mkdir -p "$(dirname "$TARGET")"
-TMP="${TARGET}.tmp.$$"
-trap 'rm -f "$TMP" "$TMP.release" "$TMP.release.sig"' EXIT INT TERM
+TARGET_DIR=$(dirname "$TARGET")
+mkdir -p "$TARGET_DIR"
+TMP=$(mktemp "${TARGET}.tmp.XXXXXX") || {
+  echo "unable to allocate secure temporary file beside target: $TARGET" >&2
+  exit 1
+}
+TMP_RELEASE=$(mktemp "${TARGET}.release.XXXXXX") || {
+  rm -f "$TMP"
+  echo "unable to allocate secure release metadata temporary file" >&2
+  exit 1
+}
+TMP_RELEASE_SIG=$(mktemp "${TARGET}.release.sig.XXXXXX") || {
+  rm -f "$TMP" "$TMP_RELEASE"
+  echo "unable to allocate secure release signature temporary file" >&2
+  exit 1
+}
+ROLLBACK=""
+cleanup() {
+  rm -f "$TMP" "$TMP_RELEASE" "$TMP_RELEASE_SIG"
+  [ -z "$ROLLBACK" ] || rm -f "$ROLLBACK"
+}
+trap cleanup EXIT INT TERM
 
 downloaded=0
 for source in $SOURCES; do
   URL="$(source_url "$source")"
   if [ "$PROFILE_MODE" -eq 0 ]; then
     base="$(base_for "$source")"
-    if ! fetch_url "$base/$SOURCE_GUARD_RELEASE" "$TMP.release" || \
-       ! fetch_url "$base/$SOURCE_GUARD_RELEASE_SIG" "$TMP.release.sig" || \
-       ! verify_release "$TMP.release" "$TMP.release.sig" || \
-       ! check_release_state "$TMP.release"; then
+    if ! fetch_url "$base/$SOURCE_GUARD_RELEASE" "$TMP_RELEASE" || \
+       ! fetch_url "$base/$SOURCE_GUARD_RELEASE_SIG" "$TMP_RELEASE_SIG" || \
+       ! verify_release "$TMP_RELEASE" "$TMP_RELEASE_SIG" || \
+       ! check_release_state "$TMP_RELEASE"; then
       continue
     fi
-    release_path=$(jsonfilter -i "$TMP.release" -e '@.artifacts.guardBundle.path' 2>/dev/null || true)
+    release_path=$(jsonfilter -i "$TMP_RELEASE" -e '@.artifacts.guardBundle.path' 2>/dev/null || true)
     [ "$release_path" = "$SOURCE_GUARD_PATH" ] || continue
-    expected_sha=$(jsonfilter -i "$TMP.release" -e '@.artifacts.guardBundle.sha256' 2>/dev/null || true)
+    expected_sha=$(jsonfilter -i "$TMP_RELEASE" -e '@.artifacts.guardBundle.sha256' 2>/dev/null || true)
     expected_sha=$(valid_sha256 "$expected_sha" 2>/dev/null) || continue
   fi
 
@@ -258,18 +277,55 @@ if [ "$downloaded" -ne 1 ]; then
   exit 1
 fi
 
-if [ -s "$TARGET" ]; then
-  cp -p "$TARGET" "${TARGET}.bak"
+HAD_TARGET=0
+if [ -e "$TARGET" ]; then
+  ROLLBACK=$(mktemp "${TARGET}.rollback.XXXXXX") || {
+    echo "unable to allocate rollback copy beside target: $TARGET" >&2
+    exit 1
+  }
+  cp -p "$TARGET" "$ROLLBACK" || {
+    echo "unable to preserve existing target before publish: $TARGET" >&2
+    exit 1
+  }
+  HAD_TARGET=1
 fi
-mv "$TMP" "$TARGET"
-trap - EXIT INT TERM
+
+if [ "$PROFILE_MODE" -eq 0 ]; then
+  chmod 0755 "$TMP" || {
+    echo "unable to mark verified Guard bundle executable" >&2
+    exit 1
+  }
+fi
+mv "$TMP" "$TARGET" || {
+  echo "unable to atomically publish verified download: $TARGET" >&2
+  exit 1
+}
 printf 'Downloaded %s -> %s\n' "$PROFILE" "$TARGET"
+
 if [ "$INSTALL" -eq 1 ] && [ "$PROFILE_MODE" -eq 0 ]; then
+  install_rc=0
   if [ "$ASSUME_YES" -eq 1 ]; then
-    "$TARGET" install --yes
+    "$TARGET" install --yes || install_rc=$?
   else
-    "$TARGET" install
+    "$TARGET" install || install_rc=$?
+  fi
+  if [ "$install_rc" -ne 0 ]; then
+    if [ "$HAD_TARGET" -eq 1 ]; then
+      mv "$ROLLBACK" "$TARGET" || {
+        echo "Guard install failed and rollback restore also failed: $TARGET" >&2
+        exit 1
+      }
+      ROLLBACK=""
+    else
+      rm -f "$TARGET"
+    fi
+    echo "Guard install failed; restored the previous target" >&2
+    exit "$install_rc"
   fi
 elif [ "$INSTALL" -eq 1 ]; then
   printf 'Next: select %s in OpenClash, validate it, then activate it.\n' "$TARGET"
 fi
+
+[ -z "$ROLLBACK" ] || rm -f "$ROLLBACK"
+ROLLBACK=""
+trap - EXIT INT TERM
