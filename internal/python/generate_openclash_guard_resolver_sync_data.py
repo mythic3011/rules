@@ -12,7 +12,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "internal/config/openclash-guard/resolver-sync.rules"
-OUTPUT = ROOT / "shell/generated/openclash-guard-resolver-sync-data.sh"
+OUTPUT = ROOT / "internal/generated/ai-routing/openclash-guard-resolver-sync-data.sh"
 HEADER = "# openclash-guard-resolver-sync-rules/v1"
 ID = re.compile(r"^[a-z][a-z0-9-]*$")
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
