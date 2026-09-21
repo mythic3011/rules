@@ -86,6 +86,27 @@ guard_kill_delete_table() {
     fi
 }
 
+_guard_kill_render_resolver_sync_sets() {
+    [ "${_GUARD_DNS_BACKEND:-}" = adguardhome ] || return 0
+    printf 'add set %s %s %s { type ipv4_addr; flags timeout; comment "%s"; }\n' \
+        "$_GUARD_RESOLVER_SYNC_FAMILY" "$_GUARD_RESOLVER_SYNC_TABLE" "$_GUARD_RESOLVER_SYNC_V4_SET" \
+        "$_GUARD_RESOLVER_SYNC_V4_SET_COMMENT"
+    printf 'add set %s %s %s { type ipv6_addr; flags timeout; comment "%s"; }\n' \
+        "$_GUARD_RESOLVER_SYNC_FAMILY" "$_GUARD_RESOLVER_SYNC_TABLE" "$_GUARD_RESOLVER_SYNC_V6_SET" \
+        "$_GUARD_RESOLVER_SYNC_V6_SET_COMMENT"
+}
+
+_guard_kill_render_resolver_sync_rules() {
+    [ "${_GUARD_DNS_BACKEND:-}" = adguardhome ] || return 0
+    _guard_krrs_iface=$(_guard_resolver_sync_direct_iface 2>/dev/null) || return 0
+    printf 'add rule %s %s %s oifname "%s" ip daddr @%s reject comment "%s"\n' \
+        "$_GUARD_RESOLVER_SYNC_FAMILY" "$_GUARD_RESOLVER_SYNC_TABLE" "$_GUARD_RESOLVER_SYNC_CHAIN" \
+        "$_guard_krrs_iface" "$_GUARD_RESOLVER_SYNC_V4_SET" "$_GUARD_RESOLVER_SYNC_V4_RULE_COMMENT"
+    printf 'add rule %s %s %s oifname "%s" ip6 daddr @%s reject comment "%s"\n' \
+        "$_GUARD_RESOLVER_SYNC_FAMILY" "$_GUARD_RESOLVER_SYNC_TABLE" "$_GUARD_RESOLVER_SYNC_CHAIN" \
+        "$_guard_krrs_iface" "$_GUARD_RESOLVER_SYNC_V6_SET" "$_GUARD_RESOLVER_SYNC_V6_RULE_COMMENT"
+}
+
 # Base order: local accepts and protected-port rejects. Scoped direct exceptions
 # are appended by their feature modules before guard_kill_render_final() emits
 # the OpenClash tunnel capability and, only for an infrastructure-wide failure,
@@ -113,6 +134,7 @@ guard_kill_render() {
     fi
     # shellcheck disable=SC2086
     _guard_kill_add_elements protected_udp $_guard_ku_ports
+    _guard_kill_render_resolver_sync_sets
 
     printf 'add chain %s %s input { type filter hook input priority -150; policy accept; }\n' \
         "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE"
@@ -130,6 +152,10 @@ guard_kill_render() {
     _guard_kill_add_rule forward 'udp dport { 67, 68 } accept' dhcp
     _guard_kill_add_rule forward 'ip daddr @lan_rfc1918 accept' lan-dst
     _guard_kill_add_rule forward 'udp dport @protected_udp reject' protected-udp
+    # Resolver-derived direct-WAN rejects precede all scoped direct exceptions
+    # rendered by feature modules, so a protected destination cannot be allowed
+    # out directly merely because another policy also matches it.
+    _guard_kill_render_resolver_sync_rules
 }
 
 _guard_kill_valid_iface() {
