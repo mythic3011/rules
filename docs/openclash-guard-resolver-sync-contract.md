@@ -85,4 +85,6 @@ It must not create or flush tables, add/delete sets or rules, restart DNS/OpenCl
 
 The separate resolver-sync implementation must provide the producer side of this contract with structured parsing, strict IPv4/IPv6 validation, TTL/bounded-timeout expiry, atomic nft updates, AdGuard Home restart recovery, OpenClash-independent lifecycle handling, direct-path-only consumers, and fail-closed health reporting.
 
+The live producer also owns domain-coverage semantics. A healthy process and correctly-shaped nft objects are insufficient if the producer cannot prove that it is synchronizing the intended protected-domain inventory. Shared third-party hosts and path-scoped dependencies must not be broadened into global destination-IP rejects merely to make the backend appear healthy.
+
 Until that implementation is deployed and all consumer evidence verifies, `dns.domainSetBackend` remains `unavailable`.
