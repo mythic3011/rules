@@ -88,7 +88,8 @@ guard_kill_delete_table() {
 
 # Base order: local accepts and protected-port rejects. Scoped direct exceptions
 # are appended by their feature modules before guard_kill_render_final() emits
-# the OpenClash tunnel capability and the global fail-closed rule.
+# the OpenClash tunnel capability and, only for an infrastructure-wide failure,
+# the global fail-closed rule.
 guard_kill_render() {
     if [ "${_GUARD_NFT_TABLE_EXISTS:-0}" = 1 ]; then
         printf 'flush table %s %s\n' "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE"
@@ -227,7 +228,7 @@ guard_kill_render_tunnel_egress() {
 }
 
 guard_kill_render_final() {
-    if [ "$_GUARD_POLICY_ENFORCEMENT" = reject ]; then
+    if [ "${_GUARD_POLICY_GLOBAL_FAILCLOSED:-0}" = 1 ]; then
         guard_kill_render_tunnel_egress
         _guard_kill_add_rule forward reject kill-switch
     fi
