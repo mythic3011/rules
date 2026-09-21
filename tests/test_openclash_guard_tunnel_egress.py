@@ -28,6 +28,7 @@ set -eu
 _GUARD_OC_HEALTHY=1
 _GUARD_NFT_AVAILABLE=1
 _GUARD_POLICY_ENFORCEMENT=reject
+_GUARD_POLICY_GLOBAL_FAILCLOSED=1
 _GUARD_NFT_FAMILY=inet
 _GUARD_NFT_TABLE=openclash_guard
 _GUARD_NFT_PREFIX=openclash-guard
@@ -132,6 +133,22 @@ guard_kill_render_final
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         self.assertIn('meta mark 0x162 oifname "tun0" accept', result.stdout)
 
+    def test_policy_reject_without_global_failclosed_does_not_block_forwarding(self) -> None:
+        script = self.base_script(
+            """table inet fw4 {
+    chain openclash_mangle {
+        meta l4proto udp meta mark set 0x162
+    }
+}"""
+        ).replace(
+            "_GUARD_POLICY_GLOBAL_FAILCLOSED=1\n",
+            "_GUARD_POLICY_GLOBAL_FAILCLOSED=0\n",
+        )
+        result = self.run_shell(script)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertNotIn("tunnel-egress", result.stdout)
+        self.assertNotIn("kill-switch", result.stdout)
+
     def test_unhealthy_openclash_never_probes_nft(self) -> None:
         script = f'''\\
 set -eu
@@ -140,6 +157,7 @@ set -eu
 _GUARD_OC_HEALTHY=0
 _GUARD_NFT_AVAILABLE=1
 _GUARD_POLICY_ENFORCEMENT=reject
+_GUARD_POLICY_GLOBAL_FAILCLOSED=1
 _GUARD_NFT_FAMILY=inet
 _GUARD_NFT_TABLE=openclash_guard
 _GUARD_NFT_PREFIX=openclash-guard
