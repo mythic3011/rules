@@ -1,4 +1,4 @@
-name: PR69 inspect merge with main
+name: PR69 merge main and regenerate
 
 on:
   push:
@@ -8,10 +8,10 @@ on:
       - '.github/workflows/pr69-merge-main.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  inspect:
+  merge:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout PR branch
@@ -20,21 +20,55 @@ jobs:
           ref: hardening/openclash-guard-signed-release
           fetch-depth: 0
 
-      - name: Inspect merge conflicts
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9
+
+      - name: Install Python dependencies
+        run: uv pip install --system -r requirements-dev.txt
+
+      - name: Merge main and regenerate deterministic outputs
         shell: bash
         run: |
-          set -uo pipefail
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git fetch origin main
-          if git merge --no-commit --no-ff origin/main; then
-            echo 'MERGE_CLEAN=1'
-            git status --short
-            exit 0
+
+          set +e
+          git merge --no-commit --no-ff origin/main
+          merge_rc=$?
+          set -e
+
+          if [ "$merge_rc" -ne 0 ]; then
+            mapfile -t conflicts < <(git diff --name-only --diff-filter=U)
+            printf 'Merge conflicts: %s\n' "${conflicts[*]}"
+            expected=(dist/manifest.json dist/openclash-guard.sha256)
+            if [ "${#conflicts[@]}" -ne "${#expected[@]}" ]; then
+              echo "Unexpected merge conflict set; refusing automatic resolution." >&2
+              exit 1
+            fi
+            for i in "${!expected[@]}"; do
+              if [ "${conflicts[$i]}" != "${expected[$i]}" ]; then
+                echo "Unexpected merge conflict: ${conflicts[$i]}" >&2
+                exit 1
+              fi
+            done
+            git checkout --ours -- dist/manifest.json dist/openclash-guard.sha256
+            git add dist/manifest.json dist/openclash-guard.sha256
           fi
-          echo 'MERGE_CLEAN=0'
-          echo 'Conflicted files:'
-          git diff --name-only --diff-filter=U
-          echo 'Status:'
+
+          make generate
+          python3 internal/python/validate_generated_profiles.py
+          python3 tools/shbundle.py check
+          /bin/sh -n dist/openclash-guard.sh
+
+          rm -f .github/workflows/pr69-merge-main.yml
+          git add -A
           git status --short
-          exit 1
+          git commit -m "merge: sync main into signed-release hardening"
+          git push origin HEAD:hardening/openclash-guard-signed-release
