@@ -12,8 +12,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 LIB_JSON = ROOT / "shell" / "lib" / "json.sh"
 LIB_NFT = ROOT / "shell" / "lib" / "nft.sh"
+RESOLVER_DATA = ROOT / "internal" / "generated" / "ai-routing" / "openclash-guard-resolver-sync-data.sh"
 RESOLVER_SYNC = ROOT / "shell" / "apps" / "openclash-guard" / "resolver-sync.sh"
 DNS = ROOT / "shell" / "apps" / "openclash-guard" / "dns.sh"
+SOURCE_REVISION = "d07cac190c33e7914ba7adaf7e7c14298fba7024"
 
 FAKE_NFT = r'''#!/usr/bin/env python3
 import os
@@ -114,6 +116,7 @@ class ResolverSyncCapabilityTests(unittest.TestCase):
             "status": "ready",
             "pid": os.getpid(),
             "updatedAtEpoch": 950,
+            "sourceRevision": SOURCE_REVISION,
             "nft": {
                 "family": "inet",
                 "table": "openclash_guard",
@@ -133,6 +136,7 @@ class ResolverSyncCapabilityTests(unittest.TestCase):
                 "set -eu",
                 f'. "{LIB_JSON}"',
                 f'. "{LIB_NFT}"',
+                f'. "{RESOLVER_DATA}"',
                 f'. "{RESOLVER_SYNC}"',
                 f'. "{DNS}"',
                 body,
@@ -157,6 +161,11 @@ class ResolverSyncCapabilityTests(unittest.TestCase):
     def test_valid_fresh_contract_is_promoted(self) -> None:
         self.write_state()
         self.assertEqual(self.backend(), "adguardhome-resolver-sync")
+
+    def test_selector_revision_mismatch_is_rejected_before_nft_lookup(self) -> None:
+        self.write_state(sourceRevision="0" * 40)
+        self.assertEqual(self.backend(), "unavailable")
+        self.assertFalse(self.nft_log.exists())
 
     def test_wrong_backend_is_rejected_before_nft_lookup(self) -> None:
         self.write_state(backend="evil-backend")
