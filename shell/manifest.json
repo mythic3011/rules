@@ -99,7 +99,11 @@
     },
     "distribution": {
       "path": "shell/lib/distribution.sh",
-      "depends": []
+      "depends": [
+        "file",
+        "fetch",
+        "json"
+      ]
     },
     "guard-dns": {
       "path": "shell/apps/openclash-guard/dns.sh",

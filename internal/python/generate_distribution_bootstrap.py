@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Embed canonical distribution sources into the public bootstrap installer."""
+"""Embed canonical distribution sources and authenticated install guidance."""
 from __future__ import annotations
 
 import json
@@ -38,8 +38,14 @@ def main() -> None:
     artifact_manifest = guard_app["manifest"]
     artifact_checksum = guard_app["checksum"]
     artifacts = {item["role"]: item["path"] for item in document["artifacts"]}
+    bootstrap_installer = artifacts["bootstrap-installer"]
     runtime_policy = artifacts["runtime-policy"]
     runtime_templates = artifacts["runtime-templates"]
+    release_metadata = document["releaseMetadataPath"]
+    release_signature = document["releaseSignaturePath"]
+    trusted_key = document["trustedKeyPath"]
+    release_state = document["releaseStatePath"]
+
     lines = [BEGIN]
     for source_id, variable in (("cdn", "SOURCE_CDN_BASE"), ("raw", "SOURCE_GITHUB_RAW_BASE")):
         source = sources[source_id]
@@ -51,9 +57,14 @@ def main() -> None:
         f'SOURCE_GUARD_PATH="{artifact}"',
         f'SOURCE_GUARD_MANIFEST="{artifact_manifest}"',
         f'SOURCE_GUARD_CHECKSUM="{artifact_checksum}"',
+        f'SOURCE_GUARD_RELEASE="{release_metadata}"',
+        f'SOURCE_GUARD_RELEASE_SIG="{release_signature}"',
+        f'SOURCE_GUARD_TRUSTED_KEY="{trusted_key}"',
+        f'SOURCE_GUARD_RELEASE_STATE="{release_state}"',
     ])
     lines.append(END)
     replace_block(INSTALLER, BEGIN, END, lines)
+
     shell_lines = [SHELL_BEGIN]
     for source_id, variable in (("raw", "_GUARD_DISTRIBUTION_RAW_BASE"), ("cdn", "_GUARD_DISTRIBUTION_CDN_BASE")):
         source = sources[source_id]
@@ -64,65 +75,102 @@ def main() -> None:
             f'_GUARD_DISTRIBUTION_ARTIFACT="{artifact}"',
             f'_GUARD_DISTRIBUTION_MANIFEST="{artifact_manifest}"',
             f'_GUARD_DISTRIBUTION_CHECKSUM="{artifact_checksum}"',
+            f'_GUARD_DISTRIBUTION_BOOTSTRAP="{bootstrap_installer}"',
             f'_GUARD_DISTRIBUTION_POLICY="{runtime_policy}"',
             f'_GUARD_DISTRIBUTION_TEMPLATES="{runtime_templates}"',
+            f'_GUARD_DISTRIBUTION_RELEASE="{release_metadata}"',
+            f'_GUARD_DISTRIBUTION_RELEASE_SIG="{release_signature}"',
+            f'_GUARD_DISTRIBUTION_TRUSTED_KEY="{trusted_key}"',
+            f'_GUARD_DISTRIBUTION_RELEASE_STATE="{release_state}"',
         )
     )
     shell_lines.append(SHELL_END)
     replace_block(SHELL_CATALOG, SHELL_BEGIN, SHELL_END, shell_lines)
 
-    alias = document["bootstrapAlias"]
     raw_url = sources["raw"]["baseUrl"].format(
         repository=document["repository"], version=document["defaultRef"]
     )
     cdn_url = sources["cdn"]["baseUrl"].format(
         repository=document["repository"], version=document["defaultRef"]
     )
-    replace_block(
-        README,
+
+    quick = [
         README_BEGIN,
+        "OpenClash Guard deliberately does **not** support remote pipe-to-shell installation or automatic upgrades. Provision the trusted release public key out-of-band first, then authenticate signed release metadata before executing any downloaded bytes.",
+        "",
+        "```sh",
+        "work=/tmp/openclash-guard-install",
+        "rm -rf \"$work\" && mkdir -p \"$work\" && cd \"$work\"",
+        f"curl -fSLo release.json {raw_url}/{release_metadata}",
+        f"curl -fSLo release.json.sig {raw_url}/{release_signature}",
+        f"usign -V -q -m release.json -p {trusted_key} -x release.json.sig",
+        "bundle_sha=$(jsonfilter -i release.json -e '@.artifacts.guardBundle.sha256')",
+        f"curl -fSLo openclash-guard.sh {raw_url}/{artifact}",
+        "printf '%s  %s\\n' \"$bundle_sha\" openclash-guard.sh | sha256sum -c -",
+        "/bin/sh -n openclash-guard.sh",
+        "/bin/sh ./openclash-guard.sh",
+        "```",
+        "",
+        "A checksum fetched beside an artifact is not a trust anchor. The `usign` signature authenticates the metadata that contains the SHA-256 values; the SHA-256 then authenticates the downloaded artifact, following the same trust-chain shape used by OpenWrt package metadata and APT repository metadata.",
         README_END,
-        [
-            README_BEGIN,
-            "```sh",
-            f"curl -fsSL {alias} | sh",
-            "```",
-            "",
-            "Opens the interactive OpenClash Guard menu, auto-detects the router environment, and guides first-time setup. See the [OpenClash Guard guide](docs/openclash-guard.md) for direct-source fallback and headless use.",
-            README_END,
-        ],
-    )
-    replace_block(
-        GUARD_DOC,
+    ]
+    replace_block(README, README_BEGIN, README_END, quick)
+
+    doc = [
         DOC_BEGIN,
+        "OpenClash Guard never auto-upgrades and the version checker never downloads or executes a new bundle. Network distribution is trusted only through signed release metadata.",
+        "",
+        "### Trust anchor",
+        "",
+        f"Provision the trusted `usign` public key at `{trusted_key}` through a channel independent of the mirror/CDN being checked. Fetching the key from the same unauthenticated channel and immediately trusting it does not protect against MITM.",
+        "",
+        "### Authenticated first install",
+        "",
+        "Download metadata and signature first, authenticate them, then verify the bundle hash before local execution:",
+        "",
+        "```sh",
+        "work=/tmp/openclash-guard-install",
+        "rm -rf \"$work\" && mkdir -p \"$work\" && cd \"$work\"",
+        f"curl -fSLo release.json {raw_url}/{release_metadata}",
+        f"curl -fSLo release.json.sig {raw_url}/{release_signature}",
+        f"usign -V -q -m release.json -p {trusted_key} -x release.json.sig",
+        "bundle_sha=$(jsonfilter -i release.json -e '@.artifacts.guardBundle.sha256')",
+        f"curl -fSLo openclash-guard.sh {raw_url}/{artifact}",
+        "printf '%s  %s\\n' \"$bundle_sha\" openclash-guard.sh | sha256sum -c -",
+        "/bin/sh -n openclash-guard.sh",
+        "/bin/sh ./openclash-guard.sh",
+        "```",
+        "",
+        "The CDN may be substituted for the raw source without changing the trust decision because the authenticated metadata, not the transport endpoint, supplies the trusted hash:",
+        "",
+        "```text",
+        f"{cdn_url}/{release_metadata}",
+        f"{cdn_url}/{release_signature}",
+        f"{cdn_url}/{artifact}",
+        "```",
+        "",
+        "### Read-only version check",
+        "",
+        "```sh",
+        "openclash-guard version-check",
+        "openclash-guard --json version-check",
+        "```",
+        "",
+        "This reads the local bundle hash, fetches only small signed release metadata plus its detached signature, verifies the local trust anchor, enforces the locally recorded highest release sequence, and compares hashes. It never installs, reconciles, refreshes, or executes fetched bytes.",
+        "",
+        "After the first authenticated install/refresh, a lower signed release sequence is rejected as rollback and reuse of the same sequence with different signed content is rejected as equivocation. First use cannot prove freshness without an independent trusted time/state source; the trust anchor still prevents a network attacker from forging metadata.",
+        "",
+        "### Local integrity receipt",
+        "",
+        "```sh",
+        "openclash-guard integrity-check",
+        "openclash-guard --json integrity-check",
+        "```",
+        "",
+        "This is network-free and compares the installed bundle, runtime policy, and template catalog against the hashes recorded after the last successful authenticated install/refresh. It detects local byte changes since that explicit operation but does not claim protection against a compromised local root account.",
         DOC_END,
-        [
-            DOC_BEGIN,
-            "Use the stable human-facing bootstrap alias:",
-            "",
-            "```sh",
-            f"curl -fsSL {alias} | sh",
-            "```",
-            "",
-            "With no arguments and a controlling terminal, the generated guard opens its interactive menu and reads input from `/dev/tty`. The alias is only an onboarding redirect; runtime refresh does not depend on it.",
-            "",
-            "### Direct Sources / Fallback",
-            "",
-            "Raw GitHub and CDN commands are generated from the canonical distribution catalog:",
-            "",
-            "```sh",
-            f"curl -fsSL {raw_url}/{artifact} | sh",
-            f"curl -fsSL {cdn_url}/{artifact} | sh",
-            "```",
-            "",
-            "For a one-shot headless command:",
-            "",
-            "```sh",
-            f"curl -fsSL {alias} | sh -s -- status",
-            "```",
-            DOC_END,
-        ],
-    )
+    ]
+    replace_block(GUARD_DOC, DOC_BEGIN, DOC_END, doc)
 
 
 if __name__ == "__main__":

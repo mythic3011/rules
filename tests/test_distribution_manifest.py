@@ -22,7 +22,11 @@ class DistributionManifestTest(unittest.TestCase):
         catalog = load_distribution(AI_DISTRIBUTION_PATH)
         readme = (root / "README.md").read_text(encoding="utf-8")
         guide = (root / "docs/openclash-guard.md").read_text(encoding="utf-8")
-        self.assertIn(f"curl -fsSL {catalog.bootstrap_alias} | sh", readme)
+        self.assertNotRegex(readme, r"curl[^\n|]*\|\s*(?:/bin/)?sh(?:\s|$)")
+        self.assertNotRegex(guide, r"curl[^\n|]*\|\s*(?:/bin/)?sh(?:\s|$)")
+        self.assertIn(catalog.release_metadata_path, readme)
+        self.assertIn(catalog.release_signature_path, readme)
+        self.assertIn(catalog.trusted_key_path, readme)
         for source in catalog.channels:
             if source.type in {"github-raw", "cdn"} and source.version_source == "ref" and source.immutable_revision_support:
                 self.assertIn(
@@ -32,7 +36,7 @@ class DistributionManifestTest(unittest.TestCase):
 
     def test_catalog_exposes_required_guard_artifact_roles(self) -> None:
         catalog = load_distribution(AI_DISTRIBUTION_PATH)
-        for role in ("guard-bundle", "guard-manifest", "guard-checksum", "runtime-policy"):
+        for role in ("guard-bundle", "guard-manifest", "guard-checksum", "bootstrap-installer", "runtime-policy", "runtime-templates"):
             self.assertTrue(catalog.artifact(role).path)
 
     def test_publication_validator_accepts_checked_in_generated_guard(self) -> None:
@@ -96,13 +100,18 @@ class DistributionManifestTest(unittest.TestCase):
         self.assertEqual(first, second)
         value = json.loads(first)
         paths = [item["path"] for item in value["artifacts"]]
-        self.assertIn(load_distribution(AI_DISTRIBUTION_PATH).manifest_path, paths)
+        catalog = load_distribution(AI_DISTRIBUTION_PATH)
+        self.assertIn(catalog.manifest_path, paths)
+        self.assertIn(catalog.release_metadata_path, paths)
+        self.assertGreaterEqual(catalog.release_sequence, 1)
         self.assertTrue(any(path.startswith("rule/") for path in paths))
 
     def test_managed_git_pathspecs_cover_dynamic_companions_and_stale_ai_outputs(self) -> None:
         specs = managed_git_pathspecs()
         self.assertTrue(any(spec.startswith(":(glob)rule/") for spec in specs))
-        self.assertIn(load_distribution(AI_DISTRIBUTION_PATH).manifest_path, specs)
+        catalog = load_distribution(AI_DISTRIBUTION_PATH)
+        self.assertIn(catalog.manifest_path, specs)
+        self.assertIn(catalog.release_metadata_path, specs)
         self.assertIn("README.md", specs)
         self.assertIn("docs/openclash-guard.md", specs)
         self.assertEqual(len(specs), len(set(specs)))

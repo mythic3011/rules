@@ -95,6 +95,10 @@ guard_preflight_stage_distribution() {
             rm -f "$_guard_ps_policy"
             return 1
         }
+        if ! guard_distribution_fetch_release "$_guard_ps_item" "$_guard_ps_base"; then
+            rm -f "$_guard_ps_policy" "$_guard_ps_templates"
+            continue
+        fi
         _guard_ps_policy_url=$(_guard_distribution_policy_url "$_guard_ps_item" "$_guard_ps_base") || {
             rm -f "$_guard_ps_policy" "$_guard_ps_templates"
             continue
@@ -104,9 +108,11 @@ guard_preflight_stage_distribution() {
             continue
         }
         _guard_ps_ok=1
-        fetch_http "$_guard_ps_policy_url" "$_guard_ps_policy" || _guard_ps_ok=0
+        fetch_http "$_guard_ps_policy_url" "$_guard_ps_policy" "" 1 2097152 || _guard_ps_ok=0
+        [ "$_guard_ps_ok" = 1 ] && guard_distribution_verify_hash "$_guard_ps_policy" "$_GUARD_RELEASE_POLICY_SHA256" || _guard_ps_ok=0
         [ "$_guard_ps_ok" = 1 ] && guard_policy_validate_file "$_guard_ps_policy" || _guard_ps_ok=0
-        [ "$_guard_ps_ok" = 1 ] && fetch_http "$_guard_ps_templates_url" "$_guard_ps_templates" || _guard_ps_ok=0
+        [ "$_guard_ps_ok" = 1 ] && fetch_http "$_guard_ps_templates_url" "$_guard_ps_templates" "" 1 4194304 || _guard_ps_ok=0
+        [ "$_guard_ps_ok" = 1 ] && guard_distribution_verify_hash "$_guard_ps_templates" "$_GUARD_RELEASE_TEMPLATES_SHA256" || _guard_ps_ok=0
         [ "$_guard_ps_ok" = 1 ] && guard_template_validate_file "$_guard_ps_templates" || _guard_ps_ok=0
         if [ "$_guard_ps_ok" = 1 ]; then
             _GUARD_PREFLIGHT_POLICY_FILE=$_guard_ps_policy
@@ -120,7 +126,7 @@ guard_preflight_stage_distribution() {
         fi
         rm -f "$_guard_ps_policy" "$_guard_ps_templates"
     done
-    _GUARD_PREFLIGHT_SOURCE_REASON="no distribution source supplied a valid policy and template catalog"
+    _GUARD_PREFLIGHT_SOURCE_REASON="no distribution source supplied authenticated policy and template bytes"
     return 1
 }
 
