@@ -30,6 +30,42 @@ _guard_resolver_sync_uint() {
     esac
 }
 
+_guard_resolver_sync_valid_iface() {
+    case ${1:-} in
+        ''|*[!A-Za-z0-9_.:@-]*) return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
+_guard_resolver_sync_direct_iface() {
+    _guard_rs_di_iface=${GUARD_DIRECT_WAN_IFACE:-}
+    if [ -z "$_guard_rs_di_iface" ] && command -v ubus >/dev/null 2>&1 && command -v jsonfilter >/dev/null 2>&1; then
+        _guard_rs_di_status=$(ubus call network.interface.wan status 2>/dev/null) || _guard_rs_di_status=
+        if [ -n "$_guard_rs_di_status" ]; then
+            _guard_rs_di_iface=$(jsonfilter -s "$_guard_rs_di_status" -e '@.l3_device' 2>/dev/null) || _guard_rs_di_iface=
+        fi
+    fi
+    if [ -z "$_guard_rs_di_iface" ] && command -v uci >/dev/null 2>&1; then
+        _guard_rs_di_iface=$(uci -q get network.wan.device 2>/dev/null) || _guard_rs_di_iface=
+        if [ -z "$_guard_rs_di_iface" ]; then
+            _guard_rs_di_iface=$(uci -q get network.wan.ifname 2>/dev/null) || _guard_rs_di_iface=
+            set -- $_guard_rs_di_iface
+            _guard_rs_di_iface=${1:-}
+        fi
+    fi
+    if [ -z "$_guard_rs_di_iface" ] && command -v ip >/dev/null 2>&1; then
+        _guard_rs_di_iface=$(ip -4 route show default 2>/dev/null | awk '
+            $1 == "default" {
+                for (i = 1; i <= NF; i++) {
+                    if ($i == "dev" && (i + 1) <= NF) { print $(i + 1); exit }
+                }
+            }
+        ') || _guard_rs_di_iface=
+    fi
+    _guard_resolver_sync_valid_iface "$_guard_rs_di_iface" || return 1
+    printf '%s\n' "$_guard_rs_di_iface"
+}
+
 _guard_resolver_sync_expect() {
     _guard_rs_e_file=$1
     _guard_rs_e_path=$2
@@ -40,6 +76,7 @@ _guard_resolver_sync_expect() {
 
 _guard_resolver_sync_contract_valid() {
     _guard_rs_cv_file=$1
+    _guard_rs_cv_direct=$2
     [ -f "$_guard_rs_cv_file" ] || return 1
     [ ! -L "$_guard_rs_cv_file" ] || return 1
 
@@ -49,12 +86,14 @@ _guard_resolver_sync_contract_valid() {
     _guard_resolver_sync_expect "$_guard_rs_cv_file" status ready || return 1
 
     # The state file describes the contract version, but never supplies nft
-    # command arguments. All identifiers used below are fixed constants.
+    # command arguments. All identifiers used below are fixed constants and the
+    # direct interface is independently discovered from the live network state.
     _guard_resolver_sync_expect "$_guard_rs_cv_file" nft.family "$_GUARD_RESOLVER_SYNC_FAMILY" || return 1
     _guard_resolver_sync_expect "$_guard_rs_cv_file" nft.table "$_GUARD_RESOLVER_SYNC_TABLE" || return 1
     _guard_resolver_sync_expect "$_guard_rs_cv_file" nft.chain "$_GUARD_RESOLVER_SYNC_CHAIN" || return 1
     _guard_resolver_sync_expect "$_guard_rs_cv_file" nft.ipv4Set "$_GUARD_RESOLVER_SYNC_V4_SET" || return 1
     _guard_resolver_sync_expect "$_guard_rs_cv_file" nft.ipv6Set "$_GUARD_RESOLVER_SYNC_V6_SET" || return 1
+    _guard_resolver_sync_expect "$_guard_rs_cv_file" nft.directInterface "$_guard_rs_cv_direct" || return 1
     return 0
 }
 
@@ -106,22 +145,27 @@ _guard_resolver_sync_set_ready() {
 }
 
 _guard_resolver_sync_consumer_ready() {
+    _guard_rs_cr_direct=$1
     _guard_rs_cr_listing=$(nft -a list chain \
         "$_GUARD_RESOLVER_SYNC_FAMILY" \
         "$_GUARD_RESOLVER_SYNC_TABLE" \
         "$_GUARD_RESOLVER_SYNC_CHAIN" 2>/dev/null) || return 1
 
     printf '%s\n' "$_guard_rs_cr_listing" | awk \
+        -v direct_iface="$_guard_rs_cr_direct" \
         -v set_name="$_GUARD_RESOLVER_SYNC_V4_SET" \
         -v comment="$_GUARD_RESOLVER_SYNC_V4_RULE_COMMENT" '
+        index($0, "oifname \"" direct_iface "\"") &&
         index($0, "ip daddr @" set_name) && index($0, "reject") &&
         index($0, "comment \"" comment "\"") { found = 1 }
         END { exit !found }
     ' || return 1
 
     printf '%s\n' "$_guard_rs_cr_listing" | awk \
+        -v direct_iface="$_guard_rs_cr_direct" \
         -v set_name="$_GUARD_RESOLVER_SYNC_V6_SET" \
         -v comment="$_GUARD_RESOLVER_SYNC_V6_RULE_COMMENT" '
+        index($0, "oifname \"" direct_iface "\"") &&
         index($0, "ip6 daddr @" set_name) && index($0, "reject") &&
         index($0, "comment \"" comment "\"") { found = 1 }
         END { exit !found }
@@ -131,14 +175,15 @@ _guard_resolver_sync_consumer_ready() {
 guard_resolver_sync_ready() {
     _guard_rs_r_file=$(_guard_resolver_sync_state_path)
     command -v nft >/dev/null 2>&1 || return 1
-    _guard_resolver_sync_contract_valid "$_guard_rs_r_file" || return 1
+    _guard_rs_r_direct=$(_guard_resolver_sync_direct_iface 2>/dev/null) || return 1
+    _guard_resolver_sync_contract_valid "$_guard_rs_r_file" "$_guard_rs_r_direct" || return 1
     _guard_resolver_sync_process_alive "$_guard_rs_r_file" || return 1
     _guard_resolver_sync_fresh "$_guard_rs_r_file" || return 1
     _guard_resolver_sync_set_ready \
         "$_GUARD_RESOLVER_SYNC_V4_SET" ipv4_addr "$_GUARD_RESOLVER_SYNC_V4_SET_COMMENT" || return 1
     _guard_resolver_sync_set_ready \
         "$_GUARD_RESOLVER_SYNC_V6_SET" ipv6_addr "$_GUARD_RESOLVER_SYNC_V6_SET_COMMENT" || return 1
-    _guard_resolver_sync_consumer_ready || return 1
+    _guard_resolver_sync_consumer_ready "$_guard_rs_r_direct" || return 1
     return 0
 }
 
