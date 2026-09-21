@@ -27,9 +27,19 @@ class AiProfileWorkflowTests(unittest.TestCase):
         self.assertEqual(commit["if"], "github.event_name == 'push' || github.event_name == 'schedule'")
 
         validation_steps = validation["steps"]
-        self.assertTrue(any(step["name"] == "Validate AI routing manifests" for step in validation_steps))
         self.assertTrue(any(step["name"] == "Generate repository outputs" for step in validation_steps))
-        self.assertTrue(any(step["name"] == "Reject generated output drift in pull requests" for step in validation_steps))
+        self.assertTrue(any(step["name"] == "Validate generated outputs" for step in validation_steps))
+        self.assertTrue(
+            any(step["name"] == "Validate source tree and generated contracts" for step in validation_steps)
+        )
+        self.assertTrue(
+            any(step["name"] == "Reject generated output drift in pull requests" for step in validation_steps)
+        )
+
+        drift_gate = next(
+            step for step in validation_steps if step["name"] == "Reject generated output drift in pull requests"
+        )
+        self.assertEqual(drift_gate["if"], "github.event_name == 'pull_request'")
 
         commit_steps = commit["steps"]
         self.assertTrue(any(step["name"] == "Regenerate repository outputs" for step in commit_steps))
@@ -45,27 +55,43 @@ class AiProfileWorkflowTests(unittest.TestCase):
         self.assertIn('git push origin "HEAD:${TARGET_REF}"', commit_run)
         self.assertNotIn("--force", commit_run)
 
-    def test_scheduled_refresh_exports_shadow_before_routing_validation(self) -> None:
+    def test_scheduled_refresh_generates_before_validating_and_pr_drift_gate(self) -> None:
         workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
         steps = workflow["jobs"]["validate-ai-profiles"]["steps"]
 
+        names = [step["name"] for step in steps]
         refresh_name = "Refresh shared upstream source lock on schedule"
-        validate_name = "Validate AI routing manifests"
-        refresh_index = next((index for index, step in enumerate(steps) if step["name"] == refresh_name), -1)
-        validate_index = next((index for index, step in enumerate(steps) if step["name"] == validate_name), -1)
-        self.assertGreaterEqual(refresh_index, 0)
-        self.assertGreaterEqual(validate_index, 0)
-        self.assertLess(refresh_index, validate_index)
+        generate_name = "Generate repository outputs"
+        validate_generated_name = "Validate generated outputs"
+        check_name = "Validate source tree and generated contracts"
+        drift_gate_name = "Reject generated output drift in pull requests"
+
+        for name in (refresh_name, generate_name, validate_generated_name, check_name, drift_gate_name):
+            self.assertIn(name, names)
+
+        refresh_index = names.index(refresh_name)
+        generate_index = names.index(generate_name)
+        validate_generated_index = names.index(validate_generated_name)
+        check_index = names.index(check_name)
+        drift_gate_index = names.index(drift_gate_name)
+
+        self.assertLess(refresh_index, generate_index)
+        self.assertLess(generate_index, validate_generated_index)
+        self.assertLess(validate_generated_index, check_index)
+        self.assertLess(check_index, drift_gate_index)
 
         refresh_step = steps[refresh_index]
         self.assertEqual(refresh_step["if"], "github.event_name == 'schedule'")
         refresh_run = refresh_step["run"]
         self.assertNotIn("npm run export:", refresh_run)
-        generation_index = next(
-            index for index, step in enumerate(steps) if step["name"] == "Generate repository outputs"
+
+        self.assertEqual(steps[generate_index]["run"], "make generate")
+        self.assertEqual(
+            steps[validate_generated_index]["run"],
+            "python3 internal/python/validate_generated_profiles.py",
         )
-        self.assertGreater(generation_index, refresh_index)
-        self.assertEqual(steps[generation_index]["run"], "make generate")
+        self.assertEqual(steps[check_index]["run"], "make check-all")
+        self.assertEqual(steps[drift_gate_index]["if"], "github.event_name == 'pull_request'")
 
 
 if __name__ == "__main__":
