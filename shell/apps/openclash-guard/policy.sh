@@ -10,6 +10,7 @@ _GUARD_NFT_PREFIX=openclash-guard
 _GUARD_POLICY_REVISION=
 _GUARD_POLICY_STATE=disabled
 _GUARD_POLICY_ENFORCEMENT=reject
+_GUARD_POLICY_GLOBAL_FAILCLOSED=0
 _GUARD_POLICY_STATE_REASON=
 _GUARD_POLICY_DEGRADED_COMPONENTS=
 
@@ -56,7 +57,7 @@ guard_policy_validate_file() {
     fi
     for _guard_pv_key in nft.family nft.table nft.commentPrefix
     do
-        _guard_pv_val=$(json_get "$_guard_pv_file" "$_guard_pv_key") || _guard_pv_val=
+        _guard_pv_val=$(json_get "$_GUARD_POLICY_FILE" "$_guard_pv_key") || _guard_pv_val=
         if [ -z "$_guard_pv_val" ]; then
             printf '%s\n' "guard_policy: missing $_guard_pv_key" >&2
             return 1
@@ -74,11 +75,11 @@ guard_policy_validate_file() {
     for _guard_pv_class in $_guard_pv_classes
     do
         [ -n "$_guard_pv_class" ] || continue
-        _guard_pv_da=$(json_get "$_guard_pv_file" "protectionClasses.${_guard_pv_class}.directAllowed") || _guard_pv_da=
-        _guard_pv_dr=$(json_get "$_guard_pv_file" "protectionClasses.${_guard_pv_class}.directRequiresSupportedRegion" 2>/dev/null) || _guard_pv_dr=false
-        _guard_pv_fm=$(json_get "$_guard_pv_file" "protectionClasses.${_guard_pv_class}.failMode") || _guard_pv_fm=
-        _guard_pv_quic=$(json_get "$_guard_pv_file" "protectionClasses.${_guard_pv_class}.quic") || _guard_pv_quic=
-        _guard_pv_ks=$(json_get "$_guard_pv_file" "protectionClasses.${_guard_pv_class}.firewallKillSwitch") || _guard_pv_ks=
+        _guard_pv_da=$(json_get "$_GUARD_POLICY_FILE" "protectionClasses.${_guard_pv_class}.directAllowed") || _guard_pv_da=
+        _guard_pv_dr=$(json_get "$_GUARD_POLICY_FILE" "protectionClasses.${_guard_pv_class}.directRequiresSupportedRegion" 2>/dev/null) || _guard_pv_dr=false
+        _guard_pv_fm=$(json_get "$_GUARD_POLICY_FILE" "protectionClasses.${_guard_pv_class}.failMode") || _guard_pv_fm=
+        _guard_pv_quic=$(json_get "$_GUARD_POLICY_FILE" "protectionClasses.${_guard_pv_class}.quic") || _guard_pv_quic=
+        _guard_pv_ks=$(json_get "$_GUARD_POLICY_FILE" "protectionClasses.${_guard_pv_class}.firewallKillSwitch") || _guard_pv_ks=
         if ! _guard_policy_is_bool "$_guard_pv_da"; then
             printf '%s\n' "guard_policy: invalid directAllowed on $_guard_pv_class" >&2
             return 1
@@ -108,16 +109,16 @@ guard_policy_validate_file() {
             return 1
         fi
     done
-    _guard_pv_svcs=$(json_keys "$_guard_pv_file" services)
+    _guard_pv_svcs=$(json_keys "$_GUARD_POLICY_FILE" services)
     for _guard_pv_svc in $_guard_pv_svcs
     do
         [ -n "$_guard_pv_svc" ] || continue
-        _guard_pv_cls=$(json_get "$_guard_pv_file" "services.${_guard_pv_svc}.protectionClass") || _guard_pv_cls=
+        _guard_pv_cls=$(json_get "$_GUARD_POLICY_FILE" "services.${_guard_pv_svc}.protectionClass") || _guard_pv_cls=
         if [ -z "$_guard_pv_cls" ]; then
             printf '%s\n' "guard_policy: service $_guard_pv_svc missing protectionClass" >&2
             return 1
         fi
-        if ! json_has "$_guard_pv_file" "protectionClasses.${_guard_pv_cls}"; then
+        if ! json_has "$_GUARD_POLICY_FILE" "protectionClasses.${_guard_pv_cls}"; then
             printf '%s\n' "guard_policy: service $_guard_pv_svc references unknown class $_guard_pv_cls" >&2
             return 1
         fi
@@ -194,6 +195,7 @@ _guard_policy_mark_degraded() {
 guard_policy_refresh_state() {
     _GUARD_POLICY_STATE=ok
     _GUARD_POLICY_ENFORCEMENT=allow-proxy
+    _GUARD_POLICY_GLOBAL_FAILCLOSED=0
     _GUARD_POLICY_STATE_REASON=
     _GUARD_POLICY_DEGRADED_COMPONENTS=
     if [ "${_GUARD_UCI_ENABLED:-1}" = 0 ]; then
@@ -207,10 +209,15 @@ guard_policy_refresh_state() {
         _guard_ps_failclosed=1
     fi
     if [ "$_guard_ps_failclosed" = 1 ] && [ "$_GUARD_DNS_DOMAIN_SET" = unavailable ]; then
+        # Keep service policy fail-closed, but do not convert a resolver backend
+        # capability gap into a LAN-wide forwarding outage while OpenClash is healthy.
         _GUARD_POLICY_ENFORCEMENT=reject
         _guard_policy_mark_degraded domain-set-backend-unavailable dns.domainSetBackend
     fi
     if [ "$_GUARD_OC_HEALTHY" != 1 ]; then
+        if [ "${_GUARD_UCI_KILL_SWITCH:-1}" = 1 ]; then
+            _GUARD_POLICY_GLOBAL_FAILCLOSED=1
+        fi
         if [ "${_GUARD_UCI_KILL_SWITCH:-1}" = 1 ] || [ "$_guard_ps_failclosed" = 1 ]; then
             _GUARD_POLICY_ENFORCEMENT=reject
             _guard_policy_mark_degraded openclash-unhealthy openclash.healthy
