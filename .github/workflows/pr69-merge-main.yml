@@ -1,0 +1,38 @@
+name: PR69 inspect merge with main
+
+on:
+  push:
+    branches:
+      - hardening/openclash-guard-signed-release
+    paths:
+      - '.github/workflows/pr69-merge-main.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v6
+        with:
+          ref: hardening/openclash-guard-signed-release
+          fetch-depth: 0
+
+      - name: Inspect merge conflicts
+        shell: bash
+        run: |
+          set -uo pipefail
+          git fetch origin main
+          if git merge --no-commit --no-ff origin/main; then
+            echo 'MERGE_CLEAN=1'
+            git status --short
+            exit 0
+          fi
+          echo 'MERGE_CLEAN=0'
+          echo 'Conflicted files:'
+          git diff --name-only --diff-filter=U
+          echo 'Status:'
+          git status --short
+          exit 1
