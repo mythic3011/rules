@@ -641,23 +641,47 @@ guard_rules_sync_watch() {
         guard_rules_error "sync watch is internal-only; set GUARD_RULES_ALLOW_WATCH=1 explicitly"
         return 2
     }
-    _guard_rules_sw_interval=$(guard_rules_sync_interval) || {
+    _guard_rules_sw_rules_interval=$(guard_rules_sync_interval) || {
         guard_rules_error "GUARD_RULES_SYNC_INTERVAL must be a positive integer"
         return 2
     }
-    trap '_guard_lock_release; exit 0' INT TERM
-    trap _guard_lock_release EXIT
+    _guard_rules_sw_resolver_interval=$(_guard_resolver_sync_interval) || {
+        guard_rules_error "GUARD_RESOLVER_SYNC_INTERVAL must be an integer in 5..300"
+        return 2
+    }
+    _guard_rules_sw_next_rules=0
+    trap 'guard_resolver_sync_stop; _guard_lock_release; exit 0' INT TERM
+    trap 'guard_resolver_sync_stop; _guard_lock_release' EXIT
     while :; do
-        _guard_rules_sw_rc=0
+        _guard_rules_sw_now=$(date +%s 2>/dev/null) || _guard_rules_sw_now=
+        case $_guard_rules_sw_now in
+            ''|*[!0-9]*)
+                guard_rules_error "scheduled watch cannot read a valid epoch clock"
+                sleep "$_guard_rules_sw_resolver_interval" || true
+                continue
+                ;;
+        esac
+        _guard_rules_sw_rules_due=0
+        if [ "$_guard_rules_sw_now" -ge "$_guard_rules_sw_next_rules" ] 2>/dev/null; then
+            _guard_rules_sw_rules_due=1
+        fi
         if _guard_lock_acquire; then
-            guard_rules_sync_run || _guard_rules_sw_rc=$?
+            if [ "$_guard_rules_sw_rules_due" = 1 ]; then
+                _guard_rules_sw_rules_rc=0
+                guard_rules_sync_run || _guard_rules_sw_rules_rc=$?
+                _guard_rules_sw_next_rules=$((_guard_rules_sw_now + _guard_rules_sw_rules_interval))
+                [ "$_guard_rules_sw_rules_rc" -eq 0 ] || \
+                    guard_rules_error "scheduled sync failed; last-good rules remain active"
+            fi
+            _guard_rules_sw_resolver_rc=0
+            guard_resolver_sync_cycle || _guard_rules_sw_resolver_rc=$?
+            [ "$_guard_rules_sw_resolver_rc" -eq 0 ] || \
+                guard_rules_error "resolver sync cycle failed; capability remains fail-closed"
             _guard_lock_release
         else
-            _guard_rules_sw_rc=$?
-            guard_rules_error "scheduled sync could not acquire the Guard lock"
+            guard_rules_error "scheduled watch could not acquire the Guard lock"
         fi
-        [ "$_guard_rules_sw_rc" -eq 0 ] || guard_rules_error "scheduled sync failed; last-good rules remain active"
-        sleep "$_guard_rules_sw_interval" || true
+        sleep "$_guard_rules_sw_resolver_interval" || true
     done
 }
 
