@@ -1,0 +1,37 @@
+name: PR72 regenerate guard bundle
+
+on:
+  push:
+    branches:
+      - fix/openclash-guard-scoped-killswitch
+    paths:
+      - '.github/workflows/pr72-regenerate-guard.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v6
+        with:
+          ref: fix/openclash-guard-scoped-killswitch
+          fetch-depth: 0
+
+      - name: Rebuild OpenClash Guard distribution
+        run: python3 tools/shbundle.py build --all
+
+      - name: Commit generated bundle outputs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add dist/openclash-guard.sh dist/manifest.json dist/openclash-guard.sha256
+          if git diff --cached --quiet; then
+            echo "No guard bundle drift."
+            exit 0
+          fi
+          git diff --cached --stat
+          git commit -m "chore(guard): regenerate distribution bundle"
+          git push origin HEAD:fix/openclash-guard-scoped-killswitch
