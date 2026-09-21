@@ -42,18 +42,54 @@ class AiProfileWorkflowTests(unittest.TestCase):
         self.assertEqual(drift_gate["if"], "github.event_name == 'pull_request'")
 
         commit_steps = commit["steps"]
-        self.assertTrue(any(step["name"] == "Regenerate repository outputs" for step in commit_steps))
-        scheduled_steps = [step for step in commit_steps if "on schedule" in step["name"].lower()]
-        self.assertTrue(scheduled_steps)
-        self.assertTrue(all(step.get("if") == "github.event_name == 'schedule'" for step in scheduled_steps))
-        self.assertTrue(any(step["name"] == "Commit generated changes" for step in commit_steps))
         checkout = next(step for step in commit_steps if step["name"] == "Checkout pushed revision")
         self.assertEqual(checkout["with"]["ref"], "${{ github.sha }}")
         self.assertEqual(commit["env"]["TARGET_REF"], "${{ github.ref }}")
-        commit_run = next(step["run"] for step in commit_steps if step["name"] == "Commit generated changes")
-        self.assertIn("refs/heads/*", commit_run)
-        self.assertIn('git push origin "HEAD:${TARGET_REF}"', commit_run)
-        self.assertNotIn("--force", commit_run)
+
+        writer = next(
+            step
+            for step in commit_steps
+            if step["name"] == "Synchronize, regenerate, validate, and commit managed outputs"
+        )
+        writer_run = writer["run"]
+        self.assertIn("refs/heads/*", writer_run)
+        self.assertIn('git fetch --no-tags origin "$TARGET_REF"', writer_run)
+        self.assertIn("git reset --hard FETCH_HEAD", writer_run)
+        self.assertIn("make generate", writer_run)
+        self.assertIn("python3 internal/python/validate_generated_profiles.py", writer_run)
+        self.assertIn("make check-all", writer_run)
+        self.assertIn("--audit-rule-coverage", writer_run)
+        self.assertIn('git push origin "HEAD:${TARGET_REF}"', writer_run)
+        self.assertIn("max_attempts=3", writer_run)
+        self.assertNotIn("--force", writer_run)
+        self.assertNotIn("--force-with-lease", writer_run)
+
+    def test_trusted_writer_revalidates_latest_target_before_each_push_attempt(self) -> None:
+        workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
+        commit_steps = workflow["jobs"]["commit-managed-python-outputs"]["steps"]
+        writer = next(
+            step
+            for step in commit_steps
+            if step["name"] == "Synchronize, regenerate, validate, and commit managed outputs"
+        )
+        run = writer["run"]
+
+        fetch_index = run.index('git fetch --no-tags origin "$TARGET_REF"')
+        reset_index = run.index("git reset --hard FETCH_HEAD")
+        generate_index = run.index("make generate")
+        validate_index = run.index("python3 internal/python/validate_generated_profiles.py")
+        check_index = run.index("make check-all")
+        commit_index = run.index('git commit -m "chore(generated): refresh managed outputs"')
+        push_index = run.index('git push origin "HEAD:${TARGET_REF}"')
+
+        self.assertLess(fetch_index, reset_index)
+        self.assertLess(reset_index, generate_index)
+        self.assertLess(generate_index, validate_index)
+        self.assertLess(validate_index, check_index)
+        self.assertLess(check_index, commit_index)
+        self.assertLess(commit_index, push_index)
+        self.assertIn("while [ \"$attempt\" -le \"$max_attempts\" ]; do", run)
+        self.assertIn("attempt=$((attempt + 1))", run)
 
     def test_scheduled_refresh_generates_before_validating_and_pr_drift_gate(self) -> None:
         workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
