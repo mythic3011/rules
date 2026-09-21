@@ -80,9 +80,14 @@ guard_dns_domain_set_backend() {
             printf '%s\n' "dnsmasq-nftset"
             ;;
         adguardhome)
-            # resolver-sync is not implemented; do not claim dest-set protection.
-            # See docs/openclash-guard.md "AdGuard Home Domain-Set Backend".
-            printf '%s\n' "unavailable"
+            # Promote AdGuard Home only when a separate structured resolver-sync
+            # helper proves the complete capability contract. Missing, stale, or
+            # contradictory evidence remains fail-closed.
+            if command -v guard_resolver_sync_backend >/dev/null 2>&1; then
+                guard_resolver_sync_backend
+            else
+                printf '%s\n' "unavailable"
+            fi
             ;;
         *)
             printf '%s\n' "unavailable"

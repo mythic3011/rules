@@ -105,11 +105,19 @@
         "json"
       ]
     },
+    "guard-resolver-sync": {
+      "path": "shell/apps/openclash-guard/resolver-sync.sh",
+      "depends": [
+        "json",
+        "nft"
+      ]
+    },
     "guard-dns": {
       "path": "shell/apps/openclash-guard/dns.sh",
       "depends": [
         "service",
-        "env"
+        "env",
+        "guard-resolver-sync"
       ]
     },
     "guard-geo": {
@@ -313,6 +321,7 @@
         "uci",
         "json",
         "distribution",
+        "guard-resolver-sync",
         "guard-environment",
         "guard-policy",
         "guard-dns",
