@@ -144,6 +144,12 @@ _guard_install_check_version
         self.assertIn('mv "$ROLLBACK" "$TARGET"', text)
         self.assertIn('rm -f "$TARGET"', text)
 
+    def test_bootstrap_same_sequence_checks_bundle_and_signer_identity(self) -> None:
+        text = BOOTSTRAP.read_text()
+        self.assertIn("remoteBundleSha256", text)
+        self.assertIn("signerFingerprint", text)
+        self.assertIn('remote_fingerprint=$(usign -F -p "$key"', text)
+
     def test_hash_verification_rejects_tamper(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "artifact"
