@@ -10,6 +10,7 @@ _GUARD_NFT_PREFIX=openclash-guard
 _GUARD_POLICY_REVISION=
 _GUARD_POLICY_STATE=disabled
 _GUARD_POLICY_ENFORCEMENT=reject
+_GUARD_POLICY_GLOBAL_FAILCLOSED=0
 _GUARD_POLICY_STATE_REASON=
 _GUARD_POLICY_DEGRADED_COMPONENTS=
 
@@ -194,6 +195,7 @@ _guard_policy_mark_degraded() {
 guard_policy_refresh_state() {
     _GUARD_POLICY_STATE=ok
     _GUARD_POLICY_ENFORCEMENT=allow-proxy
+    _GUARD_POLICY_GLOBAL_FAILCLOSED=0
     _GUARD_POLICY_STATE_REASON=
     _GUARD_POLICY_DEGRADED_COMPONENTS=
     if [ "${_GUARD_UCI_ENABLED:-1}" = 0 ]; then
@@ -207,10 +209,15 @@ guard_policy_refresh_state() {
         _guard_ps_failclosed=1
     fi
     if [ "$_guard_ps_failclosed" = 1 ] && [ "$_GUARD_DNS_DOMAIN_SET" = unavailable ]; then
+        # Keep service policy fail-closed, but do not convert a resolver backend
+        # capability gap into a LAN-wide forwarding outage while OpenClash is healthy.
         _GUARD_POLICY_ENFORCEMENT=reject
         _guard_policy_mark_degraded domain-set-backend-unavailable dns.domainSetBackend
     fi
     if [ "$_GUARD_OC_HEALTHY" != 1 ]; then
+        if [ "${_GUARD_UCI_KILL_SWITCH:-1}" = 1 ]; then
+            _GUARD_POLICY_GLOBAL_FAILCLOSED=1
+        fi
         if [ "${_GUARD_UCI_KILL_SWITCH:-1}" = 1 ] || [ "$_guard_ps_failclosed" = 1 ]; then
             _GUARD_POLICY_ENFORCEMENT=reject
             _guard_policy_mark_degraded openclash-unhealthy openclash.healthy
