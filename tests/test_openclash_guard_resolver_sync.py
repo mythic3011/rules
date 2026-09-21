@@ -63,10 +63,11 @@ if args[:3] == ["-a", "list", "chain"] and len(args) == 6:
         sys.exit(1)
     print("table inet openclash_guard {")
     print("\tchain forward {")
+    iface = "lan0" if mode == "wrong-direct-iface" else "wan"
     if mode != "missing-v4-consumer":
-        print('\t\tip daddr @resolver_sync_v4 reject comment "openclash-guard:resolver-sync-v4" # handle 10')
+        print(f'\t\toifname "{iface}" ip daddr @resolver_sync_v4 reject comment "openclash-guard:resolver-sync-v4" # handle 10')
     if mode != "missing-v6-consumer":
-        print('\t\tip6 daddr @resolver_sync_v6 reject comment "openclash-guard:resolver-sync-v6" # handle 11')
+        print(f'\t\toifname "{iface}" ip6 daddr @resolver_sync_v6 reject comment "openclash-guard:resolver-sync-v6" # handle 11')
     print("\t}")
     print("}")
     sys.exit(0)
@@ -98,6 +99,7 @@ class ResolverSyncCapabilityTests(unittest.TestCase):
                 "GUARD_RESOLVER_SYNC_STATE_FILE": str(self.state),
                 "GUARD_RESOLVER_SYNC_NOW_EPOCH": str(now),
                 "GUARD_RESOLVER_SYNC_MAX_AGE": "120",
+                "GUARD_DIRECT_WAN_IFACE": "wan",
                 "RESOLVER_SYNC_NFT_MODE": mode,
                 "RESOLVER_SYNC_NFT_LOG": str(self.nft_log),
             }
@@ -118,6 +120,7 @@ class ResolverSyncCapabilityTests(unittest.TestCase):
                 "chain": "forward",
                 "ipv4Set": "resolver_sync_v4",
                 "ipv6Set": "resolver_sync_v6",
+                "directInterface": "wan",
             },
         }
         for key, value in overrides.items():
@@ -168,6 +171,21 @@ class ResolverSyncCapabilityTests(unittest.TestCase):
                 "chain": "forward",
                 "ipv4Set": "resolver_sync_v4",
                 "ipv6Set": "resolver_sync_v6",
+                "directInterface": "wan",
+            }
+        )
+        self.assertEqual(self.backend(), "unavailable")
+        self.assertFalse(self.nft_log.exists())
+
+    def test_state_cannot_redirect_direct_interface(self) -> None:
+        self.write_state(
+            nft={
+                "family": "inet",
+                "table": "openclash_guard",
+                "chain": "forward",
+                "ipv4Set": "resolver_sync_v4",
+                "ipv6Set": "resolver_sync_v6",
+                "directInterface": "lan0",
             }
         )
         self.assertEqual(self.backend(), "unavailable")
@@ -193,6 +211,7 @@ class ResolverSyncCapabilityTests(unittest.TestCase):
         self.write_state()
         self.assertEqual(self.backend(mode="missing-v4-consumer"), "unavailable")
         self.assertEqual(self.backend(mode="missing-v6-consumer"), "unavailable")
+        self.assertEqual(self.backend(mode="wrong-direct-iface"), "unavailable")
 
     def test_dns_backend_keeps_dnsmasq_contract_and_gates_adguardhome(self) -> None:
         dnsmasq = self.run_shell("guard_dns_domain_set_backend dnsmasq")
