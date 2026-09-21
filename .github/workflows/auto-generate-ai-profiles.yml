@@ -162,48 +162,62 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
 
-      - name: Install Python dependencies
-        run: uv pip install --system -r requirements-dev.txt
-
       - name: Set up Node
         uses: actions/setup-node@v6
         with:
           node-version: "24"
           cache: npm
 
-      - name: Install Node dependencies
-        run: npm ci
-
-      - name: Refresh shared upstream source lock on schedule
-        if: github.event_name == 'schedule'
-        run: python3 internal/python/generate_ai_profiles.py --refresh-upstream-sources
-
-      - name: Refresh upstream AI host snapshot on schedule
-        if: github.event_name == 'schedule'
-        run: python3 internal/python/generate_ai_profiles.py --refresh-upstream-hosts
-
-      - name: Regenerate repository outputs
-        run: make generate
-
-      - name: Test profile service solver
-        run: npm run test:profile-service
-
-      - name: Audit generated upstream ownership
-        run: python3 internal/python/generate_ai_profiles.py --audit-rule-coverage
-
-      - name: Commit generated changes
+      - name: Synchronize, regenerate, validate, and commit managed outputs
+        shell: bash
         run: |
+          set -euo pipefail
           case "$TARGET_REF" in
             refs/heads/*) ;;
             *) echo "Refusing to push a non-branch ref: $TARGET_REF" >&2; exit 1 ;;
           esac
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          mapfile -t managed_paths < <(./rulesctl managed-paths)
-          git add -A -- "${managed_paths[@]}"
-          if ! git diff --cached --quiet; then
-            git commit -m "chore(ai): auto generate AI profiles"
-            git push origin "HEAD:${TARGET_REF}"
-          else
-            echo "No generated changes."
-          fi
+
+          max_attempts=3
+          attempt=1
+          while [ "$attempt" -le "$max_attempts" ]; do
+            echo "Managed-output transaction attempt $attempt/$max_attempts"
+            git fetch --no-tags origin "$TARGET_REF"
+            git reset --hard FETCH_HEAD
+            git clean -fd
+
+            # The target branch may have advanced after the validation job. Install
+            # dependencies from the exact revision that this writer is about to test.
+            uv pip install --system -r requirements-dev.txt
+            npm ci
+
+            if [ "${{ github.event_name }}" = schedule ]; then
+              python3 internal/python/generate_ai_profiles.py --refresh-upstream-sources
+              python3 internal/python/generate_ai_profiles.py --refresh-upstream-hosts
+            fi
+
+            make generate
+            python3 internal/python/validate_generated_profiles.py
+            make check-all
+            python3 internal/python/generate_ai_profiles.py --audit-rule-coverage
+
+            mapfile -t managed_paths < <(./rulesctl managed-paths)
+            git add -A -- "${managed_paths[@]}"
+            if git diff --cached --quiet; then
+              echo "No generated changes."
+              exit 0
+            fi
+
+            git commit -m "chore(generated): refresh managed outputs"
+            if git push origin "HEAD:${TARGET_REF}"; then
+              exit 0
+            fi
+
+            echo "Target branch advanced during generation; retrying from its latest tip." >&2
+            attempt=$((attempt + 1))
+          done
+
+          echo "Managed-output writer could not obtain a fresh fast-forward after $max_attempts attempts." >&2
+          exit 1
