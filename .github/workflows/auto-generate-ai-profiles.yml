@@ -6,17 +6,21 @@ on:
       - "internal/python/generate_profile_service_runtime.py"
       - "internal/python/generate_openclash_guard_release.py"
       - "internal/python/generate_openclash_guard_runtime.py"
+      - "internal/python/generate_openclash_guard_resolver_sync_rules.py"
       - "apps/profile-service/**"
       - "internal/python/ai_profiles/**"
       - "internal/python/local_profile_compose.py"
       - "internal/python/validate_generated_profiles.py"
       - "internal/typescript/routing/**"
       - "internal/config/ai-routing/**"
+      - "internal/config/openclash-guard/**"
       - "internal/templates/ai-routing/**"
       - "internal/generated/ai-routing/**"
       - "internal/examples/ai-routing/**"
       - "setup/openclash/install.sh"
+      - "setup/openclash/openclash-guard-resolver-sync"
       - "setup/openclash/scripts/ai-routing-controller.sh"
+      - "cfg/runtime/openclash-guard-resolver-sync.rules"
       - "shell/**"
       - "dist/openclash-guard.release.json"
       - "tests/routing/**"
@@ -37,17 +41,21 @@ on:
       - "internal/python/generate_profile_service_runtime.py"
       - "internal/python/generate_openclash_guard_release.py"
       - "internal/python/generate_openclash_guard_runtime.py"
+      - "internal/python/generate_openclash_guard_resolver_sync_rules.py"
       - "apps/profile-service/**"
       - "internal/python/ai_profiles/**"
       - "internal/python/local_profile_compose.py"
       - "internal/python/validate_generated_profiles.py"
       - "internal/typescript/routing/**"
       - "internal/config/ai-routing/**"
+      - "internal/config/openclash-guard/**"
       - "internal/templates/ai-routing/**"
       - "internal/generated/ai-routing/**"
       - "internal/examples/ai-routing/**"
       - "setup/openclash/install.sh"
+      - "setup/openclash/openclash-guard-resolver-sync"
       - "setup/openclash/scripts/ai-routing-controller.sh"
+      - "cfg/runtime/openclash-guard-resolver-sync.rules"
       - "shell/**"
       - "dist/openclash-guard.release.json"
       - "tests/routing/**"
@@ -89,15 +97,15 @@ jobs:
           python-version: "3.x"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        uses: astral-sh/setup-uv@v7
 
       - name: Install Python dependencies
-        run: uv pip install --system -r requirements-dev.txt
+        run: uv sync --frozen
 
       - name: Set up Node
         uses: actions/setup-node@v6
         with:
-          node-version: "24"
+          node-version-file: ".nvmrc"
           cache: npm
 
       - name: Install Node dependencies
@@ -105,26 +113,24 @@ jobs:
 
       - name: Refresh shared upstream source lock on schedule
         if: github.event_name == 'schedule'
-        run: python3 internal/python/generate_ai_profiles.py --refresh-upstream-sources
+        run: uv run python internal/python/generate_ai_profiles.py --refresh-upstream-sources
 
       - name: Refresh upstream AI host snapshot on schedule
         if: github.event_name == 'schedule'
-        run: python3 internal/python/generate_ai_profiles.py --refresh-upstream-hosts
+        run: uv run python internal/python/generate_ai_profiles.py --refresh-upstream-hosts
 
-      # Repair deterministic outputs in the workspace before checks that require
-      # generated files to be current. Trusted push/schedule runs commit the repair
-      # in the write-capable job below; PR runs remain read-only.
       - name: Generate repository outputs
         run: make generate
 
       - name: Validate generated outputs
-        run: python3 internal/python/validate_generated_profiles.py
+        run: uv run python internal/python/validate_generated_profiles.py
 
       - name: Validate source tree and generated contracts
         run: make check-all
 
       - name: Reject generated output drift in pull requests
         if: github.event_name == 'pull_request'
+        shell: bash
         run: |
           mapfile -t managed_paths < <(./rulesctl managed-paths)
           managed_status="$(git status --porcelain -- "${managed_paths[@]}")"
@@ -136,8 +142,6 @@ jobs:
           fi
 
   commit-managed-python-outputs:
-    # PR code is validated with a read-only token above. Only trusted push/schedule
-    # events may reach this separate write-capable job.
     if: github.event_name == 'push' || github.event_name == 'schedule'
     needs: validate-ai-profiles
     runs-on: ubuntu-latest
@@ -145,10 +149,9 @@ jobs:
       contents: write
     env:
       PYTHONDONTWRITEBYTECODE: "1"
-      TARGET_REF: ${{ github.ref }}
 
     steps:
-      - name: Checkout pushed revision
+      - name: Checkout repository
         uses: actions/checkout@v6
         with:
           ref: ${{ github.sha }}
@@ -160,15 +163,15 @@ jobs:
           python-version: "3.x"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        uses: astral-sh/setup-uv@v7
 
       - name: Install Python dependencies
-        run: uv pip install --system -r requirements-dev.txt
+        run: uv sync --frozen
 
       - name: Set up Node
         uses: actions/setup-node@v6
         with:
-          node-version: "24"
+          node-version-file: ".nvmrc"
           cache: npm
 
       - name: Install Node dependencies
@@ -176,34 +179,33 @@ jobs:
 
       - name: Refresh shared upstream source lock on schedule
         if: github.event_name == 'schedule'
-        run: python3 internal/python/generate_ai_profiles.py --refresh-upstream-sources
+        run: uv run python internal/python/generate_ai_profiles.py --refresh-upstream-sources
 
       - name: Refresh upstream AI host snapshot on schedule
         if: github.event_name == 'schedule'
-        run: python3 internal/python/generate_ai_profiles.py --refresh-upstream-hosts
+        run: uv run python internal/python/generate_ai_profiles.py --refresh-upstream-hosts
 
-      - name: Regenerate repository outputs
+      - name: Regenerate managed outputs
         run: make generate
 
-      - name: Test profile service solver
-        run: npm run test:profile-service
+      - name: Validate profile service
+        run: npm test --prefix apps/profile-service
 
-      - name: Audit generated upstream ownership
-        run: python3 internal/python/generate_ai_profiles.py --audit-rule-coverage
+      - name: Audit managed output coverage
+        run: ./rulesctl audit-generated --diff-base HEAD
 
       - name: Commit generated changes
+        shell: bash
+        env:
+          TARGET_REF: ${{ github.ref_name }}
         run: |
-          case "$TARGET_REF" in
-            refs/heads/*) ;;
-            *) echo "Refusing to push a non-branch ref: $TARGET_REF" >&2; exit 1 ;;
-          esac
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
           mapfile -t managed_paths < <(./rulesctl managed-paths)
-          git add -A -- "${managed_paths[@]}"
-          if ! git diff --cached --quiet; then
-            git commit -m "chore(ai): auto generate AI profiles"
-            git push origin "HEAD:${TARGET_REF}"
-          else
-            echo "No generated changes."
+          git add -- "${managed_paths[@]}"
+          if git diff --cached --quiet; then
+            echo "No managed output changes to commit."
+            exit 0
           fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore(ai): auto generate AI profiles"
+          git push origin HEAD:"$TARGET_REF"
