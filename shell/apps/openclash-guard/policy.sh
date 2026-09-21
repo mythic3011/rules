@@ -57,7 +57,7 @@ guard_policy_validate_file() {
     fi
     for _guard_pv_key in nft.family nft.table nft.commentPrefix
     do
-        _guard_pv_val=$(json_get "$_GUARD_POLICY_FILE" "$_guard_pv_key") || _guard_pv_val=
+        _guard_pv_val=$(json_get "$_guard_pv_file" "$_guard_pv_key") || _guard_pv_val=
         if [ -z "$_guard_pv_val" ]; then
             printf '%s\n' "guard_policy: missing $_guard_pv_key" >&2
             return 1
@@ -75,11 +75,11 @@ guard_policy_validate_file() {
     for _guard_pv_class in $_guard_pv_classes
     do
         [ -n "$_guard_pv_class" ] || continue
-        _guard_pv_da=$(json_get "$_GUARD_POLICY_FILE" "protectionClasses.${_guard_pv_class}.directAllowed") || _guard_pv_da=
-        _guard_pv_dr=$(json_get "$_GUARD_POLICY_FILE" "protectionClasses.${_guard_pv_class}.directRequiresSupportedRegion" 2>/dev/null) || _guard_pv_dr=false
-        _guard_pv_fm=$(json_get "$_GUARD_POLICY_FILE" "protectionClasses.${_guard_pv_class}.failMode") || _guard_pv_fm=
-        _guard_pv_quic=$(json_get "$_GUARD_POLICY_FILE" "protectionClasses.${_guard_pv_class}.quic") || _guard_pv_quic=
-        _guard_pv_ks=$(json_get "$_GUARD_POLICY_FILE" "protectionClasses.${_guard_pv_class}.firewallKillSwitch") || _guard_pv_ks=
+        _guard_pv_da=$(json_get "$_guard_pv_file" "protectionClasses.${_guard_pv_class}.directAllowed") || _guard_pv_da=
+        _guard_pv_dr=$(json_get "$_guard_pv_file" "protectionClasses.${_guard_pv_class}.directRequiresSupportedRegion" 2>/dev/null) || _guard_pv_dr=false
+        _guard_pv_fm=$(json_get "$_guard_pv_file" "protectionClasses.${_guard_pv_class}.failMode") || _guard_pv_fm=
+        _guard_pv_quic=$(json_get "$_guard_pv_file" "protectionClasses.${_guard_pv_class}.quic") || _guard_pv_quic=
+        _guard_pv_ks=$(json_get "$_guard_pv_file" "protectionClasses.${_guard_pv_class}.firewallKillSwitch") || _guard_pv_ks=
         if ! _guard_policy_is_bool "$_guard_pv_da"; then
             printf '%s\n' "guard_policy: invalid directAllowed on $_guard_pv_class" >&2
             return 1
@@ -109,16 +109,16 @@ guard_policy_validate_file() {
             return 1
         fi
     done
-    _guard_pv_svcs=$(json_keys "$_GUARD_POLICY_FILE" services)
+    _guard_pv_svcs=$(json_keys "$_guard_pv_file" services)
     for _guard_pv_svc in $_guard_pv_svcs
     do
         [ -n "$_guard_pv_svc" ] || continue
-        _guard_pv_cls=$(json_get "$_GUARD_POLICY_FILE" "services.${_guard_pv_svc}.protectionClass") || _guard_pv_cls=
+        _guard_pv_cls=$(json_get "$_guard_pv_file" "services.${_guard_pv_svc}.protectionClass") || _guard_pv_cls=
         if [ -z "$_guard_pv_cls" ]; then
             printf '%s\n' "guard_policy: service $_guard_pv_svc missing protectionClass" >&2
             return 1
         fi
-        if ! json_has "$_GUARD_POLICY_FILE" "protectionClasses.${_guard_pv_cls}"; then
+        if ! json_has "$_guard_pv_file" "protectionClasses.${_guard_pv_cls}"; then
             printf '%s\n' "guard_policy: service $_guard_pv_svc references unknown class $_guard_pv_cls" >&2
             return 1
         fi
