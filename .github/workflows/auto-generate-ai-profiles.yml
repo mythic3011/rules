@@ -4,6 +4,8 @@ on:
     paths:
       - "internal/python/generate_ai_profiles.py"
       - "internal/python/generate_profile_service_runtime.py"
+      - "internal/python/generate_openclash_guard_release.py"
+      - "internal/python/generate_openclash_guard_runtime.py"
       - "apps/profile-service/**"
       - "internal/python/ai_profiles/**"
       - "internal/python/local_profile_compose.py"
@@ -13,7 +15,10 @@ on:
       - "internal/templates/ai-routing/**"
       - "internal/generated/ai-routing/**"
       - "internal/examples/ai-routing/**"
+      - "setup/openclash/install.sh"
       - "setup/openclash/scripts/ai-routing-controller.sh"
+      - "shell/**"
+      - "dist/openclash-guard.release.json"
       - "tests/routing/**"
       - "tests/fixtures/routing/**"
       - "tests/test_*.py"
@@ -30,6 +35,8 @@ on:
     paths:
       - "internal/python/generate_ai_profiles.py"
       - "internal/python/generate_profile_service_runtime.py"
+      - "internal/python/generate_openclash_guard_release.py"
+      - "internal/python/generate_openclash_guard_runtime.py"
       - "apps/profile-service/**"
       - "internal/python/ai_profiles/**"
       - "internal/python/local_profile_compose.py"
@@ -39,7 +46,10 @@ on:
       - "internal/templates/ai-routing/**"
       - "internal/generated/ai-routing/**"
       - "internal/examples/ai-routing/**"
+      - "setup/openclash/install.sh"
       - "setup/openclash/scripts/ai-routing-controller.sh"
+      - "shell/**"
+      - "dist/openclash-guard.release.json"
       - "tests/routing/**"
       - "tests/fixtures/routing/**"
       - "tests/test_*.py"
@@ -97,9 +107,11 @@ jobs:
         if: github.event_name == 'schedule'
         run: python3 internal/python/generate_ai_profiles.py --refresh-upstream-sources
 
-      - name: Validate AI routing manifests
-        run: |
-          make ci
+      # Source validation must not block the trusted push/schedule repair job merely
+      # because deterministic generated files are stale. PRs remain read-only and
+      # explicitly reject managed drift after generation below.
+      - name: Validate source tree
+        run: make check-all
 
       - name: Refresh upstream AI host snapshot on schedule
         if: github.event_name == 'schedule'
@@ -117,8 +129,9 @@ jobs:
           mapfile -t managed_paths < <(./rulesctl managed-paths)
           managed_status="$(git status --porcelain -- "${managed_paths[@]}")"
           if [ -n "$managed_status" ]; then
-            echo "Generator changed managed AI outputs in this pull request:"
+            echo "Generator changed managed outputs in this pull request:"
             echo "$managed_status"
+            echo "Trusted push/schedule runs repair and commit these outputs automatically."
             exit 1
           fi
 
