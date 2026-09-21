@@ -107,21 +107,21 @@ jobs:
         if: github.event_name == 'schedule'
         run: python3 internal/python/generate_ai_profiles.py --refresh-upstream-sources
 
-      # Source validation must not block the trusted push/schedule repair job merely
-      # because deterministic generated files are stale. PRs remain read-only and
-      # explicitly reject managed drift after generation below.
-      - name: Validate source tree
-        run: make check-all
-
       - name: Refresh upstream AI host snapshot on schedule
         if: github.event_name == 'schedule'
         run: python3 internal/python/generate_ai_profiles.py --refresh-upstream-hosts
 
+      # Repair deterministic outputs in the workspace before checks that require
+      # generated files to be current. Trusted push/schedule runs commit the repair
+      # in the write-capable job below; PR runs remain read-only.
       - name: Generate repository outputs
         run: make generate
 
       - name: Validate generated outputs
         run: python3 internal/python/validate_generated_profiles.py
+
+      - name: Validate source tree and generated contracts
+        run: make check-all
 
       - name: Reject generated output drift in pull requests
         if: github.event_name == 'pull_request'
