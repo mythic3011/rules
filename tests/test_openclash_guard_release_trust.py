@@ -113,12 +113,12 @@ _guard_install_check_version
         lines = BOOTSTRAP.read_text().splitlines()
         verify_idx = next(
             i for i, line in enumerate(lines)
-            if 'verify_release "$TMP.release" "$TMP.release.sig"' in line
+            if 'verify_release "$TMP_RELEASE" "$TMP_RELEASE_SIG"' in line
         )
         self.assertTrue(lines[verify_idx].rstrip().endswith('|| \\'))
         self.assertEqual(
             lines[verify_idx + 1].strip(),
-            '! check_release_state "$TMP.release"; then',
+            '! check_release_state "$TMP_RELEASE"; then',
         )
         result = subprocess.run(
             ["/bin/sh", "-n", str(BOOTSTRAP)],
@@ -128,6 +128,21 @@ _guard_install_check_version
             check=False,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_bootstrap_marks_guard_executable_before_install(self) -> None:
+        text = BOOTSTRAP.read_text()
+        chmod_idx = text.index('chmod 0755 "$TMP"')
+        publish_idx = text.index('mv "$TMP" "$TARGET"')
+        install_idx = text.index('"$TARGET" install --yes')
+        self.assertLess(chmod_idx, publish_idx)
+        self.assertLess(publish_idx, install_idx)
+
+    def test_bootstrap_restores_previous_target_on_install_failure(self) -> None:
+        text = BOOTSTRAP.read_text()
+        self.assertIn('ROLLBACK=$(mktemp "${TARGET}.rollback.XXXXXX")', text)
+        self.assertIn('cp -p "$TARGET" "$ROLLBACK"', text)
+        self.assertIn('mv "$ROLLBACK" "$TARGET"', text)
+        self.assertIn('rm -f "$TARGET"', text)
 
     def test_hash_verification_rejects_tamper(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
