@@ -81,7 +81,7 @@ These fields are independent. Status does not force them to match.
 | --- | --- | --- |
 | `runtime.source` | Current preflight materialization: which policy/template pair this process is validating/using now | `local`, `github-raw`, `jsdelivr`, `override`, `none` |
 | `distribution.selectedSource` | Persisted provenance of the last successful refresh/install from `distribution-state` | `github-raw`, `jsdelivr`, `local`, `override`, `none` |
-| `enforcement` | Resolved fail-closed **policy mode**, not whether nft rules are installed | `reject`, `allow-proxy`, `disabled`, `unavailable` |
+| `enforcement` | Resolved fail-closed **service-policy mode**, not whether a table-wide terminal reject is installed | `reject`, `allow-proxy`, `disabled`, `unavailable` |
 | `firewall.table` | Whether the Guard nft table currently exists | `active`, `absent`, `unavailable` |
 | `rules.activation` | Whether the OpenClash custom-overwrite overlay block is installed | `staged`, `active` |
 
@@ -89,9 +89,13 @@ These fields are independent. Status does not force them to match.
 
 After Apply, `runtime.source: local` with `distribution.selectedSource: github-raw` is expected: the installed files are local, and they were last fetched from GitHub.
 
+The terminal `openclash-guard:kill-switch` forward reject is intentionally narrower than `enforcement: reject`. It is installed only when the global UCI kill switch is enabled and OpenClash itself is unhealthy. Service-policy degradation must not turn OpenClash's intentional kernel bypass paths, such as region/IP bypass, into unrelated LAN-wide outages.
+
 ## AdGuard Home Domain-Set Backend
 
 Guard currently reports `dns.domainSetBackend: unavailable` whenever AdGuard Home owns DNS. That is intentional. Resolver-sync is not implemented, so dest-set protection is not claimed, and fail-closed policy stays `state: degraded` / `enforcement: reject` when protection classes require it.
+
+`enforcement: reject` in this state is service-policy fail-closed state. While OpenClash itself is healthy it does **not** install the table-wide terminal forward reject. This distinction allows ordinary OpenClash-managed or intentionally bypassed traffic to continue while Guard accurately reports that domain-derived destination-set enforcement is unavailable.
 
 Do not treat this degraded state as a display bug.
 
@@ -104,7 +108,7 @@ A correct AdGuard Home backend would need a dedicated resolver-sync helper, not 
 3. **Set ownership:** Guard must create, replace, and delete only its own sets/comments.
 4. **Create/refresh/expire:** insert on a validated resolved answer; refresh on later answers; expire on TTL or an explicit bounded timeout. Permanent entries are forbidden.
 5. **IPv4 and IPv6:** separate sets and validation. Never coerce families.
-6. **AdGuard Home restart:** helper must resubscribe/rebuild from a known-empty or last-good snapshot and keep enforcement fail-closed until sets are functional again.
+6. **AdGuard Home restart:** helper must resubscribe/rebuild from a known-empty or last-good snapshot and keep affected service protection fail-closed until sets are functional again.
 7. **OpenClash restart:** Guard nft table is independent; helper must not assume OpenClash chains still exist.
 8. **Stale DNS results:** TTL/timeout eviction; never leave addresses that outlive the answer that created them.
 9. **Existing AGH mechanism:** AdGuard Home has query-log/API surfaces, not a dnsmasq-equivalent `nftset=` injector. Using the API from POSIX `sh` as the live datapath is unsafe (injection, races, unbounded logs).
