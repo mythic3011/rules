@@ -11,6 +11,8 @@ from ai_profiles.settings import AI_DISTRIBUTION_PATH, ROOT
 
 ROLE_KEYS = {
     "guard-bundle": "guardBundle",
+    "resolver-sync-helper": "resolverSyncHelper",
+    "resolver-sync-rules": "resolverSyncRules",
     "bootstrap-installer": "bootstrapInstaller",
     "runtime-policy": "runtimePolicy",
     "runtime-templates": "runtimeTemplates",
@@ -21,11 +23,7 @@ def artifact_record(path: Path, relative: str) -> dict[str, object]:
     if not path.is_file():
         raise RuntimeError(f"release artifact is missing: {relative}")
     payload = path.read_bytes()
-    return {
-        "path": relative,
-        "sha256": hashlib.sha256(payload).hexdigest(),
-        "size": len(payload),
-    }
+    return {"path": relative, "sha256": hashlib.sha256(payload).hexdigest(), "size": len(payload)}
 
 
 def main() -> None:
@@ -50,11 +48,7 @@ def main() -> None:
     }
     output = ROOT / catalog.release_metadata_path
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(
-        json.dumps(document, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-        newline="\n",
-    )
+    output.write_text(json.dumps(document, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
     print(output.relative_to(ROOT).as_posix())
 
 
