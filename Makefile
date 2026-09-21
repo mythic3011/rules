@@ -35,6 +35,6 @@ generate:
 build:
 	python3 tools/shbundle.py build --all
 ci:
-	./rulesctl ci
+	@./rulesctl ci || { rc=$$?; printf '%s\n' 'generated drift details:' >&2; git status --short >&2; git diff --name-only >&2; exit $$rc; }
 refresh:
 	./rulesctl refresh --yes

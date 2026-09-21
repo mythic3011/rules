@@ -43,45 +43,30 @@ _GUARD_INSTALL_OC_BEGIN='# BEGIN OPENCLASH-GUARD MANAGED'
 _GUARD_INSTALL_OC_END='# END OPENCLASH-GUARD MANAGED'
 _GUARD_INSTALL_VERSION_WARNING='WARNING: NO AUTO-UPGRADE AND NO AUTO-INSTALL. This checker is read-only; it never runs the installer or changes the runtime.'
 
-_guard_install_published_sha() {
-    _guard_ips_source=${1:-auto}
-    case $_guard_ips_source in
-        auto) _guard_ips_sources='github-raw jsdelivr' ;;
-        github-raw|raw|jsdelivr|cdn) _guard_ips_sources=$_guard_ips_source ;;
-        *) return 2 ;;
-    esac
-    for _guard_ips_item in $_guard_ips_sources
-    do
-        _guard_ips_manifest=$(file_mktemp) || return 1
-        _guard_ips_url=$(_guard_distribution_url "$_guard_ips_item" "$_GUARD_DISTRIBUTION_MANIFEST") || {
-            rm -f "$_guard_ips_manifest"
-            continue
-        }
-        _guard_ips_sha=
-        if fetch_http "$_guard_ips_url" "$_guard_ips_manifest"; then
-            _guard_ips_sha=$(sed -n 's/.*"sha256"[[:space:]]*:[[:space:]]*"\([0-9a-fA-F]*\)".*/\1/p' "$_guard_ips_manifest" | head -n 1 | tr 'A-F' 'a-f')
-        fi
-        rm -f "$_guard_ips_manifest"
-        [ "${#_guard_ips_sha}" -eq 64 ] || continue
-        case $_guard_ips_sha in
-            *[!0-9a-f]*) continue ;;
-        esac
-        printf '%s\n' "$_guard_ips_sha"
-        return 0
-    done
-    return 1
-}
-
 _guard_install_check_version() {
     _guard_icv_installed=$(_guard_install_bin)
     _guard_icv_installed_sha=
     _guard_icv_published_sha=
-    _guard_icv_status=unavailable
+    _guard_icv_status=untrusted
+    _guard_icv_signature=untrusted
+    _guard_icv_sequence=
+    _guard_icv_revision=
+    _guard_icv_source=
+    _guard_icv_fingerprint=
+    _guard_icv_trust_state=unrecorded
+    _guard_icv_trust_reason=
+    _guard_icv_key=$(_guard_distribution_trusted_key)
+
     if [ -f "$_guard_icv_installed" ]; then
         _guard_icv_installed_sha=$(file_sha256 "$_guard_icv_installed" 2>/dev/null) || _guard_icv_installed_sha=
     fi
-    _guard_icv_published_sha=$(_guard_install_published_sha auto 2>/dev/null) || _guard_icv_published_sha=
-    if [ -n "$_guard_icv_published_sha" ]; then
+    if guard_distribution_fetch_release auto >/dev/null 2>&1; then
+        _guard_icv_signature=$_GUARD_RELEASE_SIGNATURE_STATE
+        _guard_icv_published_sha=$_GUARD_RELEASE_BUNDLE_SHA256
+        _guard_icv_sequence=$_GUARD_RELEASE_SEQUENCE
+        _guard_icv_revision=$_GUARD_RELEASE_REVISION
+        _guard_icv_source=$_GUARD_RELEASE_SOURCE
+        _guard_icv_fingerprint=$_GUARD_RELEASE_KEY_FINGERPRINT
         if [ -z "$_guard_icv_installed_sha" ]; then
             _guard_icv_status=not-installed
         elif [ "$_guard_icv_installed_sha" = "$_guard_icv_published_sha" ]; then
@@ -90,19 +75,114 @@ _guard_install_check_version() {
             _guard_icv_status=different
         fi
     fi
+    _guard_icv_trust_state=${_GUARD_RELEASE_STATE:-unrecorded}
+    _guard_icv_trust_reason=${_GUARD_RELEASE_STATE_REASON:-}
+
     if [ "${_GUARD_JSON:-0}" = 1 ]; then
-        printf '{"status":"%s","installedSha256":"%s","publishedSha256":"%s","autoUpgrade":false,"autoInstall":false}\n' \
+        printf '{"status":"%s","installedSha256":"%s","publishedSha256":"%s","release":{"signature":"%s","sequence":"%s","revision":"%s","source":"%s","keyFingerprint":"%s","trustedKey":"%s","rollbackState":"%s","rollbackReason":"%s"},"autoUpgrade":false,"autoInstall":false}\n' \
             "$(_guard_env_json_string "$_guard_icv_status")" \
             "$(_guard_env_json_string "$_guard_icv_installed_sha")" \
-            "$(_guard_env_json_string "$_guard_icv_published_sha")"
+            "$(_guard_env_json_string "$_guard_icv_published_sha")" \
+            "$(_guard_env_json_string "$_guard_icv_signature")" \
+            "$(_guard_env_json_string "$_guard_icv_sequence")" \
+            "$(_guard_env_json_string "$_guard_icv_revision")" \
+            "$(_guard_env_json_string "$_guard_icv_source")" \
+            "$(_guard_env_json_string "$_guard_icv_fingerprint")" \
+            "$(_guard_env_json_string "$_guard_icv_key")" \
+            "$(_guard_env_json_string "$_guard_icv_trust_state")" \
+            "$(_guard_env_json_string "$_guard_icv_trust_reason")"
     else
         cli_section "OpenClash Guard version check"
         cli_kv installed.sha256 "${_guard_icv_installed_sha:-not-installed}"
-        cli_kv published.sha256 "${_guard_icv_published_sha:-unavailable}"
+        cli_kv published.sha256 "${_guard_icv_published_sha:-untrusted}"
+        cli_kv release.signature "$_guard_icv_signature"
+        [ -z "$_guard_icv_sequence" ] || cli_kv release.sequence "$_guard_icv_sequence"
+        [ -z "$_guard_icv_revision" ] || cli_kv release.revision "$_guard_icv_revision"
+        [ -z "$_guard_icv_source" ] || cli_kv release.source "$_guard_icv_source"
+        [ -z "$_guard_icv_fingerprint" ] || cli_kv release.keyFingerprint "$_guard_icv_fingerprint"
+        cli_kv release.trustedKey "$_guard_icv_key"
+        cli_kv release.rollbackState "$_guard_icv_trust_state"
+        [ -z "$_guard_icv_trust_reason" ] || cli_kv release.rollbackReason "$_guard_icv_trust_reason"
         cli_kv status "$_guard_icv_status"
         cli_warn "$_GUARD_INSTALL_VERSION_WARNING"
     fi
-    [ "$_guard_icv_status" != unavailable ]
+    [ "$_guard_icv_status" != untrusted ]
+}
+
+
+_guard_install_integrity_check() {
+    _guard_iic_state=$(_guard_distribution_release_state_path)
+    _guard_iic_status=unrecorded
+    _guard_iic_bundle=unrecorded
+    _guard_iic_policy=unrecorded
+    _guard_iic_templates=unrecorded
+    _guard_iic_sequence=
+    _guard_iic_revision=
+    _guard_iic_bundle_actual=
+    _guard_iic_policy_actual=
+    _guard_iic_templates_actual=
+    if [ -f "$_guard_iic_state" ]; then
+        _guard_iic_sequence=$(_guard_distribution_state_get "$_guard_iic_state" highestSequence 2>/dev/null) || _guard_iic_sequence=
+        _guard_iic_revision=$(_guard_distribution_state_get "$_guard_iic_state" highestRevision 2>/dev/null) || _guard_iic_revision=
+        _guard_iic_bundle_expected=$(_guard_distribution_state_get "$_guard_iic_state" installedBundleSha256 2>/dev/null) || _guard_iic_bundle_expected=
+        _guard_iic_policy_expected=$(_guard_distribution_state_get "$_guard_iic_state" installedPolicySha256 2>/dev/null) || _guard_iic_policy_expected=
+        _guard_iic_templates_expected=$(_guard_distribution_state_get "$_guard_iic_state" installedTemplatesSha256 2>/dev/null) || _guard_iic_templates_expected=
+        _guard_iic_bundle_expected=$(_guard_distribution_valid_sha256 "$_guard_iic_bundle_expected" 2>/dev/null) || _guard_iic_bundle_expected=
+        _guard_iic_policy_expected=$(_guard_distribution_valid_sha256 "$_guard_iic_policy_expected" 2>/dev/null) || _guard_iic_policy_expected=
+        _guard_iic_templates_expected=$(_guard_distribution_valid_sha256 "$_guard_iic_templates_expected" 2>/dev/null) || _guard_iic_templates_expected=
+        if [ -n "$_guard_iic_bundle_expected" ] && [ -n "$_guard_iic_policy_expected" ] && [ -n "$_guard_iic_templates_expected" ]; then
+            _guard_iic_bundle_path=$(_guard_install_bin)
+            _guard_iic_policy_path=$(_guard_policy_default_path)
+            _guard_iic_templates_path=$(_guard_template_catalog_path)
+            if [ -s "$_guard_iic_bundle_path" ]; then
+                _guard_iic_bundle_actual=$(file_sha256 "$_guard_iic_bundle_path" 2>/dev/null) || _guard_iic_bundle_actual=
+                [ "$_guard_iic_bundle_actual" = "$_guard_iic_bundle_expected" ] && _guard_iic_bundle=verified || _guard_iic_bundle=modified
+            else
+                _guard_iic_bundle=missing
+            fi
+            if [ -s "$_guard_iic_policy_path" ]; then
+                _guard_iic_policy_actual=$(file_sha256 "$_guard_iic_policy_path" 2>/dev/null) || _guard_iic_policy_actual=
+                [ "$_guard_iic_policy_actual" = "$_guard_iic_policy_expected" ] && _guard_iic_policy=verified || _guard_iic_policy=modified
+            else
+                _guard_iic_policy=missing
+            fi
+            if [ -s "$_guard_iic_templates_path" ]; then
+                _guard_iic_templates_actual=$(file_sha256 "$_guard_iic_templates_path" 2>/dev/null) || _guard_iic_templates_actual=
+                [ "$_guard_iic_templates_actual" = "$_guard_iic_templates_expected" ] && _guard_iic_templates=verified || _guard_iic_templates=modified
+            else
+                _guard_iic_templates=missing
+            fi
+            if [ "$_guard_iic_bundle" = verified ] && [ "$_guard_iic_policy" = verified ] && [ "$_guard_iic_templates" = verified ]; then
+                _guard_iic_status=verified
+            else
+                _guard_iic_status=modified
+            fi
+        fi
+    fi
+    if [ "${_GUARD_JSON:-0}" = 1 ]; then
+        printf '{"status":"%s","networkAccess":false,"receipt":{"path":"%s","sequence":"%s","revision":"%s"},"artifacts":{"bundle":{"state":"%s","sha256":"%s"},"policy":{"state":"%s","sha256":"%s"},"templates":{"state":"%s","sha256":"%s"}}}\n' \
+            "$(_guard_env_json_string "$_guard_iic_status")" \
+            "$(_guard_env_json_string "$_guard_iic_state")" \
+            "$(_guard_env_json_string "$_guard_iic_sequence")" \
+            "$(_guard_env_json_string "$_guard_iic_revision")" \
+            "$(_guard_env_json_string "$_guard_iic_bundle")" \
+            "$(_guard_env_json_string "$_guard_iic_bundle_actual")" \
+            "$(_guard_env_json_string "$_guard_iic_policy")" \
+            "$(_guard_env_json_string "$_guard_iic_policy_actual")" \
+            "$(_guard_env_json_string "$_guard_iic_templates")" \
+            "$(_guard_env_json_string "$_guard_iic_templates_actual")"
+    else
+        cli_section "OpenClash Guard local integrity check"
+        cli_kv status "$_guard_iic_status"
+        cli_kv networkAccess false
+        cli_kv receipt.path "$_guard_iic_state"
+        [ -z "$_guard_iic_sequence" ] || cli_kv receipt.sequence "$_guard_iic_sequence"
+        [ -z "$_guard_iic_revision" ] || cli_kv receipt.revision "$_guard_iic_revision"
+        cli_kv bundle "$_guard_iic_bundle"
+        cli_kv policy "$_guard_iic_policy"
+        cli_kv templates "$_guard_iic_templates"
+    fi
+    [ "$_guard_iic_status" = verified ]
 }
 
 _guard_install_write() {
@@ -811,6 +891,14 @@ case $_guard_in_mode in
     if ! guard_install_validate; then
         cli_error "Setup validation failed: $_GUARD_SETUP_INVALID_REASON"
         return 1
+    fi
+    if [ "${_GUARD_RELEASE_SIGNATURE_STATE:-}" = verified ]; then
+        if ! guard_distribution_record_release_state             "$(_guard_install_bin)" "$(_guard_policy_default_path)" "$(_guard_template_catalog_path)"; then
+            cli_error "setup is valid, but authenticated release receipt could not be recorded"
+            return 1
+        fi
+    else
+        cli_warn "authenticated release receipt not updated; setup used local/offline inputs"
     fi
     _guard_in_overlay=$(_guard_overlay_hook_path)
     if [ -f "$_guard_in_overlay" ]; then

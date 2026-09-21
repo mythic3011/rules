@@ -33,6 +33,11 @@ class DistributionCatalog:
     default_ref: str
     bootstrap_alias: str
     manifest_path: str
+    release_metadata_path: str
+    release_signature_path: str
+    trusted_key_path: str
+    release_sequence: int
+    release_state_path: str
     artifacts: tuple[DistributionArtifact, ...]
     channels: tuple[DistributionChannel, ...]
 
@@ -127,8 +132,14 @@ def load_distribution(path: Path) -> DistributionCatalog:
         raise RuntimeError(f"Distribution catalog is unavailable or invalid: {path}") from exc
     if not isinstance(value, dict) or value.get("schemaVersion") != 1:
         raise RuntimeError(f"Unsupported distribution catalog schema: {path}")
-    if set(value) != {"schemaVersion", "repository", "defaultRef", "bootstrapAlias", "manifestPath", "artifacts", "channels"}:
+    if set(value) != {"schemaVersion", "repository", "defaultRef", "bootstrapAlias", "manifestPath", "releaseMetadataPath", "releaseSignaturePath", "trustedKeyPath", "releaseSequence", "releaseStatePath", "artifacts", "channels"}:
         raise RuntimeError(f"Distribution catalog has unknown or incomplete shape: {path}")
+    release_sequence = value.get("releaseSequence")
+    if type(release_sequence) is not int or not (1 <= release_sequence <= 2147483647):
+        raise RuntimeError("Distribution releaseSequence must be an integer in 1..2147483647")
+    release_state_path = _string(value.get("releaseStatePath"), "releaseStatePath")
+    if not release_state_path.startswith("/"):
+        raise RuntimeError("Distribution releaseStatePath must be absolute")
     raw_channels = value.get("channels")
     if not isinstance(raw_channels, list) or not raw_channels:
         raise RuntimeError("Distribution catalog requires channels")
@@ -159,6 +170,11 @@ def load_distribution(path: Path) -> DistributionCatalog:
         default_ref=_string(value.get("defaultRef"), "defaultRef"),
         bootstrap_alias=_string(value.get("bootstrapAlias"), "bootstrapAlias"),
         manifest_path=_string(value.get("manifestPath"), "manifestPath"),
+        release_metadata_path=_string(value.get("releaseMetadataPath"), "releaseMetadataPath"),
+        release_signature_path=_string(value.get("releaseSignaturePath"), "releaseSignaturePath"),
+        trusted_key_path=_string(value.get("trustedKeyPath"), "trustedKeyPath"),
+        release_sequence=release_sequence,
+        release_state_path=release_state_path,
         artifacts=tuple(artifacts),
         channels=channels,
     )
@@ -181,6 +197,7 @@ def managed_output_paths(*, include_process_rules: bool = False, catalog: Catalo
     if include_process_rules:
         paths.extend(f"rule/{rule.file}" for rule in catalog.process_rulesets)
     paths.append(distribution.manifest_path)
+    paths.append(distribution.release_metadata_path)
     paths.extend(("setup/openclash/install.sh", "shell/lib/distribution.sh", "README.md", "docs/openclash-guard.md"))
     # Preserve semantic declaration order while removing accidental duplicates.
     return tuple(dict.fromkeys(paths))
@@ -202,6 +219,7 @@ def managed_git_pathspecs(*, include_process_rules: bool = False, catalog: Catal
     if include_process_rules:
         specs.extend(f"rule/{rule.file}" for rule in catalog.process_rulesets)
     specs.append(distribution.manifest_path)
+    specs.append(distribution.release_metadata_path)
     specs.extend(("setup/openclash/install.sh", "shell/lib/distribution.sh", "README.md", "docs/openclash-guard.md"))
     return tuple(dict.fromkeys(specs))
 
