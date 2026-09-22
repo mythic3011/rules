@@ -13,6 +13,15 @@ _GUARD_DNS_MSQ_RUNNING=0
 _GUARD_DNS_AGH_ENABLED=0
 _GUARD_DNS_AGH_RUNNING=0
 _GUARD_DNS_DOMAIN_SET=unavailable
+_GUARD_DNS_BYPASS_SCAN_AVAILABLE=0
+_GUARD_DNS_BYPASS_DETECTED=0
+_GUARD_DNS_BYPASS_RULES=0
+_GUARD_DNS_BYPASS_PORT53=0
+_GUARD_DNS_BYPASS_DOT853=0
+_GUARD_DNS_HIJACK_BYPASS=0
+_GUARD_DNS_BYPASS_UNKNOWN_SOURCE_RULES=0
+_GUARD_DNS_BYPASS_CLIENTS=0
+_GUARD_DNS_BYPASS_SOURCES=
 _GUARD_NET_IPV6=0
 _GUARD_NET_DIRECT_REGION=
 _GUARD_PROXY_HEALTHY=0
@@ -149,20 +158,25 @@ _guard_env_load_clients() {
     done
 }
 
-_guard_env_json_items() {
+_guard_env_json_word_items() {
+    _guard_env_jwi_items=${1:-}
     printf '['
-    _guard_env_ji_first=1
-    for _guard_env_ji in $_GUARD_GAME_CLIENT_ITEMS
+    _guard_env_jwi_first=1
+    for _guard_env_jwi in $_guard_env_jwi_items
     do
-        [ -n "$_guard_env_ji" ] || continue
-        if [ "$_guard_env_ji_first" = 1 ]; then
-            _guard_env_ji_first=0
+        [ -n "$_guard_env_jwi" ] || continue
+        if [ "$_guard_env_jwi_first" = 1 ]; then
+            _guard_env_jwi_first=0
         else
             printf ','
         fi
-        printf '"%s"' "$(_guard_env_json_string "$_guard_env_ji")"
+        printf '"%s"' "$(_guard_env_json_string "$_guard_env_jwi")"
     done
     printf ']'
+}
+
+_guard_env_json_items() {
+    _guard_env_json_word_items "$_GUARD_GAME_CLIENT_ITEMS"
 }
 
 guard_env_detect() {
@@ -235,6 +249,15 @@ guard_env_get() {
         dns.adguardhomeEnabled) printf '%s\n' "$_GUARD_DNS_AGH_ENABLED" ;;
         dns.adguardhomeRunning) printf '%s\n' "$_GUARD_DNS_AGH_RUNNING" ;;
         dns.domainSetBackend) printf '%s\n' "$_GUARD_DNS_DOMAIN_SET" ;;
+        dns.clientBypass.scanAvailable) printf '%s\n' "$_GUARD_DNS_BYPASS_SCAN_AVAILABLE" ;;
+        dns.clientBypass.detected) printf '%s\n' "$_GUARD_DNS_BYPASS_DETECTED" ;;
+        dns.clientBypass.rules) printf '%s\n' "$_GUARD_DNS_BYPASS_RULES" ;;
+        dns.clientBypass.port53Rules) printf '%s\n' "$_GUARD_DNS_BYPASS_PORT53" ;;
+        dns.clientBypass.dot853Rules) printf '%s\n' "$_GUARD_DNS_BYPASS_DOT853" ;;
+        dns.clientBypass.hijackBypassRules) printf '%s\n' "$_GUARD_DNS_HIJACK_BYPASS" ;;
+        dns.clientBypass.unknownSourceRules) printf '%s\n' "$_GUARD_DNS_BYPASS_UNKNOWN_SOURCE_RULES" ;;
+        dns.clientBypass.clients.count) printf '%s\n' "$_GUARD_DNS_BYPASS_CLIENTS" ;;
+        dns.clientBypass.clients.items) printf '%s\n' "$_GUARD_DNS_BYPASS_SOURCES" ;;
         network.ipv6) printf '%s\n' "$_GUARD_NET_IPV6" ;;
         network.directRegion) printf '%s\n' "$_GUARD_NET_DIRECT_REGION" ;;
         network.directRegionReason) printf '%s\n' "${_GUARD_PREFLIGHT_DIRECT_REASON:-}" ;;
@@ -263,13 +286,22 @@ guard_env_json() {
         "$(_guard_env_json_bool "$_GUARD_OC_ENABLED")" \
         "$(_guard_env_json_bool "$_GUARD_OC_RUNNING")" \
         "$(_guard_env_json_bool "$_GUARD_OC_HEALTHY")"
-    printf '"dns":{"backend":"%s","dnsmasqEnabled":%s,"dnsmasqRunning":%s,"adguardhomeEnabled":%s,"adguardhomeRunning":%s,"domainSetBackend":"%s"},' \
+    printf '"dns":{"backend":"%s","dnsmasqEnabled":%s,"dnsmasqRunning":%s,"adguardhomeEnabled":%s,"adguardhomeRunning":%s,"domainSetBackend":"%s","clientBypass":{"scanAvailable":%s,"detected":%s,"rules":%s,"port53Rules":%s,"dot853Rules":%s,"hijackBypassRules":%s,"unknownSourceRules":%s,"clients":{"count":%s,"items":%s}}},' \
         "$(_guard_env_json_string "$_GUARD_DNS_BACKEND")" \
         "$(_guard_env_json_bool "$_GUARD_DNS_MSQ_ENABLED")" \
         "$(_guard_env_json_bool "$_GUARD_DNS_MSQ_RUNNING")" \
         "$(_guard_env_json_bool "$_GUARD_DNS_AGH_ENABLED")" \
         "$(_guard_env_json_bool "$_GUARD_DNS_AGH_RUNNING")" \
-        "$(_guard_env_json_string "$_GUARD_DNS_DOMAIN_SET")"
+        "$(_guard_env_json_string "$_GUARD_DNS_DOMAIN_SET")" \
+        "$(_guard_env_json_bool "$_GUARD_DNS_BYPASS_SCAN_AVAILABLE")" \
+        "$(_guard_env_json_bool "$_GUARD_DNS_BYPASS_DETECTED")" \
+        "$_GUARD_DNS_BYPASS_RULES" \
+        "$_GUARD_DNS_BYPASS_PORT53" \
+        "$_GUARD_DNS_BYPASS_DOT853" \
+        "$_GUARD_DNS_HIJACK_BYPASS" \
+        "$_GUARD_DNS_BYPASS_UNKNOWN_SOURCE_RULES" \
+        "$_GUARD_DNS_BYPASS_CLIENTS" \
+        "$(_guard_env_json_word_items "$_GUARD_DNS_BYPASS_SOURCES")"
     printf '"network":{"ipv6":%s,"directRegion":"%s","directRegionReason":"%s"},' \
         "$(_guard_env_json_bool "$_GUARD_NET_IPV6")" \
         "$(_guard_env_json_string "$_GUARD_NET_DIRECT_REGION")" \
