@@ -196,6 +196,9 @@ _guard_dns_merge_sources() {
         awk '$0 != "" && $0 != "-" && !seen[$0]++ { out = out (out == "" ? "" : " ") $0 } END { print out }'
 }
 
+# This scan is intentionally limited to explicit port 53/853 firewall and
+# port-53 hijack escapes. Generic encrypted DNS over HTTPS/HTTP3 on port 443
+# cannot be attributed reliably from fw4 port rules and is not claimed clean.
 guard_dns_detect_client_bypass() {
     guard_dns_bypass_reset
     command -v nft >/dev/null 2>&1 || return 0
