@@ -15,6 +15,7 @@ LIB_JSON = ROOT / "shell" / "lib" / "json.sh"
 LIB_NFT = ROOT / "shell" / "lib" / "nft.sh"
 DATA = ROOT / "internal" / "generated" / "ai-routing" / "openclash-guard-resolver-sync-data.sh"
 RESOLVER = ROOT / "shell" / "apps" / "openclash-guard" / "resolver-sync.sh"
+SOURCE_REVISION = "d07cac190c33e7914ba7adaf7e7c14298fba7024"
 
 FAKE_CURL = r'''#!/usr/bin/env python3
 import os
@@ -163,6 +164,32 @@ class ResolverSyncDaemonTests(unittest.TestCase):
             json.dumps({"data": entries, "oldest": ""}) + "\n", encoding="utf-8"
         )
 
+    def write_state(self, revision: str = SOURCE_REVISION, *, status: str = "ready") -> None:
+        self.state.write_text(
+            json.dumps(
+                {
+                    "schemaVersion": 1,
+                    "helper": "openclash-guard-resolver-sync",
+                    "backend": "adguardhome-resolver-sync",
+                    "status": status,
+                    "pid": os.getpid(),
+                    "updatedAtEpoch": 1_000,
+                    "reason": "ok",
+                    "sourceRevision": revision,
+                    "nft": {
+                        "family": "inet",
+                        "table": "openclash_guard",
+                        "chain": "forward",
+                        "ipv4Set": "resolver_sync_v4",
+                        "ipv6Set": "resolver_sync_v6",
+                        "directInterface": "wan",
+                    },
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
     def env(self, now: int, *, fail_nft: bool = False) -> dict[str, str]:
         env = os.environ.copy()
         env.update(
@@ -200,6 +227,25 @@ class ResolverSyncDaemonTests(unittest.TestCase):
             text=True,
             capture_output=True,
             env=self.env(now, fail_nft=fail_nft),
+            check=False,
+        )
+
+    def run_stop(self, now: int = 1_030) -> subprocess.CompletedProcess[str]:
+        script = "\n".join(
+            [
+                "set -eu",
+                f'. "{LIB_FILE}"',
+                f'. "{LIB_JSON}"',
+                f'. "{DATA}"',
+                f'. "{RESOLVER}"',
+                "guard_resolver_sync_stop",
+            ]
+        )
+        return subprocess.run(
+            ["/bin/sh", "-c", script],
+            text=True,
+            capture_output=True,
+            env=self.env(now),
             check=False,
         )
 
@@ -287,6 +333,23 @@ class ResolverSyncDaemonTests(unittest.TestCase):
         self.assertEqual(state["status"], "warming")
         self.assertEqual(state["reason"], "cursor-baseline")
         self.assertNotIn("203.0.113.9", self.cache.read_text(encoding="utf-8"))
+
+    def test_stop_preserves_current_revision_as_degraded_provenance(self) -> None:
+        self.write_state()
+        self.cache.write_text("4 203.0.113.7 1090\n", encoding="utf-8")
+        result = self.run_stop()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        state = self.state_json()
+        self.assertEqual(state["status"], "degraded")
+        self.assertEqual(state["reason"], "stopped")
+        self.assertEqual(state["sourceRevision"], SOURCE_REVISION)
+        self.assertEqual(self.cache.read_text(encoding="utf-8"), "4 203.0.113.7 1090\n")
+
+    def test_stop_discards_state_from_different_selector_revision(self) -> None:
+        self.write_state("0" * 40)
+        result = self.run_stop()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(self.state.exists())
 
 
 if __name__ == "__main__":
