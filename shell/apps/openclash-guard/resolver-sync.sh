@@ -441,9 +441,26 @@ _guard_resolver_sync_fail() {
     _guard_resolver_sync_state_write degraded "$_guard_rs_f_reason" "$_guard_rs_f_iface" "$(date +%s)" || rm -f "$(_guard_resolver_sync_state_path)"
     return 1
 }
-
 guard_resolver_sync_stop() {
-    rm -f "$(_guard_resolver_sync_state_path)"
+    _guard_rs_stop_state=$(_guard_resolver_sync_state_path)
+    [ -f "$_guard_rs_stop_state" ] && [ ! -L "$_guard_rs_stop_state" ] || {
+        rm -f "$_guard_rs_stop_state"
+        return 0
+    }
+    _guard_rs_stop_revision=$(json_get "$_guard_rs_stop_state" sourceRevision 2>/dev/null) || _guard_rs_stop_revision=
+    if [ -z "${_GUARD_RESOLVER_SYNC_DATA_SOURCE_REVISION:-}" ] || \
+       [ "$_guard_rs_stop_revision" != "$_GUARD_RESOLVER_SYNC_DATA_SOURCE_REVISION" ]; then
+        rm -f "$_guard_rs_stop_state"
+        return 0
+    fi
+    _guard_rs_stop_iface=$(json_get "$_guard_rs_stop_state" nft.directInterface 2>/dev/null) || _guard_rs_stop_iface=
+    if [ -n "$_guard_rs_stop_iface" ] && ! _guard_resolver_sync_valid_iface "$_guard_rs_stop_iface"; then
+        _guard_rs_stop_iface=
+    fi
+    _guard_resolver_sync_state_write degraded stopped "$_guard_rs_stop_iface" "$(date +%s)" || {
+        rm -f "$_guard_rs_stop_state"
+        return 1
+    }
 }
 
 guard_resolver_sync_cycle() {
