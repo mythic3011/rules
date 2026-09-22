@@ -286,22 +286,13 @@ guard_env_json() {
         "$(_guard_env_json_bool "$_GUARD_OC_ENABLED")" \
         "$(_guard_env_json_bool "$_GUARD_OC_RUNNING")" \
         "$(_guard_env_json_bool "$_GUARD_OC_HEALTHY")"
-    printf '"dns":{"backend":"%s","dnsmasqEnabled":%s,"dnsmasqRunning":%s,"adguardhomeEnabled":%s,"adguardhomeRunning":%s,"domainSetBackend":"%s","clientBypass":{"scanAvailable":%s,"detected":%s,"rules":%s,"port53Rules":%s,"dot853Rules":%s,"hijackBypassRules":%s,"unknownSourceRules":%s,"clients":{"count":%s,"items":%s}}},' \
+    printf '"dns":{"backend":"%s","dnsmasqEnabled":%s,"dnsmasqRunning":%s,"adguardhomeEnabled":%s,"adguardhomeRunning":%s,"domainSetBackend":"%s"},' \
         "$(_guard_env_json_string "$_GUARD_DNS_BACKEND")" \
         "$(_guard_env_json_bool "$_GUARD_DNS_MSQ_ENABLED")" \
         "$(_guard_env_json_bool "$_GUARD_DNS_MSQ_RUNNING")" \
         "$(_guard_env_json_bool "$_GUARD_DNS_AGH_ENABLED")" \
         "$(_guard_env_json_bool "$_GUARD_DNS_AGH_RUNNING")" \
-        "$(_guard_env_json_string "$_GUARD_DNS_DOMAIN_SET")" \
-        "$(_guard_env_json_bool "$_GUARD_DNS_BYPASS_SCAN_AVAILABLE")" \
-        "$(_guard_env_json_bool "$_GUARD_DNS_BYPASS_DETECTED")" \
-        "$_GUARD_DNS_BYPASS_RULES" \
-        "$_GUARD_DNS_BYPASS_PORT53" \
-        "$_GUARD_DNS_BYPASS_DOT853" \
-        "$_GUARD_DNS_HIJACK_BYPASS" \
-        "$_GUARD_DNS_BYPASS_UNKNOWN_SOURCE_RULES" \
-        "$_GUARD_DNS_BYPASS_CLIENTS" \
-        "$(_guard_env_json_word_items "$_GUARD_DNS_BYPASS_SOURCES")"
+        "$(_guard_env_json_string "$_GUARD_DNS_DOMAIN_SET")"
     printf '"network":{"ipv6":%s,"directRegion":"%s","directRegionReason":"%s"},' \
         "$(_guard_env_json_bool "$_GUARD_NET_IPV6")" \
         "$(_guard_env_json_string "$_GUARD_NET_DIRECT_REGION")" \
