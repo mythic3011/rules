@@ -60,14 +60,19 @@ class ResolverSyncRendererTests(unittest.TestCase):
             check=False,
         )
 
-    def write_state(self, revision: str = "d07cac190c33e7914ba7adaf7e7c14298fba7024") -> None:
+    def write_state(
+        self,
+        revision: str = "d07cac190c33e7914ba7adaf7e7c14298fba7024",
+        *,
+        status: str = "ready",
+    ) -> None:
         self.state.write_text(
             json.dumps(
                 {
                     "schemaVersion": 1,
                     "helper": "openclash-guard-resolver-sync",
                     "backend": "adguardhome-resolver-sync",
-                    "status": "ready",
+                    "status": status,
                     "pid": os.getpid(),
                     "updatedAtEpoch": 990,
                     "sourceRevision": revision,
@@ -123,6 +128,13 @@ class ResolverSyncRendererTests(unittest.TestCase):
         self.assertIn("203.0.113.7 timeout 90s", output)
         self.assertIn("2001:db8::7 timeout 10s", output)
         self.assertNotIn("198.51.100.8", output)
+
+    def test_reconcile_restores_unexpired_cache_from_degraded_same_revision_state(self) -> None:
+        self.write_state(status="degraded")
+        self.cache.write_text("4 203.0.113.7 1090\n", encoding="utf-8")
+        result = self.run_shell("_guard_kill_render_resolver_sync_cache", now=1_000)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("203.0.113.7 timeout 90s", result.stdout)
 
     def test_cache_from_old_selector_revision_is_not_replayed(self) -> None:
         self.write_state("0" * 40)
