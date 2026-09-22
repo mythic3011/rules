@@ -7,23 +7,56 @@ runtime policy file or unsigned sidecar.
 """
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "internal/config/openclash-guard/resolver-sync.rules"
+POLICY = ROOT / "cfg/runtime/openclash-guard.json"
 OUTPUT = ROOT / "internal/generated/ai-routing/openclash-guard-resolver-sync-data.sh"
 HEADER = "# openclash-guard-resolver-sync-rules/v1"
 ID = re.compile(r"^[a-z][a-z0-9-]*$")
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 DOMAIN = re.compile(r"^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$")
 REPO = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
-REQUIRED_SERVICES = frozenset(
-    {"chatgpt", "claude", "poe", "windsurf", "huggingface", "flow-music"}
-)
 
 
-def parse_source(path: Path = SOURCE) -> tuple[tuple[str, str, str], list[tuple[str, str, str]], list[tuple[str, str]]]:
+def required_services_from_policy(path: Path = POLICY) -> frozenset[str]:
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"unable to read generated Guard policy: {path}") from exc
+    if not isinstance(document, dict):
+        raise RuntimeError("generated Guard policy must be an object")
+    classes = document.get("protectionClasses")
+    services = document.get("services")
+    if not isinstance(classes, dict) or not isinstance(services, dict):
+        raise RuntimeError("generated Guard policy is missing protectionClasses/services")
+
+    required: set[str] = set()
+    for service_id, service in services.items():
+        if not isinstance(service_id, str) or not ID.fullmatch(service_id) or not isinstance(service, dict):
+            raise RuntimeError(f"invalid service in generated Guard policy: {service_id!r}")
+        class_id = service.get("protectionClass")
+        protection = classes.get(class_id) if isinstance(class_id, str) else None
+        if not isinstance(protection, dict):
+            raise RuntimeError(f"service {service_id} references invalid protection class: {class_id!r}")
+        direct_allowed = protection.get("directAllowed")
+        if not isinstance(direct_allowed, bool):
+            raise RuntimeError(f"protection class {class_id} has invalid directAllowed")
+        if not direct_allowed:
+            required.add(service_id)
+    if not required:
+        raise RuntimeError("generated Guard policy has no resolver-protected services")
+    return frozenset(required)
+
+
+def parse_source(
+    path: Path = SOURCE,
+    *,
+    required_services: frozenset[str] | None = None,
+) -> tuple[tuple[str, str, str], list[tuple[str, str, str]], list[tuple[str, str]]]:
     lines = path.read_text(encoding="utf-8").splitlines()
     if not lines or lines[0] != HEADER:
         raise RuntimeError("resolver-sync rules header is missing")
@@ -77,12 +110,19 @@ def parse_source(path: Path = SOURCE) -> tuple[tuple[str, str, str], list[tuple[
 
     if source is None or not selectors:
         raise RuntimeError("resolver-sync rules require one source and at least one selector")
+    required = required_services if required_services is not None else required_services_from_policy()
     covered = {service for service, _, _ in selectors}
     excluded = {service for service, _ in exclusions}
     overlap = sorted(covered & excluded)
     if overlap:
         raise RuntimeError(f"service cannot be both selected and excluded: {', '.join(overlap)}")
-    missing = sorted(REQUIRED_SERVICES - covered - excluded)
+    out_of_scope = sorted((covered | excluded) - set(required))
+    if out_of_scope:
+        raise RuntimeError(
+            "resolver-sync decisions include direct-capable or unknown services: "
+            + ", ".join(out_of_scope)
+        )
+    missing = sorted(set(required) - covered - excluded)
     if missing:
         raise RuntimeError(f"resolver-sync coverage is incomplete: {', '.join(missing)}")
     return source, selectors, exclusions
