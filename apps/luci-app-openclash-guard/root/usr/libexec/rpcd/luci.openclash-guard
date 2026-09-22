@@ -43,6 +43,15 @@ service_url() {
 	esac
 }
 
+service_host() {
+	case "$1" in
+		chatgpt) printf '%s\n' 'chatgpt.com' ;;
+		claude) printf '%s\n' 'claude.ai' ;;
+		grok) printf '%s\n' 'grok.com' ;;
+		*) return 1 ;;
+	esac
+}
+
 get_status() {
 	profile_url=$(uci_get main profile_url)
 	direct_region=$(uci_get routing direct_region)
@@ -83,6 +92,7 @@ get_regions() {
 trace_service() {
 	service=$1
 	url=$(service_url "$service") || { json_error 'unsupported service'; return 0; }
+	expected_host=$(service_host "$service") || { json_error 'unsupported service'; return 0; }
 	tmp=$(mktemp /tmp/openclash-guard-trace.XXXXXX) || { json_error 'unable to allocate temporary file'; return 0; }
 	trap 'rm -f "$tmp"' EXIT INT TERM
 	if ! fetch_https "$url" "$tmp" "$TRACE_MAX_BYTES"; then
@@ -108,6 +118,12 @@ trace_service() {
 	done < "$tmp"
 	rm -f "$tmp"
 	trap - EXIT INT TERM
+
+	if [ "$host" != "$expected_host" ]; then
+		json_error 'trace endpoint returned an unexpected host'
+		return 0
+	fi
+	[ -n "$ip" ] && [ -n "$loc" ] || { json_error 'trace response missing required fields'; return 0; }
 
 	expected_mode=$(uci_get routing "$service")
 	case "$expected_mode" in
@@ -141,6 +157,12 @@ probe_profile() {
 	case "$url" in
 		https://*) ;;
 		*) json_error 'profile URL must use HTTPS'; return 0 ;;
+	esac
+	case "$url" in
+		*@*) json_error 'profile URL must not contain embedded credentials'; return 0 ;;
+	esac
+	case "$url" in
+		*[[:space:]]*) json_error 'profile URL contains whitespace'; return 0 ;;
 	esac
 	tmp=$(mktemp /tmp/openclash-guard-profile.XXXXXX) || { json_error 'unable to allocate temporary file'; return 0; }
 	trap 'rm -f "$tmp"' EXIT INT TERM
