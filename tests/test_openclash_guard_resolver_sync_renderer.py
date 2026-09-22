@@ -107,6 +107,9 @@ class ResolverSyncRendererTests(unittest.TestCase):
             'oifname "wan" ip6 daddr @resolver_sync_v6 reject comment "openclash-guard:resolver-sync-v6"',
             output,
         )
+        self.assertNotIn("resolver_sync_health", output)
+        self.assertNotIn('oifname "wan" reject', output)
+        self.assertNotIn('oifname "wan" jump', output)
 
     def test_reconcile_restores_only_unexpired_cache_from_same_selector_revision(self) -> None:
         self.write_state()
