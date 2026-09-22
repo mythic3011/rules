@@ -18,24 +18,18 @@ class DnsBypassDiagnosticsTests(unittest.TestCase):
             tmp_path = Path(tmp)
             nft = tmp_path / "nft"
             nft.write_text(
-                textwrap.dedent(
-                    f"""\
-                    #!/bin/sh
-                    case "$*" in
-                      "-a list chain inet fw4 forward_lan")
-                        cat <<'EOF'
-                    {forward}
-                    EOF
-                        ;;
-                      "-a list chain inet fw4 dstnat")
-                        {'exit 1' if fail_dstnat else "cat <<'EOF'"}
-                    {'' if fail_dstnat else dstnat}
-                    {' ' if fail_dstnat else 'EOF'}
-                        ;;
-                      *) exit 1 ;;
-                    esac
-                    """
-                ),
+                """#!/bin/sh
+case "$*" in
+  "-a list chain inet fw4 forward_lan")
+    printf '%s\\n' "$NFT_TEST_FORWARD"
+    ;;
+  "-a list chain inet fw4 dstnat")
+    [ "$NFT_TEST_FAIL_DSTNAT" = 1 ] && exit 1
+    printf '%s\\n' "$NFT_TEST_DSTNAT"
+    ;;
+  *) exit 1 ;;
+esac
+""",
                 encoding="utf-8",
             )
             nft.chmod(0o755)
@@ -61,6 +55,13 @@ class DnsBypassDiagnosticsTests(unittest.TestCase):
                 text=True,
                 capture_output=True,
                 check=True,
+                env={
+                    **os.environ,
+                    "PATH": f"{tmp_path}:{os.environ.get('PATH', '')}",
+                    "NFT_TEST_FORWARD": forward,
+                    "NFT_TEST_DSTNAT": dstnat,
+                    "NFT_TEST_FAIL_DSTNAT": "1" if fail_dstnat else "0",
+                },
             )
         return dict(line.split("=", 1) for line in result.stdout.splitlines())
 
