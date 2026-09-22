@@ -4,6 +4,7 @@ set -eu
 . /usr/share/libubox/jshn.sh
 
 CONFIG='openclash_guard'
+REGIONS_FILE='/usr/share/openclash-guard/regions.json'
 TRACE_MAX_BYTES=8192
 PROFILE_MAX_BYTES=262144
 
@@ -42,18 +43,6 @@ service_url() {
 	esac
 }
 
-region_country() {
-	case "$1" in
-		hk) printf '%s\n' HK ;;
-		jp) printf '%s\n' JP ;;
-		sg) printf '%s\n' SG ;;
-		us) printf '%s\n' US ;;
-		gb|uk) printf '%s\n' GB ;;
-		de) printf '%s\n' DE ;;
-		*) printf '%s\n' '' ;;
-	esac
-}
-
 get_status() {
 	profile_url=$(uci_get main profile_url)
 	direct_region=$(uci_get routing direct_region)
@@ -83,6 +72,14 @@ get_status() {
 	json_cleanup
 }
 
+get_regions() {
+	if [ ! -s "$REGIONS_FILE" ]; then
+		json_error 'region catalog unavailable'
+		return 0
+	fi
+	cat "$REGIONS_FILE"
+}
+
 trace_service() {
 	service=$1
 	url=$(service_url "$service") || { json_error 'unsupported service'; return 0; }
@@ -95,10 +92,9 @@ trace_service() {
 		return 0
 	fi
 
-	fl=''; host=''; ip=''; colo=''; loc=''; http=''; tls=''; warp=''; gateway=''; ts=''
+	host=''; ip=''; colo=''; loc=''; http=''; tls=''; warp=''; gateway=''; ts=''
 	while IFS='=' read -r key value; do
 		case "$key" in
-			fl) fl=$value ;;
 			h) host=$value ;;
 			ip) ip=$value ;;
 			colo) colo=$value ;;
@@ -119,11 +115,6 @@ trace_service() {
 		proxy) expected_region=$(uci_get routing proxy_region) ;;
 		*) expected_region='' ;;
 	esac
-	expected_country=$(region_country "$expected_region")
-	region_match='unknown'
-	if [ -n "$expected_country" ] && [ -n "$loc" ]; then
-		if [ "$expected_country" = "$loc" ]; then region_match='match'; else region_match='mismatch'; fi
-	fi
 
 	json_init
 	json_add_boolean ok 1
@@ -140,8 +131,6 @@ trace_service() {
 	json_add_string timestamp "$ts"
 	json_add_string expectedMode "$expected_mode"
 	json_add_string expectedRegion "$expected_region"
-	json_add_string expectedCountry "$expected_country"
-	json_add_string regionMatch "$region_match"
 	json_dump
 	json_cleanup
 }
@@ -185,6 +174,8 @@ case "${1:-}" in
 		json_init
 		json_add_object getStatus
 		json_close_object
+		json_add_object getRegions
+		json_close_object
 		json_add_object trace
 		json_add_string service service
 		json_close_object
@@ -198,6 +189,9 @@ case "${1:-}" in
 		case "${2:-}" in
 			getStatus)
 				get_status
+				;;
+			getRegions)
+				get_regions
 				;;
 			trace)
 				read -r input

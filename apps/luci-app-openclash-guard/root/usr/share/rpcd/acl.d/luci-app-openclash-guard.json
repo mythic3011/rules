@@ -4,7 +4,7 @@
     "read": {
       "uci": [ "openclash_guard" ],
       "ubus": {
-        "luci.openclash-guard": [ "getStatus", "trace", "probeProfile" ]
+        "luci.openclash-guard": [ "getStatus", "getRegions", "trace", "probeProfile" ]
       }
     },
     "write": {
