@@ -11,6 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DNS_SH = ROOT / "shell" / "apps" / "openclash-guard" / "dns.sh"
 ENV_SH = ROOT / "shell" / "apps" / "openclash-guard" / "environment.sh"
+MAIN_SH = ROOT / "shell" / "apps" / "openclash-guard" / "main.sh"
 
 FAKE_NFT = r'''#!/bin/sh
 set -eu
@@ -205,6 +206,23 @@ guard_env_json
         evidence, normalized = result.stdout.splitlines()
         self.assertEqual(evidence, "1|1|2|2|2|1|0|1|10.0.0.169")
         self.assertNotIn("clientBypass", json.loads(normalized)["dns"])
+
+    def test_doctor_reports_dns_bypass_evidence_without_remediation(self) -> None:
+        main = MAIN_SH.read_text(encoding="utf-8")
+        for key in (
+            "dns.clientBypass.scanAvailable",
+            "dns.clientBypass.rules",
+            "dns.clientBypass.port53Rules",
+            "dns.clientBypass.dot853Rules",
+            "dns.clientBypass.hijackBypassRules",
+            "dns.clientBypass.unknownSourceRules",
+            "dns.clientBypass.clients.count",
+            "dns.clientBypass.clients.items",
+        ):
+            self.assertIn(key, main)
+        self.assertIn("client DNS bypass rules detected", main)
+        self.assertIn("fw4 DNS bypass scan unavailable", main)
+        self.assertNotIn("nft delete rule", main)
 
 
 if __name__ == "__main__":
