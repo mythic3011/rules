@@ -2,10 +2,10 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/internal/python/generate_adblock_outputs.py
 # CATEGORY: telemetry
-# GENERATED_AT: 2026-09-21T09:06:01Z
-# TOTAL: 1975
+# GENERATED_AT: 2026-09-22T08:39:07Z
+# TOTAL: 1976
 # FORMAT: hosts
-# UPSTREAM hagezi_native_apple: 108
+# UPSTREAM hagezi_native_apple: 109
 # UPSTREAM hagezi_native_apple HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_huawei: 135
 # UPSTREAM hagezi_native_huawei HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -152,6 +152,7 @@
 0.0.0.0 adx.tv.mi.com
 0.0.0.0 adxlog-adnet.vivo.com.cn
 0.0.0.0 adxu-bigo-sg.heytapmobile.com
+0.0.0.0 aios-otel-collector.g.apple.com
 0.0.0.0 akcjasamsung.e-kei.pl
 0.0.0.0 album-cn01a.ocloud.heytapmobi.com
 0.0.0.0 album-sg01a.ocloud.heytapmobi.com
