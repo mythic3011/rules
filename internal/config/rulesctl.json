@@ -110,6 +110,12 @@
       {
         "argv": [
           "{python}",
+          "internal/python/generate_openclash_guard_resolver_sync_data.py"
+        ]
+      },
+      {
+        "argv": [
+          "{python}",
           "tools/shbundle.py",
           "check"
         ]
@@ -177,6 +183,12 @@
         "argv": [
           "{python}",
           "internal/python/generate_openclash_guard_runtime.py"
+        ]
+      },
+      {
+        "argv": [
+          "{python}",
+          "internal/python/generate_openclash_guard_resolver_sync_data.py"
         ]
       },
       {

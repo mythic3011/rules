@@ -86,10 +86,70 @@ guard_kill_delete_table() {
     fi
 }
 
-# Base order: local accepts and protected-port rejects. Scoped direct exceptions
-# are appended by their feature modules before guard_kill_render_final() emits
-# the OpenClash tunnel capability and, only for an infrastructure-wide failure,
-# the global fail-closed rule.
+_guard_kill_render_resolver_sync_sets() {
+    [ "${_GUARD_DNS_BACKEND:-}" = adguardhome ] || return 0
+    printf 'add set %s %s %s { type ipv4_addr; flags timeout; comment "%s"; }\n' \
+        "$_GUARD_RESOLVER_SYNC_FAMILY" "$_GUARD_RESOLVER_SYNC_TABLE" "$_GUARD_RESOLVER_SYNC_V4_SET" \
+        "$_GUARD_RESOLVER_SYNC_V4_SET_COMMENT"
+    printf 'add set %s %s %s { type ipv6_addr; flags timeout; comment "%s"; }\n' \
+        "$_GUARD_RESOLVER_SYNC_FAMILY" "$_GUARD_RESOLVER_SYNC_TABLE" "$_GUARD_RESOLVER_SYNC_V6_SET" \
+        "$_GUARD_RESOLVER_SYNC_V6_SET_COMMENT"
+}
+
+_guard_kill_render_resolver_sync_cache() {
+    [ "${_GUARD_DNS_BACKEND:-}" = adguardhome ] || return 0
+    _guard_krc_cache=$(_guard_resolver_sync_cache_path)
+    _guard_krc_state=$(_guard_resolver_sync_state_path)
+    # Never replay cache bytes from an older selector inventory.  A state file
+    # from the current bundle binds the cache to the embedded source revision.
+    [ -f "$_guard_krc_state" ] && [ ! -L "$_guard_krc_state" ] || return 0
+    _guard_krc_revision=$(json_get "$_guard_krc_state" sourceRevision 2>/dev/null) || return 0
+    [ "$_guard_krc_revision" = "${_GUARD_RESOLVER_SYNC_DATA_SOURCE_REVISION:-}" ] || return 0
+    [ -f "$_guard_krc_cache" ] || return 0
+    [ ! -L "$_guard_krc_cache" ] || return 1
+    _guard_krc_now=${GUARD_RESOLVER_SYNC_NOW_EPOCH:-$(date +%s 2>/dev/null)}
+    _guard_resolver_sync_uint "$_guard_krc_now" || return 1
+    _guard_krc_max=$(_guard_resolver_sync_max_ttl) || return 1
+    while IFS=' ' read -r _guard_krc_family _guard_krc_ip _guard_krc_expiry _guard_krc_extra; do
+        [ -z "${_guard_krc_extra:-}" ] || return 1
+        [ -n "${_guard_krc_family:-}" ] || continue
+        _guard_resolver_sync_uint "$_guard_krc_expiry" || return 1
+        [ "$_guard_krc_expiry" -gt "$_guard_krc_now" ] 2>/dev/null || continue
+        _guard_krc_timeout=$((_guard_krc_expiry - _guard_krc_now))
+        [ "$_guard_krc_timeout" -le "$_guard_krc_max" ] 2>/dev/null || return 1
+        case $_guard_krc_family in
+            4)
+                _guard_resolver_sync_valid_ipv4 "$_guard_krc_ip" || return 1
+                _guard_krc_set=$_GUARD_RESOLVER_SYNC_V4_SET
+                ;;
+            6)
+                _guard_resolver_sync_valid_ipv6 "$_guard_krc_ip" || return 1
+                _guard_krc_set=$_GUARD_RESOLVER_SYNC_V6_SET
+                ;;
+            *) return 1 ;;
+        esac
+        printf 'add element %s %s %s { %s timeout %ss }\n' \
+            "$_GUARD_RESOLVER_SYNC_FAMILY" "$_GUARD_RESOLVER_SYNC_TABLE" "$_guard_krc_set" \
+            "$_guard_krc_ip" "$_guard_krc_timeout"
+    done < "$_guard_krc_cache"
+}
+
+_guard_kill_render_resolver_sync_rules() {
+    [ "${_GUARD_DNS_BACKEND:-}" = adguardhome ] || return 0
+    _guard_krrs_iface=$(_guard_resolver_sync_direct_iface 2>/dev/null) || return 0
+    printf 'add rule %s %s %s oifname "%s" ip daddr @%s reject comment "%s"\n' \
+        "$_GUARD_RESOLVER_SYNC_FAMILY" "$_GUARD_RESOLVER_SYNC_TABLE" "$_GUARD_RESOLVER_SYNC_CHAIN" \
+        "$_guard_krrs_iface" "$_GUARD_RESOLVER_SYNC_V4_SET" "$_GUARD_RESOLVER_SYNC_V4_RULE_COMMENT"
+    printf 'add rule %s %s %s oifname "%s" ip6 daddr @%s reject comment "%s"\n' \
+        "$_GUARD_RESOLVER_SYNC_FAMILY" "$_GUARD_RESOLVER_SYNC_TABLE" "$_GUARD_RESOLVER_SYNC_CHAIN" \
+        "$_guard_krrs_iface" "$_GUARD_RESOLVER_SYNC_V6_SET" "$_GUARD_RESOLVER_SYNC_V6_RULE_COMMENT"
+}
+
+# Base order: resolver-derived direct-path denies, then local accepts and
+# protected-port rejects. Scoped direct exceptions are appended by their
+# feature modules before guard_kill_render_final() emits the OpenClash tunnel
+# capability and, only for an infrastructure-wide failure, the global
+# fail-closed rule.
 guard_kill_render() {
     if [ "${_GUARD_NFT_TABLE_EXISTS:-0}" = 1 ]; then
         printf 'flush table %s %s\n' "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE"
@@ -113,6 +173,8 @@ guard_kill_render() {
     fi
     # shellcheck disable=SC2086
     _guard_kill_add_elements protected_udp $_guard_ku_ports
+    _guard_kill_render_resolver_sync_sets || return $?
+    _guard_kill_render_resolver_sync_cache || return $?
 
     printf 'add chain %s %s input { type filter hook input priority -150; policy accept; }\n' \
         "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE"
@@ -125,6 +187,11 @@ guard_kill_render() {
         _guard_kill_add_rule input 'iifname != "lo" tcp dport 53 reject' dns-ks-tcp
     fi
 
+    # Put resolver-derived direct-WAN rejects before the established-flow accept.
+    # If an already-open direct connection becomes a protected destination after
+    # a DNS observation, it must not bypass the resolver-sync kill switch merely
+    # because conntrack already considers the flow established.
+    _guard_kill_render_resolver_sync_rules || return $?
     _guard_kill_add_rule forward 'ct state established,related accept' est
     _guard_kill_add_rule forward 'iifname "lo" accept' lo
     _guard_kill_add_rule forward 'udp dport { 67, 68 } accept' dhcp

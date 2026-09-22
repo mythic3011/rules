@@ -105,11 +105,25 @@
         "json"
       ]
     },
+    "guard-resolver-sync-data": {
+      "path": "internal/generated/ai-routing/openclash-guard-resolver-sync-data.sh",
+      "depends": []
+    },
+    "guard-resolver-sync": {
+      "path": "shell/apps/openclash-guard/resolver-sync.sh",
+      "depends": [
+        "json",
+        "nft",
+        "file",
+        "guard-resolver-sync-data"
+      ]
+    },
     "guard-dns": {
       "path": "shell/apps/openclash-guard/dns.sh",
       "depends": [
         "service",
-        "env"
+        "env",
+        "guard-resolver-sync"
       ]
     },
     "guard-geo": {
@@ -147,7 +161,8 @@
         "json",
         "nft",
         "file",
-        "uci"
+        "uci",
+        "guard-resolver-sync"
       ]
     },
     "guard-dataplane": {
@@ -202,7 +217,8 @@
         "cli",
         "file",
         "fetch",
-        "guard-overlay"
+        "guard-overlay",
+        "guard-resolver-sync"
       ]
     },
     "guard-install": {
@@ -313,6 +329,8 @@
         "uci",
         "json",
         "distribution",
+        "guard-resolver-sync-data",
+        "guard-resolver-sync",
         "guard-environment",
         "guard-policy",
         "guard-dns",
