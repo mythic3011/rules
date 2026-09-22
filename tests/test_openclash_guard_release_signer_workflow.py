@@ -15,7 +15,7 @@ class ReleaseSignerWorkflowTests(unittest.TestCase):
         workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
         self.assertEqual(
             workflow["permissions"],
-            {"actions": "read", "contents": "read", "pull-requests": "read"},
+            {"actions": "read", "contents": "read"},
         )
 
         qualifier = workflow["jobs"]["qualify-release"]
@@ -29,9 +29,11 @@ class ReleaseSignerWorkflowTests(unittest.TestCase):
         self.assertIn("verify_openclash_guard_release_candidate.py", qualify_run)
         self.assertIn("expected_sequence=$((trusted_sequence + 1))", qualify_run)
         self.assertIn("candidate already contains a detached signature", qualify_run)
-        self.assertIn("Auto generate AI profiles", qualify_run)
-        self.assertIn("CodeQL Advanced", qualify_run)
-        self.assertIn("actions/runs?head_sha=${candidate_sha}&event=pull_request", qualify_run)
+        self.assertIn("trusted_generator_blob", qualify_run)
+        self.assertIn("candidate_generator_blob", qualify_run)
+        self.assertIn("auto-generate-ai-profiles.yml/runs?head_sha=${candidate_sha}&event=push", qualify_run)
+        self.assertIn("./rulesctl managed-paths", qualify_run)
+        self.assertIn("Unexpected post-generator paths", qualify_run)
 
         job = workflow["jobs"]["sign-release"]
         self.assertEqual(
@@ -74,17 +76,17 @@ class ReleaseSignerWorkflowTests(unittest.TestCase):
         self.assertIn("usign -V", sign["run"])
         self.assertIn("EXPECTED_SIGNER_FINGERPRINT", sign["run"])
 
-    def test_auto_trigger_is_same_repo_ci_gated_and_manual_dispatch_remains_break_glass(self) -> None:
+    def test_auto_trigger_follows_successful_same_repo_generator_pushes(self) -> None:
         text = WORKFLOW_PATH.read_text(encoding="utf-8")
         self.assertIn("workflow_dispatch:", text)
         self.assertIn("workflow_run:", text)
         self.assertIn("- Auto generate AI profiles", text)
-        self.assertIn("- CodeQL Advanced", text)
+        self.assertNotIn("- CodeQL Advanced", text)
         self.assertIn("github.event.workflow_run.conclusion == 'success'", text)
-        self.assertIn("github.event.workflow_run.event == 'pull_request'", text)
+        self.assertIn("github.event.workflow_run.event == 'push'", text)
         self.assertIn("github.event.workflow_run.head_repository.full_name == github.repository", text)
-        self.assertIn("AUTO_SHA: ${{ github.event.workflow_run.head_sha || '' }}", text)
-        self.assertIn("Candidate moved after the triggering CI run", text)
+        self.assertIn("AUTO_TRIGGER_SHA: ${{ github.event.workflow_run.head_sha || '' }}", text)
+        self.assertIn("branch no longer descends from the completed generator run", text)
         self.assertNotIn("\n  pull_request:\n", text)
         self.assertNotIn("\n  push:\n", text)
 
