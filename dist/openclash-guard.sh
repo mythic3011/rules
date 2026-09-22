@@ -4538,6 +4538,70 @@ guard_dns_domain_set_backend() {
     esac
 }
 
+_guard_dns_add_bypass_client() {
+    _guard_dns_client=$1
+    [ -n "$_guard_dns_client" ] || return 0
+    case " ${_GUARD_DNS_BYPASS_CLIENTS:-} " in
+        *" $_guard_dns_client "*) return 0 ;;
+    esac
+    if [ -n "${_GUARD_DNS_BYPASS_CLIENTS:-}" ]; then
+        _GUARD_DNS_BYPASS_CLIENTS="$_GUARD_DNS_BYPASS_CLIENTS $_guard_dns_client"
+    else
+        _GUARD_DNS_BYPASS_CLIENTS=$_guard_dns_client
+    fi
+    _GUARD_DNS_BYPASS_CLIENT_COUNT=$((_GUARD_DNS_BYPASS_CLIENT_COUNT + 1))
+}
+
+guard_dns_detect_firewall_bypasses() {
+    _GUARD_DNS_BYPASS_AVAILABLE=0
+    _GUARD_DNS_BYPASS_CLIENTS=
+    _GUARD_DNS_BYPASS_CLIENT_COUNT=0
+    _GUARD_DNS_BYPASS_PORT53=0
+    _GUARD_DNS_BYPASS_DOT853=0
+    _GUARD_DNS_HIJACK_BYPASS=0
+
+    command -v nft >/dev/null 2>&1 || return 0
+
+    _guard_dns_forward=$(nft -a list chain inet fw4 forward_lan 2>/dev/null) || return 0
+    _guard_dns_dstnat=$(nft -a list chain inet fw4 dstnat 2>/dev/null) || return 0
+    _GUARD_DNS_BYPASS_AVAILABLE=1
+
+    _guard_dns_p53_clients=$(printf '%s\n' "$_guard_dns_forward" | awk '
+        /ip saddr/ && /dport/ && /jump accept_to_wan/ && /(^|[^0-9])53([^0-9]|$)/ {
+            for (i = 1; i <= NF; i++) if ($i == "saddr" && i < NF) print $(i + 1)
+        }
+    ')
+    _guard_dns_p853_clients=$(printf '%s\n' "$_guard_dns_forward" | awk '
+        /ip saddr/ && /dport/ && /jump accept_to_wan/ && /(^|[^0-9])853([^0-9]|$)/ {
+            for (i = 1; i <= NF; i++) if ($i == "saddr" && i < NF) print $(i + 1)
+        }
+    ')
+    _guard_dns_hijack_clients=$(printf '%s\n' "$_guard_dns_dstnat" | awk '
+        /ip saddr/ && /dport/ && /return/ && /(^|[^0-9])53([^0-9]|$)/ {
+            for (i = 1; i <= NF; i++) if ($i == "saddr" && i < NF) print $(i + 1)
+        }
+    ')
+
+    if [ -n "$_guard_dns_p53_clients" ]; then
+        _GUARD_DNS_BYPASS_PORT53=1
+        for _guard_dns_client in $_guard_dns_p53_clients; do
+            _guard_dns_add_bypass_client "$_guard_dns_client"
+        done
+    fi
+    if [ -n "$_guard_dns_p853_clients" ]; then
+        _GUARD_DNS_BYPASS_DOT853=1
+        for _guard_dns_client in $_guard_dns_p853_clients; do
+            _guard_dns_add_bypass_client "$_guard_dns_client"
+        done
+    fi
+    if [ -n "$_guard_dns_hijack_clients" ]; then
+        _GUARD_DNS_HIJACK_BYPASS=1
+        for _guard_dns_client in $_guard_dns_hijack_clients; do
+            _guard_dns_add_bypass_client "$_guard_dns_client"
+        done
+    fi
+}
+
 guard_dns_detect() {
     _GUARD_DNS_BACKEND=$(guard_dns_backend)
     _GUARD_DNS_AGH_ENABLED=0
@@ -4561,6 +4625,7 @@ guard_dns_detect() {
         fi
     fi
     _GUARD_DNS_DOMAIN_SET=$(guard_dns_domain_set_backend "$_GUARD_DNS_BACKEND")
+    guard_dns_detect_firewall_bypasses
 }
 
 # Guard never resurrects DNS daemons; detection is observation-only.
@@ -4690,6 +4755,12 @@ _GUARD_DNS_MSQ_RUNNING=0
 _GUARD_DNS_AGH_ENABLED=0
 _GUARD_DNS_AGH_RUNNING=0
 _GUARD_DNS_DOMAIN_SET=unavailable
+_GUARD_DNS_BYPASS_AVAILABLE=0
+_GUARD_DNS_BYPASS_CLIENTS=
+_GUARD_DNS_BYPASS_CLIENT_COUNT=0
+_GUARD_DNS_BYPASS_PORT53=0
+_GUARD_DNS_BYPASS_DOT853=0
+_GUARD_DNS_HIJACK_BYPASS=0
 _GUARD_NET_IPV6=0
 _GUARD_NET_DIRECT_REGION=
 _GUARD_PROXY_HEALTHY=0
@@ -4826,20 +4897,25 @@ _guard_env_load_clients() {
     done
 }
 
-_guard_env_json_items() {
+_guard_env_json_list() {
+    _guard_env_jl_items=${1:-}
     printf '['
-    _guard_env_ji_first=1
-    for _guard_env_ji in $_GUARD_GAME_CLIENT_ITEMS
+    _guard_env_jl_first=1
+    for _guard_env_jl_item in $_guard_env_jl_items
     do
-        [ -n "$_guard_env_ji" ] || continue
-        if [ "$_guard_env_ji_first" = 1 ]; then
-            _guard_env_ji_first=0
+        [ -n "$_guard_env_jl_item" ] || continue
+        if [ "$_guard_env_jl_first" = 1 ]; then
+            _guard_env_jl_first=0
         else
             printf ','
         fi
-        printf '"%s"' "$(_guard_env_json_string "$_guard_env_ji")"
+        printf '"%s"' "$(_guard_env_json_string "$_guard_env_jl_item")"
     done
     printf ']'
+}
+
+_guard_env_json_items() {
+    _guard_env_json_list "$_GUARD_GAME_CLIENT_ITEMS"
 }
 
 guard_env_detect() {
@@ -4912,6 +4988,12 @@ guard_env_get() {
         dns.adguardhomeEnabled) printf '%s\n' "$_GUARD_DNS_AGH_ENABLED" ;;
         dns.adguardhomeRunning) printf '%s\n' "$_GUARD_DNS_AGH_RUNNING" ;;
         dns.domainSetBackend) printf '%s\n' "$_GUARD_DNS_DOMAIN_SET" ;;
+        dns.clientBypass.available) printf '%s\n' "$_GUARD_DNS_BYPASS_AVAILABLE" ;;
+        dns.clientBypass.count) printf '%s\n' "$_GUARD_DNS_BYPASS_CLIENT_COUNT" ;;
+        dns.clientBypass.clients) printf '%s\n' "$_GUARD_DNS_BYPASS_CLIENTS" ;;
+        dns.clientBypass.port53) printf '%s\n' "$_GUARD_DNS_BYPASS_PORT53" ;;
+        dns.clientBypass.dot853) printf '%s\n' "$_GUARD_DNS_BYPASS_DOT853" ;;
+        dns.clientBypass.hijack53) printf '%s\n' "$_GUARD_DNS_HIJACK_BYPASS" ;;
         network.ipv6) printf '%s\n' "$_GUARD_NET_IPV6" ;;
         network.directRegion) printf '%s\n' "$_GUARD_NET_DIRECT_REGION" ;;
         network.directRegionReason) printf '%s\n' "${_GUARD_PREFLIGHT_DIRECT_REASON:-}" ;;
@@ -4940,13 +5022,19 @@ guard_env_json() {
         "$(_guard_env_json_bool "$_GUARD_OC_ENABLED")" \
         "$(_guard_env_json_bool "$_GUARD_OC_RUNNING")" \
         "$(_guard_env_json_bool "$_GUARD_OC_HEALTHY")"
-    printf '"dns":{"backend":"%s","dnsmasqEnabled":%s,"dnsmasqRunning":%s,"adguardhomeEnabled":%s,"adguardhomeRunning":%s,"domainSetBackend":"%s"},' \
+    printf '"dns":{"backend":"%s","dnsmasqEnabled":%s,"dnsmasqRunning":%s,"adguardhomeEnabled":%s,"adguardhomeRunning":%s,"domainSetBackend":"%s","clientBypass":{"available":%s,"count":%s,"clients":%s,"port53":%s,"dot853":%s,"hijack53":%s}},' \
         "$(_guard_env_json_string "$_GUARD_DNS_BACKEND")" \
         "$(_guard_env_json_bool "$_GUARD_DNS_MSQ_ENABLED")" \
         "$(_guard_env_json_bool "$_GUARD_DNS_MSQ_RUNNING")" \
         "$(_guard_env_json_bool "$_GUARD_DNS_AGH_ENABLED")" \
         "$(_guard_env_json_bool "$_GUARD_DNS_AGH_RUNNING")" \
-        "$(_guard_env_json_string "$_GUARD_DNS_DOMAIN_SET")"
+        "$(_guard_env_json_string "$_GUARD_DNS_DOMAIN_SET")" \
+        "$(_guard_env_json_bool "$_GUARD_DNS_BYPASS_AVAILABLE")" \
+        "$_GUARD_DNS_BYPASS_CLIENT_COUNT" \
+        "$(_guard_env_json_list "$_GUARD_DNS_BYPASS_CLIENTS")" \
+        "$(_guard_env_json_bool "$_GUARD_DNS_BYPASS_PORT53")" \
+        "$(_guard_env_json_bool "$_GUARD_DNS_BYPASS_DOT853")" \
+        "$(_guard_env_json_bool "$_GUARD_DNS_HIJACK_BYPASS")"
     printf '"network":{"ipv6":%s,"directRegion":"%s","directRegionReason":"%s"},' \
         "$(_guard_env_json_bool "$_GUARD_NET_IPV6")" \
         "$(_guard_env_json_string "$_GUARD_NET_DIRECT_REGION")" \
@@ -9011,6 +9099,20 @@ guard_cmd_doctor() {
     fi
     if [ "$_GUARD_DNS_DOMAIN_SET" = unavailable ] && guard_policy_needs_failclosed 2>/dev/null; then
         cli_warn "domain-set backend unavailable; fail-closed enforcement=reject (not fail-open)"
+    fi
+    _guard_doctor_dns_bypass_available=$(guard_env_get dns.clientBypass.available)
+    if [ "$_guard_doctor_dns_bypass_available" = 1 ]; then
+        _guard_doctor_dns_bypass_count=$(guard_env_get dns.clientBypass.count)
+        if [ "${_guard_doctor_dns_bypass_count:-0}" -gt 0 ] 2>/dev/null; then
+            _guard_doctor_dns_bypass_clients=$(guard_env_get dns.clientBypass.clients)
+            _guard_doctor_dns_bypass_port53=$(guard_env_get dns.clientBypass.port53)
+            _guard_doctor_dns_bypass_dot853=$(guard_env_get dns.clientBypass.dot853)
+            _guard_doctor_dns_bypass_hijack53=$(guard_env_get dns.clientBypass.hijack53)
+            cli_warn "client DNS firewall bypass detected: clients=${_guard_doctor_dns_bypass_clients:-unknown} port53=$_guard_doctor_dns_bypass_port53 dot853=$_guard_doctor_dns_bypass_dot853 hijack53=$_guard_doctor_dns_bypass_hijack53"
+            cli_info "DNS bypass diagnostics are observation-only; firewall policy was not modified"
+        fi
+    elif [ "$_guard_doctor_dns_bypass_available" = 0 ]; then
+        cli_warn "client DNS firewall bypass diagnostics unavailable; required fw4 chains could not be observed"
     fi
     cli_info "gaming bypass never matches protected UDP ports (including 443)"
     if [ -n "$_guard_doctor_service" ]; then
