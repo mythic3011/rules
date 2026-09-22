@@ -57,13 +57,13 @@ service_host() {
 
 history_file() {
 	case "$1" in
-		chatgpt|claude|grok) printf '%s/%s.tsv\n' "$HISTORY_DIR" "$1" ;;
+		chatgpt|claude|grok) printf '%s/%s.log\n' "$HISTORY_DIR" "$1" ;;
 		*) return 1 ;;
 	esac
 }
 
 history_field() {
-	printf '%s' "${1:-}" | tr '\t\r\n' '   ' | cut -c1-160
+	printf '%s' "${1:-}" | tr '\t\r\n|' '    ' | cut -c1-160
 }
 
 record_history() {
@@ -81,7 +81,7 @@ record_history() {
 	epoch=$(date +%s 2>/dev/null || printf '0')
 	case "$epoch" in *[!0-9]*|'') epoch=0 ;; esac
 	mkdir -p "$HISTORY_DIR" 2>/dev/null || return 0
-	printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+	printf '%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s\n' \
 		"$epoch" "$service" "$ok" "$ip" "$country" "$colo" "$http" "$tls" \
 		"$expected_mode" "$expected_region" "$error" >> "$file" 2>/dev/null || return 0
 	lines=$(wc -l < "$file" 2>/dev/null | tr -d ' ' || printf '0')
@@ -177,14 +177,14 @@ get_history() {
 		[ -f "$file" ] && cat "$file" >> "$combined" 2>/dev/null || true
 	done
 	if [ -s "$combined" ]; then
-		sort -nr -k1,1 "$combined" > "$sorted" 2>/dev/null || cp "$combined" "$sorted"
+		sort -nr "$combined" > "$sorted" 2>/dev/null || cp "$combined" "$sorted"
 	fi
 
 	json_init
 	json_add_boolean ok 1
 	json_add_array records
 	count=0
-	while IFS="$(printf '\t')" read -r epoch service ok ip country colo http tls expected_mode expected_region error; do
+	while IFS='|' read -r epoch service ok ip country colo http tls expected_mode expected_region error; do
 		[ "$count" -lt "$HISTORY_LIMIT_TOTAL" ] || break
 		case "$epoch" in *[!0-9]*|'') continue ;; esac
 		case "$service" in chatgpt|claude|grok) ;; *) continue ;; esac
