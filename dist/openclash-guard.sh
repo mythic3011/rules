@@ -3774,7 +3774,10 @@ guard_rules_normalize_remote_file() {
 guard_rules_source_id() {
     _guard_rules_sid_url=$1
     _guard_rules_sid_tmp=$(file_mktemp) || return 1
-    printf '%s' "$_guard_rules_sid_url" > "$_guard_rules_sid_tmp"
+    printf '%s' "$_guard_rules_sid_url" > "$_guard_rules_sid_tmp" || {
+        rm -f "$_guard_rules_sid_tmp"
+        return 1
+    }
     _guard_rules_sid_digest=$(file_sha256 "$_guard_rules_sid_tmp") || {
         rm -f "$_guard_rules_sid_tmp"
         return 1
@@ -4191,8 +4194,36 @@ guard_rules_sync_watch() {
                 [ "$_guard_rules_sw_rules_rc" -eq 0 ] || \
                     guard_rules_error "scheduled sync failed; last-good rules remain active"
             fi
+
+            _guard_rules_sw_before=$(guard_resolver_sync_backend 2>/dev/null) || _guard_rules_sw_before=unavailable
+            [ -n "$_guard_rules_sw_before" ] || _guard_rules_sw_before=unavailable
             _guard_rules_sw_resolver_rc=0
             guard_resolver_sync_cycle || _guard_rules_sw_resolver_rc=$?
+
+            if [ "$_guard_rules_sw_resolver_rc" -ne 0 ]; then
+                _guard_rules_sw_state=$(_guard_resolver_sync_state_path)
+                _guard_rules_sw_reason=$(json_get "$_guard_rules_sw_state" reason 2>/dev/null) || _guard_rules_sw_reason=
+                if [ "$_guard_rules_sw_reason" = nft-consumer-unavailable ] && command -v guard_cmd_reconcile >/dev/null 2>&1; then
+                    # The direct WAN or Guard table changed without a reliable
+                    # external hotplug. Rebuild from current trusted state while
+                    # the watch already holds the Guard lock, then retry once.
+                    if guard_cmd_reconcile; then
+                        _guard_rules_sw_resolver_rc=0
+                        guard_resolver_sync_cycle || _guard_rules_sw_resolver_rc=$?
+                    else
+                        guard_rules_error "resolver consumer reconcile failed; capability remains fail-closed"
+                    fi
+                fi
+            fi
+
+            _guard_rules_sw_after=$(guard_resolver_sync_backend 2>/dev/null) || _guard_rules_sw_after=unavailable
+            [ -n "$_guard_rules_sw_after" ] || _guard_rules_sw_after=unavailable
+            if [ "$_guard_rules_sw_before" != "$_guard_rules_sw_after" ] && command -v guard_cmd_reconcile >/dev/null 2>&1; then
+                # A health transition changes policy semantics. Reconcile once
+                # so degradation installs fail-closed enforcement and recovery
+                # removes it immediately instead of waiting for another hook.
+                guard_cmd_reconcile || guard_rules_error "resolver capability transition reconcile failed"
+            fi
             [ "$_guard_rules_sw_resolver_rc" -eq 0 ] || \
                 guard_rules_error "resolver sync cycle failed; capability remains fail-closed"
             _guard_lock_release
