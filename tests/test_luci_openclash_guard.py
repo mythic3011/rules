@@ -14,6 +14,9 @@ CANONICAL_REGIONS = ROOT / "internal" / "config" / "ai-routing" / "catalogs" / "
 OVERVIEW = APP / "htdocs" / "luci-static" / "resources" / "view" / "openclash-guard" / "overview.js"
 TESTS_VIEW = APP / "htdocs" / "luci-static" / "resources" / "view" / "openclash-guard" / "tests.js"
 PROFILE_VIEW = APP / "htdocs" / "luci-static" / "resources" / "view" / "openclash-guard" / "profile.js"
+MONITORING_VIEW = APP / "htdocs" / "luci-static" / "resources" / "view" / "openclash-guard" / "monitoring.js"
+MONITOR_INIT = APP / "root" / "etc" / "init.d" / "openclash-guard-egress-monitor"
+MONITOR_HELPER = APP / "root" / "usr" / "libexec" / "openclash-guard" / "egress-monitor"
 UCI_DEFAULTS = APP / "root" / "etc" / "config" / "openclash_guard"
 
 
@@ -77,6 +80,30 @@ class LuCIOpenClashGuardContractTests(unittest.TestCase):
         self.assertIn("method: 'clearHistory'", view)
         self.assertIn("latestFor(records, service.id)", view)
         self.assertIn("Recent history", view)
+
+    def test_background_monitor_is_opt_in_bounded_and_fixed_service_only(self) -> None:
+        config = UCI_DEFAULTS.read_text(encoding="utf-8")
+        view = MONITORING_VIEW.read_text(encoding="utf-8")
+        init = MONITOR_INIT.read_text(encoding="utf-8")
+        helper = MONITOR_HELPER.read_text(encoding="utf-8")
+
+        self.assertIn("config monitoring 'monitoring'", config)
+        self.assertIn("option enabled '0'", config)
+        self.assertIn("option interval '900'", config)
+        self.assertIn("Enable background monitoring", view)
+        for seconds in ("300", "900", "1800", "3600"):
+            self.assertIn(f"interval.value('{seconds}'", view)
+
+        self.assertIn("USE_PROCD=1", init)
+        self.assertIn("procd_add_reload_trigger", init)
+        self.assertIn("monitoring.enabled", init)
+        self.assertIn("MIN_INTERVAL=300", helper)
+        self.assertIn("MAX_INTERVAL=86400", helper)
+        self.assertIn("for service in chatgpt claude grok", helper)
+        self.assertIn("RPCD_BACKEND='/usr/libexec/rpcd/luci.openclash-guard'", helper)
+        self.assertNotIn("http://", helper)
+        self.assertNotIn("https://", helper)
+        self.assertNotIn("/etc/openclash-guard/egress-history", helper)
 
     def test_default_config_exposes_first_class_profile_and_service_intent(self) -> None:
         config = UCI_DEFAULTS.read_text(encoding="utf-8")
