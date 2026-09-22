@@ -7,19 +7,165 @@ on:
         description: Same-repository branch whose exact head metadata should be signed
         required: true
         type: string
+  workflow_run:
+    workflows:
+      - Auto generate AI profiles
+      - CodeQL Advanced
+    types:
+      - completed
 
 permissions:
+  actions: read
   contents: read
+  pull-requests: read
 
 concurrency:
   group: openclash-guard-release-signer
   cancel-in-progress: false
 
 jobs:
+  qualify-release:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'pull_request' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-24.04
+    outputs:
+      should_sign: ${{ steps.candidate.outputs.should_sign }}
+      target_branch: ${{ steps.candidate.outputs.target_branch }}
+      candidate_sha: ${{ steps.candidate.outputs.candidate_sha }}
+    steps:
+      - name: Checkout trusted signer code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Qualify immutable release candidate
+        id: candidate
+        env:
+          AUTO_BRANCH: ${{ github.event.workflow_run.head_branch || '' }}
+          AUTO_SHA: ${{ github.event.workflow_run.head_sha || '' }}
+          GH_TOKEN: ${{ github.token }}
+          MANUAL_BRANCH: ${{ inputs.target_branch || '' }}
+          RUN_MODE: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+
+          should_sign=false
+          if [ "$RUN_MODE" = workflow_run ]; then
+            requested_branch="$AUTO_BRANCH"
+            expected_sha="$AUTO_SHA"
+          else
+            requested_branch="$MANUAL_BRANCH"
+            expected_sha=
+          fi
+
+          [ -n "$requested_branch" ] || {
+            echo "No candidate branch was supplied" >&2
+            exit 1
+          }
+          git check-ref-format --branch "$requested_branch" >/dev/null
+          case "$requested_branch" in
+            main) echo "Refusing to write a release signature directly to main" >&2; exit 1 ;;
+          esac
+
+          remote_sha="$(git ls-remote --heads origin "refs/heads/${requested_branch}" | awk '{print $1}')"
+          [ -n "$remote_sha" ] || {
+            echo "Candidate branch does not exist: $requested_branch" >&2
+            exit 1
+          }
+
+          if [ -n "$expected_sha" ] && [ "$remote_sha" != "$expected_sha" ]; then
+            echo "Candidate moved after the triggering CI run; a newer CI result will qualify the new head."
+            printf 'should_sign=false\n' >> "$GITHUB_OUTPUT"
+            printf 'target_branch=%s\n' "$requested_branch" >> "$GITHUB_OUTPUT"
+            printf 'candidate_sha=%s\n' "$remote_sha" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git fetch --no-tags origin "refs/heads/${requested_branch}:refs/remotes/origin/${requested_branch}"
+          candidate_sha="$(git rev-parse "refs/remotes/origin/${requested_branch}^{commit}")"
+          [ "$candidate_sha" = "$remote_sha" ]
+          git merge-base --is-ancestor "$GITHUB_SHA" "$candidate_sha" || {
+            echo "Candidate branch does not contain trusted main signer revision $GITHUB_SHA" >&2
+            exit 1
+          }
+
+          python3 internal/python/verify_openclash_guard_release_candidate.py \
+            --candidate-sha "$candidate_sha" \
+            --output "$RUNNER_TEMP/release-candidate.json"
+          sequence="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["sequence"])' "$RUNNER_TEMP/release-candidate.json")"
+          trusted_sequence="$(python3 -c 'import json; print(json.load(open("internal/config/ai-routing/catalogs/distribution.json", encoding="utf-8"))["releaseSequence"])')"
+
+          if [ "$RUN_MODE" = workflow_run ]; then
+            expected_sequence=$((trusted_sequence + 1))
+            if [ "$sequence" -ne "$expected_sequence" ]; then
+              echo "Automatic signing skipped: candidate sequence $sequence is not trusted sequence + 1 ($expected_sequence)."
+              printf 'should_sign=false\n' >> "$GITHUB_OUTPUT"
+              printf 'target_branch=%s\n' "$requested_branch" >> "$GITHUB_OUTPUT"
+              printf 'candidate_sha=%s\n' "$candidate_sha" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            if git cat-file -e "$candidate_sha:dist/openclash-guard.release.json.sig" 2>/dev/null; then
+              echo "Automatic signing skipped: candidate already contains a detached signature."
+              printf 'should_sign=false\n' >> "$GITHUB_OUTPUT"
+              printf 'target_branch=%s\n' "$requested_branch" >> "$GITHUB_OUTPUT"
+              printf 'candidate_sha=%s\n' "$candidate_sha" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            gh api \
+              -H 'Accept: application/vnd.github+json' \
+              "/repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${candidate_sha}&event=pull_request&per_page=100" \
+              > "$RUNNER_TEMP/candidate-runs.json"
+
+            ready="$(python3 - "$RUNNER_TEMP/candidate-runs.json" "$candidate_sha" <<'PY'
+          import json
+          import sys
+
+          path, sha = sys.argv[1:]
+          required = {"Auto generate AI profiles", "CodeQL Advanced"}
+          payload = json.load(open(path, encoding="utf-8"))
+          latest = {}
+          for run in payload.get("workflow_runs", []):
+              name = run.get("name")
+              if name not in required or run.get("head_sha") != sha:
+                  continue
+              current = latest.get(name)
+              if current is None or int(run.get("id", 0)) > int(current.get("id", 0)):
+                  latest[name] = run
+          missing = [
+              name
+              for name in sorted(required)
+              if name not in latest or latest[name].get("conclusion") != "success"
+          ]
+          if missing:
+              print("Waiting for successful CI at the exact candidate SHA: " + ", ".join(missing), file=sys.stderr)
+              print("0")
+          else:
+              print("1")
+          PY
+            )"
+            if [ "$ready" != 1 ]; then
+              printf 'should_sign=false\n' >> "$GITHUB_OUTPUT"
+              printf 'target_branch=%s\n' "$requested_branch" >> "$GITHUB_OUTPUT"
+              printf 'candidate_sha=%s\n' "$candidate_sha" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+
+          should_sign=true
+          printf 'should_sign=%s\n' "$should_sign" >> "$GITHUB_OUTPUT"
+          printf 'target_branch=%s\n' "$requested_branch" >> "$GITHUB_OUTPUT"
+          printf 'candidate_sha=%s\n' "$candidate_sha" >> "$GITHUB_OUTPUT"
+
   sign-release:
-    # The release environment must also restrict deployments to main. This guard is
-    # defense in depth so feature-branch workflow edits never receive signing keys.
-    if: github.ref == 'refs/heads/main'
+    needs: qualify-release
+    if: needs.qualify-release.outputs.should_sign == 'true' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     environment: openclash-guard-release
     permissions:
@@ -28,6 +174,8 @@ jobs:
       EXPECTED_SIGNER_FINGERPRINT: "66215942e340d69f"
       USIGN_SOURCE_REPOSITORY: "https://github.com/openwrt/usign.git"
       USIGN_SOURCE_REVISION: "c4c72b1b07945ee192361dc751291a7c98d6adcd"
+      TARGET_BRANCH: ${{ needs.qualify-release.outputs.target_branch }}
+      CANDIDATE_SHA: ${{ needs.qualify-release.outputs.candidate_sha }}
 
     steps:
       - name: Checkout trusted signer code
@@ -36,23 +184,22 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
 
-      - name: Resolve immutable candidate head
-        env:
-          REQUESTED_BRANCH: ${{ inputs.target_branch }}
+      - name: Reconfirm immutable candidate head
         run: |
           set -euo pipefail
-          git check-ref-format --branch "$REQUESTED_BRANCH" >/dev/null
-          case "$REQUESTED_BRANCH" in
-            main) echo "Refusing to write a release signature directly to main" >&2; exit 1 ;;
-          esac
-          git fetch --no-tags origin "refs/heads/${REQUESTED_BRANCH}:refs/remotes/origin/${REQUESTED_BRANCH}"
-          candidate_sha="$(git rev-parse "refs/remotes/origin/${REQUESTED_BRANCH}^{commit}")"
-          git merge-base --is-ancestor "$GITHUB_SHA" "$candidate_sha" || {
-            echo "Candidate branch does not contain the trusted main signer revision $GITHUB_SHA" >&2
+          git check-ref-format --branch "$TARGET_BRANCH" >/dev/null
+          remote_sha="$(git ls-remote --heads origin "refs/heads/${TARGET_BRANCH}" | awk '{print $1}')"
+          [ "$remote_sha" = "$CANDIDATE_SHA" ] || {
+            echo "Candidate moved after qualification; refusing to sign stale CI output" >&2
             exit 1
           }
-          printf 'TARGET_BRANCH=%s\n' "$REQUESTED_BRANCH" >> "$GITHUB_ENV"
-          printf 'CANDIDATE_SHA=%s\n' "$candidate_sha" >> "$GITHUB_ENV"
+          git fetch --no-tags origin "refs/heads/${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}"
+          resolved_sha="$(git rev-parse "refs/remotes/origin/${TARGET_BRANCH}^{commit}")"
+          [ "$resolved_sha" = "$CANDIDATE_SHA" ]
+          git merge-base --is-ancestor "$GITHUB_SHA" "$CANDIDATE_SHA" || {
+            echo "Candidate branch no longer contains the trusted main signer revision $GITHUB_SHA" >&2
+            exit 1
+          }
 
       - name: Build pinned usign
         run: |
