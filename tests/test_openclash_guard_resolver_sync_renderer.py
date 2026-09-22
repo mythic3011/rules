@@ -116,6 +116,16 @@ class ResolverSyncRendererTests(unittest.TestCase):
         self.assertNotIn('oifname "wan" reject', output)
         self.assertNotIn('oifname "wan" jump', output)
 
+    def test_resolver_rejects_precede_established_forward_accept(self) -> None:
+        source = KILLSWITCH.read_text(encoding="utf-8")
+        start = source.index("guard_kill_render() {")
+        end = source.index("\n_guard_kill_valid_iface() {", start)
+        render = source[start:end]
+        self.assertLess(
+            render.index("_guard_kill_render_resolver_sync_rules"),
+            render.index("_guard_kill_add_rule forward 'ct state established,related accept' est"),
+        )
+
     def test_reconcile_restores_only_unexpired_cache_from_same_selector_revision(self) -> None:
         self.write_state()
         self.cache.write_text(
