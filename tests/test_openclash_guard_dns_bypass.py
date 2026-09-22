@@ -51,7 +51,6 @@ esac
             result = subprocess.run(
                 ["sh", "-c", script],
                 cwd=ROOT,
-                env={**os.environ, "PATH": f"{tmp_path}:{os.environ.get('PATH', '')}"},
                 text=True,
                 capture_output=True,
                 check=True,
