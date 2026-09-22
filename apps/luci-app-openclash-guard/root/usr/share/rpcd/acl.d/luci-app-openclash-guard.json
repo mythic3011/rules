@@ -4,13 +4,13 @@
     "read": {
       "uci": [ "openclash_guard" ],
       "ubus": {
-        "luci.openclash-guard": [ "getStatus", "getRegions", "trace" ]
+        "luci.openclash-guard": [ "getStatus", "getRegions", "getHistory", "trace" ]
       }
     },
     "write": {
       "uci": [ "openclash_guard" ],
       "ubus": {
-        "luci.openclash-guard": [ "probeProfile" ]
+        "luci.openclash-guard": [ "probeProfile", "clearHistory" ]
       }
     }
   }
