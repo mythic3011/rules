@@ -17,4 +17,11 @@ config dns 'dns'
 	option resolver_sync '1'
 	option fail_closed '1'
 
+config monitoring 'monitoring'
+	option enabled '0'
+	option interval '900'
+	option chatgpt '1'
+	option claude '1'
+	option grok '1'
+
 config rules 'rules'
