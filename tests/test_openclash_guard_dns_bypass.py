@@ -170,7 +170,7 @@ printf '{{"scan":%s,"detected":%s,"rules":%s,"port53":%s,"dot853":%s,"hijack":%s
         self.assertEqual(report["scan"], 0)
         self.assertEqual(report["detected"], 0)
 
-    def test_environment_json_exposes_bypass_evidence(self) -> None:
+    def test_environment_getters_expose_bypass_evidence_without_changing_normalized_json(self) -> None:
         script = f'''
 . "{ENV_SH}"
 _GUARD_DNS_BYPASS_SCAN_AVAILABLE=1
@@ -182,6 +182,16 @@ _GUARD_DNS_HIJACK_BYPASS=1
 _GUARD_DNS_BYPASS_UNKNOWN_SOURCE_RULES=0
 _GUARD_DNS_BYPASS_CLIENTS=1
 _GUARD_DNS_BYPASS_SOURCES="10.0.0.169"
+printf '%s|%s|%s|%s|%s|%s|%s|%s|%s\\n' \
+  "$(guard_env_get dns.clientBypass.scanAvailable)" \
+  "$(guard_env_get dns.clientBypass.detected)" \
+  "$(guard_env_get dns.clientBypass.rules)" \
+  "$(guard_env_get dns.clientBypass.port53Rules)" \
+  "$(guard_env_get dns.clientBypass.dot853Rules)" \
+  "$(guard_env_get dns.clientBypass.hijackBypassRules)" \
+  "$(guard_env_get dns.clientBypass.unknownSourceRules)" \
+  "$(guard_env_get dns.clientBypass.clients.count)" \
+  "$(guard_env_get dns.clientBypass.clients.items)"
 guard_env_json
 '''
         result = subprocess.run(
@@ -192,15 +202,9 @@ guard_env_json
             capture_output=True,
             check=True,
         )
-        payload = json.loads(result.stdout)
-        bypass = payload["dns"]["clientBypass"]
-        self.assertTrue(bypass["scanAvailable"])
-        self.assertTrue(bypass["detected"])
-        self.assertEqual(bypass["rules"], 2)
-        self.assertEqual(bypass["port53Rules"], 2)
-        self.assertEqual(bypass["dot853Rules"], 2)
-        self.assertEqual(bypass["hijackBypassRules"], 1)
-        self.assertEqual(bypass["clients"], {"count": 1, "items": ["10.0.0.169"]})
+        evidence, normalized = result.stdout.splitlines()
+        self.assertEqual(evidence, "1|1|2|2|2|1|0|1|10.0.0.169")
+        self.assertNotIn("clientBypass", json.loads(normalized)["dns"])
 
 
 if __name__ == "__main__":
