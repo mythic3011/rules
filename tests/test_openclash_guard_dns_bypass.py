@@ -10,6 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DNS_SH = ROOT / "shell" / "apps" / "openclash-guard" / "dns.sh"
+MAIN_SH = ROOT / "shell" / "apps" / "openclash-guard" / "main.sh"
 
 
 class DnsBypassDiagnosticsTests(unittest.TestCase):
@@ -64,6 +65,62 @@ esac
             )
         return dict(line.split("=", 1) for line in result.stdout.splitlines())
 
+    def _run_doctor(
+        self,
+        *,
+        available: str,
+        count: str = "0",
+        clients: str = "",
+        port53: str = "0",
+        dot853: str = "0",
+        hijack53: str = "0",
+    ) -> subprocess.CompletedProcess[str]:
+        main_text = MAIN_SH.read_text(encoding="utf-8")
+        start = main_text.index("guard_cmd_doctor() {")
+        end = main_text.index("\nguard_cmd_geo() {", start)
+        doctor_function = main_text[start:end]
+        script = textwrap.dedent(
+            f"""\
+            set -eu
+            _GUARD_JSON=0
+            _GUARD_DNS_BACKEND=none
+            _GUARD_DNS_DOMAIN_SET=dnsmasq-nftset
+
+            guard_cmd_status() {{ :; }}
+            guard_policy_needs_failclosed() {{ return 1; }}
+            cli_section() {{ :; }}
+            cli_kv() {{ :; }}
+            cli_error() {{ printf 'ERROR:%s\\n' "$*"; }}
+            cli_warn() {{ printf 'WARN:%s\\n' "$*"; }}
+            cli_info() {{ printf 'INFO:%s\\n' "$*"; }}
+            guard_env_get() {{
+                case ${{1:-}} in
+                    dns.dnsmasqEnabled|dns.dnsmasqRunning|dns.adguardhomeEnabled|dns.adguardhomeRunning)
+                        printf '0\\n'
+                        ;;
+                    dns.clientBypass.available) printf '%s\\n' '{available}' ;;
+                    dns.clientBypass.count) printf '%s\\n' '{count}' ;;
+                    dns.clientBypass.clients) printf '%s\\n' '{clients}' ;;
+                    dns.clientBypass.port53) printf '%s\\n' '{port53}' ;;
+                    dns.clientBypass.dot853) printf '%s\\n' '{dot853}' ;;
+                    dns.clientBypass.hijack53) printf '%s\\n' '{hijack53}' ;;
+                    *) printf '0\\n' ;;
+                esac
+            }}
+
+            {doctor_function}
+
+            guard_cmd_doctor
+            """
+        )
+        return subprocess.run(
+            ["sh", "-c", script],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
     def test_detects_explicit_client_dns_and_dot_bypass(self) -> None:
         values = self._run_detector(
             forward=textwrap.dedent(
@@ -113,6 +170,39 @@ esac
         self.assertEqual(values["port53"], "0")
         self.assertEqual(values["dot853"], "0")
         self.assertEqual(values["hijack53"], "0")
+
+    def test_doctor_warns_with_detected_client_and_observation_only_scope(self) -> None:
+        result = self._run_doctor(
+            available="1",
+            count="1",
+            clients="10.0.0.169",
+            port53="1",
+            dot853="1",
+            hijack53="1",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertIn(
+            "WARN:client DNS firewall bypass detected: clients=10.0.0.169 port53=1 dot853=1 hijack53=1",
+            result.stdout,
+        )
+        self.assertIn(
+            "INFO:DNS bypass diagnostics are observation-only; firewall policy was not modified",
+            result.stdout,
+        )
+
+    def test_doctor_warns_when_fw4_diagnostics_are_unavailable(self) -> None:
+        result = self._run_doctor(available="0")
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertIn(
+            "WARN:client DNS firewall bypass diagnostics unavailable; required fw4 chains could not be observed",
+            result.stdout,
+        )
+
+    def test_doctor_is_quiet_when_fw4_is_readable_without_bypass(self) -> None:
+        result = self._run_doctor(available="1", count="0")
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertNotIn("client DNS firewall bypass detected", result.stdout)
+        self.assertNotIn("client DNS firewall bypass diagnostics unavailable", result.stdout)
 
 
 if __name__ == "__main__":
