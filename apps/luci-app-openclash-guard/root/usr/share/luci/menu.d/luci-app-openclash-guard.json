@@ -30,9 +30,14 @@
     "order": 5,
     "action": { "type": "view", "path": "openclash-guard/rules" }
   },
+  "admin/services/openclash-guard/monitoring": {
+    "title": "Monitoring",
+    "order": 6,
+    "action": { "type": "view", "path": "openclash-guard/monitoring" }
+  },
   "admin/services/openclash-guard/tests": {
     "title": "Tests",
-    "order": 6,
+    "order": 7,
     "action": { "type": "view", "path": "openclash-guard/tests" }
   }
 }
