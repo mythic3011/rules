@@ -56,6 +56,27 @@ class ResolverSyncDataGeneratorTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "both selected and excluded"):
                 module.parse_source(path)
 
+    def test_supported_services_must_be_selected_or_explicitly_excluded(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "rules"
+            path.write_text(
+                "\n".join(
+                    [
+                        module.HEADER,
+                        "source sample owner/repo " + "c" * 40,
+                        "selector chatgpt suffix openai.com",
+                        "selector claude suffix claude.ai",
+                        "selector poe suffix poe.com",
+                        "selector windsurf suffix windsurf.com",
+                        "selector huggingface suffix huggingface.co",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(RuntimeError, "coverage is incomplete: flow-music"):
+                module.parse_source(path)
+
     def test_generated_multiline_literal_never_contains_unescaped_single_quote(self) -> None:
         rendered = module.render()
         self.assertIn("_GUARD_RESOLVER_SYNC_DATA_SELECTORS='chatgpt suffix ai.com", rendered)
