@@ -7,8 +7,8 @@
     },
     "guardBundle": {
       "path": "dist/openclash-guard.sh",
-      "sha256": "9080c7da39b307560ba0b40ddfa9179ddbebba3a8cb7607b1c0838b1e610a20a",
-      "size": 316813
+      "sha256": "c1a24408626b3a003c0689d9df852b5c5ec1ed8299dbe7411924546ea8fa5ca0",
+      "size": 317989
     },
     "runtimePolicy": {
       "path": "cfg/runtime/openclash-guard.json",
@@ -22,7 +22,7 @@
     }
   },
   "repository": "mythic3011/rules",
-  "revision": "sha256:b1cf8cc695cee3be6d6ed68581052ff74313aa6ce519c2805868be04cf123e9a",
+  "revision": "sha256:43298e79f3c1c1a30564a166cf8df3e69aa569011cfcb6b84969b91d449ff706",
   "schemaVersion": 1,
   "sequence": 4
 }
