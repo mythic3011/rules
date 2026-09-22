@@ -306,6 +306,25 @@ class ResolverSyncDaemonTests(unittest.TestCase):
         self.assertEqual(state["reason"], "querylog-disabled-or-unavailable")
         self.assertFalse(self.cursor.exists())
 
+    def test_malformed_querylog_does_not_advance_cursor_or_cache(self) -> None:
+        old = entry("example.invalid", [])
+        self.write_querylog([old])
+        self.assertEqual(self.run_cycle(3_500).returncode, 0)
+        cursor_before = self.cursor.read_text(encoding="utf-8")
+        cache_before = self.cache.read_text(encoding="utf-8")
+        (self.fixtures / "querylog.json").write_text(
+            json.dumps({"data": {"not": "an-array"}}) + "\n",
+            encoding="utf-8",
+        )
+
+        result = self.run_cycle(3_530)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.cursor.read_text(encoding="utf-8"), cursor_before)
+        self.assertEqual(self.cache.read_text(encoding="utf-8"), cache_before)
+        state = self.state_json()
+        self.assertEqual(state["status"], "degraded")
+        self.assertEqual(state["reason"], "querylog-unavailable")
+
     def test_nft_failure_does_not_advance_cursor_or_publish_cache(self) -> None:
         old = entry("example.invalid", [])
         self.write_querylog([old])
