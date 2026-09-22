@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -19,6 +20,29 @@ spec.loader.exec_module(module)
 class ResolverSyncDataGeneratorTests(unittest.TestCase):
     def test_committed_generated_module_matches_source(self) -> None:
         self.assertEqual(GENERATED.read_text(encoding="utf-8"), module.render())
+
+    def test_required_services_are_derived_from_compiled_policy(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            policy = Path(tmp) / "policy.json"
+            policy.write_text(
+                json.dumps(
+                    {
+                        "protectionClasses": {
+                            "proxy": {"directAllowed": False},
+                            "direct": {"directAllowed": True},
+                        },
+                        "services": {
+                            "protected-service": {"protectionClass": "proxy"},
+                            "direct-service": {"protectionClass": "direct"},
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                module.required_services_from_policy(policy),
+                frozenset({"protected-service"}),
+            )
 
     def test_duplicate_selector_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -76,6 +100,24 @@ class ResolverSyncDataGeneratorTests(unittest.TestCase):
             )
             with self.assertRaisesRegex(RuntimeError, "coverage is incomplete: flow-music"):
                 module.parse_source(path)
+
+    def test_direct_capable_service_cannot_be_added_to_resolver_rules(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "rules"
+            path.write_text(
+                "\n".join(
+                    [
+                        module.HEADER,
+                        "source sample owner/repo " + "d" * 40,
+                        "selector protected-service suffix protected.example",
+                        "selector direct-service suffix direct.example",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(RuntimeError, "direct-capable or unknown services: direct-service"):
+                module.parse_source(path, required_services=frozenset({"protected-service"}))
 
     def test_generated_multiline_literal_never_contains_unescaped_single_quote(self) -> None:
         rendered = module.render()
