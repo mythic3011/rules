@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-22T08:39:07Z",
+  "generated_at": "2026-09-22T16:24:02Z",
   "repo": "https://github.com/mythic3011/rules",
   "generator": "https://github.com/mythic3011/rules/blob/main/internal/python/generate_adblock_outputs.py",
   "categories": [
@@ -15,7 +15,7 @@
     },
     {
       "category": "tracking",
-      "final_domain_count": 52326,
+      "final_domain_count": 53658,
       "clash_domain_count": 8,
       "source_count": 1,
       "report": "reports/tracking.summary.json",
