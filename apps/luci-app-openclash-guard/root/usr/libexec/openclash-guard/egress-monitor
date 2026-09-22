@@ -1,0 +1,40 @@
+#!/bin/sh
+set -eu
+
+CONFIG='openclash_guard'
+RPCD_BACKEND='/usr/libexec/rpcd/luci.openclash-guard'
+DEFAULT_INTERVAL=900
+MIN_INTERVAL=300
+MAX_INTERVAL=86400
+
+uci_get() {
+	uci -q get "$CONFIG.$1.$2" 2>/dev/null || true
+}
+
+monitor_interval() {
+	value=$(uci_get monitoring interval)
+	case "$value" in
+		''|*[!0-9]*) value=$DEFAULT_INTERVAL ;;
+	esac
+	[ "$value" -ge "$MIN_INTERVAL" ] 2>/dev/null || value=$MIN_INTERVAL
+	[ "$value" -le "$MAX_INTERVAL" ] 2>/dev/null || value=$MAX_INTERVAL
+	printf '%s\n' "$value"
+}
+
+probe_enabled() {
+	[ "$(uci_get monitoring "$1")" = 1 ]
+}
+
+run_probe() {
+	service=$1
+	[ -x "$RPCD_BACKEND" ] || return 0
+	printf '{"service":"%s"}\n' "$service" | "$RPCD_BACKEND" call trace >/dev/null 2>&1 || true
+}
+
+while :; do
+	[ "$(uci_get monitoring enabled)" = 1 ] || exit 0
+	for service in chatgpt claude grok; do
+		probe_enabled "$service" && run_probe "$service"
+	done
+	sleep "$(monitor_interval)"
+done
