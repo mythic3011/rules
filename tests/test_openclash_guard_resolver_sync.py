@@ -162,6 +162,11 @@ class ResolverSyncCapabilityTests(unittest.TestCase):
         self.write_state()
         self.assertEqual(self.backend(), "adguardhome-resolver-sync")
 
+    def test_degraded_state_is_rejected_before_nft_lookup(self) -> None:
+        self.write_state(status="degraded")
+        self.assertEqual(self.backend(), "unavailable")
+        self.assertFalse(self.nft_log.exists())
+
     def test_selector_revision_mismatch_is_rejected_before_nft_lookup(self) -> None:
         self.write_state(sourceRevision="0" * 40)
         self.assertEqual(self.backend(), "unavailable")
