@@ -961,770 +961,54 @@ File.binwrite(output, rendered)
 }
 # END MODULE: guard-overlay
 
-# BEGIN MODULE: guard-rules
-# Guard-owned local and remote custom-rule staging.
-# Prefix: guard_rules_
+# BEGIN MODULE: guard-resolver-sync-data
+# GENERATED FILE. Edit internal/config/openclash-guard/resolver-sync.rules instead.
+# Prefix: _GUARD_RESOLVER_SYNC_DATA_
 set -eu
 
-# A fetched rule file is data.  It is parsed as matcher records below and is
-# never sourced, eval'ed, or interpolated into a shell command.
-_GUARD_RULES_MAX_REMOTE_BYTES=262144
-_GUARD_RULES_SYNC_INTERVAL_DEFAULT=10800
-
-guard_rules_dir() {
-    if [ -n "${GUARD_RULES_DIR:-}" ]; then
-        printf '%s\n' "$GUARD_RULES_DIR"
-    else
-        printf '%s/etc/openclash-guard/rules\n' "${GUARD_PREFIX:-}"
-    fi
-}
-
-guard_rules_config() {
-    if [ -n "${GUARD_RULES_CONFIG:-}" ]; then
-        printf '%s\n' "$GUARD_RULES_CONFIG"
-    else
-        printf '%s/sources.tsv\n' "$(guard_rules_dir)"
-    fi
-}
-
-guard_rules_local_file() {
-    case ${1:-} in
-        direct|proxy) printf '%s/local-%s.tsv\n' "$(guard_rules_dir)" "$1" ;;
-        *) return 2 ;;
-    esac
-}
-
-guard_rules_remote_file() {
-    case ${1:-} in
-        direct|proxy) printf '%s/remote-%s.tsv\n' "$(guard_rules_dir)" "$1" ;;
-        *) return 2 ;;
-    esac
-}
-
-guard_rules_sources_dir() {
-    printf '%s/sources\n' "$(guard_rules_dir)"
-}
-
-guard_rules_providers_dir() {
-    printf '%s/providers\n' "$(guard_rules_dir)"
-}
-
-guard_rules_error() {
-    printf 'error: %s\n' "$*" >&2
-}
-
-guard_rules_staged_notice() {
-    printf '%s\n' "rules staged, not yet active; activation is provided by the separate Guard overlay command and is not performed by this rules module"
-}
-
-guard_rules_make_stage() {
-    _guard_rules_ms_base=$(guard_rules_dir)
-    mkdir -p "$_guard_rules_ms_base"
-    _guard_rules_ms_file=$(file_mktemp "$_guard_rules_ms_base") || return 1
-    rm -f "$_guard_rules_ms_file"
-    mkdir -p "$_guard_rules_ms_file/sources/direct" "$_guard_rules_ms_file/sources/proxy" "$_guard_rules_ms_file/providers"
-    printf '%s\n' "$_guard_rules_ms_file"
-}
-
-guard_rules_remove_stage() {
-    _guard_rules_rs_stage=${1:-}
-    [ -n "$_guard_rules_rs_stage" ] || return 0
-    case $_guard_rules_rs_stage in
-        "$(guard_rules_dir)"/*) rm -rf "$_guard_rules_rs_stage" ;;
-        *) guard_rules_error "refusing to remove a non-Guard staging path"; return 1 ;;
-    esac
-}
-
-guard_rules_ensure_empty_file() {
-    _guard_rules_eef_dest=$1
-    [ -f "$_guard_rules_eef_dest" ] && return 0
-    _guard_rules_eef_dir=$(dirname "$_guard_rules_eef_dest")
-    mkdir -p "$_guard_rules_eef_dir"
-    _guard_rules_eef_tmp=$(file_mktemp "$_guard_rules_eef_dir") || return 1
-    : > "$_guard_rules_eef_tmp"
-    if ! file_atomic_replace "$_guard_rules_eef_dest" "$_guard_rules_eef_tmp"; then
-        rm -f "$_guard_rules_eef_tmp"
-        return 1
-    fi
-    rm -f "$_guard_rules_eef_tmp"
-}
-
-guard_rules_ensure_layout() {
-    _guard_rules_el_dir=$(guard_rules_dir)
-    _guard_rules_el_config=$(guard_rules_config)
-    mkdir -p "$_guard_rules_el_dir" "$(guard_rules_sources_dir)/direct" "$(guard_rules_sources_dir)/proxy" "$(guard_rules_providers_dir)" "$(dirname "$_guard_rules_el_config")"
-    guard_rules_ensure_empty_file "$(guard_rules_local_file direct)"
-    guard_rules_ensure_empty_file "$(guard_rules_local_file proxy)"
-    guard_rules_ensure_empty_file "$(guard_rules_remote_file direct)"
-    guard_rules_ensure_empty_file "$(guard_rules_remote_file proxy)"
-    guard_rules_ensure_empty_file "$_guard_rules_el_config"
-}
-
-guard_rules_bad_chars() {
-    # Match whitespace and all control bytes.  The URL and matcher validators
-    # deliberately reject these instead of trying to repair user input.
-    LC_ALL=C awk 'BEGIN { bad = 0 } { if (NR > 1 || $0 ~ /[[:space:][:cntrl:]]/) bad = 1 } END { exit bad }'
-}
-
-guard_rules_validate_url() {
-    _guard_rules_vu_url=${1:-}
-    [ -n "$_guard_rules_vu_url" ] || return 1
-    if ! printf '%s' "$_guard_rules_vu_url" | guard_rules_bad_chars; then
-        return 1
-    fi
-    LC_ALL=C awk -v value="$_guard_rules_vu_url" '
-        BEGIN {
-            if (value !~ /^https:\/\//) exit 1
-            rest = value
-            sub(/^https:\/\//, "", rest)
-            slash = index(rest, "/")
-            if (slash <= 1) exit 1
-            host = substr(rest, 1, slash - 1)
-            path = substr(rest, slash)
-            if (host != "raw.githubusercontent.com" && host != "gist.githubusercontent.com") exit 1
-            if (path == "/" || path == "") exit 1
-            if (host ~ /:/ || host ~ /@/) exit 1
-            if (index(path, "?") || index(path, "#") || index(path, "\\")) exit 1
-            count = split(path, parts, "/")
-            if (host == "raw.githubusercontent.com") {
-                if (count < 5 || parts[2] == "" || parts[3] == "" || parts[4] == "" || parts[5] == "") exit 1
-            } else {
-                if (count < 5 || parts[2] == "" || parts[3] == "" || parts[4] != "raw" || parts[5] == "") exit 1
-            }
-            exit 0
-        }
-    '
-}
-
-guard_rules_validate_domain() {
-    _guard_rules_vd_value=${1:-}
-    LC_ALL=C awk -v value="$_guard_rules_vd_value" '
-        BEGIN {
-            if (length(value) < 1 || length(value) > 253) exit 1
-            if (value ~ /[^A-Za-z0-9.-]/ || value ~ /^[-.]|[-.]$/ || value ~ /\.\./) exit 1
-            count = split(value, labels, ".")
-            if (count < 1) exit 1
-            for (i = 1; i <= count; i++) {
-                label = labels[i]
-                if (length(label) < 1 || length(label) > 63) exit 1
-                if (length(label) == 1) {
-                    if (label !~ /^[A-Za-z0-9]$/) exit 1
-                } else if (label !~ /^[A-Za-z0-9][A-Za-z0-9-]*[A-Za-z0-9]$/) {
-                    exit 1
-                }
-            }
-            exit 0
-        }
-    '
-}
-
-guard_rules_validate_keyword() {
-    _guard_rules_vk_value=${1:-}
-    LC_ALL=C awk -v value="$_guard_rules_vk_value" '
-        BEGIN {
-            if (length(value) < 1 || length(value) > 253) exit 1
-            if (length(value) == 1) {
-                if (value !~ /^[A-Za-z0-9]$/) exit 1
-            } else if (value !~ /^[A-Za-z0-9][A-Za-z0-9._-]*[A-Za-z0-9]$/) {
-                exit 1
-            }
-            exit 0
-        }
-    '
-}
-
-guard_rules_validate_ipv4_cidr() {
-    _guard_rules_vi_value=${1:-}
-    LC_ALL=C awk -v value="$_guard_rules_vi_value" '
-        BEGIN {
-            if (split(value, pair, "/") != 2) exit 1
-            address = pair[1]
-            prefix = pair[2]
-            if (split(address, octets, ".") != 4) exit 1
-            for (i = 1; i <= 4; i++) {
-                octet = octets[i]
-                if (octet !~ /^[0-9]+$/ || length(octet) > 3) exit 1
-                if (length(octet) > 1 && substr(octet, 1, 1) == "0") exit 1
-                if ((octet + 0) > 255) exit 1
-            }
-            if (prefix !~ /^[0-9]+$/ || length(prefix) > 2) exit 1
-            if (length(prefix) > 1 && substr(prefix, 1, 1) == "0") exit 1
-            if ((prefix + 0) > 32) exit 1
-            exit 0
-        }
-    '
-}
-
-guard_rules_normalize_entry() {
-    _guard_rules_ne_entry=${1:-}
-    _guard_rules_ne_allow_keyword=${2:-0}
-    [ -n "$_guard_rules_ne_entry" ] || return 1
-    if ! printf '%s' "$_guard_rules_ne_entry" | guard_rules_bad_chars; then
-        return 1
-    fi
-    case $_guard_rules_ne_entry in
-        *,*) ;;
-        *) return 1 ;;
-    esac
-    _guard_rules_ne_kind=${_guard_rules_ne_entry%%,*}
-    _guard_rules_ne_value=${_guard_rules_ne_entry#*,}
-    case $_guard_rules_ne_value in
-        *,*|'') return 1 ;;
-    esac
-    case $_guard_rules_ne_kind in
-        DOMAIN|DOMAIN-SUFFIX)
-            _guard_rules_ne_value=$(printf '%s' "$_guard_rules_ne_value" | LC_ALL=C tr '[:upper:]' '[:lower:]')
-            guard_rules_validate_domain "$_guard_rules_ne_value" || return 1
-            ;;
-        DOMAIN-KEYWORD)
-            [ "$_guard_rules_ne_allow_keyword" = 1 ] || return 1
-            _guard_rules_ne_value=$(printf '%s' "$_guard_rules_ne_value" | LC_ALL=C tr '[:upper:]' '[:lower:]')
-            guard_rules_validate_keyword "$_guard_rules_ne_value" || return 1
-            ;;
-        IP-CIDR)
-            guard_rules_validate_ipv4_cidr "$_guard_rules_ne_value" || return 1
-            ;;
-        *) return 1 ;;
-    esac
-    printf '%s,%s\n' "$_guard_rules_ne_kind" "$_guard_rules_ne_value"
-}
-
-guard_rules_validate_rule_file() {
-    _guard_rules_vrf_file=${1:-}
-    _guard_rules_vrf_allow_keyword=${2:-0}
-    [ -f "$_guard_rules_vrf_file" ] || return 1
-    while IFS= read -r _guard_rules_vrf_line || [ -n "$_guard_rules_vrf_line" ]; do
-        case $_guard_rules_vrf_line in
-            ''|'#'*) continue ;;
-        esac
-        _guard_rules_vrf_normalized=$(guard_rules_normalize_entry "$_guard_rules_vrf_line" "$_guard_rules_vrf_allow_keyword") || return 1
-        [ "$_guard_rules_vrf_normalized" = "$_guard_rules_vrf_line" ] || return 1
-    done < "$_guard_rules_vrf_file"
-}
-
-guard_rules_normalize_remote_file() {
-    _guard_rules_nrf_input=$1
-    _guard_rules_nrf_output=$2
-    : > "$_guard_rules_nrf_output"
-    while IFS= read -r _guard_rules_nrf_line || [ -n "$_guard_rules_nrf_line" ]; do
-        case $_guard_rules_nrf_line in
-            ''|'#'*) continue ;;
-        esac
-        _guard_rules_nrf_normalized=$(guard_rules_normalize_entry "$_guard_rules_nrf_line" 1) || return 1
-        printf '%s\n' "$_guard_rules_nrf_normalized" >> "$_guard_rules_nrf_output"
-    done < "$_guard_rules_nrf_input"
-    LC_ALL=C sort -u "$_guard_rules_nrf_output" -o "$_guard_rules_nrf_output"
-}
-
-guard_rules_source_id() {
-    _guard_rules_sid_url=$1
-    _guard_rules_sid_tmp=$(file_mktemp) || return 1
-    printf '%s' "$_guard_rules_sid_url" > "$_guard_rules_sid_tmp"
-    _guard_rules_sid_digest=$(file_sha256 "$_guard_rules_sid_tmp") || {
-        rm -f "$_guard_rules_sid_tmp"
-        return 1
-    }
-    rm -f "$_guard_rules_sid_tmp"
-    printf '%s\n' "$_guard_rules_sid_digest"
-}
-
-guard_rules_source_file() {
-    _guard_rules_sfp_root=$1
-    _guard_rules_sfp_scope=$2
-    _guard_rules_sfp_url=$3
-    printf '%s/%s/%s.tsv\n' "$_guard_rules_sfp_root" "$_guard_rules_sfp_scope" "$(guard_rules_source_id "$_guard_rules_sfp_url")"
-}
-
-guard_rules_validate_sources_file() {
-    _guard_rules_vsf_file=${1:-}
-    [ -f "$_guard_rules_vsf_file" ] || return 1
-    while IFS="$(printf '\t')" read -r _guard_rules_vsf_scope _guard_rules_vsf_url _guard_rules_vsf_extra || [ -n "${_guard_rules_vsf_scope:-}" ]; do
-        case ${_guard_rules_vsf_scope:-} in
-            ''|'#'*) continue ;;
-            direct|proxy) ;;
-            *) return 1 ;;
-        esac
-        [ -n "${_guard_rules_vsf_url:-}" ] || return 1
-        [ -z "${_guard_rules_vsf_extra:-}" ] || return 1
-        guard_rules_validate_url "$_guard_rules_vsf_url" || return 1
-    done < "$_guard_rules_vsf_file"
-}
-
-guard_rules_collect_sources() {
-    _guard_rules_cs_config=$1
-    _guard_rules_cs_root=$2
-    _guard_rules_cs_scope=$3
-    _guard_rules_cs_output=$4
-    : > "$_guard_rules_cs_output"
-    while IFS="$(printf '\t')" read -r _guard_rules_cs_cfg_scope _guard_rules_cs_url _guard_rules_cs_extra || [ -n "${_guard_rules_cs_cfg_scope:-}" ]; do
-        [ "${_guard_rules_cs_cfg_scope:-}" = "$_guard_rules_cs_scope" ] || continue
-        [ -n "${_guard_rules_cs_url:-}" ] || continue
-        _guard_rules_cs_source=$(guard_rules_source_file "$_guard_rules_cs_root" "$_guard_rules_cs_scope" "$_guard_rules_cs_url")
-        [ -f "$_guard_rules_cs_source" ] || continue
-        cat "$_guard_rules_cs_source" >> "$_guard_rules_cs_output"
-    done < "$_guard_rules_cs_config"
-    _guard_rules_cs_sorted=$(file_mktemp "$(dirname "$_guard_rules_cs_output")") || return 1
-    if ! LC_ALL=C sort -u "$_guard_rules_cs_output" > "$_guard_rules_cs_sorted"; then
-        rm -f "$_guard_rules_cs_sorted"
-        return 1
-    fi
-    mv -f "$_guard_rules_cs_sorted" "$_guard_rules_cs_output"
-}
-
-guard_rules_render_provider() {
-    _guard_rules_rp_kind=$1
-    _guard_rules_rp_local=$2
-    _guard_rules_rp_remote=$3
-    _guard_rules_rp_dest=$4
-    _guard_rules_rp_data=$(file_mktemp "$(dirname "$_guard_rules_rp_dest")") || return 1
-    case $_guard_rules_rp_kind in
-        domain)
-            awk -F ',' '
-                $1 == "DOMAIN" { print $2 }
-                $1 == "DOMAIN-SUFFIX" { print "+." $2 }
-                $1 == "DOMAIN-KEYWORD" { print "*" $2 "*" }
-            ' "$_guard_rules_rp_local" "$_guard_rules_rp_remote" | LC_ALL=C sort -u > "$_guard_rules_rp_data"
-            ;;
-        ip)
-            awk -F ',' '$1 == "IP-CIDR" { print "IP-CIDR," $2 ",no-resolve" }' "$_guard_rules_rp_local" "$_guard_rules_rp_remote" | LC_ALL=C sort -u > "$_guard_rules_rp_data"
-            ;;
-        *) rm -f "$_guard_rules_rp_data"; return 2 ;;
-    esac
-    {
-        printf 'payload:\n'
-        while IFS= read -r _guard_rules_rp_line || [ -n "$_guard_rules_rp_line" ]; do
-            [ -n "$_guard_rules_rp_line" ] || continue
-            printf "  - '%s'\n" "$_guard_rules_rp_line"
-        done < "$_guard_rules_rp_data"
-    } > "$_guard_rules_rp_dest"
-    rm -f "$_guard_rules_rp_data"
-}
-
-guard_rules_render_all() {
-    _guard_rules_ra_local_direct=$1
-    _guard_rules_ra_local_proxy=$2
-    _guard_rules_ra_remote_direct=$3
-    _guard_rules_ra_remote_proxy=$4
-    _guard_rules_ra_dest=$5
-    mkdir -p "$_guard_rules_ra_dest"
-    while IFS=' ' read -r _guard_rules_ra_name _guard_rules_ra_behavior _guard_rules_ra_file; do
-        case $_guard_rules_ra_name in
-            Custom_Direct_*)
-                _guard_rules_ra_local=$_guard_rules_ra_local_direct
-                _guard_rules_ra_remote=$_guard_rules_ra_remote_direct
-                ;;
-            Custom_Proxy_*)
-                _guard_rules_ra_local=$_guard_rules_ra_local_proxy
-                _guard_rules_ra_remote=$_guard_rules_ra_remote_proxy
-                ;;
-            *) return 2 ;;
-        esac
-        case $_guard_rules_ra_behavior in
-            domain) _guard_rules_ra_kind=domain ;;
-            classical) _guard_rules_ra_kind=ip ;;
-            *) return 2 ;;
-        esac
-        guard_rules_render_provider "$_guard_rules_ra_kind" "$_guard_rules_ra_local" "$_guard_rules_ra_remote" "$_guard_rules_ra_dest/$_guard_rules_ra_file" || return $?
-    done <<EOF
-$(guard_overlay_provider_specs)
-EOF
-}
-
-guard_rules_publish_providers() {
-    _guard_rules_pp_stage=$1
-    _guard_rules_pp_dest=$(guard_rules_providers_dir)
-    mkdir -p "$_guard_rules_pp_dest"
-    while IFS=' ' read -r _guard_rules_pp_key _guard_rules_pp_behavior _guard_rules_pp_name; do
-        [ -n "$_guard_rules_pp_name" ] || continue
-        if [ -f "$_guard_rules_pp_dest/$_guard_rules_pp_name" ] && \
-           cmp -s "$_guard_rules_pp_dest/$_guard_rules_pp_name" "$_guard_rules_pp_stage/$_guard_rules_pp_name"; then
-            continue
-        fi
-        if ! file_atomic_replace "$_guard_rules_pp_dest/$_guard_rules_pp_name" "$_guard_rules_pp_stage/$_guard_rules_pp_name"; then
-            return 1
-        fi
-    done <<EOF
-$(guard_overlay_provider_specs)
-EOF
-}
-
-guard_rules_init() {
-    guard_rules_ensure_layout
-    _guard_rules_gi_stage=$(guard_rules_make_stage) || return 1
-    _guard_rules_gi_local_direct=$(guard_rules_local_file direct)
-    _guard_rules_gi_local_proxy=$(guard_rules_local_file proxy)
-    _guard_rules_gi_direct=$(guard_rules_remote_file direct)
-    _guard_rules_gi_proxy=$(guard_rules_remote_file proxy)
-    if ! guard_rules_render_all "$_guard_rules_gi_local_direct" "$_guard_rules_gi_local_proxy" "$_guard_rules_gi_direct" "$_guard_rules_gi_proxy" "$_guard_rules_gi_stage/providers"; then
-        guard_rules_remove_stage "$_guard_rules_gi_stage"
-        return 1
-    fi
-    if ! guard_rules_publish_providers "$_guard_rules_gi_stage/providers"; then
-        guard_rules_remove_stage "$_guard_rules_gi_stage"
-        return 1
-    fi
-    guard_rules_remove_stage "$_guard_rules_gi_stage"
-    guard_rules_staged_notice
-}
-
-guard_rules_local_mutate() {
-    _guard_rules_lm_scope=$1
-    _guard_rules_lm_action=$2
-    _guard_rules_lm_entry=$3
-    case $_guard_rules_lm_scope in
-        direct|proxy) ;;
-        *) return 2 ;;
-    esac
-    _guard_rules_lm_normalized=$(guard_rules_normalize_entry "$_guard_rules_lm_entry" 0) || {
-        guard_rules_error "invalid local rule; expected DOMAIN, DOMAIN-SUFFIX, or IP-CIDR"
-        return 1
-    }
-    guard_rules_ensure_layout
-    _guard_rules_lm_local=$(guard_rules_local_file "$_guard_rules_lm_scope")
-    if ! guard_rules_validate_rule_file "$_guard_rules_lm_local" 0; then
-        guard_rules_error "Guard local rule state is invalid"
-        return 1
-    fi
-    _guard_rules_lm_stage=$(guard_rules_make_stage) || return 1
-    _guard_rules_lm_new="$_guard_rules_lm_stage/local-$_guard_rules_lm_scope.tsv"
-    if [ "$_guard_rules_lm_action" = add ]; then
-        awk -v want="$_guard_rules_lm_normalized" '$0 == want { found = 1 } { print } END { if (!found) print want }' "$_guard_rules_lm_local" > "$_guard_rules_lm_new"
-    else
-        awk -v want="$_guard_rules_lm_normalized" '$0 != want { print }' "$_guard_rules_lm_local" > "$_guard_rules_lm_new"
-    fi
-    _guard_rules_lm_sorted=$(file_mktemp "$_guard_rules_lm_stage") || {
-        guard_rules_remove_stage "$_guard_rules_lm_stage"
-        return 1
-    }
-    LC_ALL=C sort -u "$_guard_rules_lm_new" > "$_guard_rules_lm_sorted"
-    mv -f "$_guard_rules_lm_sorted" "$_guard_rules_lm_new"
-    _guard_rules_lm_direct=$(guard_rules_remote_file direct)
-    _guard_rules_lm_proxy=$(guard_rules_remote_file proxy)
-    _guard_rules_lm_local_direct=$(guard_rules_local_file direct)
-    _guard_rules_lm_local_proxy=$(guard_rules_local_file proxy)
-    if [ "$_guard_rules_lm_scope" = direct ]; then
-        _guard_rules_lm_local_direct=$_guard_rules_lm_new
-    else
-        _guard_rules_lm_local_proxy=$_guard_rules_lm_new
-    fi
-    if ! guard_rules_render_all "$_guard_rules_lm_local_direct" "$_guard_rules_lm_local_proxy" "$_guard_rules_lm_direct" "$_guard_rules_lm_proxy" "$_guard_rules_lm_stage/providers"; then
-        guard_rules_remove_stage "$_guard_rules_lm_stage"
-        return 1
-    fi
-    if ! file_atomic_replace "$_guard_rules_lm_local" "$_guard_rules_lm_new" || ! guard_rules_publish_providers "$_guard_rules_lm_stage/providers"; then
-        guard_rules_remove_stage "$_guard_rules_lm_stage"
-        return 1
-    fi
-    guard_rules_remove_stage "$_guard_rules_lm_stage"
-    guard_rules_staged_notice
-}
-
-guard_rules_list_local() {
-    _guard_rules_ll_scope=${1:-}
-    case $_guard_rules_ll_scope in
-        direct|proxy)
-            _guard_rules_ll_local=$(guard_rules_local_file "$_guard_rules_ll_scope")
-            [ -f "$_guard_rules_ll_local" ] || return 0
-            ;;
-        '')
-            guard_rules_list_local direct
-            guard_rules_list_local proxy
-            return 0
-            ;;
-        *) return 2 ;;
-    esac
-    cat "$_guard_rules_ll_local"
-}
-
-guard_rules_local_has_entries() {
-    _guard_rules_lhe_scope=${1:-}
-    case $_guard_rules_lhe_scope in
-        direct|proxy)
-            [ -s "$(guard_rules_local_file "$_guard_rules_lhe_scope")" ]
-            ;;
-        '')
-            [ -s "$(guard_rules_local_file direct)" ] || \
-                [ -s "$(guard_rules_local_file proxy)" ]
-            ;;
-        *)
-            return 2
-            ;;
-    esac
-}
-
-guard_rules_config_mutate() {
-    _guard_rules_cm_scope=$1
-    _guard_rules_cm_action=$2
-    _guard_rules_cm_url=$3
-    case $_guard_rules_cm_scope in
-        direct|proxy) ;;
-        *) return 2 ;;
-    esac
-    guard_rules_validate_url "$_guard_rules_cm_url" || {
-        guard_rules_error "only HTTPS raw.githubusercontent.com or gist.githubusercontent.com URLs are accepted"
-        return 1
-    }
-    guard_rules_ensure_layout
-    _guard_rules_cm_config=$(guard_rules_config)
-    guard_rules_validate_sources_file "$_guard_rules_cm_config" || {
-        guard_rules_error "Guard source configuration is invalid"
-        return 1
-    }
-    _guard_rules_cm_stage=$(guard_rules_make_stage) || return 1
-    _guard_rules_cm_new="$_guard_rules_cm_stage/sources.tsv"
-    _guard_rules_cm_found=0
-    if [ "$_guard_rules_cm_action" = add ]; then
-        awk -F '\t' -v scope="$_guard_rules_cm_scope" -v url="$_guard_rules_cm_url" '
-            $1 == scope && $2 == url { found = 1 }
-            { print }
-            END { if (!found) print scope "\t" url }
-        ' "$_guard_rules_cm_config" > "$_guard_rules_cm_new"
-    else
-        awk -F '\t' -v scope="$_guard_rules_cm_scope" -v url="$_guard_rules_cm_url" '$1 == scope && $2 == url { found = 1; next } { print }' "$_guard_rules_cm_config" > "$_guard_rules_cm_new"
-    fi
-    _guard_rules_cm_direct="$_guard_rules_cm_stage/remote-direct.tsv"
-    _guard_rules_cm_proxy="$_guard_rules_cm_stage/remote-proxy.tsv"
-    guard_rules_collect_sources "$_guard_rules_cm_new" "$(guard_rules_sources_dir)" direct "$_guard_rules_cm_direct"
-    guard_rules_collect_sources "$_guard_rules_cm_new" "$(guard_rules_sources_dir)" proxy "$_guard_rules_cm_proxy"
-    if ! guard_rules_render_all "$(guard_rules_local_file direct)" "$(guard_rules_local_file proxy)" "$_guard_rules_cm_direct" "$_guard_rules_cm_proxy" "$_guard_rules_cm_stage/providers"; then
-        guard_rules_remove_stage "$_guard_rules_cm_stage"
-        return 1
-    fi
-    if ! file_atomic_replace "$_guard_rules_cm_config" "$_guard_rules_cm_new" || \
-       ! file_atomic_replace "$(guard_rules_remote_file direct)" "$_guard_rules_cm_direct" || \
-       ! file_atomic_replace "$(guard_rules_remote_file proxy)" "$_guard_rules_cm_proxy" || \
-       ! guard_rules_publish_providers "$_guard_rules_cm_stage/providers"; then
-        guard_rules_remove_stage "$_guard_rules_cm_stage"
-        return 1
-    fi
-    guard_rules_remove_stage "$_guard_rules_cm_stage"
-    guard_rules_staged_notice
-}
-
-guard_rules_sync_run() {
-    guard_rules_ensure_layout
-    _guard_rules_sr_config=$(guard_rules_config)
-    guard_rules_validate_sources_file "$_guard_rules_sr_config" || {
-        guard_rules_error "Guard source configuration is invalid; keeping last-good staged rules"
-        return 1
-    }
-    _guard_rules_sr_stage=$(guard_rules_make_stage) || return 1
-    _guard_rules_sr_ok=1
-    while IFS="$(printf '\t')" read -r _guard_rules_sr_scope _guard_rules_sr_url _guard_rules_sr_extra || [ -n "${_guard_rules_sr_scope:-}" ]; do
-        case ${_guard_rules_sr_scope:-} in
-            ''|'#'*) continue ;;
-        esac
-        _guard_rules_sr_raw=$(file_mktemp "$_guard_rules_sr_stage") || { _guard_rules_sr_ok=0; break; }
-        if ! fetch_atomic "$_guard_rules_sr_url" "$_guard_rules_sr_raw" "" "" "$_GUARD_RULES_MAX_REMOTE_BYTES" 1; then
-            _guard_rules_sr_ok=0
-            break
-        fi
-        _guard_rules_sr_bytes=$(wc -c < "$_guard_rules_sr_raw" | tr -d '[:space:]')
-        case $_guard_rules_sr_bytes in
-            ''|*[!0-9]*) _guard_rules_sr_ok=0; break ;;
-        esac
-        if [ "$_guard_rules_sr_bytes" -gt "$_GUARD_RULES_MAX_REMOTE_BYTES" ]; then
-            guard_rules_error "remote rule source exceeds ${_GUARD_RULES_MAX_REMOTE_BYTES} bytes: $_guard_rules_sr_url"
-            _guard_rules_sr_ok=0
-            break
-        fi
-        _guard_rules_sr_snapshot=$(guard_rules_source_file "$_guard_rules_sr_stage/sources" "$_guard_rules_sr_scope" "$_guard_rules_sr_url")
-        mkdir -p "$(dirname "$_guard_rules_sr_snapshot")"
-        if ! guard_rules_normalize_remote_file "$_guard_rules_sr_raw" "$_guard_rules_sr_snapshot"; then
-            guard_rules_error "remote rule source has invalid matcher data: $_guard_rules_sr_url"
-            _guard_rules_sr_ok=0
-            break
-        fi
-    done < "$_guard_rules_sr_config"
-    if [ "$_guard_rules_sr_ok" != 1 ]; then
-        guard_rules_remove_stage "$_guard_rules_sr_stage"
-        guard_rules_error "sync failed; keeping last-good remote snapshots and providers"
-        return 1
-    fi
-    _guard_rules_sr_direct="$_guard_rules_sr_stage/remote-direct.tsv"
-    _guard_rules_sr_proxy="$_guard_rules_sr_stage/remote-proxy.tsv"
-    guard_rules_collect_sources "$_guard_rules_sr_config" "$_guard_rules_sr_stage/sources" direct "$_guard_rules_sr_direct"
-    guard_rules_collect_sources "$_guard_rules_sr_config" "$_guard_rules_sr_stage/sources" proxy "$_guard_rules_sr_proxy"
-    if ! guard_rules_render_all "$(guard_rules_local_file direct)" "$(guard_rules_local_file proxy)" "$_guard_rules_sr_direct" "$_guard_rules_sr_proxy" "$_guard_rules_sr_stage/providers"; then
-        guard_rules_remove_stage "$_guard_rules_sr_stage"
-        return 1
-    fi
-
-    # Every source has been fetched, size-checked, parsed, deduped, and used
-    # to render all four providers before any production snapshot is changed.
-    if ! file_atomic_replace "$(guard_rules_remote_file direct)" "$_guard_rules_sr_direct" || \
-       ! file_atomic_replace "$(guard_rules_remote_file proxy)" "$_guard_rules_sr_proxy"; then
-        guard_rules_remove_stage "$_guard_rules_sr_stage"
-        return 1
-    fi
-    mkdir -p "$(guard_rules_sources_dir)/direct" "$(guard_rules_sources_dir)/proxy"
-    while IFS="$(printf '\t')" read -r _guard_rules_sr_scope _guard_rules_sr_url _guard_rules_sr_extra || [ -n "${_guard_rules_sr_scope:-}" ]; do
-        case ${_guard_rules_sr_scope:-} in
-            ''|'#'*) continue ;;
-        esac
-        _guard_rules_sr_snapshot=$(guard_rules_source_file "$_guard_rules_sr_stage/sources" "$_guard_rules_sr_scope" "$_guard_rules_sr_url")
-        _guard_rules_sr_dest=$(guard_rules_source_file "$(guard_rules_sources_dir)" "$_guard_rules_sr_scope" "$_guard_rules_sr_url")
-        if ! file_atomic_replace "$_guard_rules_sr_dest" "$_guard_rules_sr_snapshot"; then
-            guard_rules_remove_stage "$_guard_rules_sr_stage"
-            return 1
-        fi
-    done < "$_guard_rules_sr_config"
-    if ! guard_rules_publish_providers "$_guard_rules_sr_stage/providers"; then
-        guard_rules_remove_stage "$_guard_rules_sr_stage"
-        return 1
-    fi
-    guard_rules_remove_stage "$_guard_rules_sr_stage"
-    guard_rules_staged_notice
-}
-
-guard_rules_sync_list() {
-    _guard_rules_sl_scope=${1:-}
-    _guard_rules_sl_config=$(guard_rules_config)
-    [ -f "$_guard_rules_sl_config" ] || return 0
-    case $_guard_rules_sl_scope in
-        direct|proxy)
-            awk -F '\t' -v scope="$_guard_rules_sl_scope" '$1 == scope { print }' "$_guard_rules_sl_config"
-            ;;
-        '') cat "$_guard_rules_sl_config" ;;
-        *) return 2 ;;
-    esac
-}
-
-guard_rules_sync_interval() {
-    _guard_rules_si_value=${GUARD_RULES_SYNC_INTERVAL:-$_GUARD_RULES_SYNC_INTERVAL_DEFAULT}
-    case $_guard_rules_si_value in
-        ''|*[!0-9]*) return 1 ;;
-    esac
-    [ "$_guard_rules_si_value" -gt 0 ] || return 1
-    printf '%s\n' "$_guard_rules_si_value"
-}
-
-guard_rules_sync_watch() {
-    [ "${GUARD_RULES_ALLOW_WATCH:-0}" = 1 ] || {
-        guard_rules_error "sync watch is internal-only; set GUARD_RULES_ALLOW_WATCH=1 explicitly"
-        return 2
-    }
-    _guard_rules_sw_interval=$(guard_rules_sync_interval) || {
-        guard_rules_error "GUARD_RULES_SYNC_INTERVAL must be a positive integer"
-        return 2
-    }
-    trap '_guard_lock_release; exit 0' INT TERM
-    trap _guard_lock_release EXIT
-    while :; do
-        _guard_rules_sw_rc=0
-        if _guard_lock_acquire; then
-            guard_rules_sync_run || _guard_rules_sw_rc=$?
-            _guard_lock_release
-        else
-            _guard_rules_sw_rc=$?
-            guard_rules_error "scheduled sync could not acquire the Guard lock"
-        fi
-        [ "$_guard_rules_sw_rc" -eq 0 ] || guard_rules_error "scheduled sync failed; last-good rules remain active"
-        sleep "$_guard_rules_sw_interval" || true
-    done
-}
-
-guard_rules_purge() {
-    _guard_rules_pg_dir=$(guard_rules_dir)
-    _guard_rules_pg_config=$(guard_rules_config)
-    [ -d "$_guard_rules_pg_dir" ] || return 0
-    rm -f "$_guard_rules_pg_dir/local-direct.tsv" "$_guard_rules_pg_dir/local-proxy.tsv" "$_guard_rules_pg_dir/remote-direct.tsv" "$_guard_rules_pg_dir/remote-proxy.tsv"
-    while IFS=' ' read -r _guard_rules_pg_key _guard_rules_pg_behavior _guard_rules_pg_name; do
-        [ -n "$_guard_rules_pg_name" ] || continue
-        rm -f "$_guard_rules_pg_dir/providers/$_guard_rules_pg_name"
-    done <<EOF
-$(guard_overlay_provider_specs)
-EOF
-    for _guard_rules_pg_scope in direct proxy; do
-        if [ -d "$_guard_rules_pg_dir/sources/$_guard_rules_pg_scope" ]; then
-            find "$_guard_rules_pg_dir/sources/$_guard_rules_pg_scope" -type f -name '*.tsv' -exec rm -f {} + 2>/dev/null || true
-        fi
-        rmdir "$_guard_rules_pg_dir/sources/$_guard_rules_pg_scope" 2>/dev/null || true
-    done
-    find "$_guard_rules_pg_dir" -type d -name 'shlib.*' -prune -exec rm -rf {} + 2>/dev/null || true
-    rmdir "$_guard_rules_pg_dir/providers" "$_guard_rules_pg_dir/sources" 2>/dev/null || true
-    rm -f "$_guard_rules_pg_config"
-    rmdir "$_guard_rules_pg_dir" 2>/dev/null || true
-}
-
-guard_cmd_rules() {
-    _guard_rules_cmd=${1:-}
-    [ -n "$_guard_rules_cmd" ] || {
-        guard_rules_error "usage: rules add-direct|add-proxy|list|remove-direct|remove-proxy|sync ..."
-        return 2
-    }
-    shift
-    case $_guard_rules_cmd in
-        add-direct)
-            [ "$#" -eq 1 ] || return 2
-            guard_rules_local_mutate direct add "$1"
-            ;;
-        add-proxy)
-            [ "$#" -eq 1 ] || return 2
-            guard_rules_local_mutate proxy add "$1"
-            ;;
-        remove-direct)
-            [ "$#" -eq 1 ] || return 2
-            guard_rules_local_mutate direct remove "$1"
-            ;;
-        remove-proxy)
-            [ "$#" -eq 1 ] || return 2
-            guard_rules_local_mutate proxy remove "$1"
-            ;;
-        list)
-            [ "$#" -le 1 ] || return 2
-            _guard_rules_list_scope=${1:-}
-            if guard_rules_local_has_entries "$_guard_rules_list_scope"; then
-                guard_rules_list_local "$_guard_rules_list_scope"
-            else
-                case $_guard_rules_list_scope in
-                    direct|proxy)
-                        printf 'No staged %s rules.\n' "$_guard_rules_list_scope"
-                        ;;
-                    '')
-                        printf '%s\n' 'No staged custom rules.'
-                        ;;
-                    *)
-                        return 2
-                        ;;
-                esac
-            fi
-            ;;
-        activate)
-            guard_overlay_activate "$@"
-            ;;
-        deactivate)
-            guard_overlay_deactivate "$@"
-            ;;
-        apply-overlay)
-            guard_overlay_apply_config "$@"
-            ;;
-        sync)
-            _guard_rules_sync_cmd=${1:-}
-            [ -n "$_guard_rules_sync_cmd" ] || return 2
-            shift
-            case $_guard_rules_sync_cmd in
-                add-direct) [ "$#" -eq 1 ] || return 2; guard_rules_config_mutate direct add "$1" ;;
-                add-proxy) [ "$#" -eq 1 ] || return 2; guard_rules_config_mutate proxy add "$1" ;;
-                remove-direct) [ "$#" -eq 1 ] || return 2; guard_rules_config_mutate direct remove "$1" ;;
-                remove-proxy) [ "$#" -eq 1 ] || return 2; guard_rules_config_mutate proxy remove "$1" ;;
-                list) [ "$#" -le 1 ] || return 2; guard_rules_sync_list "${1:-}" ;;
-                run) [ "$#" -eq 0 ] || return 2; guard_rules_sync_run ;;
-                watch) [ "$#" -eq 0 ] || return 2; guard_rules_sync_watch ;;
-                *) guard_rules_error "unknown rules sync command: $_guard_rules_sync_cmd"; return 2 ;;
-            esac
-            ;;
-        init)
-            [ "$#" -eq 0 ] || return 2
-            guard_rules_init
-            ;;
-        *)
-            guard_rules_error "unknown rules command: $_guard_rules_cmd"
-            return 2
-            ;;
-    esac
-}
-# END MODULE: guard-rules
+_GUARD_RESOLVER_SYNC_DATA_SOURCE_ID='vpsdance'
+_GUARD_RESOLVER_SYNC_DATA_SOURCE_REPO='VPSDance/ai-proxy-rules'
+_GUARD_RESOLVER_SYNC_DATA_SOURCE_REVISION='d07cac190c33e7914ba7adaf7e7c14298fba7024'
+_GUARD_RESOLVER_SYNC_DATA_SELECTORS='chatgpt suffix ai.com
+chatgpt suffix chat.com
+chatgpt suffix chatgpt.com
+chatgpt suffix chatgpt.livekit.cloud
+chatgpt suffix crixet.com
+chatgpt suffix oaistatic.com
+chatgpt suffix oaiusercontent.com
+chatgpt suffix openai.com
+chatgpt suffix openaiapi-site.azureedge.net
+chatgpt suffix openaicom.imgix.net
+chatgpt suffix sora.com
+claude suffix anthropic.com
+claude suffix anthropic.com.cn
+claude suffix antspace.dev
+claude suffix clau.de
+claude suffix claude.ai
+claude suffix claude.app
+claude suffix claude.com
+claude suffix claude.new
+claude suffix claude.site
+claude suffix claudemcpclient.com
+claude suffix claudemcpcontent.com
+claude suffix claudepages.dev
+claude suffix claudestudio.com
+claude suffix claudeusercontent.com
+claude suffix modelcontextprotocol.com
+claude suffix modelcontextprotocol.io
+claude suffix modelcontextprotocol.net
+claude suffix modelcontextprotocol.org
+poe suffix poe.com
+poe suffix poecdn.net
+windsurf suffix codeium.com
+windsurf suffix codeiumdata.com
+windsurf suffix windsurf.build
+windsurf suffix windsurf.com
+huggingface suffix hf.co
+huggingface suffix hf.space
+huggingface suffix huggingface.co'
+_GUARD_RESOLVER_SYNC_DATA_EXCLUSIONS='flow-music path-scope-expansion'
+# END MODULE: guard-resolver-sync-data
 
 # BEGIN MODULE: json
 # Restricted JSON get/keys/list. Prefers jsonfilter; POSIX awk fallback.
@@ -3532,7 +2816,7 @@ guard_migrate_stale() {
 # END MODULE: guard-migration
 
 # BEGIN MODULE: guard-resolver-sync
-# Read-only capability verification for a structured DNS resolver-sync helper.
+# AdGuard Home resolver-sync producer plus read-only capability verification.
 # Prefix: guard_resolver_sync_
 set -eu
 
@@ -3547,6 +2831,10 @@ _GUARD_RESOLVER_SYNC_V4_SET_COMMENT=openclash-guard:resolver-sync-v4-set
 _GUARD_RESOLVER_SYNC_V6_SET_COMMENT=openclash-guard:resolver-sync-v6-set
 _GUARD_RESOLVER_SYNC_V4_RULE_COMMENT=openclash-guard:resolver-sync-v4
 _GUARD_RESOLVER_SYNC_V6_RULE_COMMENT=openclash-guard:resolver-sync-v6
+_GUARD_RESOLVER_SYNC_INTERVAL_DEFAULT=30
+_GUARD_RESOLVER_SYNC_MAX_TTL_DEFAULT=300
+_GUARD_RESOLVER_SYNC_MAX_QUERYLOG_BYTES_DEFAULT=4194304
+_GUARD_RESOLVER_SYNC_QUERYLOG_LIMIT_DEFAULT=1000
 
 _guard_resolver_sync_state_path() {
     if [ -n "${GUARD_RESOLVER_SYNC_STATE_FILE:-}" ]; then
@@ -3556,11 +2844,547 @@ _guard_resolver_sync_state_path() {
     fi
 }
 
+_guard_resolver_sync_cache_path() {
+    if [ -n "${GUARD_RESOLVER_SYNC_CACHE_FILE:-}" ]; then
+        printf '%s\n' "$GUARD_RESOLVER_SYNC_CACHE_FILE"
+    else
+        printf '%s/var/lib/openclash-guard/resolver-sync.cache\n' "${GUARD_PREFIX:-}"
+    fi
+}
+
+_guard_resolver_sync_cursor_path() {
+    if [ -n "${GUARD_RESOLVER_SYNC_CURSOR_FILE:-}" ]; then
+        printf '%s\n' "$GUARD_RESOLVER_SYNC_CURSOR_FILE"
+    else
+        printf '%s/var/lib/openclash-guard/resolver-sync.cursor\n' "${GUARD_PREFIX:-}"
+    fi
+}
+
 _guard_resolver_sync_uint() {
     case ${1:-} in
         ''|*[!0-9]*) return 1 ;;
         *) return 0 ;;
     esac
+}
+
+_guard_resolver_sync_valid_iface() {
+    case ${1:-} in
+        ''|*[!A-Za-z0-9_.:@-]*) return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
+_guard_resolver_sync_valid_ipv4() {
+    printf '%s\n' "${1:-}" | awk -F. '
+        NF != 4 { exit 1 }
+        {
+            for (i = 1; i <= 4; i++) {
+                if ($i !~ /^[0-9]+$/) exit 1
+                if (length($i) > 1 && substr($i, 1, 1) == "0") exit 1
+                if (($i + 0) > 255) exit 1
+            }
+        }
+    '
+}
+
+_guard_resolver_sync_valid_ipv6() {
+    printf '%s\n' "${1:-}" | awk '
+        function hextet(x) { return length(x) >= 1 && length(x) <= 4 && x ~ /^[0-9A-Fa-f]+$/ }
+        {
+            value = $0
+            if (value == "" || value ~ /[^0-9A-Fa-f:]/) exit 1
+            doubles = gsub(/::/, "::", value)
+            if (doubles > 1) exit 1
+            compressed = index(value, "::") > 0
+            fields = split(value, part, ":")
+            used = 0
+            for (i = 1; i <= fields; i++) {
+                if (part[i] == "") continue
+                if (!hextet(part[i])) exit 1
+                used++
+            }
+            if (compressed) {
+                if (used >= 8) exit 1
+            } else if (used != 8) {
+                exit 1
+            }
+        }
+    '
+}
+
+_guard_resolver_sync_direct_iface() {
+    _guard_rs_di_iface=${GUARD_DIRECT_WAN_IFACE:-}
+    if [ -z "$_guard_rs_di_iface" ] && command -v ubus >/dev/null 2>&1 && command -v jsonfilter >/dev/null 2>&1; then
+        _guard_rs_di_status=$(ubus call network.interface.wan status 2>/dev/null) || _guard_rs_di_status=
+        if [ -n "$_guard_rs_di_status" ]; then
+            _guard_rs_di_iface=$(jsonfilter -s "$_guard_rs_di_status" -e '@.l3_device' 2>/dev/null) || _guard_rs_di_iface=
+        fi
+    fi
+    if [ -z "$_guard_rs_di_iface" ] && command -v uci >/dev/null 2>&1; then
+        _guard_rs_di_iface=$(uci -q get network.wan.device 2>/dev/null) || _guard_rs_di_iface=
+        if [ -z "$_guard_rs_di_iface" ]; then
+            _guard_rs_di_iface=$(uci -q get network.wan.ifname 2>/dev/null) || _guard_rs_di_iface=
+            set -- $_guard_rs_di_iface
+            _guard_rs_di_iface=${1:-}
+        fi
+    fi
+    if [ -z "$_guard_rs_di_iface" ] && command -v ip >/dev/null 2>&1; then
+        _guard_rs_di_iface=$(ip -4 route show default 2>/dev/null | awk '
+            $1 == "default" {
+                for (i = 1; i <= NF; i++) {
+                    if ($i == "dev" && (i + 1) <= NF) { print $(i + 1); exit }
+                }
+            }
+        ') || _guard_rs_di_iface=
+    fi
+    _guard_resolver_sync_valid_iface "$_guard_rs_di_iface" || return 1
+    printf '%s\n' "$_guard_rs_di_iface"
+}
+
+_guard_resolver_sync_interval() {
+    _guard_rs_i=${GUARD_RESOLVER_SYNC_INTERVAL:-$_GUARD_RESOLVER_SYNC_INTERVAL_DEFAULT}
+    _guard_resolver_sync_uint "$_guard_rs_i" || return 1
+    [ "$_guard_rs_i" -ge 5 ] 2>/dev/null || return 1
+    [ "$_guard_rs_i" -le 300 ] 2>/dev/null || return 1
+    printf '%s\n' "$_guard_rs_i"
+}
+
+_guard_resolver_sync_max_ttl() {
+    _guard_rs_mt=${GUARD_RESOLVER_SYNC_MAX_TTL:-$_GUARD_RESOLVER_SYNC_MAX_TTL_DEFAULT}
+    _guard_resolver_sync_uint "$_guard_rs_mt" || return 1
+    [ "$_guard_rs_mt" -ge 1 ] 2>/dev/null || return 1
+    [ "$_guard_rs_mt" -le 3600 ] 2>/dev/null || return 1
+    printf '%s\n' "$_guard_rs_mt"
+}
+
+_guard_resolver_sync_domain_match() {
+    _guard_rs_dm_query=$(printf '%s' "${1:-}" | tr 'A-Z' 'a-z')
+    _guard_rs_dm_query=${_guard_rs_dm_query%.}
+    [ -n "$_guard_rs_dm_query" ] || return 1
+    while IFS=' ' read -r _guard_rs_dm_service _guard_rs_dm_mode _guard_rs_dm_value _guard_rs_dm_extra; do
+        [ -n "${_guard_rs_dm_service:-}" ] || continue
+        [ -z "${_guard_rs_dm_extra:-}" ] || return 1
+        case $_guard_rs_dm_mode in
+            exact)
+                [ "$_guard_rs_dm_query" = "$_guard_rs_dm_value" ] && return 0
+                ;;
+            suffix)
+                case $_guard_rs_dm_query in
+                    "$_guard_rs_dm_value"|*."$_guard_rs_dm_value") return 0 ;;
+                esac
+                ;;
+            *) return 1 ;;
+        esac
+    done <<EOF
+${_GUARD_RESOLVER_SYNC_DATA_SELECTORS:-}
+EOF
+    return 1
+}
+
+_guard_resolver_sync_api_base() {
+    _guard_rs_ab=${GUARD_AGH_API_BASE:-http://127.0.0.1:3000}
+    case $_guard_rs_ab in
+        http://127.0.0.1:*|http://localhost:*|http://\[::1\]:*|https://127.0.0.1:*|https://localhost:*|https://\[::1\]:*) ;;
+        *) return 1 ;;
+    esac
+    printf '%s\n' "${_guard_rs_ab%/}"
+}
+
+_guard_resolver_sync_fetch_api() {
+    _guard_rs_fa_path=$1
+    _guard_rs_fa_out=$2
+    _guard_rs_fa_max=$3
+    command -v curl >/dev/null 2>&1 || return 127
+    _guard_rs_fa_base=$(_guard_resolver_sync_api_base) || return 2
+    _guard_rs_fa_url="$_guard_rs_fa_base$_guard_rs_fa_path"
+    set -- -fSs --max-redirs 0 --noproxy '*' --proxy '' --connect-timeout 3 --max-time 10
+    if [ -n "${GUARD_AGH_NETRC_FILE:-}" ]; then
+        [ -f "$GUARD_AGH_NETRC_FILE" ] && [ ! -L "$GUARD_AGH_NETRC_FILE" ] || return 1
+        set -- "$@" --netrc-file "$GUARD_AGH_NETRC_FILE"
+    fi
+    curl "$@" -o "$_guard_rs_fa_out" "$_guard_rs_fa_url" || return 1
+    _guard_rs_fa_size=$(wc -c < "$_guard_rs_fa_out" | tr -d '[:space:]')
+    _guard_resolver_sync_uint "$_guard_rs_fa_size" || return 1
+    [ "$_guard_rs_fa_size" -gt 0 ] 2>/dev/null || return 1
+    [ "$_guard_rs_fa_size" -le "$_guard_rs_fa_max" ] 2>/dev/null
+}
+
+_guard_resolver_sync_querylog_enabled() {
+    _guard_rs_qe_out=$1
+    _guard_resolver_sync_fetch_api /control/querylog/config "$_guard_rs_qe_out" 65536 || return $?
+    _guard_rs_qe_enabled=$(json_get "$_guard_rs_qe_out" enabled 2>/dev/null) || return 1
+    [ "$_guard_rs_qe_enabled" = true ]
+}
+
+_guard_resolver_sync_fetch_querylog() {
+    _guard_rs_fq_out=$1
+    _guard_rs_fq_limit=${GUARD_RESOLVER_SYNC_QUERYLOG_LIMIT:-$_GUARD_RESOLVER_SYNC_QUERYLOG_LIMIT_DEFAULT}
+    _guard_resolver_sync_uint "$_guard_rs_fq_limit" || return 1
+    [ "$_guard_rs_fq_limit" -ge 1 ] 2>/dev/null || return 1
+    [ "$_guard_rs_fq_limit" -le 5000 ] 2>/dev/null || return 1
+    _guard_rs_fq_max=${GUARD_RESOLVER_SYNC_MAX_QUERYLOG_BYTES:-$_GUARD_RESOLVER_SYNC_MAX_QUERYLOG_BYTES_DEFAULT}
+    _guard_resolver_sync_uint "$_guard_rs_fq_max" || return 1
+    [ "$_guard_rs_fq_max" -ge 1024 ] 2>/dev/null || return 1
+    [ "$_guard_rs_fq_max" -le 16777216 ] 2>/dev/null || return 1
+    _guard_resolver_sync_fetch_api "/control/querylog?limit=$_guard_rs_fq_limit" "$_guard_rs_fq_out" "$_guard_rs_fq_max"
+}
+
+_guard_resolver_sync_extract_entries() {
+    _guard_rs_ee_input=$1
+    _guard_rs_ee_output=$2
+    command -v jsonfilter >/dev/null 2>&1 || return 127
+    _guard_rs_ee_type=$(jsonfilter -i "$_guard_rs_ee_input" -t '@.data' 2>/dev/null) || return 1
+    [ "$_guard_rs_ee_type" = array ] || return 1
+    : > "$_guard_rs_ee_output"
+    jsonfilter -i "$_guard_rs_ee_input" -e '@.data[*]' > "$_guard_rs_ee_output" 2>/dev/null || true
+}
+
+_guard_resolver_sync_hash_line() {
+    _guard_rs_hl_tmp=$(file_mktemp) || return 1
+    printf '%s' "$1" > "$_guard_rs_hl_tmp" || { rm -f "$_guard_rs_hl_tmp"; return 1; }
+    _guard_rs_hl_hash=$(file_sha256 "$_guard_rs_hl_tmp" 2>/dev/null) || { rm -f "$_guard_rs_hl_tmp"; return 1; }
+    rm -f "$_guard_rs_hl_tmp"
+    printf '%s\n' "$_guard_rs_hl_hash"
+}
+
+_GUARD_RESOLVER_SYNC_CURSOR_HASH=
+_GUARD_RESOLVER_SYNC_CURSOR_EPOCH=
+
+_guard_resolver_sync_cursor_read() {
+    _GUARD_RESOLVER_SYNC_CURSOR_HASH=
+    _GUARD_RESOLVER_SYNC_CURSOR_EPOCH=
+    _guard_rs_cr_file=$(_guard_resolver_sync_cursor_path)
+    [ -f "$_guard_rs_cr_file" ] && [ ! -L "$_guard_rs_cr_file" ] || return 1
+    IFS=' ' read -r _guard_rs_cr_hash _guard_rs_cr_epoch _guard_rs_cr_extra < "$_guard_rs_cr_file" || return 1
+    [ -z "${_guard_rs_cr_extra:-}" ] || return 1
+    if [ "$_guard_rs_cr_hash" != EMPTY ]; then
+        [ "${#_guard_rs_cr_hash}" -eq 64 ] || return 1
+        case $_guard_rs_cr_hash in *[!0-9a-f]*) return 1 ;; esac
+    fi
+    _guard_resolver_sync_uint "$_guard_rs_cr_epoch" || return 1
+    _GUARD_RESOLVER_SYNC_CURSOR_HASH=$_guard_rs_cr_hash
+    _GUARD_RESOLVER_SYNC_CURSOR_EPOCH=$_guard_rs_cr_epoch
+}
+
+_guard_resolver_sync_select_new() {
+    _guard_rs_sn_entries=$1
+    _guard_rs_sn_output=$2
+    _guard_rs_sn_next=$3
+    _guard_rs_sn_now=$4
+    : > "$_guard_rs_sn_output"
+    _guard_rs_sn_old_hash=${_GUARD_RESOLVER_SYNC_CURSOR_HASH:-}
+    _guard_rs_sn_first=
+    _guard_rs_sn_found=0
+    _guard_rs_sn_count=0
+    while IFS= read -r _guard_rs_sn_entry; do
+        [ -n "$_guard_rs_sn_entry" ] || continue
+        _guard_rs_sn_hash=$(_guard_resolver_sync_hash_line "$_guard_rs_sn_entry") || return 1
+        _guard_rs_sn_count=$((_guard_rs_sn_count + 1))
+        [ -n "$_guard_rs_sn_first" ] || _guard_rs_sn_first=$_guard_rs_sn_hash
+        if [ -n "$_guard_rs_sn_old_hash" ] && [ "$_guard_rs_sn_old_hash" != EMPTY ] && [ "$_guard_rs_sn_hash" = "$_guard_rs_sn_old_hash" ]; then
+            _guard_rs_sn_found=1
+            break
+        fi
+        printf '%s\n' "$_guard_rs_sn_entry" >> "$_guard_rs_sn_output"
+    done < "$_guard_rs_sn_entries"
+
+    if [ "$_guard_rs_sn_count" -eq 0 ]; then
+        _guard_rs_sn_next_hash=EMPTY
+    else
+        _guard_rs_sn_next_hash=$_guard_rs_sn_first
+    fi
+    printf '%s %s\n' "$_guard_rs_sn_next_hash" "$_guard_rs_sn_now" > "$_guard_rs_sn_next"
+
+    if [ -z "$_guard_rs_sn_old_hash" ]; then
+        : > "$_guard_rs_sn_output"
+        return 10
+    fi
+    if [ "$_guard_rs_sn_old_hash" = EMPTY ]; then
+        return 0
+    fi
+    if [ "$_guard_rs_sn_count" -eq 0 ] || [ "$_guard_rs_sn_found" -ne 1 ]; then
+        : > "$_guard_rs_sn_output"
+        return 10
+    fi
+    return 0
+}
+
+_guard_resolver_sync_answers() {
+    _guard_rs_a_entry=$1
+    _guard_rs_a_now=$2
+    _guard_rs_a_elapsed=$3
+    _guard_rs_a_output=$4
+    _guard_rs_a_tmp=$5
+    _guard_rs_a_query=$(jsonfilter -s "$_guard_rs_a_entry" -e '@.question.name' 2>/dev/null) || _guard_rs_a_query=
+    [ -n "$_guard_rs_a_query" ] || _guard_rs_a_query=$(jsonfilter -s "$_guard_rs_a_entry" -e '@.question.host' 2>/dev/null) || _guard_rs_a_query=
+    [ -n "$_guard_rs_a_query" ] && _guard_resolver_sync_domain_match "$_guard_rs_a_query" || return 0
+
+    _guard_rs_a_max=$(_guard_resolver_sync_max_ttl) || return 1
+    : > "$_guard_rs_a_tmp"
+    jsonfilter -s "$_guard_rs_a_entry" -e '@.answer[*]' > "$_guard_rs_a_tmp" 2>/dev/null || true
+    while IFS= read -r _guard_rs_a_answer; do
+        [ -n "$_guard_rs_a_answer" ] || continue
+        _guard_rs_a_type=$(jsonfilter -s "$_guard_rs_a_answer" -e '@.type' 2>/dev/null) || continue
+        _guard_rs_a_value=$(jsonfilter -s "$_guard_rs_a_answer" -e '@.value' 2>/dev/null) || continue
+        _guard_rs_a_ttl=$(jsonfilter -s "$_guard_rs_a_answer" -e '@.ttl' 2>/dev/null) || continue
+        _guard_resolver_sync_uint "$_guard_rs_a_ttl" || continue
+        [ "$_guard_rs_a_ttl" -le "$_guard_rs_a_max" ] 2>/dev/null || _guard_rs_a_ttl=$_guard_rs_a_max
+        if [ "$_guard_rs_a_ttl" -le "$_guard_rs_a_elapsed" ] 2>/dev/null; then
+            continue
+        fi
+        _guard_rs_a_effective=$((_guard_rs_a_ttl - _guard_rs_a_elapsed))
+        _guard_rs_a_expiry=$((_guard_rs_a_now + _guard_rs_a_effective))
+        case $_guard_rs_a_type in
+            A)
+                _guard_resolver_sync_valid_ipv4 "$_guard_rs_a_value" || continue
+                printf '4 %s %s\n' "$_guard_rs_a_value" "$_guard_rs_a_expiry" >> "$_guard_rs_a_output"
+                ;;
+            AAAA)
+                _guard_resolver_sync_valid_ipv6 "$_guard_rs_a_value" || continue
+                printf '6 %s %s\n' "$_guard_rs_a_value" "$_guard_rs_a_expiry" >> "$_guard_rs_a_output"
+                ;;
+        esac
+    done < "$_guard_rs_a_tmp"
+}
+
+_guard_resolver_sync_merge_cache() {
+    _guard_rs_mc_add=$1
+    _guard_rs_mc_now=$2
+    _guard_rs_mc_output=$3
+    _guard_rs_mc_old=$(_guard_resolver_sync_cache_path)
+    _guard_rs_mc_input=$(file_mktemp) || return 1
+    _guard_rs_mc_unsorted=$(file_mktemp) || { rm -f "$_guard_rs_mc_input"; return 1; }
+    : > "$_guard_rs_mc_input"
+    if [ -f "$_guard_rs_mc_old" ]; then
+        [ ! -L "$_guard_rs_mc_old" ] || { rm -f "$_guard_rs_mc_input" "$_guard_rs_mc_unsorted"; return 1; }
+        cat "$_guard_rs_mc_old" >> "$_guard_rs_mc_input" || { rm -f "$_guard_rs_mc_input" "$_guard_rs_mc_unsorted"; return 1; }
+    fi
+    [ ! -f "$_guard_rs_mc_add" ] || cat "$_guard_rs_mc_add" >> "$_guard_rs_mc_input" || { rm -f "$_guard_rs_mc_input" "$_guard_rs_mc_unsorted"; return 1; }
+    awk -v now="$_guard_rs_mc_now" '
+        NF == 0 { next }
+        NF != 3 || ($1 != 4 && $1 != 6) || $3 !~ /^[0-9]+$/ { bad = 1; next }
+        $3 > now {
+            key = $1 " " $2
+            if (!(key in expiry) || $3 > expiry[key]) expiry[key] = $3
+        }
+        END {
+            if (bad) exit 2
+            for (key in expiry) print key " " expiry[key]
+        }
+    ' "$_guard_rs_mc_input" > "$_guard_rs_mc_unsorted" || {
+        rm -f "$_guard_rs_mc_input" "$_guard_rs_mc_unsorted"
+        return 1
+    }
+    LC_ALL=C sort "$_guard_rs_mc_unsorted" > "$_guard_rs_mc_output" || {
+        rm -f "$_guard_rs_mc_input" "$_guard_rs_mc_unsorted"
+        return 1
+    }
+    rm -f "$_guard_rs_mc_input" "$_guard_rs_mc_unsorted"
+}
+
+_guard_resolver_sync_apply_cache() {
+    _guard_rs_ac_cache=$1
+    _guard_rs_ac_now=$2
+    _guard_rs_ac_batch=$3
+    : > "$_guard_rs_ac_batch"
+    printf 'flush set %s %s %s\n' "$_GUARD_RESOLVER_SYNC_FAMILY" "$_GUARD_RESOLVER_SYNC_TABLE" "$_GUARD_RESOLVER_SYNC_V4_SET" >> "$_guard_rs_ac_batch"
+    printf 'flush set %s %s %s\n' "$_GUARD_RESOLVER_SYNC_FAMILY" "$_GUARD_RESOLVER_SYNC_TABLE" "$_GUARD_RESOLVER_SYNC_V6_SET" >> "$_guard_rs_ac_batch"
+    while IFS=' ' read -r _guard_rs_ac_family _guard_rs_ac_ip _guard_rs_ac_expiry _guard_rs_ac_extra; do
+        [ -z "${_guard_rs_ac_extra:-}" ] || return 1
+        [ -n "${_guard_rs_ac_family:-}" ] || continue
+        _guard_resolver_sync_uint "$_guard_rs_ac_expiry" || return 1
+        [ "$_guard_rs_ac_expiry" -gt "$_guard_rs_ac_now" ] 2>/dev/null || continue
+        _guard_rs_ac_timeout=$((_guard_rs_ac_expiry - _guard_rs_ac_now))
+        case $_guard_rs_ac_family in
+            4)
+                _guard_resolver_sync_valid_ipv4 "$_guard_rs_ac_ip" || return 1
+                _guard_rs_ac_set=$_GUARD_RESOLVER_SYNC_V4_SET
+                ;;
+            6)
+                _guard_resolver_sync_valid_ipv6 "$_guard_rs_ac_ip" || return 1
+                _guard_rs_ac_set=$_GUARD_RESOLVER_SYNC_V6_SET
+                ;;
+            *) return 1 ;;
+        esac
+        printf 'add element %s %s %s { %s timeout %ss }\n' \
+            "$_GUARD_RESOLVER_SYNC_FAMILY" "$_GUARD_RESOLVER_SYNC_TABLE" "$_guard_rs_ac_set" \
+            "$_guard_rs_ac_ip" "$_guard_rs_ac_timeout" >> "$_guard_rs_ac_batch"
+    done < "$_guard_rs_ac_cache"
+    nft_apply_batch "$_guard_rs_ac_batch"
+}
+
+_guard_resolver_sync_publish_file() {
+    _guard_rs_pf_src=$1
+    _guard_rs_pf_dest=$2
+    _guard_rs_pf_dir=$(dirname "$_guard_rs_pf_dest")
+    mkdir -p "$_guard_rs_pf_dir" || return 1
+    _guard_rs_pf_tmp=$(file_mktemp "$_guard_rs_pf_dir") || return 1
+    cat "$_guard_rs_pf_src" > "$_guard_rs_pf_tmp" || { rm -f "$_guard_rs_pf_tmp"; return 1; }
+    chmod 0600 "$_guard_rs_pf_tmp" || { rm -f "$_guard_rs_pf_tmp"; return 1; }
+    file_atomic_replace "$_guard_rs_pf_dest" "$_guard_rs_pf_tmp" || { rm -f "$_guard_rs_pf_tmp"; return 1; }
+    chmod 0600 "$_guard_rs_pf_dest" || return 1
+    rm -f "$_guard_rs_pf_tmp"
+}
+
+_guard_resolver_sync_state_write() {
+    _guard_rs_sw_status=$1
+    _guard_rs_sw_reason=$2
+    _guard_rs_sw_iface=${3:-}
+    _guard_rs_sw_now=${4:-$(date +%s)}
+    _guard_resolver_sync_uint "$_guard_rs_sw_now" || return 1
+    if [ -n "$_guard_rs_sw_iface" ]; then
+        _guard_resolver_sync_valid_iface "$_guard_rs_sw_iface" || return 1
+    fi
+    case $_guard_rs_sw_status in ready|warming|degraded) ;; *) return 1 ;; esac
+    case $_guard_rs_sw_reason in *[!A-Za-z0-9._:-]*) return 1 ;; esac
+    _guard_rs_sw_dest=$(_guard_resolver_sync_state_path)
+    _guard_rs_sw_dir=$(dirname "$_guard_rs_sw_dest")
+    mkdir -p "$_guard_rs_sw_dir" || return 1
+    _guard_rs_sw_tmp=$(file_mktemp "$_guard_rs_sw_dir") || return 1
+    printf '{"schemaVersion":1,"helper":"%s","backend":"%s","status":"%s","pid":%s,"updatedAtEpoch":%s,"reason":"%s","sourceRevision":"%s","nft":{"family":"%s","table":"%s","chain":"%s","ipv4Set":"%s","ipv6Set":"%s","directInterface":"%s"}}\n' \
+        "$_GUARD_RESOLVER_SYNC_HELPER" "$_GUARD_RESOLVER_SYNC_BACKEND" "$_guard_rs_sw_status" "$$" \
+        "$_guard_rs_sw_now" "$_guard_rs_sw_reason" "${_GUARD_RESOLVER_SYNC_DATA_SOURCE_REVISION:-unknown}" \
+        "$_GUARD_RESOLVER_SYNC_FAMILY" "$_GUARD_RESOLVER_SYNC_TABLE" "$_GUARD_RESOLVER_SYNC_CHAIN" \
+        "$_GUARD_RESOLVER_SYNC_V4_SET" "$_GUARD_RESOLVER_SYNC_V6_SET" "$_guard_rs_sw_iface" > "$_guard_rs_sw_tmp"
+    chmod 0600 "$_guard_rs_sw_tmp" || { rm -f "$_guard_rs_sw_tmp"; return 1; }
+    file_atomic_replace "$_guard_rs_sw_dest" "$_guard_rs_sw_tmp" || { rm -f "$_guard_rs_sw_tmp"; return 1; }
+    chmod 0600 "$_guard_rs_sw_dest" || return 1
+    rm -f "$_guard_rs_sw_tmp"
+}
+
+_guard_resolver_sync_fail() {
+    _guard_rs_f_reason=$1
+    _guard_rs_f_iface=${2:-}
+    _guard_resolver_sync_state_write degraded "$_guard_rs_f_reason" "$_guard_rs_f_iface" "$(date +%s)" || rm -f "$(_guard_resolver_sync_state_path)"
+    return 1
+}
+guard_resolver_sync_stop() {
+    _guard_rs_stop_state=$(_guard_resolver_sync_state_path)
+    [ -f "$_guard_rs_stop_state" ] && [ ! -L "$_guard_rs_stop_state" ] || {
+        rm -f "$_guard_rs_stop_state"
+        return 0
+    }
+    _guard_rs_stop_revision=$(json_get "$_guard_rs_stop_state" sourceRevision 2>/dev/null) || _guard_rs_stop_revision=
+    if [ -z "${_GUARD_RESOLVER_SYNC_DATA_SOURCE_REVISION:-}" ] || \
+       [ "$_guard_rs_stop_revision" != "$_GUARD_RESOLVER_SYNC_DATA_SOURCE_REVISION" ]; then
+        rm -f "$_guard_rs_stop_state"
+        return 0
+    fi
+    _guard_rs_stop_iface=$(json_get "$_guard_rs_stop_state" nft.directInterface 2>/dev/null) || _guard_rs_stop_iface=
+    if [ -n "$_guard_rs_stop_iface" ] && ! _guard_resolver_sync_valid_iface "$_guard_rs_stop_iface"; then
+        _guard_rs_stop_iface=
+    fi
+    _guard_resolver_sync_state_write degraded stopped "$_guard_rs_stop_iface" "$(date +%s)" || {
+        rm -f "$_guard_rs_stop_state"
+        return 1
+    }
+}
+
+guard_resolver_sync_cycle() {
+    if command -v guard_dns_backend >/dev/null 2>&1; then
+        _guard_rs_c_backend=$(guard_dns_backend 2>/dev/null) || _guard_rs_c_backend=none
+        if [ "$_guard_rs_c_backend" != adguardhome ]; then
+            guard_resolver_sync_stop
+            return 0
+        fi
+    fi
+    [ -n "${_GUARD_RESOLVER_SYNC_DATA_SELECTORS:-}" ] || { _guard_resolver_sync_fail selectors-unavailable; return 1; }
+    command -v jsonfilter >/dev/null 2>&1 || { _guard_resolver_sync_fail jsonfilter-unavailable; return 1; }
+    command -v nft >/dev/null 2>&1 || { _guard_resolver_sync_fail nft-unavailable; return 1; }
+    _guard_rs_c_iface=$(_guard_resolver_sync_direct_iface 2>/dev/null) || { _guard_resolver_sync_fail direct-interface-unavailable; return 1; }
+    _guard_rs_c_now=${GUARD_RESOLVER_SYNC_NOW_EPOCH:-$(date +%s)}
+    _guard_resolver_sync_uint "$_guard_rs_c_now" || { _guard_resolver_sync_fail clock-invalid "$_guard_rs_c_iface"; return 1; }
+
+    _guard_rs_c_work=$(file_mktemp) || { _guard_resolver_sync_fail temp-unavailable "$_guard_rs_c_iface"; return 1; }
+    rm -f "$_guard_rs_c_work"
+    mkdir -p "$_guard_rs_c_work" || { _guard_resolver_sync_fail temp-unavailable "$_guard_rs_c_iface"; return 1; }
+    _guard_rs_c_cfg="$_guard_rs_c_work/config.json"
+    _guard_rs_c_querylog="$_guard_rs_c_work/querylog.json"
+    _guard_rs_c_entries="$_guard_rs_c_work/entries"
+    _guard_rs_c_new="$_guard_rs_c_work/new"
+    _guard_rs_c_next="$_guard_rs_c_work/next"
+    _guard_rs_c_records="$_guard_rs_c_work/records"
+    _guard_rs_c_answers="$_guard_rs_c_work/answers"
+    _guard_rs_c_cache="$_guard_rs_c_work/cache"
+    _guard_rs_c_batch="$_guard_rs_c_work/update.nft"
+    : > "$_guard_rs_c_records"
+
+    if ! _guard_resolver_sync_querylog_enabled "$_guard_rs_c_cfg"; then
+        rm -rf "$_guard_rs_c_work"
+        _guard_resolver_sync_fail querylog-disabled-or-unavailable "$_guard_rs_c_iface"
+        return 1
+    fi
+    if ! _guard_resolver_sync_fetch_querylog "$_guard_rs_c_querylog" || \
+       ! _guard_resolver_sync_extract_entries "$_guard_rs_c_querylog" "$_guard_rs_c_entries"; then
+        rm -rf "$_guard_rs_c_work"
+        _guard_resolver_sync_fail querylog-unavailable "$_guard_rs_c_iface"
+        return 1
+    fi
+
+    _guard_rs_c_have_cursor=0
+    if _guard_resolver_sync_cursor_read; then
+        _guard_rs_c_have_cursor=1
+    fi
+    _guard_rs_c_elapsed=0
+    if [ "$_guard_rs_c_have_cursor" = 1 ]; then
+        [ "$_GUARD_RESOLVER_SYNC_CURSOR_EPOCH" -le "$_guard_rs_c_now" ] 2>/dev/null || {
+            rm -rf "$_guard_rs_c_work"
+            _guard_resolver_sync_fail cursor-future "$_guard_rs_c_iface"
+            return 1
+        }
+        _guard_rs_c_elapsed=$((_guard_rs_c_now - _GUARD_RESOLVER_SYNC_CURSOR_EPOCH))
+    fi
+
+    _guard_rs_c_select_rc=0
+    _guard_resolver_sync_select_new "$_guard_rs_c_entries" "$_guard_rs_c_new" "$_guard_rs_c_next" "$_guard_rs_c_now" || _guard_rs_c_select_rc=$?
+    if [ "$_guard_rs_c_select_rc" -ne 0 ] && [ "$_guard_rs_c_select_rc" -ne 10 ]; then
+        rm -rf "$_guard_rs_c_work"
+        _guard_resolver_sync_fail cursor-invalid "$_guard_rs_c_iface"
+        return 1
+    fi
+
+    if [ "$_guard_rs_c_select_rc" -eq 0 ]; then
+        while IFS= read -r _guard_rs_c_entry; do
+            [ -n "$_guard_rs_c_entry" ] || continue
+            if ! _guard_resolver_sync_answers "$_guard_rs_c_entry" "$_guard_rs_c_now" "$_guard_rs_c_elapsed" "$_guard_rs_c_records" "$_guard_rs_c_answers"; then
+                rm -rf "$_guard_rs_c_work"
+                _guard_resolver_sync_fail querylog-parse-failed "$_guard_rs_c_iface"
+                return 1
+            fi
+        done < "$_guard_rs_c_new"
+    fi
+
+    if ! _guard_resolver_sync_merge_cache "$_guard_rs_c_records" "$_guard_rs_c_now" "$_guard_rs_c_cache"; then
+        rm -rf "$_guard_rs_c_work"
+        _guard_resolver_sync_fail cache-invalid "$_guard_rs_c_iface"
+        return 1
+    fi
+
+    if ! _guard_resolver_sync_set_ready "$_GUARD_RESOLVER_SYNC_V4_SET" ipv4_addr "$_GUARD_RESOLVER_SYNC_V4_SET_COMMENT" || \
+       ! _guard_resolver_sync_set_ready "$_GUARD_RESOLVER_SYNC_V6_SET" ipv6_addr "$_GUARD_RESOLVER_SYNC_V6_SET_COMMENT" || \
+       ! _guard_resolver_sync_consumer_ready "$_guard_rs_c_iface"; then
+        rm -rf "$_guard_rs_c_work"
+        _guard_resolver_sync_fail nft-consumer-unavailable "$_guard_rs_c_iface"
+        return 1
+    fi
+    if ! _guard_resolver_sync_apply_cache "$_guard_rs_c_cache" "$_guard_rs_c_now" "$_guard_rs_c_batch"; then
+        rm -rf "$_guard_rs_c_work"
+        _guard_resolver_sync_fail nft-update-failed "$_guard_rs_c_iface"
+        return 1
+    fi
+    if ! _guard_resolver_sync_publish_file "$_guard_rs_c_cache" "$(_guard_resolver_sync_cache_path)" || \
+       ! _guard_resolver_sync_publish_file "$_guard_rs_c_next" "$(_guard_resolver_sync_cursor_path)"; then
+        rm -rf "$_guard_rs_c_work"
+        _guard_resolver_sync_fail state-publish-failed "$_guard_rs_c_iface"
+        return 1
+    fi
+    rm -rf "$_guard_rs_c_work"
+
+    if [ "$_guard_rs_c_select_rc" -eq 10 ]; then
+        _guard_resolver_sync_state_write warming cursor-baseline "$_guard_rs_c_iface" "$_guard_rs_c_now"
+        return 0
+    fi
+    _guard_resolver_sync_state_write ready ok "$_guard_rs_c_iface" "$_guard_rs_c_now"
 }
 
 _guard_resolver_sync_expect() {
@@ -3573,6 +3397,7 @@ _guard_resolver_sync_expect() {
 
 _guard_resolver_sync_contract_valid() {
     _guard_rs_cv_file=$1
+    _guard_rs_cv_direct=$2
     [ -f "$_guard_rs_cv_file" ] || return 1
     [ ! -L "$_guard_rs_cv_file" ] || return 1
 
@@ -3580,14 +3405,15 @@ _guard_resolver_sync_contract_valid() {
     _guard_resolver_sync_expect "$_guard_rs_cv_file" helper "$_GUARD_RESOLVER_SYNC_HELPER" || return 1
     _guard_resolver_sync_expect "$_guard_rs_cv_file" backend "$_GUARD_RESOLVER_SYNC_BACKEND" || return 1
     _guard_resolver_sync_expect "$_guard_rs_cv_file" status ready || return 1
-
-    # The state file describes the contract version, but never supplies nft
-    # command arguments. All identifiers used below are fixed constants.
     _guard_resolver_sync_expect "$_guard_rs_cv_file" nft.family "$_GUARD_RESOLVER_SYNC_FAMILY" || return 1
     _guard_resolver_sync_expect "$_guard_rs_cv_file" nft.table "$_GUARD_RESOLVER_SYNC_TABLE" || return 1
     _guard_resolver_sync_expect "$_guard_rs_cv_file" nft.chain "$_GUARD_RESOLVER_SYNC_CHAIN" || return 1
     _guard_resolver_sync_expect "$_guard_rs_cv_file" nft.ipv4Set "$_GUARD_RESOLVER_SYNC_V4_SET" || return 1
     _guard_resolver_sync_expect "$_guard_rs_cv_file" nft.ipv6Set "$_GUARD_RESOLVER_SYNC_V6_SET" || return 1
+    _guard_resolver_sync_expect "$_guard_rs_cv_file" nft.directInterface "$_guard_rs_cv_direct" || return 1
+    if [ -n "${_GUARD_RESOLVER_SYNC_DATA_SOURCE_REVISION:-}" ]; then
+        _guard_resolver_sync_expect "$_guard_rs_cv_file" sourceRevision "$_GUARD_RESOLVER_SYNC_DATA_SOURCE_REVISION" || return 1
+    fi
     return 0
 }
 
@@ -3639,22 +3465,27 @@ _guard_resolver_sync_set_ready() {
 }
 
 _guard_resolver_sync_consumer_ready() {
+    _guard_rs_cr_direct=$1
     _guard_rs_cr_listing=$(nft -a list chain \
         "$_GUARD_RESOLVER_SYNC_FAMILY" \
         "$_GUARD_RESOLVER_SYNC_TABLE" \
         "$_GUARD_RESOLVER_SYNC_CHAIN" 2>/dev/null) || return 1
 
     printf '%s\n' "$_guard_rs_cr_listing" | awk \
+        -v direct_iface="$_guard_rs_cr_direct" \
         -v set_name="$_GUARD_RESOLVER_SYNC_V4_SET" \
         -v comment="$_GUARD_RESOLVER_SYNC_V4_RULE_COMMENT" '
+        index($0, "oifname \"" direct_iface "\"") &&
         index($0, "ip daddr @" set_name) && index($0, "reject") &&
         index($0, "comment \"" comment "\"") { found = 1 }
         END { exit !found }
     ' || return 1
 
     printf '%s\n' "$_guard_rs_cr_listing" | awk \
+        -v direct_iface="$_guard_rs_cr_direct" \
         -v set_name="$_GUARD_RESOLVER_SYNC_V6_SET" \
         -v comment="$_GUARD_RESOLVER_SYNC_V6_RULE_COMMENT" '
+        index($0, "oifname \"" direct_iface "\"") &&
         index($0, "ip6 daddr @" set_name) && index($0, "reject") &&
         index($0, "comment \"" comment "\"") { found = 1 }
         END { exit !found }
@@ -3664,14 +3495,15 @@ _guard_resolver_sync_consumer_ready() {
 guard_resolver_sync_ready() {
     _guard_rs_r_file=$(_guard_resolver_sync_state_path)
     command -v nft >/dev/null 2>&1 || return 1
-    _guard_resolver_sync_contract_valid "$_guard_rs_r_file" || return 1
+    _guard_rs_r_direct=$(_guard_resolver_sync_direct_iface 2>/dev/null) || return 1
+    _guard_resolver_sync_contract_valid "$_guard_rs_r_file" "$_guard_rs_r_direct" || return 1
     _guard_resolver_sync_process_alive "$_guard_rs_r_file" || return 1
     _guard_resolver_sync_fresh "$_guard_rs_r_file" || return 1
     _guard_resolver_sync_set_ready \
         "$_GUARD_RESOLVER_SYNC_V4_SET" ipv4_addr "$_GUARD_RESOLVER_SYNC_V4_SET_COMMENT" || return 1
     _guard_resolver_sync_set_ready \
         "$_GUARD_RESOLVER_SYNC_V6_SET" ipv6_addr "$_GUARD_RESOLVER_SYNC_V6_SET_COMMENT" || return 1
-    _guard_resolver_sync_consumer_ready || return 1
+    _guard_resolver_sync_consumer_ready "$_guard_rs_r_direct" || return 1
     return 0
 }
 
@@ -3683,6 +3515,795 @@ guard_resolver_sync_backend() {
     fi
 }
 # END MODULE: guard-resolver-sync
+
+# BEGIN MODULE: guard-rules
+# Guard-owned local and remote custom-rule staging.
+# Prefix: guard_rules_
+set -eu
+
+# A fetched rule file is data.  It is parsed as matcher records below and is
+# never sourced, eval'ed, or interpolated into a shell command.
+_GUARD_RULES_MAX_REMOTE_BYTES=262144
+_GUARD_RULES_SYNC_INTERVAL_DEFAULT=10800
+
+guard_rules_dir() {
+    if [ -n "${GUARD_RULES_DIR:-}" ]; then
+        printf '%s\n' "$GUARD_RULES_DIR"
+    else
+        printf '%s/etc/openclash-guard/rules\n' "${GUARD_PREFIX:-}"
+    fi
+}
+
+guard_rules_config() {
+    if [ -n "${GUARD_RULES_CONFIG:-}" ]; then
+        printf '%s\n' "$GUARD_RULES_CONFIG"
+    else
+        printf '%s/sources.tsv\n' "$(guard_rules_dir)"
+    fi
+}
+
+guard_rules_local_file() {
+    case ${1:-} in
+        direct|proxy) printf '%s/local-%s.tsv\n' "$(guard_rules_dir)" "$1" ;;
+        *) return 2 ;;
+    esac
+}
+
+guard_rules_remote_file() {
+    case ${1:-} in
+        direct|proxy) printf '%s/remote-%s.tsv\n' "$(guard_rules_dir)" "$1" ;;
+        *) return 2 ;;
+    esac
+}
+
+guard_rules_sources_dir() {
+    printf '%s/sources\n' "$(guard_rules_dir)"
+}
+
+guard_rules_providers_dir() {
+    printf '%s/providers\n' "$(guard_rules_dir)"
+}
+
+guard_rules_error() {
+    printf 'error: %s\n' "$*" >&2
+}
+
+guard_rules_staged_notice() {
+    printf '%s\n' "rules staged, not yet active; activation is provided by the separate Guard overlay command and is not performed by this rules module"
+}
+
+guard_rules_make_stage() {
+    _guard_rules_ms_base=$(guard_rules_dir)
+    mkdir -p "$_guard_rules_ms_base"
+    _guard_rules_ms_file=$(file_mktemp "$_guard_rules_ms_base") || return 1
+    rm -f "$_guard_rules_ms_file"
+    mkdir -p "$_guard_rules_ms_file/sources/direct" "$_guard_rules_ms_file/sources/proxy" "$_guard_rules_ms_file/providers"
+    printf '%s\n' "$_guard_rules_ms_file"
+}
+
+guard_rules_remove_stage() {
+    _guard_rules_rs_stage=${1:-}
+    [ -n "$_guard_rules_rs_stage" ] || return 0
+    case $_guard_rules_rs_stage in
+        "$(guard_rules_dir)"/*) rm -rf "$_guard_rules_rs_stage" ;;
+        *) guard_rules_error "refusing to remove a non-Guard staging path"; return 1 ;;
+    esac
+}
+
+guard_rules_ensure_empty_file() {
+    _guard_rules_eef_dest=$1
+    [ -f "$_guard_rules_eef_dest" ] && return 0
+    _guard_rules_eef_dir=$(dirname "$_guard_rules_eef_dest")
+    mkdir -p "$_guard_rules_eef_dir"
+    _guard_rules_eef_tmp=$(file_mktemp "$_guard_rules_eef_dir") || return 1
+    : > "$_guard_rules_eef_tmp"
+    if ! file_atomic_replace "$_guard_rules_eef_dest" "$_guard_rules_eef_tmp"; then
+        rm -f "$_guard_rules_eef_tmp"
+        return 1
+    fi
+    rm -f "$_guard_rules_eef_tmp"
+}
+
+guard_rules_ensure_layout() {
+    _guard_rules_el_dir=$(guard_rules_dir)
+    _guard_rules_el_config=$(guard_rules_config)
+    mkdir -p "$_guard_rules_el_dir" "$(guard_rules_sources_dir)/direct" "$(guard_rules_sources_dir)/proxy" "$(guard_rules_providers_dir)" "$(dirname "$_guard_rules_el_config")"
+    guard_rules_ensure_empty_file "$(guard_rules_local_file direct)"
+    guard_rules_ensure_empty_file "$(guard_rules_local_file proxy)"
+    guard_rules_ensure_empty_file "$(guard_rules_remote_file direct)"
+    guard_rules_ensure_empty_file "$(guard_rules_remote_file proxy)"
+    guard_rules_ensure_empty_file "$_guard_rules_el_config"
+}
+
+guard_rules_bad_chars() {
+    # Match whitespace and all control bytes.  The URL and matcher validators
+    # deliberately reject these instead of trying to repair user input.
+    LC_ALL=C awk 'BEGIN { bad = 0 } { if (NR > 1 || $0 ~ /[[:space:][:cntrl:]]/) bad = 1 } END { exit bad }'
+}
+
+guard_rules_validate_url() {
+    _guard_rules_vu_url=${1:-}
+    [ -n "$_guard_rules_vu_url" ] || return 1
+    if ! printf '%s' "$_guard_rules_vu_url" | guard_rules_bad_chars; then
+        return 1
+    fi
+    LC_ALL=C awk -v value="$_guard_rules_vu_url" '
+        BEGIN {
+            if (value !~ /^https:\/\//) exit 1
+            rest = value
+            sub(/^https:\/\//, "", rest)
+            slash = index(rest, "/")
+            if (slash <= 1) exit 1
+            host = substr(rest, 1, slash - 1)
+            path = substr(rest, slash)
+            if (host != "raw.githubusercontent.com" && host != "gist.githubusercontent.com") exit 1
+            if (path == "/" || path == "") exit 1
+            if (host ~ /:/ || host ~ /@/) exit 1
+            if (index(path, "?") || index(path, "#") || index(path, "\\")) exit 1
+            count = split(path, parts, "/")
+            if (host == "raw.githubusercontent.com") {
+                if (count < 5 || parts[2] == "" || parts[3] == "" || parts[4] == "" || parts[5] == "") exit 1
+            } else {
+                if (count < 5 || parts[2] == "" || parts[3] == "" || parts[4] != "raw" || parts[5] == "") exit 1
+            }
+            exit 0
+        }
+    '
+}
+
+guard_rules_validate_domain() {
+    _guard_rules_vd_value=${1:-}
+    LC_ALL=C awk -v value="$_guard_rules_vd_value" '
+        BEGIN {
+            if (length(value) < 1 || length(value) > 253) exit 1
+            if (value ~ /[^A-Za-z0-9.-]/ || value ~ /^[-.]|[-.]$/ || value ~ /\.\./) exit 1
+            count = split(value, labels, ".")
+            if (count < 1) exit 1
+            for (i = 1; i <= count; i++) {
+                label = labels[i]
+                if (length(label) < 1 || length(label) > 63) exit 1
+                if (length(label) == 1) {
+                    if (label !~ /^[A-Za-z0-9]$/) exit 1
+                } else if (label !~ /^[A-Za-z0-9][A-Za-z0-9-]*[A-Za-z0-9]$/) {
+                    exit 1
+                }
+            }
+            exit 0
+        }
+    '
+}
+
+guard_rules_validate_keyword() {
+    _guard_rules_vk_value=${1:-}
+    LC_ALL=C awk -v value="$_guard_rules_vk_value" '
+        BEGIN {
+            if (length(value) < 1 || length(value) > 253) exit 1
+            if (length(value) == 1) {
+                if (value !~ /^[A-Za-z0-9]$/) exit 1
+            } else if (value !~ /^[A-Za-z0-9][A-Za-z0-9._-]*[A-Za-z0-9]$/) {
+                exit 1
+            }
+            exit 0
+        }
+    '
+}
+
+guard_rules_validate_ipv4_cidr() {
+    _guard_rules_vi_value=${1:-}
+    LC_ALL=C awk -v value="$_guard_rules_vi_value" '
+        BEGIN {
+            if (split(value, pair, "/") != 2) exit 1
+            address = pair[1]
+            prefix = pair[2]
+            if (split(address, octets, ".") != 4) exit 1
+            for (i = 1; i <= 4; i++) {
+                octet = octets[i]
+                if (octet !~ /^[0-9]+$/ || length(octet) > 3) exit 1
+                if (length(octet) > 1 && substr(octet, 1, 1) == "0") exit 1
+                if ((octet + 0) > 255) exit 1
+            }
+            if (prefix !~ /^[0-9]+$/ || length(prefix) > 2) exit 1
+            if (length(prefix) > 1 && substr(prefix, 1, 1) == "0") exit 1
+            if ((prefix + 0) > 32) exit 1
+            exit 0
+        }
+    '
+}
+
+guard_rules_normalize_entry() {
+    _guard_rules_ne_entry=${1:-}
+    _guard_rules_ne_allow_keyword=${2:-0}
+    [ -n "$_guard_rules_ne_entry" ] || return 1
+    if ! printf '%s' "$_guard_rules_ne_entry" | guard_rules_bad_chars; then
+        return 1
+    fi
+    case $_guard_rules_ne_entry in
+        *,*) ;;
+        *) return 1 ;;
+    esac
+    _guard_rules_ne_kind=${_guard_rules_ne_entry%%,*}
+    _guard_rules_ne_value=${_guard_rules_ne_entry#*,}
+    case $_guard_rules_ne_value in
+        *,*|'') return 1 ;;
+    esac
+    case $_guard_rules_ne_kind in
+        DOMAIN|DOMAIN-SUFFIX)
+            _guard_rules_ne_value=$(printf '%s' "$_guard_rules_ne_value" | LC_ALL=C tr '[:upper:]' '[:lower:]')
+            guard_rules_validate_domain "$_guard_rules_ne_value" || return 1
+            ;;
+        DOMAIN-KEYWORD)
+            [ "$_guard_rules_ne_allow_keyword" = 1 ] || return 1
+            _guard_rules_ne_value=$(printf '%s' "$_guard_rules_ne_value" | LC_ALL=C tr '[:upper:]' '[:lower:]')
+            guard_rules_validate_keyword "$_guard_rules_ne_value" || return 1
+            ;;
+        IP-CIDR)
+            guard_rules_validate_ipv4_cidr "$_guard_rules_ne_value" || return 1
+            ;;
+        *) return 1 ;;
+    esac
+    printf '%s,%s\n' "$_guard_rules_ne_kind" "$_guard_rules_ne_value"
+}
+
+guard_rules_validate_rule_file() {
+    _guard_rules_vrf_file=${1:-}
+    _guard_rules_vrf_allow_keyword=${2:-0}
+    [ -f "$_guard_rules_vrf_file" ] || return 1
+    while IFS= read -r _guard_rules_vrf_line || [ -n "$_guard_rules_vrf_line" ]; do
+        case $_guard_rules_vrf_line in
+            ''|'#'*) continue ;;
+        esac
+        _guard_rules_vrf_normalized=$(guard_rules_normalize_entry "$_guard_rules_vrf_line" "$_guard_rules_vrf_allow_keyword") || return 1
+        [ "$_guard_rules_vrf_normalized" = "$_guard_rules_vrf_line" ] || return 1
+    done < "$_guard_rules_vrf_file"
+}
+
+guard_rules_normalize_remote_file() {
+    _guard_rules_nrf_input=$1
+    _guard_rules_nrf_output=$2
+    : > "$_guard_rules_nrf_output"
+    while IFS= read -r _guard_rules_nrf_line || [ -n "$_guard_rules_nrf_line" ]; do
+        case $_guard_rules_nrf_line in
+            ''|'#'*) continue ;;
+        esac
+        _guard_rules_nrf_normalized=$(guard_rules_normalize_entry "$_guard_rules_nrf_line" 1) || return 1
+        printf '%s\n' "$_guard_rules_nrf_normalized" >> "$_guard_rules_nrf_output"
+    done < "$_guard_rules_nrf_input"
+    LC_ALL=C sort -u "$_guard_rules_nrf_output" -o "$_guard_rules_nrf_output"
+}
+
+guard_rules_source_id() {
+    _guard_rules_sid_url=$1
+    _guard_rules_sid_tmp=$(file_mktemp) || return 1
+    printf '%s' "$_guard_rules_sid_url" > "$_guard_rules_sid_tmp"
+    _guard_rules_sid_digest=$(file_sha256 "$_guard_rules_sid_tmp") || {
+        rm -f "$_guard_rules_sid_tmp"
+        return 1
+    }
+    rm -f "$_guard_rules_sid_tmp"
+    printf '%s\n' "$_guard_rules_sid_digest"
+}
+
+guard_rules_source_file() {
+    _guard_rules_sfp_root=$1
+    _guard_rules_sfp_scope=$2
+    _guard_rules_sfp_url=$3
+    printf '%s/%s/%s.tsv\n' "$_guard_rules_sfp_root" "$_guard_rules_sfp_scope" "$(guard_rules_source_id "$_guard_rules_sfp_url")"
+}
+
+guard_rules_validate_sources_file() {
+    _guard_rules_vsf_file=${1:-}
+    [ -f "$_guard_rules_vsf_file" ] || return 1
+    while IFS="$(printf '\t')" read -r _guard_rules_vsf_scope _guard_rules_vsf_url _guard_rules_vsf_extra || [ -n "${_guard_rules_vsf_scope:-}" ]; do
+        case ${_guard_rules_vsf_scope:-} in
+            ''|'#'*) continue ;;
+            direct|proxy) ;;
+            *) return 1 ;;
+        esac
+        [ -n "${_guard_rules_vsf_url:-}" ] || return 1
+        [ -z "${_guard_rules_vsf_extra:-}" ] || return 1
+        guard_rules_validate_url "$_guard_rules_vsf_url" || return 1
+    done < "$_guard_rules_vsf_file"
+}
+
+guard_rules_collect_sources() {
+    _guard_rules_cs_config=$1
+    _guard_rules_cs_root=$2
+    _guard_rules_cs_scope=$3
+    _guard_rules_cs_output=$4
+    : > "$_guard_rules_cs_output"
+    while IFS="$(printf '\t')" read -r _guard_rules_cs_cfg_scope _guard_rules_cs_url _guard_rules_cs_extra || [ -n "${_guard_rules_cs_cfg_scope:-}" ]; do
+        [ "${_guard_rules_cs_cfg_scope:-}" = "$_guard_rules_cs_scope" ] || continue
+        [ -n "${_guard_rules_cs_url:-}" ] || continue
+        _guard_rules_cs_source=$(guard_rules_source_file "$_guard_rules_cs_root" "$_guard_rules_cs_scope" "$_guard_rules_cs_url")
+        [ -f "$_guard_rules_cs_source" ] || continue
+        cat "$_guard_rules_cs_source" >> "$_guard_rules_cs_output"
+    done < "$_guard_rules_cs_config"
+    _guard_rules_cs_sorted=$(file_mktemp "$(dirname "$_guard_rules_cs_output")") || return 1
+    if ! LC_ALL=C sort -u "$_guard_rules_cs_output" > "$_guard_rules_cs_sorted"; then
+        rm -f "$_guard_rules_cs_sorted"
+        return 1
+    fi
+    mv -f "$_guard_rules_cs_sorted" "$_guard_rules_cs_output"
+}
+
+guard_rules_render_provider() {
+    _guard_rules_rp_kind=$1
+    _guard_rules_rp_local=$2
+    _guard_rules_rp_remote=$3
+    _guard_rules_rp_dest=$4
+    _guard_rules_rp_data=$(file_mktemp "$(dirname "$_guard_rules_rp_dest")") || return 1
+    case $_guard_rules_rp_kind in
+        domain)
+            awk -F ',' '
+                $1 == "DOMAIN" { print $2 }
+                $1 == "DOMAIN-SUFFIX" { print "+." $2 }
+                $1 == "DOMAIN-KEYWORD" { print "*" $2 "*" }
+            ' "$_guard_rules_rp_local" "$_guard_rules_rp_remote" | LC_ALL=C sort -u > "$_guard_rules_rp_data"
+            ;;
+        ip)
+            awk -F ',' '$1 == "IP-CIDR" { print "IP-CIDR," $2 ",no-resolve" }' "$_guard_rules_rp_local" "$_guard_rules_rp_remote" | LC_ALL=C sort -u > "$_guard_rules_rp_data"
+            ;;
+        *) rm -f "$_guard_rules_rp_data"; return 2 ;;
+    esac
+    {
+        printf 'payload:\n'
+        while IFS= read -r _guard_rules_rp_line || [ -n "$_guard_rules_rp_line" ]; do
+            [ -n "$_guard_rules_rp_line" ] || continue
+            printf "  - '%s'\n" "$_guard_rules_rp_line"
+        done < "$_guard_rules_rp_data"
+    } > "$_guard_rules_rp_dest"
+    rm -f "$_guard_rules_rp_data"
+}
+
+guard_rules_render_all() {
+    _guard_rules_ra_local_direct=$1
+    _guard_rules_ra_local_proxy=$2
+    _guard_rules_ra_remote_direct=$3
+    _guard_rules_ra_remote_proxy=$4
+    _guard_rules_ra_dest=$5
+    mkdir -p "$_guard_rules_ra_dest"
+    while IFS=' ' read -r _guard_rules_ra_name _guard_rules_ra_behavior _guard_rules_ra_file; do
+        case $_guard_rules_ra_name in
+            Custom_Direct_*)
+                _guard_rules_ra_local=$_guard_rules_ra_local_direct
+                _guard_rules_ra_remote=$_guard_rules_ra_remote_direct
+                ;;
+            Custom_Proxy_*)
+                _guard_rules_ra_local=$_guard_rules_ra_local_proxy
+                _guard_rules_ra_remote=$_guard_rules_ra_remote_proxy
+                ;;
+            *) return 2 ;;
+        esac
+        case $_guard_rules_ra_behavior in
+            domain) _guard_rules_ra_kind=domain ;;
+            classical) _guard_rules_ra_kind=ip ;;
+            *) return 2 ;;
+        esac
+        guard_rules_render_provider "$_guard_rules_ra_kind" "$_guard_rules_ra_local" "$_guard_rules_ra_remote" "$_guard_rules_ra_dest/$_guard_rules_ra_file" || return $?
+    done <<EOF
+$(guard_overlay_provider_specs)
+EOF
+}
+
+guard_rules_publish_providers() {
+    _guard_rules_pp_stage=$1
+    _guard_rules_pp_dest=$(guard_rules_providers_dir)
+    mkdir -p "$_guard_rules_pp_dest"
+    while IFS=' ' read -r _guard_rules_pp_key _guard_rules_pp_behavior _guard_rules_pp_name; do
+        [ -n "$_guard_rules_pp_name" ] || continue
+        if [ -f "$_guard_rules_pp_dest/$_guard_rules_pp_name" ] && \
+           cmp -s "$_guard_rules_pp_dest/$_guard_rules_pp_name" "$_guard_rules_pp_stage/$_guard_rules_pp_name"; then
+            continue
+        fi
+        if ! file_atomic_replace "$_guard_rules_pp_dest/$_guard_rules_pp_name" "$_guard_rules_pp_stage/$_guard_rules_pp_name"; then
+            return 1
+        fi
+    done <<EOF
+$(guard_overlay_provider_specs)
+EOF
+}
+
+guard_rules_init() {
+    guard_rules_ensure_layout
+    _guard_rules_gi_stage=$(guard_rules_make_stage) || return 1
+    _guard_rules_gi_local_direct=$(guard_rules_local_file direct)
+    _guard_rules_gi_local_proxy=$(guard_rules_local_file proxy)
+    _guard_rules_gi_direct=$(guard_rules_remote_file direct)
+    _guard_rules_gi_proxy=$(guard_rules_remote_file proxy)
+    if ! guard_rules_render_all "$_guard_rules_gi_local_direct" "$_guard_rules_gi_local_proxy" "$_guard_rules_gi_direct" "$_guard_rules_gi_proxy" "$_guard_rules_gi_stage/providers"; then
+        guard_rules_remove_stage "$_guard_rules_gi_stage"
+        return 1
+    fi
+    if ! guard_rules_publish_providers "$_guard_rules_gi_stage/providers"; then
+        guard_rules_remove_stage "$_guard_rules_gi_stage"
+        return 1
+    fi
+    guard_rules_remove_stage "$_guard_rules_gi_stage"
+    guard_rules_staged_notice
+}
+
+guard_rules_local_mutate() {
+    _guard_rules_lm_scope=$1
+    _guard_rules_lm_action=$2
+    _guard_rules_lm_entry=$3
+    case $_guard_rules_lm_scope in
+        direct|proxy) ;;
+        *) return 2 ;;
+    esac
+    _guard_rules_lm_normalized=$(guard_rules_normalize_entry "$_guard_rules_lm_entry" 0) || {
+        guard_rules_error "invalid local rule; expected DOMAIN, DOMAIN-SUFFIX, or IP-CIDR"
+        return 1
+    }
+    guard_rules_ensure_layout
+    _guard_rules_lm_local=$(guard_rules_local_file "$_guard_rules_lm_scope")
+    if ! guard_rules_validate_rule_file "$_guard_rules_lm_local" 0; then
+        guard_rules_error "Guard local rule state is invalid"
+        return 1
+    fi
+    _guard_rules_lm_stage=$(guard_rules_make_stage) || return 1
+    _guard_rules_lm_new="$_guard_rules_lm_stage/local-$_guard_rules_lm_scope.tsv"
+    if [ "$_guard_rules_lm_action" = add ]; then
+        awk -v want="$_guard_rules_lm_normalized" '$0 == want { found = 1 } { print } END { if (!found) print want }' "$_guard_rules_lm_local" > "$_guard_rules_lm_new"
+    else
+        awk -v want="$_guard_rules_lm_normalized" '$0 != want { print }' "$_guard_rules_lm_local" > "$_guard_rules_lm_new"
+    fi
+    _guard_rules_lm_sorted=$(file_mktemp "$_guard_rules_lm_stage") || {
+        guard_rules_remove_stage "$_guard_rules_lm_stage"
+        return 1
+    }
+    LC_ALL=C sort -u "$_guard_rules_lm_new" > "$_guard_rules_lm_sorted"
+    mv -f "$_guard_rules_lm_sorted" "$_guard_rules_lm_new"
+    _guard_rules_lm_direct=$(guard_rules_remote_file direct)
+    _guard_rules_lm_proxy=$(guard_rules_remote_file proxy)
+    _guard_rules_lm_local_direct=$(guard_rules_local_file direct)
+    _guard_rules_lm_local_proxy=$(guard_rules_local_file proxy)
+    if [ "$_guard_rules_lm_scope" = direct ]; then
+        _guard_rules_lm_local_direct=$_guard_rules_lm_new
+    else
+        _guard_rules_lm_local_proxy=$_guard_rules_lm_new
+    fi
+    if ! guard_rules_render_all "$_guard_rules_lm_local_direct" "$_guard_rules_lm_local_proxy" "$_guard_rules_lm_direct" "$_guard_rules_lm_proxy" "$_guard_rules_lm_stage/providers"; then
+        guard_rules_remove_stage "$_guard_rules_lm_stage"
+        return 1
+    fi
+    if ! file_atomic_replace "$_guard_rules_lm_local" "$_guard_rules_lm_new" || ! guard_rules_publish_providers "$_guard_rules_lm_stage/providers"; then
+        guard_rules_remove_stage "$_guard_rules_lm_stage"
+        return 1
+    fi
+    guard_rules_remove_stage "$_guard_rules_lm_stage"
+    guard_rules_staged_notice
+}
+
+guard_rules_list_local() {
+    _guard_rules_ll_scope=${1:-}
+    case $_guard_rules_ll_scope in
+        direct|proxy)
+            _guard_rules_ll_local=$(guard_rules_local_file "$_guard_rules_ll_scope")
+            [ -f "$_guard_rules_ll_local" ] || return 0
+            ;;
+        '')
+            guard_rules_list_local direct
+            guard_rules_list_local proxy
+            return 0
+            ;;
+        *) return 2 ;;
+    esac
+    cat "$_guard_rules_ll_local"
+}
+
+guard_rules_local_has_entries() {
+    _guard_rules_lhe_scope=${1:-}
+    case $_guard_rules_lhe_scope in
+        direct|proxy)
+            [ -s "$(guard_rules_local_file "$_guard_rules_lhe_scope")" ]
+            ;;
+        '')
+            [ -s "$(guard_rules_local_file direct)" ] || \
+                [ -s "$(guard_rules_local_file proxy)" ]
+            ;;
+        *)
+            return 2
+            ;;
+    esac
+}
+
+guard_rules_config_mutate() {
+    _guard_rules_cm_scope=$1
+    _guard_rules_cm_action=$2
+    _guard_rules_cm_url=$3
+    case $_guard_rules_cm_scope in
+        direct|proxy) ;;
+        *) return 2 ;;
+    esac
+    guard_rules_validate_url "$_guard_rules_cm_url" || {
+        guard_rules_error "only HTTPS raw.githubusercontent.com or gist.githubusercontent.com URLs are accepted"
+        return 1
+    }
+    guard_rules_ensure_layout
+    _guard_rules_cm_config=$(guard_rules_config)
+    guard_rules_validate_sources_file "$_guard_rules_cm_config" || {
+        guard_rules_error "Guard source configuration is invalid"
+        return 1
+    }
+    _guard_rules_cm_stage=$(guard_rules_make_stage) || return 1
+    _guard_rules_cm_new="$_guard_rules_cm_stage/sources.tsv"
+    _guard_rules_cm_found=0
+    if [ "$_guard_rules_cm_action" = add ]; then
+        awk -F '\t' -v scope="$_guard_rules_cm_scope" -v url="$_guard_rules_cm_url" '
+            $1 == scope && $2 == url { found = 1 }
+            { print }
+            END { if (!found) print scope "\t" url }
+        ' "$_guard_rules_cm_config" > "$_guard_rules_cm_new"
+    else
+        awk -F '\t' -v scope="$_guard_rules_cm_scope" -v url="$_guard_rules_cm_url" '$1 == scope && $2 == url { found = 1; next } { print }' "$_guard_rules_cm_config" > "$_guard_rules_cm_new"
+    fi
+    _guard_rules_cm_direct="$_guard_rules_cm_stage/remote-direct.tsv"
+    _guard_rules_cm_proxy="$_guard_rules_cm_stage/remote-proxy.tsv"
+    guard_rules_collect_sources "$_guard_rules_cm_new" "$(guard_rules_sources_dir)" direct "$_guard_rules_cm_direct"
+    guard_rules_collect_sources "$_guard_rules_cm_new" "$(guard_rules_sources_dir)" proxy "$_guard_rules_cm_proxy"
+    if ! guard_rules_render_all "$(guard_rules_local_file direct)" "$(guard_rules_local_file proxy)" "$_guard_rules_cm_direct" "$_guard_rules_cm_proxy" "$_guard_rules_cm_stage/providers"; then
+        guard_rules_remove_stage "$_guard_rules_cm_stage"
+        return 1
+    fi
+    if ! file_atomic_replace "$_guard_rules_cm_config" "$_guard_rules_cm_new" || \
+       ! file_atomic_replace "$(guard_rules_remote_file direct)" "$_guard_rules_cm_direct" || \
+       ! file_atomic_replace "$(guard_rules_remote_file proxy)" "$_guard_rules_cm_proxy" || \
+       ! guard_rules_publish_providers "$_guard_rules_cm_stage/providers"; then
+        guard_rules_remove_stage "$_guard_rules_cm_stage"
+        return 1
+    fi
+    guard_rules_remove_stage "$_guard_rules_cm_stage"
+    guard_rules_staged_notice
+}
+
+guard_rules_sync_run() {
+    guard_rules_ensure_layout
+    _guard_rules_sr_config=$(guard_rules_config)
+    guard_rules_validate_sources_file "$_guard_rules_sr_config" || {
+        guard_rules_error "Guard source configuration is invalid; keeping last-good staged rules"
+        return 1
+    }
+    _guard_rules_sr_stage=$(guard_rules_make_stage) || return 1
+    _guard_rules_sr_ok=1
+    while IFS="$(printf '\t')" read -r _guard_rules_sr_scope _guard_rules_sr_url _guard_rules_sr_extra || [ -n "${_guard_rules_sr_scope:-}" ]; do
+        case ${_guard_rules_sr_scope:-} in
+            ''|'#'*) continue ;;
+        esac
+        _guard_rules_sr_raw=$(file_mktemp "$_guard_rules_sr_stage") || { _guard_rules_sr_ok=0; break; }
+        if ! fetch_atomic "$_guard_rules_sr_url" "$_guard_rules_sr_raw" "" "" "$_GUARD_RULES_MAX_REMOTE_BYTES" 1; then
+            _guard_rules_sr_ok=0
+            break
+        fi
+        _guard_rules_sr_bytes=$(wc -c < "$_guard_rules_sr_raw" | tr -d '[:space:]')
+        case $_guard_rules_sr_bytes in
+            ''|*[!0-9]*) _guard_rules_sr_ok=0; break ;;
+        esac
+        if [ "$_guard_rules_sr_bytes" -gt "$_GUARD_RULES_MAX_REMOTE_BYTES" ]; then
+            guard_rules_error "remote rule source exceeds ${_GUARD_RULES_MAX_REMOTE_BYTES} bytes: $_guard_rules_sr_url"
+            _guard_rules_sr_ok=0
+            break
+        fi
+        _guard_rules_sr_snapshot=$(guard_rules_source_file "$_guard_rules_sr_stage/sources" "$_guard_rules_sr_scope" "$_guard_rules_sr_url")
+        mkdir -p "$(dirname "$_guard_rules_sr_snapshot")"
+        if ! guard_rules_normalize_remote_file "$_guard_rules_sr_raw" "$_guard_rules_sr_snapshot"; then
+            guard_rules_error "remote rule source has invalid matcher data: $_guard_rules_sr_url"
+            _guard_rules_sr_ok=0
+            break
+        fi
+    done < "$_guard_rules_sr_config"
+    if [ "$_guard_rules_sr_ok" != 1 ]; then
+        guard_rules_remove_stage "$_guard_rules_sr_stage"
+        guard_rules_error "sync failed; keeping last-good remote snapshots and providers"
+        return 1
+    fi
+    _guard_rules_sr_direct="$_guard_rules_sr_stage/remote-direct.tsv"
+    _guard_rules_sr_proxy="$_guard_rules_sr_stage/remote-proxy.tsv"
+    guard_rules_collect_sources "$_guard_rules_sr_config" "$_guard_rules_sr_stage/sources" direct "$_guard_rules_sr_direct"
+    guard_rules_collect_sources "$_guard_rules_sr_config" "$_guard_rules_sr_stage/sources" proxy "$_guard_rules_sr_proxy"
+    if ! guard_rules_render_all "$(guard_rules_local_file direct)" "$(guard_rules_local_file proxy)" "$_guard_rules_sr_direct" "$_guard_rules_sr_proxy" "$_guard_rules_sr_stage/providers"; then
+        guard_rules_remove_stage "$_guard_rules_sr_stage"
+        return 1
+    fi
+
+    # Every source has been fetched, size-checked, parsed, deduped, and used
+    # to render all four providers before any production snapshot is changed.
+    if ! file_atomic_replace "$(guard_rules_remote_file direct)" "$_guard_rules_sr_direct" || \
+       ! file_atomic_replace "$(guard_rules_remote_file proxy)" "$_guard_rules_sr_proxy"; then
+        guard_rules_remove_stage "$_guard_rules_sr_stage"
+        return 1
+    fi
+    mkdir -p "$(guard_rules_sources_dir)/direct" "$(guard_rules_sources_dir)/proxy"
+    while IFS="$(printf '\t')" read -r _guard_rules_sr_scope _guard_rules_sr_url _guard_rules_sr_extra || [ -n "${_guard_rules_sr_scope:-}" ]; do
+        case ${_guard_rules_sr_scope:-} in
+            ''|'#'*) continue ;;
+        esac
+        _guard_rules_sr_snapshot=$(guard_rules_source_file "$_guard_rules_sr_stage/sources" "$_guard_rules_sr_scope" "$_guard_rules_sr_url")
+        _guard_rules_sr_dest=$(guard_rules_source_file "$(guard_rules_sources_dir)" "$_guard_rules_sr_scope" "$_guard_rules_sr_url")
+        if ! file_atomic_replace "$_guard_rules_sr_dest" "$_guard_rules_sr_snapshot"; then
+            guard_rules_remove_stage "$_guard_rules_sr_stage"
+            return 1
+        fi
+    done < "$_guard_rules_sr_config"
+    if ! guard_rules_publish_providers "$_guard_rules_sr_stage/providers"; then
+        guard_rules_remove_stage "$_guard_rules_sr_stage"
+        return 1
+    fi
+    guard_rules_remove_stage "$_guard_rules_sr_stage"
+    guard_rules_staged_notice
+}
+
+guard_rules_sync_list() {
+    _guard_rules_sl_scope=${1:-}
+    _guard_rules_sl_config=$(guard_rules_config)
+    [ -f "$_guard_rules_sl_config" ] || return 0
+    case $_guard_rules_sl_scope in
+        direct|proxy)
+            awk -F '\t' -v scope="$_guard_rules_sl_scope" '$1 == scope { print }' "$_guard_rules_sl_config"
+            ;;
+        '') cat "$_guard_rules_sl_config" ;;
+        *) return 2 ;;
+    esac
+}
+
+guard_rules_sync_interval() {
+    _guard_rules_si_value=${GUARD_RULES_SYNC_INTERVAL:-$_GUARD_RULES_SYNC_INTERVAL_DEFAULT}
+    case $_guard_rules_si_value in
+        ''|*[!0-9]*) return 1 ;;
+    esac
+    [ "$_guard_rules_si_value" -gt 0 ] || return 1
+    printf '%s\n' "$_guard_rules_si_value"
+}
+
+guard_rules_sync_watch() {
+    [ "${GUARD_RULES_ALLOW_WATCH:-0}" = 1 ] || {
+        guard_rules_error "sync watch is internal-only; set GUARD_RULES_ALLOW_WATCH=1 explicitly"
+        return 2
+    }
+    _guard_rules_sw_rules_interval=$(guard_rules_sync_interval) || {
+        guard_rules_error "GUARD_RULES_SYNC_INTERVAL must be a positive integer"
+        return 2
+    }
+    _guard_rules_sw_resolver_interval=$(_guard_resolver_sync_interval) || {
+        guard_rules_error "GUARD_RESOLVER_SYNC_INTERVAL must be an integer in 5..300"
+        return 2
+    }
+    _guard_rules_sw_next_rules=0
+    trap 'guard_resolver_sync_stop; _guard_lock_release; exit 0' INT TERM
+    trap 'guard_resolver_sync_stop; _guard_lock_release' EXIT
+    while :; do
+        _guard_rules_sw_now=$(date +%s 2>/dev/null) || _guard_rules_sw_now=
+        case $_guard_rules_sw_now in
+            ''|*[!0-9]*)
+                guard_rules_error "scheduled watch cannot read a valid epoch clock"
+                sleep "$_guard_rules_sw_resolver_interval" || true
+                continue
+                ;;
+        esac
+        _guard_rules_sw_rules_due=0
+        if [ "$_guard_rules_sw_now" -ge "$_guard_rules_sw_next_rules" ] 2>/dev/null; then
+            _guard_rules_sw_rules_due=1
+        fi
+        if _guard_lock_acquire; then
+            if [ "$_guard_rules_sw_rules_due" = 1 ]; then
+                _guard_rules_sw_rules_rc=0
+                guard_rules_sync_run || _guard_rules_sw_rules_rc=$?
+                _guard_rules_sw_next_rules=$((_guard_rules_sw_now + _guard_rules_sw_rules_interval))
+                [ "$_guard_rules_sw_rules_rc" -eq 0 ] || \
+                    guard_rules_error "scheduled sync failed; last-good rules remain active"
+            fi
+            _guard_rules_sw_resolver_rc=0
+            guard_resolver_sync_cycle || _guard_rules_sw_resolver_rc=$?
+            [ "$_guard_rules_sw_resolver_rc" -eq 0 ] || \
+                guard_rules_error "resolver sync cycle failed; capability remains fail-closed"
+            _guard_lock_release
+        else
+            guard_rules_error "scheduled watch could not acquire the Guard lock"
+        fi
+        sleep "$_guard_rules_sw_resolver_interval" || true
+    done
+}
+
+guard_rules_purge() {
+    _guard_rules_pg_dir=$(guard_rules_dir)
+    _guard_rules_pg_config=$(guard_rules_config)
+    [ -d "$_guard_rules_pg_dir" ] || return 0
+    rm -f "$_guard_rules_pg_dir/local-direct.tsv" "$_guard_rules_pg_dir/local-proxy.tsv" "$_guard_rules_pg_dir/remote-direct.tsv" "$_guard_rules_pg_dir/remote-proxy.tsv"
+    while IFS=' ' read -r _guard_rules_pg_key _guard_rules_pg_behavior _guard_rules_pg_name; do
+        [ -n "$_guard_rules_pg_name" ] || continue
+        rm -f "$_guard_rules_pg_dir/providers/$_guard_rules_pg_name"
+    done <<EOF
+$(guard_overlay_provider_specs)
+EOF
+    for _guard_rules_pg_scope in direct proxy; do
+        if [ -d "$_guard_rules_pg_dir/sources/$_guard_rules_pg_scope" ]; then
+            find "$_guard_rules_pg_dir/sources/$_guard_rules_pg_scope" -type f -name '*.tsv' -exec rm -f {} + 2>/dev/null || true
+        fi
+        rmdir "$_guard_rules_pg_dir/sources/$_guard_rules_pg_scope" 2>/dev/null || true
+    done
+    find "$_guard_rules_pg_dir" -type d -name 'shlib.*' -prune -exec rm -rf {} + 2>/dev/null || true
+    rmdir "$_guard_rules_pg_dir/providers" "$_guard_rules_pg_dir/sources" 2>/dev/null || true
+    rm -f "$_guard_rules_pg_config"
+    rmdir "$_guard_rules_pg_dir" 2>/dev/null || true
+}
+
+guard_cmd_rules() {
+    _guard_rules_cmd=${1:-}
+    [ -n "$_guard_rules_cmd" ] || {
+        guard_rules_error "usage: rules add-direct|add-proxy|list|remove-direct|remove-proxy|sync ..."
+        return 2
+    }
+    shift
+    case $_guard_rules_cmd in
+        add-direct)
+            [ "$#" -eq 1 ] || return 2
+            guard_rules_local_mutate direct add "$1"
+            ;;
+        add-proxy)
+            [ "$#" -eq 1 ] || return 2
+            guard_rules_local_mutate proxy add "$1"
+            ;;
+        remove-direct)
+            [ "$#" -eq 1 ] || return 2
+            guard_rules_local_mutate direct remove "$1"
+            ;;
+        remove-proxy)
+            [ "$#" -eq 1 ] || return 2
+            guard_rules_local_mutate proxy remove "$1"
+            ;;
+        list)
+            [ "$#" -le 1 ] || return 2
+            _guard_rules_list_scope=${1:-}
+            if guard_rules_local_has_entries "$_guard_rules_list_scope"; then
+                guard_rules_list_local "$_guard_rules_list_scope"
+            else
+                case $_guard_rules_list_scope in
+                    direct|proxy)
+                        printf 'No staged %s rules.\n' "$_guard_rules_list_scope"
+                        ;;
+                    '')
+                        printf '%s\n' 'No staged custom rules.'
+                        ;;
+                    *)
+                        return 2
+                        ;;
+                esac
+            fi
+            ;;
+        activate)
+            guard_overlay_activate "$@"
+            ;;
+        deactivate)
+            guard_overlay_deactivate "$@"
+            ;;
+        apply-overlay)
+            guard_overlay_apply_config "$@"
+            ;;
+        sync)
+            _guard_rules_sync_cmd=${1:-}
+            [ -n "$_guard_rules_sync_cmd" ] || return 2
+            shift
+            case $_guard_rules_sync_cmd in
+                add-direct) [ "$#" -eq 1 ] || return 2; guard_rules_config_mutate direct add "$1" ;;
+                add-proxy) [ "$#" -eq 1 ] || return 2; guard_rules_config_mutate proxy add "$1" ;;
+                remove-direct) [ "$#" -eq 1 ] || return 2; guard_rules_config_mutate direct remove "$1" ;;
+                remove-proxy) [ "$#" -eq 1 ] || return 2; guard_rules_config_mutate proxy remove "$1" ;;
+                list) [ "$#" -le 1 ] || return 2; guard_rules_sync_list "${1:-}" ;;
+                run) [ "$#" -eq 0 ] || return 2; guard_rules_sync_run ;;
+                watch) [ "$#" -eq 0 ] || return 2; guard_rules_sync_watch ;;
+                *) guard_rules_error "unknown rules sync command: $_guard_rules_sync_cmd"; return 2 ;;
+            esac
+            ;;
+        init)
+            [ "$#" -eq 0 ] || return 2
+            guard_rules_init
+            ;;
+        *)
+            guard_rules_error "unknown rules command: $_guard_rules_cmd"
+            return 2
+            ;;
+    esac
+}
+# END MODULE: guard-rules
 
 # BEGIN MODULE: service
 # OpenWrt init.d observation helpers. Lifecycle mutation requires --mutate.
@@ -4401,6 +5022,65 @@ guard_kill_delete_table() {
     fi
 }
 
+_guard_kill_render_resolver_sync_sets() {
+    [ "${_GUARD_DNS_BACKEND:-}" = adguardhome ] || return 0
+    printf 'add set %s %s %s { type ipv4_addr; flags timeout; comment "%s"; }\n' \
+        "$_GUARD_RESOLVER_SYNC_FAMILY" "$_GUARD_RESOLVER_SYNC_TABLE" "$_GUARD_RESOLVER_SYNC_V4_SET" \
+        "$_GUARD_RESOLVER_SYNC_V4_SET_COMMENT"
+    printf 'add set %s %s %s { type ipv6_addr; flags timeout; comment "%s"; }\n' \
+        "$_GUARD_RESOLVER_SYNC_FAMILY" "$_GUARD_RESOLVER_SYNC_TABLE" "$_GUARD_RESOLVER_SYNC_V6_SET" \
+        "$_GUARD_RESOLVER_SYNC_V6_SET_COMMENT"
+}
+
+_guard_kill_render_resolver_sync_cache() {
+    [ "${_GUARD_DNS_BACKEND:-}" = adguardhome ] || return 0
+    _guard_krc_cache=$(_guard_resolver_sync_cache_path)
+    _guard_krc_state=$(_guard_resolver_sync_state_path)
+    # Never replay cache bytes from an older selector inventory.  A state file
+    # from the current bundle binds the cache to the embedded source revision.
+    [ -f "$_guard_krc_state" ] && [ ! -L "$_guard_krc_state" ] || return 0
+    _guard_krc_revision=$(json_get "$_guard_krc_state" sourceRevision 2>/dev/null) || return 0
+    [ "$_guard_krc_revision" = "${_GUARD_RESOLVER_SYNC_DATA_SOURCE_REVISION:-}" ] || return 0
+    [ -f "$_guard_krc_cache" ] || return 0
+    [ ! -L "$_guard_krc_cache" ] || return 1
+    _guard_krc_now=${GUARD_RESOLVER_SYNC_NOW_EPOCH:-$(date +%s 2>/dev/null)}
+    _guard_resolver_sync_uint "$_guard_krc_now" || return 1
+    _guard_krc_max=$(_guard_resolver_sync_max_ttl) || return 1
+    while IFS=' ' read -r _guard_krc_family _guard_krc_ip _guard_krc_expiry _guard_krc_extra; do
+        [ -z "${_guard_krc_extra:-}" ] || return 1
+        [ -n "${_guard_krc_family:-}" ] || continue
+        _guard_resolver_sync_uint "$_guard_krc_expiry" || return 1
+        [ "$_guard_krc_expiry" -gt "$_guard_krc_now" ] 2>/dev/null || continue
+        _guard_krc_timeout=$((_guard_krc_expiry - _guard_krc_now))
+        [ "$_guard_krc_timeout" -le "$_guard_krc_max" ] 2>/dev/null || return 1
+        case $_guard_krc_family in
+            4)
+                _guard_resolver_sync_valid_ipv4 "$_guard_krc_ip" || return 1
+                _guard_krc_set=$_GUARD_RESOLVER_SYNC_V4_SET
+                ;;
+            6)
+                _guard_resolver_sync_valid_ipv6 "$_guard_krc_ip" || return 1
+                _guard_krc_set=$_GUARD_RESOLVER_SYNC_V6_SET
+                ;;
+            *) return 1 ;;
+        esac
+        printf 'add element %s %s %s { %s timeout %ss }\n' \
+            "$_GUARD_RESOLVER_SYNC_FAMILY" "$_GUARD_RESOLVER_SYNC_TABLE" "$_guard_krc_set" \
+            "$_guard_krc_ip" "$_guard_krc_timeout"
+    done < "$_guard_krc_cache"
+}
+
+_guard_kill_render_resolver_sync_rules() {
+    [ "${_GUARD_DNS_BACKEND:-}" = adguardhome ] || return 0
+    _guard_krrs_iface=$(_guard_resolver_sync_direct_iface 2>/dev/null) || return 0
+    printf 'add rule %s %s %s oifname "%s" ip daddr @%s reject comment "%s"\n' \
+        "$_GUARD_RESOLVER_SYNC_FAMILY" "$_GUARD_RESOLVER_SYNC_TABLE" "$_GUARD_RESOLVER_SYNC_CHAIN" \
+        "$_guard_krrs_iface" "$_GUARD_RESOLVER_SYNC_V4_SET" "$_GUARD_RESOLVER_SYNC_V4_RULE_COMMENT"
+    printf 'add rule %s %s %s oifname "%s" ip6 daddr @%s reject comment "%s"\n' \
+        "$_GUARD_RESOLVER_SYNC_FAMILY" "$_GUARD_RESOLVER_SYNC_TABLE" "$_GUARD_RESOLVER_SYNC_CHAIN" \
+        "$_guard_krrs_iface" "$_GUARD_RESOLVER_SYNC_V6_SET" "$_GUARD_RESOLVER_SYNC_V6_RULE_COMMENT"
+}
+
 # Base order: local accepts and protected-port rejects. Scoped direct exceptions
 # are appended by their feature modules before guard_kill_render_final() emits
 # the OpenClash tunnel capability and, only for an infrastructure-wide failure,
@@ -4428,6 +5108,8 @@ guard_kill_render() {
     fi
     # shellcheck disable=SC2086
     _guard_kill_add_elements protected_udp $_guard_ku_ports
+    _guard_kill_render_resolver_sync_sets || return $?
+    _guard_kill_render_resolver_sync_cache || return $?
 
     printf 'add chain %s %s input { type filter hook input priority -150; policy accept; }\n' \
         "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE"
@@ -4445,6 +5127,10 @@ guard_kill_render() {
     _guard_kill_add_rule forward 'udp dport { 67, 68 } accept' dhcp
     _guard_kill_add_rule forward 'ip daddr @lan_rfc1918 accept' lan-dst
     _guard_kill_add_rule forward 'udp dport @protected_udp reject' protected-udp
+    # Resolver-derived direct-WAN rejects precede all scoped direct exceptions
+    # rendered by feature modules, so a protected destination cannot be allowed
+    # out directly merely because another policy also matches it.
+    _guard_kill_render_resolver_sync_rules
 }
 
 _guard_kill_valid_iface() {
