@@ -344,6 +344,22 @@ guard_cmd_doctor() {
     cli_kv dns.dnsmasqRunning "$(guard_env_get dns.dnsmasqRunning)"
     cli_kv dns.adguardhomeEnabled "$(guard_env_get dns.adguardhomeEnabled)"
     cli_kv dns.adguardhomeRunning "$(guard_env_get dns.adguardhomeRunning)"
+    cli_kv dns.clientBypass.scanAvailable "$(guard_env_get dns.clientBypass.scanAvailable)"
+    if [ "$(guard_env_get dns.clientBypass.scanAvailable)" = 1 ]; then
+        cli_kv dns.clientBypass.rules "$(guard_env_get dns.clientBypass.rules)"
+        cli_kv dns.clientBypass.port53Rules "$(guard_env_get dns.clientBypass.port53Rules)"
+        cli_kv dns.clientBypass.dot853Rules "$(guard_env_get dns.clientBypass.dot853Rules)"
+        cli_kv dns.clientBypass.hijackBypassRules "$(guard_env_get dns.clientBypass.hijackBypassRules)"
+        cli_kv dns.clientBypass.unknownSourceRules "$(guard_env_get dns.clientBypass.unknownSourceRules)"
+        cli_kv dns.clientBypass.clients.count "$(guard_env_get dns.clientBypass.clients.count)"
+        _guard_doctor_dns_clients=$(guard_env_get dns.clientBypass.clients.items)
+        [ -z "$_guard_doctor_dns_clients" ] || cli_kv dns.clientBypass.clients.items "$_guard_doctor_dns_clients"
+        if [ "$(guard_env_get dns.clientBypass.detected)" = 1 ]; then
+            cli_warn "client DNS bypass rules detected; port 53/853 or DNS hijack escape paths may bypass the configured resolver chain"
+        fi
+    else
+        cli_warn "fw4 DNS bypass scan unavailable; client DNS escape paths are unknown"
+    fi
     if [ "$_GUARD_DNS_BACKEND" = adguardhome ]; then
         cli_info "AdGuard Home owns DNS; dnsmasq will not be enabled, started, or restarted"
     fi
