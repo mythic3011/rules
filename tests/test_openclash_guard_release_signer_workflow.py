@@ -49,6 +49,23 @@ class ReleaseSignerWorkflowTests(unittest.TestCase):
         self.assertIn("usign -V", sign["run"])
         self.assertIn("EXPECTED_SIGNER_FINGERPRINT", sign["run"])
 
+    def test_usign_is_built_from_a_pinned_upstream_revision(self) -> None:
+        workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
+        job = workflow["jobs"]["sign-release"]
+        self.assertEqual(job["env"]["USIGN_SOURCE_REPOSITORY"], "https://github.com/openwrt/usign.git")
+        revision = job["env"]["USIGN_SOURCE_REVISION"]
+        self.assertRegex(revision, r"^[0-9a-f]{40}$")
+
+        build = next(step for step in job["steps"] if step["name"] == "Build pinned usign")
+        run = build["run"]
+        self.assertIn('git -C "$source_dir" fetch --depth=1 origin "$USIGN_SOURCE_REVISION"', run)
+        self.assertIn('[ "$resolved_revision" = "$USIGN_SOURCE_REVISION" ]', run)
+        self.assertIn('git -C "$source_dir" checkout --detach "$USIGN_SOURCE_REVISION"', run)
+        self.assertIn('cmake -S "$source_dir" -B "$build_dir"', run)
+        self.assertIn('install -m 0755 "$build_dir/usign" "$bin_dir/usign"', run)
+        self.assertNotIn("apt-get install", run)
+        self.assertNotIn("apt install", run)
+
     def test_publication_is_signature_only_race_checked_and_never_force_pushes(self) -> None:
         workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
         job = workflow["jobs"]["sign-release"]
