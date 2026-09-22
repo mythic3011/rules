@@ -21,6 +21,24 @@ test('web/site HTML files do not use dangerous innerHTML string interpolation', 
   }
 });
 
+test('safeUrl sanitizes and validates URLs properly', async () => {
+  const { safeUrl } = await import('../web/site/assets/common.js');
+
+  assert.equal(safeUrl('https://example.com/feed'), 'https://example.com/feed');
+  assert.equal(safeUrl('http://example.org'), 'http://example.org/');
+  assert.equal(safeUrl('   https://example.com/path  '), 'https://example.com/path');
+
+  // Reject invalid schemes
+  assert.equal(safeUrl('javascript:alert(1)'), null);
+  assert.equal(safeUrl('data:text/html,test'), null);
+
+  // Reject malformed / unparseable HTTP URLs
+  assert.equal(safeUrl('https://'), null);
+  assert.equal(safeUrl('https://[invalid-host'), null);
+  assert.equal(safeUrl(123), null);
+  assert.equal(safeUrl(null), null);
+});
+
 test('web/site report page sanitizes dynamic URL schemes before setting href', () => {
   const htmlContent = fs.readFileSync(path.join(SITE_DIR, 'report.html'), 'utf8');
   let jsContent = '';
