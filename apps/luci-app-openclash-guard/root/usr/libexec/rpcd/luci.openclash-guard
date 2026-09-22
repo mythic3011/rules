@@ -1,0 +1,218 @@
+#!/bin/sh
+set -eu
+
+. /usr/share/libubox/jshn.sh
+
+CONFIG='openclash_guard'
+TRACE_MAX_BYTES=8192
+PROFILE_MAX_BYTES=262144
+
+uci_get() {
+	uci -q get "$CONFIG.$1.$2" 2>/dev/null || true
+}
+
+json_error() {
+	json_init
+	json_add_boolean ok 0
+	json_add_string error "$1"
+	json_dump
+	json_cleanup
+}
+
+fetch_https() {
+	url=$1
+	out=$2
+	max_bytes=$3
+	case "$url" in
+		https://*) ;;
+		*) return 2 ;;
+	esac
+	command -v uclient-fetch >/dev/null 2>&1 || return 127
+	uclient-fetch -q -T 12 -O "$out" "$url" >/dev/null 2>&1 || return 1
+	bytes=$(wc -c < "$out" | tr -d ' ')
+	[ "$bytes" -le "$max_bytes" ] || return 3
+}
+
+service_url() {
+	case "$1" in
+		chatgpt) printf '%s\n' 'https://chatgpt.com/cdn-cgi/trace' ;;
+		claude) printf '%s\n' 'https://claude.ai/cdn-cgi/trace' ;;
+		grok) printf '%s\n' 'https://grok.com/cdn-cgi/trace' ;;
+		*) return 1 ;;
+	esac
+}
+
+region_country() {
+	case "$1" in
+		hk) printf '%s\n' HK ;;
+		jp) printf '%s\n' JP ;;
+		sg) printf '%s\n' SG ;;
+		us) printf '%s\n' US ;;
+		gb|uk) printf '%s\n' GB ;;
+		de) printf '%s\n' DE ;;
+		*) printf '%s\n' '' ;;
+	esac
+}
+
+get_status() {
+	profile_url=$(uci_get main profile_url)
+	direct_region=$(uci_get routing direct_region)
+	proxy_region=$(uci_get routing proxy_region)
+
+	json_init
+	json_add_boolean ok 1
+	if command -v openclash-guard >/dev/null 2>&1; then
+		json_add_boolean guardInstalled 1
+	else
+		json_add_boolean guardInstalled 0
+	fi
+	if pidof clash >/dev/null 2>&1; then
+		json_add_boolean openclashRunning 1
+	else
+		json_add_boolean openclashRunning 0
+	fi
+	if pidof AdGuardHome >/dev/null 2>&1; then
+		json_add_boolean adguardHomeRunning 1
+	else
+		json_add_boolean adguardHomeRunning 0
+	fi
+	json_add_string profileUrl "$profile_url"
+	json_add_string directRegion "$direct_region"
+	json_add_string proxyRegion "$proxy_region"
+	json_dump
+	json_cleanup
+}
+
+trace_service() {
+	service=$1
+	url=$(service_url "$service") || { json_error 'unsupported service'; return 0; }
+	tmp=$(mktemp /tmp/openclash-guard-trace.XXXXXX) || { json_error 'unable to allocate temporary file'; return 0; }
+	trap 'rm -f "$tmp"' EXIT INT TERM
+	if ! fetch_https "$url" "$tmp" "$TRACE_MAX_BYTES"; then
+		rm -f "$tmp"
+		trap - EXIT INT TERM
+		json_error 'trace request failed'
+		return 0
+	fi
+
+	fl=''; host=''; ip=''; colo=''; loc=''; http=''; tls=''; warp=''; gateway=''; ts=''
+	while IFS='=' read -r key value; do
+		case "$key" in
+			fl) fl=$value ;;
+			h) host=$value ;;
+			ip) ip=$value ;;
+			colo) colo=$value ;;
+			loc) loc=$value ;;
+			http) http=$value ;;
+			tls) tls=$value ;;
+			warp) warp=$value ;;
+			gateway) gateway=$value ;;
+			ts) ts=$value ;;
+		esac
+	done < "$tmp"
+	rm -f "$tmp"
+	trap - EXIT INT TERM
+
+	expected_mode=$(uci_get routing "$service")
+	case "$expected_mode" in
+		direct) expected_region=$(uci_get routing direct_region) ;;
+		proxy) expected_region=$(uci_get routing proxy_region) ;;
+		*) expected_region='' ;;
+	esac
+	expected_country=$(region_country "$expected_region")
+	region_match='unknown'
+	if [ -n "$expected_country" ] && [ -n "$loc" ]; then
+		if [ "$expected_country" = "$loc" ]; then region_match='match'; else region_match='mismatch'; fi
+	fi
+
+	json_init
+	json_add_boolean ok 1
+	json_add_string service "$service"
+	json_add_string url "$url"
+	json_add_string host "$host"
+	json_add_string ip "$ip"
+	json_add_string country "$loc"
+	json_add_string colo "$colo"
+	json_add_string http "$http"
+	json_add_string tls "$tls"
+	json_add_string warp "$warp"
+	json_add_string gateway "$gateway"
+	json_add_string timestamp "$ts"
+	json_add_string expectedMode "$expected_mode"
+	json_add_string expectedRegion "$expected_region"
+	json_add_string expectedCountry "$expected_country"
+	json_add_string regionMatch "$region_match"
+	json_dump
+	json_cleanup
+}
+
+probe_profile() {
+	url=$1
+	[ -n "$url" ] || url=$(uci_get main profile_url)
+	case "$url" in
+		https://*) ;;
+		*) json_error 'profile URL must use HTTPS'; return 0 ;;
+	esac
+	tmp=$(mktemp /tmp/openclash-guard-profile.XXXXXX) || { json_error 'unable to allocate temporary file'; return 0; }
+	trap 'rm -f "$tmp"' EXIT INT TERM
+	if ! fetch_https "$url" "$tmp" "$PROFILE_MAX_BYTES"; then
+		rm -f "$tmp"
+		trap - EXIT INT TERM
+		json_error 'profile fetch failed or exceeded 256 KiB'
+		return 0
+	fi
+	bytes=$(wc -c < "$tmp" | tr -d ' ')
+	sections=$(grep -Ec '^[[:space:]]*\[[^]]+\][[:space:]]*$' "$tmp" 2>/dev/null || true)
+	first_section=$(sed -n 's/^[[:space:]]*\[\([^]]*\)\][[:space:]]*$/\1/p' "$tmp" | head -n 1)
+	looks_like_ini=0
+	[ "$sections" -gt 0 ] && looks_like_ini=1
+	rm -f "$tmp"
+	trap - EXIT INT TERM
+
+	json_init
+	json_add_boolean ok 1
+	json_add_string url "$url"
+	json_add_int bytes "$bytes"
+	json_add_int sections "$sections"
+	json_add_string firstSection "$first_section"
+	json_add_boolean looksLikeIni "$looks_like_ini"
+	json_dump
+	json_cleanup
+}
+
+case "${1:-}" in
+	list)
+		json_init
+		json_add_object getStatus
+		json_close_object
+		json_add_object trace
+		json_add_string service service
+		json_close_object
+		json_add_object probeProfile
+		json_add_string url url
+		json_close_object
+		json_dump
+		json_cleanup
+		;;
+	call)
+		case "${2:-}" in
+			getStatus)
+				get_status
+				;;
+			trace)
+				read -r input
+				json_load "$input"
+				json_get_var service service
+				json_cleanup
+				trace_service "$service"
+				;;
+			probeProfile)
+				read -r input
+				json_load "$input"
+				json_get_var url url
+				json_cleanup
+				probe_profile "$url"
+				;;
+		esac
+		;;
+esac

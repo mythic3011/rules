@@ -1,0 +1,38 @@
+{
+  "admin/services/openclash-guard": {
+    "title": "OpenClash Guard",
+    "order": 55,
+    "action": { "type": "firstchild" },
+    "depends": { "acl": [ "luci-app-openclash-guard" ] }
+  },
+  "admin/services/openclash-guard/overview": {
+    "title": "Overview",
+    "order": 1,
+    "action": { "type": "view", "path": "openclash-guard/overview" }
+  },
+  "admin/services/openclash-guard/profile": {
+    "title": "Profile",
+    "order": 2,
+    "action": { "type": "view", "path": "openclash-guard/profile" }
+  },
+  "admin/services/openclash-guard/routing": {
+    "title": "Routing",
+    "order": 3,
+    "action": { "type": "view", "path": "openclash-guard/routing" }
+  },
+  "admin/services/openclash-guard/dns": {
+    "title": "DNS",
+    "order": 4,
+    "action": { "type": "view", "path": "openclash-guard/dns" }
+  },
+  "admin/services/openclash-guard/rules": {
+    "title": "Rules",
+    "order": 5,
+    "action": { "type": "view", "path": "openclash-guard/rules" }
+  },
+  "admin/services/openclash-guard/tests": {
+    "title": "Tests",
+    "order": 6,
+    "action": { "type": "view", "path": "openclash-guard/tests" }
+  }
+}

@@ -1,0 +1,20 @@
+config core 'main'
+	option enabled '1'
+	option profile_mode 'remote_ini'
+	option profile_url ''
+	option distribution_source 'auto'
+	option auto_refresh '1'
+
+config routing 'routing'
+	option direct_region 'hk'
+	option proxy_region 'hk'
+	option chatgpt 'proxy'
+	option claude 'proxy'
+	option grok 'proxy'
+
+config dns 'dns'
+	option backend 'auto'
+	option resolver_sync '1'
+	option fail_closed '1'
+
+config rules 'rules'
