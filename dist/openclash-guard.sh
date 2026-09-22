@@ -5081,10 +5081,11 @@ _guard_kill_render_resolver_sync_rules() {
         "$_guard_krrs_iface" "$_GUARD_RESOLVER_SYNC_V6_SET" "$_GUARD_RESOLVER_SYNC_V6_RULE_COMMENT"
 }
 
-# Base order: local accepts and protected-port rejects. Scoped direct exceptions
-# are appended by their feature modules before guard_kill_render_final() emits
-# the OpenClash tunnel capability and, only for an infrastructure-wide failure,
-# the global fail-closed rule.
+# Base order: resolver-derived direct-path denies, then local accepts and
+# protected-port rejects. Scoped direct exceptions are appended by their
+# feature modules before guard_kill_render_final() emits the OpenClash tunnel
+# capability and, only for an infrastructure-wide failure, the global
+# fail-closed rule.
 guard_kill_render() {
     if [ "${_GUARD_NFT_TABLE_EXISTS:-0}" = 1 ]; then
         printf 'flush table %s %s\n' "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE"
@@ -5122,15 +5123,16 @@ guard_kill_render() {
         _guard_kill_add_rule input 'iifname != "lo" tcp dport 53 reject' dns-ks-tcp
     fi
 
+    # Put resolver-derived direct-WAN rejects before the established-flow accept.
+    # If an already-open direct connection becomes a protected destination after
+    # a DNS observation, it must not bypass the resolver-sync kill switch merely
+    # because conntrack already considers the flow established.
+    _guard_kill_render_resolver_sync_rules || return $?
     _guard_kill_add_rule forward 'ct state established,related accept' est
     _guard_kill_add_rule forward 'iifname "lo" accept' lo
     _guard_kill_add_rule forward 'udp dport { 67, 68 } accept' dhcp
     _guard_kill_add_rule forward 'ip daddr @lan_rfc1918 accept' lan-dst
     _guard_kill_add_rule forward 'udp dport @protected_udp reject' protected-udp
-    # Resolver-derived direct-WAN rejects precede all scoped direct exceptions
-    # rendered by feature modules, so a protected destination cannot be allowed
-    # out directly merely because another policy also matches it.
-    _guard_kill_render_resolver_sync_rules
 }
 
 _guard_kill_valid_iface() {
