@@ -7,8 +7,14 @@ on:
         description: Same-repository branch whose exact head metadata should be signed
         required: true
         type: string
+  workflow_run:
+    workflows:
+      - Auto generate AI profiles
+    types:
+      - completed
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -16,10 +22,161 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  qualify-release:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-24.04
+    outputs:
+      should_sign: ${{ steps.candidate.outputs.should_sign }}
+      target_branch: ${{ steps.candidate.outputs.target_branch }}
+      candidate_sha: ${{ steps.candidate.outputs.candidate_sha }}
+    steps:
+      - name: Checkout trusted signer code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Qualify immutable release candidate
+        id: candidate
+        env:
+          AUTO_BRANCH: ${{ github.event.workflow_run.head_branch || '' }}
+          AUTO_TRIGGER_SHA: ${{ github.event.workflow_run.head_sha || '' }}
+          GH_TOKEN: ${{ github.token }}
+          MANUAL_BRANCH: ${{ inputs.target_branch || '' }}
+          RUN_MODE: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+
+          emit_skip() {
+            printf 'should_sign=false\n' >> "$GITHUB_OUTPUT"
+            printf 'target_branch=%s\n' "$requested_branch" >> "$GITHUB_OUTPUT"
+            printf 'candidate_sha=%s\n' "${candidate_sha:-}" >> "$GITHUB_OUTPUT"
+            exit 0
+          }
+
+          if [ "$RUN_MODE" = workflow_run ]; then
+            requested_branch="$AUTO_BRANCH"
+            trigger_sha="$AUTO_TRIGGER_SHA"
+          else
+            requested_branch="$MANUAL_BRANCH"
+            trigger_sha=
+          fi
+
+          [ -n "$requested_branch" ] || {
+            echo "No candidate branch was supplied" >&2
+            exit 1
+          }
+          git check-ref-format --branch "$requested_branch" >/dev/null
+          case "$requested_branch" in
+            main)
+              if [ "$RUN_MODE" = workflow_run ]; then
+                echo "Automatic signing ignores generator runs on main."
+                candidate_sha="$GITHUB_SHA"
+                emit_skip
+              fi
+              echo "Refusing to write a release signature directly to main" >&2
+              exit 1
+              ;;
+          esac
+
+          remote_sha="$(git ls-remote --heads origin "refs/heads/${requested_branch}" | awk '{print $1}')"
+          [ -n "$remote_sha" ] || {
+            echo "Candidate branch does not exist: $requested_branch" >&2
+            exit 1
+          }
+          git fetch --no-tags origin "refs/heads/${requested_branch}:refs/remotes/origin/${requested_branch}"
+          candidate_sha="$(git rev-parse "refs/remotes/origin/${requested_branch}^{commit}")"
+          [ "$candidate_sha" = "$remote_sha" ]
+
+          git merge-base --is-ancestor "$GITHUB_SHA" "$candidate_sha" || {
+            echo "Candidate branch does not contain trusted main signer revision $GITHUB_SHA" >&2
+            exit 1
+          }
+
+          if [ "$RUN_MODE" = workflow_run ]; then
+            [ -n "$trigger_sha" ] || {
+              echo "Generator workflow did not expose its triggering SHA" >&2
+              exit 1
+            }
+
+            trusted_generator_blob="$(git rev-parse "$GITHUB_SHA:.github/workflows/auto-generate-ai-profiles.yml")"
+            candidate_generator_blob="$(git rev-parse "$candidate_sha:.github/workflows/auto-generate-ai-profiles.yml")"
+            if [ "$trusted_generator_blob" != "$candidate_generator_blob" ]; then
+              echo "Automatic signing skipped: candidate changed the generator workflow relative to trusted main."
+              emit_skip
+            fi
+
+            if [ "$candidate_sha" != "$trigger_sha" ]; then
+              if ! git merge-base --is-ancestor "$trigger_sha" "$candidate_sha"; then
+                echo "Automatic signing skipped: branch no longer descends from the completed generator run."
+                emit_skip
+              fi
+
+              gh api \
+                -H 'Accept: application/vnd.github+json' \
+                "/repos/${GITHUB_REPOSITORY}/actions/workflows/auto-generate-ai-profiles.yml/runs?head_sha=${candidate_sha}&event=push&per_page=10" \
+                > "$RUNNER_TEMP/newer-generator-runs.json"
+              newer_runs="$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1], encoding="utf-8")).get("workflow_runs", [])))' "$RUNNER_TEMP/newer-generator-runs.json")"
+              if [ "$newer_runs" -gt 0 ]; then
+                echo "Automatic signing skipped: candidate head has its own generator run; that run will qualify the head when complete."
+                emit_skip
+              fi
+
+              ./rulesctl managed-paths > "$RUNNER_TEMP/managed-paths.txt"
+              git diff --name-only "$trigger_sha..$candidate_sha" > "$RUNNER_TEMP/candidate-followup-paths.txt"
+              if ! python3 - "$RUNNER_TEMP/managed-paths.txt" "$RUNNER_TEMP/candidate-followup-paths.txt" <<'PY'
+          import sys
+
+          managed_file, changed_file = sys.argv[1:]
+          managed = [line.strip().rstrip("/") for line in open(managed_file, encoding="utf-8") if line.strip()]
+          changed = [line.strip() for line in open(changed_file, encoding="utf-8") if line.strip()]
+          unexpected = [
+              path
+              for path in changed
+              if not any(path == root or path.startswith(root + "/") for root in managed)
+          ]
+          if unexpected:
+              print("Unexpected post-generator paths: " + ", ".join(unexpected), file=sys.stderr)
+              raise SystemExit(1)
+          PY
+              then
+                echo "Automatic signing skipped: branch moved after generation with non-managed changes."
+                emit_skip
+              fi
+            fi
+          fi
+
+          python3 internal/python/verify_openclash_guard_release_candidate.py \
+            --candidate-sha "$candidate_sha" \
+            --output "$RUNNER_TEMP/release-candidate.json"
+          sequence="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["sequence"])' "$RUNNER_TEMP/release-candidate.json")"
+          trusted_sequence="$(python3 -c 'import json; print(json.load(open("internal/config/ai-routing/catalogs/distribution.json", encoding="utf-8"))["releaseSequence"])')"
+
+          if [ "$RUN_MODE" = workflow_run ]; then
+            expected_sequence=$((trusted_sequence + 1))
+            if [ "$sequence" -ne "$expected_sequence" ]; then
+              echo "Automatic signing skipped: candidate sequence $sequence is not trusted sequence + 1 ($expected_sequence)."
+              emit_skip
+            fi
+
+            if git cat-file -e "$candidate_sha:dist/openclash-guard.release.json.sig" 2>/dev/null; then
+              echo "Automatic signing skipped: candidate already contains a detached signature."
+              emit_skip
+            fi
+          fi
+
+          printf 'should_sign=true\n' >> "$GITHUB_OUTPUT"
+          printf 'target_branch=%s\n' "$requested_branch" >> "$GITHUB_OUTPUT"
+          printf 'candidate_sha=%s\n' "$candidate_sha" >> "$GITHUB_OUTPUT"
+
   sign-release:
-    # The release environment must also restrict deployments to main. This guard is
-    # defense in depth so feature-branch workflow edits never receive signing keys.
-    if: github.ref == 'refs/heads/main'
+    needs: qualify-release
+    if: needs.qualify-release.outputs.should_sign == 'true' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     environment: openclash-guard-release
     permissions:
@@ -28,6 +185,8 @@ jobs:
       EXPECTED_SIGNER_FINGERPRINT: "66215942e340d69f"
       USIGN_SOURCE_REPOSITORY: "https://github.com/openwrt/usign.git"
       USIGN_SOURCE_REVISION: "c4c72b1b07945ee192361dc751291a7c98d6adcd"
+      TARGET_BRANCH: ${{ needs.qualify-release.outputs.target_branch }}
+      CANDIDATE_SHA: ${{ needs.qualify-release.outputs.candidate_sha }}
 
     steps:
       - name: Checkout trusted signer code
@@ -36,23 +195,22 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
 
-      - name: Resolve immutable candidate head
-        env:
-          REQUESTED_BRANCH: ${{ inputs.target_branch }}
+      - name: Reconfirm immutable candidate head
         run: |
           set -euo pipefail
-          git check-ref-format --branch "$REQUESTED_BRANCH" >/dev/null
-          case "$REQUESTED_BRANCH" in
-            main) echo "Refusing to write a release signature directly to main" >&2; exit 1 ;;
-          esac
-          git fetch --no-tags origin "refs/heads/${REQUESTED_BRANCH}:refs/remotes/origin/${REQUESTED_BRANCH}"
-          candidate_sha="$(git rev-parse "refs/remotes/origin/${REQUESTED_BRANCH}^{commit}")"
-          git merge-base --is-ancestor "$GITHUB_SHA" "$candidate_sha" || {
-            echo "Candidate branch does not contain the trusted main signer revision $GITHUB_SHA" >&2
+          git check-ref-format --branch "$TARGET_BRANCH" >/dev/null
+          remote_sha="$(git ls-remote --heads origin "refs/heads/${TARGET_BRANCH}" | awk '{print $1}')"
+          [ "$remote_sha" = "$CANDIDATE_SHA" ] || {
+            echo "Candidate moved after qualification; refusing to sign stale output" >&2
             exit 1
           }
-          printf 'TARGET_BRANCH=%s\n' "$REQUESTED_BRANCH" >> "$GITHUB_ENV"
-          printf 'CANDIDATE_SHA=%s\n' "$candidate_sha" >> "$GITHUB_ENV"
+          git fetch --no-tags origin "refs/heads/${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}"
+          resolved_sha="$(git rev-parse "refs/remotes/origin/${TARGET_BRANCH}^{commit}")"
+          [ "$resolved_sha" = "$CANDIDATE_SHA" ]
+          git merge-base --is-ancestor "$GITHUB_SHA" "$CANDIDATE_SHA" || {
+            echo "Candidate branch no longer contains the trusted main signer revision $GITHUB_SHA" >&2
+            exit 1
+          }
 
       - name: Build pinned usign
         run: |
