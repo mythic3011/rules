@@ -1,6 +1,6 @@
 {
   "category": "adblock",
-  "generated_at": "2026-09-22T08:39:07Z",
+  "generated_at": "2026-09-22T16:24:18Z",
   "source_config": "internal/config/filtering/sources/adblock.yaml",
   "custom_source_config": "internal/config/filtering/sources/custom/adblock.yaml",
   "allowlist": "dns/local_allowlist.txt",
@@ -24,7 +24,7 @@
       "priority": 10,
       "url": "https://raw.githubusercontent.com/sjhgvr/oisd/main/domainswild2_small.txt",
       "homepage": "https://oisd.nl/",
-      "count": 56972
+      "count": 56971
     },
     {
       "id": "anti_ad_dnsmasq",
