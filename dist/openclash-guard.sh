@@ -8223,6 +8223,20 @@ guard_cmd_doctor() {
     if [ "$_GUARD_DNS_DOMAIN_SET" = unavailable ] && guard_policy_needs_failclosed 2>/dev/null; then
         cli_warn "domain-set backend unavailable; fail-closed enforcement=reject (not fail-open)"
     fi
+    _guard_doctor_dns_bypass_available=$(guard_env_get dns.clientBypass.available)
+    if [ "$_guard_doctor_dns_bypass_available" = 1 ]; then
+        _guard_doctor_dns_bypass_count=$(guard_env_get dns.clientBypass.count)
+        if [ "${_guard_doctor_dns_bypass_count:-0}" -gt 0 ] 2>/dev/null; then
+            _guard_doctor_dns_bypass_clients=$(guard_env_get dns.clientBypass.clients)
+            _guard_doctor_dns_bypass_port53=$(guard_env_get dns.clientBypass.port53)
+            _guard_doctor_dns_bypass_dot853=$(guard_env_get dns.clientBypass.dot853)
+            _guard_doctor_dns_bypass_hijack53=$(guard_env_get dns.clientBypass.hijack53)
+            cli_warn "client DNS firewall bypass detected: clients=${_guard_doctor_dns_bypass_clients:-unknown} port53=$_guard_doctor_dns_bypass_port53 dot853=$_guard_doctor_dns_bypass_dot853 hijack53=$_guard_doctor_dns_bypass_hijack53"
+            cli_info "DNS bypass diagnostics are observation-only; firewall policy was not modified"
+        fi
+    elif [ "$_guard_doctor_dns_bypass_available" = 0 ]; then
+        cli_warn "client DNS firewall bypass diagnostics unavailable; required fw4 chains could not be observed"
+    fi
     cli_info "gaming bypass never matches protected UDP ports (including 443)"
     if [ -n "$_guard_doctor_service" ]; then
         # shellcheck disable=SC2153
