@@ -18,6 +18,9 @@ ID = re.compile(r"^[a-z][a-z0-9-]*$")
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 DOMAIN = re.compile(r"^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$")
 REPO = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+REQUIRED_SERVICES = frozenset(
+    {"chatgpt", "claude", "poe", "windsurf", "huggingface", "flow-music"}
+)
 
 
 def parse_source(path: Path = SOURCE) -> tuple[tuple[str, str, str], list[tuple[str, str, str]], list[tuple[str, str]]]:
@@ -79,6 +82,9 @@ def parse_source(path: Path = SOURCE) -> tuple[tuple[str, str, str], list[tuple[
     overlap = sorted(covered & excluded)
     if overlap:
         raise RuntimeError(f"service cannot be both selected and excluded: {', '.join(overlap)}")
+    missing = sorted(REQUIRED_SERVICES - covered - excluded)
+    if missing:
+        raise RuntimeError(f"resolver-sync coverage is incomplete: {', '.join(missing)}")
     return source, selectors, exclusions
 
 
