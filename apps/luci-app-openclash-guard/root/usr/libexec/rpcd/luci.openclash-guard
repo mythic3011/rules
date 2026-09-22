@@ -54,11 +54,22 @@ service_host() {
 
 get_status() {
 	profile_url=$(uci_get main profile_url)
+	profile_mode=$(uci_get main profile_mode)
+	distribution_source=$(uci_get main distribution_source)
+	auto_refresh=$(uci_get main auto_refresh)
+	config_enabled=$(uci_get main enabled)
 	direct_region=$(uci_get routing direct_region)
 	proxy_region=$(uci_get routing proxy_region)
+	chatgpt_mode=$(uci_get routing chatgpt)
+	claude_mode=$(uci_get routing claude)
+	grok_mode=$(uci_get routing grok)
+	dns_backend=$(uci_get dns backend)
+	resolver_sync=$(uci_get dns resolver_sync)
+	fail_closed=$(uci_get dns fail_closed)
 
 	json_init
 	json_add_boolean ok 1
+	[ "$config_enabled" = 1 ] && json_add_boolean configEnabled 1 || json_add_boolean configEnabled 0
 	if command -v openclash-guard >/dev/null 2>&1; then
 		json_add_boolean guardInstalled 1
 	else
@@ -74,9 +85,18 @@ get_status() {
 	else
 		json_add_boolean adguardHomeRunning 0
 	fi
+	[ "$auto_refresh" = 1 ] && json_add_boolean autoRefresh 1 || json_add_boolean autoRefresh 0
+	[ "$resolver_sync" = 1 ] && json_add_boolean resolverSync 1 || json_add_boolean resolverSync 0
+	[ "$fail_closed" = 1 ] && json_add_boolean failClosed 1 || json_add_boolean failClosed 0
 	json_add_string profileUrl "$profile_url"
+	json_add_string profileMode "$profile_mode"
+	json_add_string distributionSource "$distribution_source"
 	json_add_string directRegion "$direct_region"
 	json_add_string proxyRegion "$proxy_region"
+	json_add_string chatgptMode "$chatgpt_mode"
+	json_add_string claudeMode "$claude_mode"
+	json_add_string grokMode "$grok_mode"
+	json_add_string dnsBackend "$dns_backend"
 	json_dump
 	json_cleanup
 }
