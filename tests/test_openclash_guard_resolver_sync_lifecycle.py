@@ -22,16 +22,17 @@ class ResolverSyncLifecycleTests(unittest.TestCase):
         start = source.index("guard_rules_sync_watch() {")
         end = source.index("\nguard_rules_purge() {", start)
         watch = source[start:end]
+        loop = watch[watch.index("while :; do") :]
         self.assertIn("guard_rules_sync_interval", watch)
         self.assertIn("_guard_resolver_sync_interval", watch)
         self.assertIn("_guard_rules_sw_next_rules", watch)
-        self.assertIn("guard_rules_sync_run", watch)
-        self.assertIn("guard_resolver_sync_cycle", watch)
-        self.assertLess(watch.index("_guard_lock_acquire"), watch.index("guard_resolver_sync_cycle"))
-        self.assertLess(watch.index("guard_resolver_sync_cycle"), watch.index("_guard_lock_release"))
-        self.assertIn('sleep "$_guard_rules_sw_resolver_interval"', watch)
+        self.assertIn("guard_rules_sync_run", loop)
+        self.assertIn("guard_resolver_sync_cycle", loop)
+        self.assertLess(loop.index("_guard_lock_acquire"), loop.index("guard_resolver_sync_cycle"))
+        self.assertLess(loop.index("guard_resolver_sync_cycle"), loop.index("_guard_lock_release"))
+        self.assertIn('sleep "$_guard_rules_sw_resolver_interval"', loop)
 
-    def test_watch_removes_health_state_on_exit(self) -> None:
+    def test_watch_withdraws_resolver_readiness_on_exit(self) -> None:
         source = RULES.read_text(encoding="utf-8")
         start = source.index("guard_rules_sync_watch() {")
         end = source.index("\nguard_rules_purge() {", start)
