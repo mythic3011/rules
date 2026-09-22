@@ -36,7 +36,7 @@ jobs:
             build-mode: none
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && ((vars.WORK_BRANCH != '' && vars.WORK_BRANCH) || 'main') || github.ref }}
           fetch-depth: 2
