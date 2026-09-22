@@ -1,0 +1,127 @@
+name: Sign OpenClash Guard release
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_branch:
+        description: Same-repository branch whose exact head metadata should be signed
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: openclash-guard-release-signer
+  cancel-in-progress: false
+
+jobs:
+  sign-release:
+    # The release environment must also restrict deployments to main. This guard is
+    # defense in depth so feature-branch workflow edits never receive signing keys.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    environment: openclash-guard-release
+    permissions:
+      contents: write
+    env:
+      EXPECTED_SIGNER_FINGERPRINT: "66215942e340d69f"
+
+    steps:
+      - name: Checkout trusted signer code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Resolve immutable candidate head
+        env:
+          REQUESTED_BRANCH: ${{ inputs.target_branch }}
+        run: |
+          set -euo pipefail
+          git check-ref-format --branch "$REQUESTED_BRANCH" >/dev/null
+          case "$REQUESTED_BRANCH" in
+            main) echo "Refusing to write a release signature directly to main" >&2; exit 1 ;;
+          esac
+          git fetch --no-tags origin "refs/heads/${REQUESTED_BRANCH}:refs/remotes/origin/${REQUESTED_BRANCH}"
+          candidate_sha="$(git rev-parse "refs/remotes/origin/${REQUESTED_BRANCH}^{commit}")"
+          git merge-base --is-ancestor "$GITHUB_SHA" "$candidate_sha" || {
+            echo "Candidate branch does not contain the trusted main signer revision $GITHUB_SHA" >&2
+            exit 1
+          }
+          printf 'TARGET_BRANCH=%s\n' "$REQUESTED_BRANCH" >> "$GITHUB_ENV"
+          printf 'CANDIDATE_SHA=%s\n' "$candidate_sha" >> "$GITHUB_ENV"
+
+      - name: Install usign
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends usign
+          command -v usign >/dev/null
+
+      - name: Verify candidate metadata and authenticated artifact bytes
+        run: |
+          set -euo pipefail
+          python3 internal/python/verify_openclash_guard_release_candidate.py \
+            --candidate-sha "$CANDIDATE_SHA" \
+            --output "$RUNNER_TEMP/release-candidate.json"
+          sequence="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["sequence"])' "$RUNNER_TEMP/release-candidate.json")"
+          printf 'RELEASE_SEQUENCE=%s\n' "$sequence" >> "$GITHUB_ENV"
+          git show "$CANDIDATE_SHA:dist/openclash-guard.release.json" > "$RUNNER_TEMP/openclash-guard.release.json"
+
+      - name: Sign and verify detached metadata signature
+        env:
+          USIGN_PRIVATE_KEY: ${{ secrets.OPENCLASH_GUARD_USIGN_PRIVATE_KEY }}
+          USIGN_PUBLIC_KEY: ${{ secrets.OPENCLASH_GUARD_USIGN_PUBLIC_KEY }}
+        run: |
+          set -euo pipefail
+          [ -n "$USIGN_PRIVATE_KEY" ] || { echo "Missing release private key secret" >&2; exit 1; }
+          [ -n "$USIGN_PUBLIC_KEY" ] || { echo "Missing release public key secret" >&2; exit 1; }
+          umask 077
+          private_key="$RUNNER_TEMP/openclash-guard-release.sec"
+          public_key="$RUNNER_TEMP/openclash-guard-release.pub"
+          signature="$RUNNER_TEMP/openclash-guard.release.json.sig"
+          cleanup() { rm -f "$private_key" "$public_key"; }
+          trap cleanup EXIT
+          printf '%s' "$USIGN_PRIVATE_KEY" > "$private_key"
+          printf '%s' "$USIGN_PUBLIC_KEY" > "$public_key"
+          usign -S -m "$RUNNER_TEMP/openclash-guard.release.json" -s "$private_key" -x "$signature"
+          usign -V -m "$RUNNER_TEMP/openclash-guard.release.json" -p "$public_key" -x "$signature"
+          grep -Fqx "untrusted comment: signed by key ${EXPECTED_SIGNER_FINGERPRINT}" "$signature" || {
+            echo "Signature was produced by an unexpected signing key" >&2
+            exit 1
+          }
+
+      - name: Publish signature-only commit to unchanged candidate head
+        run: |
+          set -euo pipefail
+          remote_sha="$(git ls-remote --heads origin "refs/heads/${TARGET_BRANCH}" | awk '{print $1}')"
+          [ "$remote_sha" = "$CANDIDATE_SHA" ] || {
+            echo "Candidate moved after validation; refusing to sign a stale head" >&2
+            exit 1
+          }
+
+          git checkout --detach "$CANDIDATE_SHA"
+          cp "$RUNNER_TEMP/openclash-guard.release.json.sig" dist/openclash-guard.release.json.sig
+          git add -- dist/openclash-guard.release.json.sig
+
+          if git diff --cached --quiet; then
+            echo "Candidate already carries this exact verified signature."
+            exit 0
+          fi
+          changed="$(git diff --cached --name-only)"
+          [ "$changed" = "dist/openclash-guard.release.json.sig" ] || {
+            echo "Refusing non-signature release mutation: $changed" >&2
+            exit 1
+          }
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "release: sign OpenClash Guard metadata sequence ${RELEASE_SEQUENCE}"
+
+          remote_sha="$(git ls-remote --heads origin "refs/heads/${TARGET_BRANCH}" | awk '{print $1}')"
+          [ "$remote_sha" = "$CANDIDATE_SHA" ] || {
+            echo "Candidate moved before publication; refusing non-fast-forward release write" >&2
+            exit 1
+          }
+          git push origin "HEAD:refs/heads/${TARGET_BRANCH}"
