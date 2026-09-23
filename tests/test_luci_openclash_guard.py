@@ -14,6 +14,8 @@ CANONICAL_REGIONS = ROOT / "internal" / "config" / "ai-routing" / "catalogs" / "
 OVERVIEW = APP / "htdocs" / "luci-static" / "resources" / "view" / "openclash-guard" / "overview.js"
 TESTS_VIEW = APP / "htdocs" / "luci-static" / "resources" / "view" / "openclash-guard" / "tests.js"
 PROFILE_VIEW = APP / "htdocs" / "luci-static" / "resources" / "view" / "openclash-guard" / "profile.js"
+PROTECTION_VIEW = APP / "htdocs" / "luci-static" / "resources" / "view" / "openclash-guard" / "protection.js"
+DNS_VIEW = APP / "htdocs" / "luci-static" / "resources" / "view" / "openclash-guard" / "dns.js"
 MONITORING_VIEW = APP / "htdocs" / "luci-static" / "resources" / "view" / "openclash-guard" / "monitoring.js"
 MONITOR_INIT = APP / "root" / "etc" / "init.d" / "openclash-guard-egress-monitor"
 MONITOR_HELPER = APP / "root" / "usr" / "libexec" / "openclash-guard" / "egress-monitor"
@@ -22,11 +24,7 @@ UCI_DEFAULTS = APP / "root" / "etc" / "config" / "openclash_guard"
 
 class LuCIOpenClashGuardContractTests(unittest.TestCase):
     def test_region_registry_is_exact_shared_data(self) -> None:
-        self.assertEqual(
-            PACKAGED_REGIONS.read_bytes(),
-            CANONICAL_REGIONS.read_bytes(),
-            "LuCI must consume the same generated Region Registry as routing",
-        )
+        self.assertEqual(PACKAGED_REGIONS.read_bytes(), CANONICAL_REGIONS.read_bytes(), "LuCI must consume the same generated Region Registry as routing")
 
     def test_trace_endpoints_are_fixed_allowlist(self) -> None:
         rpcd = RPCD.read_text(encoding="utf-8")
@@ -63,8 +61,7 @@ class LuCIOpenClashGuardContractTests(unittest.TestCase):
         self.assertIn("profile URL must use HTTPS", rpcd)
         self.assertIn("profile URL must not contain embedded credentials", rpcd)
         self.assertIn("profile URL contains whitespace", rpcd)
-        profile = PROFILE_VIEW.read_text(encoding="utf-8")
-        self.assertIn("probeProfile", profile)
+        self.assertIn("probeProfile", PROFILE_VIEW.read_text(encoding="utf-8"))
 
     def test_dashboard_uses_real_history_not_placeholder_charts(self) -> None:
         overview = OVERVIEW.read_text(encoding="utf-8")
@@ -86,14 +83,12 @@ class LuCIOpenClashGuardContractTests(unittest.TestCase):
         view = MONITORING_VIEW.read_text(encoding="utf-8")
         init = MONITOR_INIT.read_text(encoding="utf-8")
         helper = MONITOR_HELPER.read_text(encoding="utf-8")
-
         self.assertIn("config monitoring 'monitoring'", config)
         self.assertIn("option enabled '0'", config)
         self.assertIn("option interval '900'", config)
         self.assertIn("Enable background monitoring", view)
         for seconds in ("300", "900", "1800", "3600"):
             self.assertIn(f"interval.value('{seconds}'", view)
-
         self.assertIn("USE_PROCD=1", init)
         self.assertIn("procd_add_reload_trigger", init)
         self.assertIn("monitoring.enabled", init)
@@ -104,6 +99,23 @@ class LuCIOpenClashGuardContractTests(unittest.TestCase):
         self.assertNotIn("http://", helper)
         self.assertNotIn("https://", helper)
         self.assertNotIn("/etc/openclash-guard/egress-history", helper)
+
+    def test_runtime_effective_controls_are_exposed_without_overriding_signed_policy(self) -> None:
+        config = UCI_DEFAULTS.read_text(encoding="utf-8")
+        protection = PROTECTION_VIEW.read_text(encoding="utf-8")
+        dns = DNS_VIEW.read_text(encoding="utf-8")
+        self.assertIn("option kill_switch '1'", config)
+        self.assertIn("option dns_kill_switch '0'", config)
+        self.assertIn("config udp 'udp'", config)
+        self.assertIn("option enabled '1'", config)
+        for key in ("kill_switch", "dns_kill_switch", "src_ip"):
+            self.assertIn(f"'{key}'", protection)
+        self.assertIn("Effective now", protection)
+        self.assertIn("signed runtime policy determines eligible/protected ports", protection)
+        self.assertNotIn("udpSourcePorts", protection)
+        self.assertNotIn("udpDestinationPorts", protection)
+        self.assertIn("Staged intent", dns)
+        self.assertIn("not yet a direct Guard runtime input", dns)
 
     def test_default_config_exposes_first_class_profile_and_service_intent(self) -> None:
         config = UCI_DEFAULTS.read_text(encoding="utf-8")
