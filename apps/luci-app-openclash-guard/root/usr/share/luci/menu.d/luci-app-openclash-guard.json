@@ -20,24 +20,29 @@
     "order": 3,
     "action": { "type": "view", "path": "openclash-guard/routing" }
   },
+  "admin/services/openclash-guard/protection": {
+    "title": "Protection",
+    "order": 4,
+    "action": { "type": "view", "path": "openclash-guard/protection" }
+  },
   "admin/services/openclash-guard/dns": {
     "title": "DNS",
-    "order": 4,
+    "order": 5,
     "action": { "type": "view", "path": "openclash-guard/dns" }
   },
   "admin/services/openclash-guard/rules": {
     "title": "Rules",
-    "order": 5,
+    "order": 6,
     "action": { "type": "view", "path": "openclash-guard/rules" }
   },
   "admin/services/openclash-guard/monitoring": {
     "title": "Monitoring",
-    "order": 6,
+    "order": 7,
     "action": { "type": "view", "path": "openclash-guard/monitoring" }
   },
   "admin/services/openclash-guard/tests": {
     "title": "Tests",
-    "order": 7,
+    "order": 8,
     "action": { "type": "view", "path": "openclash-guard/tests" }
   }
 }
