@@ -19,10 +19,16 @@ function serviceMode(section, key, title) {
 	return o;
 }
 
-function addRegions(option, catalog) {
+function addRegions(option, catalog, routableOnly) {
 	var regions = catalog && Array.isArray(catalog.regions) ? catalog.regions : [];
+	var primaryOrder = catalog && Array.isArray(catalog.primaryOrder) ? catalog.primaryOrder : [];
+	var routable = {};
+	primaryOrder.forEach(function(id) {
+		routable[id] = true;
+	});
 	regions.forEach(function(region) {
-		option.value(region.id, '%s (%s)'.format(region.name || region.id, region.id));
+		if (!routableOnly || routable[region.id])
+			option.value(region.id, '%s (%s)'.format(region.name || region.id, region.id));
 	});
 	option.editable = regions.length === 0;
 }
@@ -40,11 +46,11 @@ return view.extend({
 		s.addremove = false;
 
 		var direct = s.option(form.ListValue, 'direct_region', _('Direct region'));
-		addRegions(direct, catalog);
+		addRegions(direct, catalog, false);
 		direct.rmempty = false;
 
 		var proxy = s.option(form.ListValue, 'proxy_region', _('Proxy region'));
-		addRegions(proxy, catalog);
+		addRegions(proxy, catalog, true);
 		proxy.rmempty = false;
 
 		serviceMode(s, 'chatgpt', 'ChatGPT');
