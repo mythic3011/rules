@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Machine-readable contract for UCI overlay authority resolution (Layer B). Implemented by shell/apps/openclash-guard/uci-overlay-resolve.sh and asserted by tests/test_openclash_guard_uci_overlay_resolve.py.",
+  "trustModel": {
+    "policy": "UCI is operator intent, never a second policy authority. Effective values are the operator request constrained by signed policy (ceiling/floor) and live capability; UCI can only ever NARROW, never widen.",
+    "rawVsEffective": "The snapshot keeps operator intent (raw) distinct from the resolved value (effective). Diagnostics report both so drift is explainable."
+  },
+  "authorities": {
+    "signed-policy-gated": {
+      "applies": ["routing.direct_region", "routing.proxy_region", "routing.chatgpt", "routing.claude", "routing.grok", "udp.enabled", "udp.src_ip"],
+      "rule": "The operator's value is honoured only if signed policy permits it. For a service route of mode 'direct', all of the following must hold or the EFFECTIVE route is not 'direct': (1) the service's protection class has directAllowed=true; (2) if the class requires it (directRequiresSupportedRegion=true), the requested direct region must be a region the signed policy allows for that service (regions[] contains it, or empty regions[]==all); requested direct routing never widens signed policy. recomputed effective falls back to 'proxy' (or 'block' if the service cannot be proxied)."
+    },
+    "signed-policy-floor": {
+      "applies": ["dns.fail_closed"],
+      "rule": "Signed policy imposes a fail-closed FLOOR: if any service protection class has firewallKillSwitch=true OR directAllowed=false, the signed policy REQUIRES fail-closed. An operator dns.fail_closed=0 request can never lower this floor; the effective value stays 1. When the floor is not required, the operator value is honoured."
+    },
+    "live-capability-gated": {
+      "applies": ["dns.backend", "dns.resolver_sync"],
+      "rule": "dns.backend='auto' resolves to the detected live backend ('adguardhome' when an AdGuard Home service is present, else 'dnsmasq' when detected, else the literal 'unavailable'). An explicit backend request resolves to the requested backend ONLY when that backend is detected live; otherwise it resolves to 'unavailable' (a preference cannot install capability). dns.resolver_sync is honoured only when the resolved DNS backend is capable of resolver sync (adguardhome or dnsmasq); otherwise it resolves to 0. dnsmasq-nftset and dnsmasq-hosts both count as dnsmasq-capable."
+    }
+  },
+  "serviceRouteFieldMap": {
+    "comment": "Routing per-service options routing.<name> map onto signed services.<name>. The resolver consults services.<svc>.protectionClass -> protectionClasses.<class> for directAllowed/directRequiresSupportedRegion and the service regions list for region gating."
+  },
+  "redaction": "Resolution reasons name the constraint that fired (e.g. 'direct not permitted by signed policy', 'requested DNS backend not available live') and never echo URLs, tokens, or credentials."
+}
