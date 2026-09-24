@@ -15,6 +15,7 @@ OVERVIEW = APP / "htdocs" / "luci-static" / "resources" / "view" / "openclash-gu
 TESTS_VIEW = APP / "htdocs" / "luci-static" / "resources" / "view" / "openclash-guard" / "tests.js"
 PROFILE_VIEW = APP / "htdocs" / "luci-static" / "resources" / "view" / "openclash-guard" / "profile.js"
 PROTECTION_VIEW = APP / "htdocs" / "luci-static" / "resources" / "view" / "openclash-guard" / "protection.js"
+ROUTING_VIEW = APP / "htdocs" / "luci-static" / "resources" / "view" / "openclash-guard" / "routing.js"
 DNS_VIEW = APP / "htdocs" / "luci-static" / "resources" / "view" / "openclash-guard" / "dns.js"
 MONITORING_VIEW = APP / "htdocs" / "luci-static" / "resources" / "view" / "openclash-guard" / "monitoring.js"
 MONITOR_INIT = APP / "root" / "etc" / "init.d" / "openclash-guard-egress-monitor"
@@ -25,6 +26,18 @@ UCI_DEFAULTS = APP / "root" / "etc" / "config" / "openclash_guard"
 class LuCIOpenClashGuardContractTests(unittest.TestCase):
     def test_region_registry_is_exact_shared_data(self) -> None:
         self.assertEqual(PACKAGED_REGIONS.read_bytes(), CANONICAL_REGIONS.read_bytes(), "LuCI must consume the same generated Region Registry as routing")
+
+    def test_proxy_region_uses_routable_primary_order(self) -> None:
+        catalog = json.loads(CANONICAL_REGIONS.read_text(encoding="utf-8"))
+        config = UCI_DEFAULTS.read_text(encoding="utf-8")
+        view = ROUTING_VIEW.read_text(encoding="utf-8")
+        self.assertIn("option direct_region 'hk'", config)
+        self.assertIn("option proxy_region 'us'", config)
+        self.assertIn("us", catalog["primaryOrder"])
+        self.assertNotIn("hk", catalog["primaryOrder"])
+        self.assertIn("Array.isArray(catalog.primaryOrder)", view)
+        self.assertIn("addRegions(proxy, catalog, true)", view)
+        self.assertIn("addRegions(direct, catalog, false)", view)
 
     def test_trace_endpoints_are_fixed_allowlist(self) -> None:
         rpcd = RPCD.read_text(encoding="utf-8")

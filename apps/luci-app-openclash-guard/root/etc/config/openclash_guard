@@ -9,7 +9,7 @@ config core 'main'
 
 config routing 'routing'
 	option direct_region 'hk'
-	option proxy_region 'hk'
+	option proxy_region 'us'
 	option chatgpt 'proxy'
 	option claude 'proxy'
 	option grok 'proxy'
