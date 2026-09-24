@@ -5,7 +5,7 @@
   "releaseWiring": "deferred",
   "trust": {
     "invalidRuntimeValue": "reject-reconcile",
-    "unknownOption": "ignore-for-forward-compatibility",
+    "unknownOption": "ignore-and-report",
     "uciMayWidenSignedCapabilities": false,
     "directRoutingRequiresSignedPermission": true,
     "localRulesMayBypassProtectedServicePolicy": false,
@@ -80,13 +80,15 @@
       "options": {
         "direct_region": {
           "type": "region-ref",
+          "regionSet": "registry",
           "default": "hk",
           "phase": "next-release",
           "authority": "signed-policy-gated"
         },
         "proxy_region": {
           "type": "region-ref",
-          "default": "hk",
+          "regionSet": "primaryOrder",
+          "default": "us",
           "phase": "next-release",
           "authority": "signed-policy-gated"
         },
