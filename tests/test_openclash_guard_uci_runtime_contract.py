@@ -62,6 +62,29 @@ class OpenClashGuardUciRuntimeContractTests(unittest.TestCase):
         self.assertEqual(self.contract["configPath"], "/etc/config/openclash_guard")
         self.assertEqual(self.contract["releaseWiring"], "deferred")
 
+    def test_contract_vocabulary_is_closed_and_defaults_are_valid(self) -> None:
+        allowed_phases = {"effective", "next-release", "luci-only"}
+        allowed_authorities = {
+            "uci-runtime",
+            "uci-overlay",
+            "signed-policy-gated",
+            "live-capability-gated",
+            "signed-policy-floor",
+            "monitor-service",
+        }
+        for section_name, section in self.contract["sections"].items():
+            for option_name, spec in section["options"].items():
+                label = f"{section_name}.{option_name}"
+                self.assertIn(spec["phase"], allowed_phases, label)
+                self.assertIn(spec["authority"], allowed_authorities, label)
+                values = spec.get("values")
+                if values is not None:
+                    self.assertEqual(len(values), len(set(values)), label)
+                    if "default" in spec:
+                        self.assertIn(spec["default"], values, label)
+                if spec["type"] == "boolean" and "default" in spec:
+                    self.assertIn(spec["default"], {"0", "1"}, label)
+
     def test_contract_covers_every_shipped_uci_section_and_option(self) -> None:
         contract_sections = self.contract["sections"]
         self.assertEqual(set(self.defaults), set(contract_sections))
@@ -108,11 +131,17 @@ class OpenClashGuardUciRuntimeContractTests(unittest.TestCase):
             self.assertEqual(routing[service]["type"], "service-route-mode")
             self.assertEqual(routing[service]["authority"], "signed-policy-gated")
 
-    def test_region_defaults_are_registry_ids(self) -> None:
+    def test_region_defaults_respect_registry_scope(self) -> None:
         region_ids = {item["id"] for item in self.regions["regions"]}
+        routable_ids = set(self.regions["primaryOrder"])
+        self.assertTrue(routable_ids.issubset(region_ids))
         routing = self.contract["sections"]["routing"]["options"]
-        self.assertIn(routing["direct_region"]["default"], region_ids)
-        self.assertIn(routing["proxy_region"]["default"], region_ids)
+        direct = routing["direct_region"]
+        proxy = routing["proxy_region"]
+        self.assertEqual(direct["regionSet"], "registry")
+        self.assertIn(direct["default"], region_ids)
+        self.assertEqual(proxy["regionSet"], "primaryOrder")
+        self.assertIn(proxy["default"], routable_ids)
 
     def test_luci_enum_choices_match_machine_contract(self) -> None:
         sources = {
@@ -122,12 +151,12 @@ class OpenClashGuardUciRuntimeContractTests(unittest.TestCase):
             "monitoring": (VIEWS / "monitoring.js").read_text(encoding="utf-8"),
         }
         for section_name, source in sources.items():
-            for spec in self.contract["sections"][section_name]["options"].values():
+            for option_name, spec in self.contract["sections"][section_name]["options"].items():
                 values = spec.get("values")
                 if not values:
                     continue
                 for value in values:
-                    self.assertIn(f".value('{value}'", source, f"{section_name}: {value}")
+                    self.assertIn(f".value('{value}'", source, f"{section_name}.{option_name}: {value}")
 
     def test_uci_overlay_cannot_widen_signed_authority(self) -> None:
         trust = self.contract["trust"]
@@ -135,6 +164,7 @@ class OpenClashGuardUciRuntimeContractTests(unittest.TestCase):
         self.assertTrue(trust["directRoutingRequiresSignedPermission"])
         self.assertFalse(trust["localRulesMayBypassProtectedServicePolicy"])
         self.assertEqual(trust["invalidRuntimeValue"], "reject-reconcile")
+        self.assertEqual(trust["unknownOption"], "ignore-and-report")
         self.assertIn("services", trust["signedPolicyAuthoritative"])
         self.assertIn("protectionClasses", trust["signedPolicyAuthoritative"])
         self.assertEqual(
