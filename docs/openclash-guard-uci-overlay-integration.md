@@ -107,6 +107,49 @@ Gate discipline: `guard_uci_overlay_resolve()` **refuses** (non-zero) when the
 Layer-A snapshot is unloaded or invalid, and presents no effective state as
 usable.
 
+**Snapshot coherence (Layer A, not atomic).** One logical snapshot must not be
+assembled from multiple live UCI generations. `load` captures the full
+`uci show` catalog **once** and derives both option paths and per-option values
+from that single captured representation (no second `uci show` for path
+enumeration, no per-option `uci get` re-reads that would mix generations).
+Because capture and validation are not a true atomic operation, the catalog is
+re-captured afterward and compared; if the package changed mid-read, the
+candidate is **discarded** (nothing becomes observable) and the read retries
+(bounded by `GUARD_UCI_OVERLAY_MAX_ATTEMPTS`, default 2). A persistent change
+fails with "snapshot not coherent" rather than publishing a mixed-generation
+snapshot. Residual guarantee: **before/after change detection with
+discard-on-drift** — not a claim that the captured window itself was atomic and NOT
+an unsafe `eval`-parse of UCI output.
+
+**Authority inputs (trust boundary).** The normal resolver requires ALL:
+validated UCI intent, an **authenticated signed policy**, and an **observed
+live capability**. `_GUARD_UCO_RESOLVED=1` is set only when every authority
+input is valid.
+
+- *Signed policy:* must be present, well-formed JSON, with `services` and
+  `protectionClasses`, every service referencing an existing class, and
+  `directAllowed`/`firewallKillSwitch` boolean. Missing/malformed policy MUST
+  NOT degrade into permissive defaults (an empty services list would hide the
+  fail-closed floor). At production wiring the resolver is expected to consume
+  `guard_policy_load`-validated state; the focused check here covers the
+  resolver-consumed policy surface so the trust contract is identical.
+- *Live DNS observation:* must be a real observed value
+  (`adguardhome`|`dnsmasq`|`none`). An empty/unset/unexpected value is **not**
+  the observed value `none`; it means the observation is unavailable and makes
+  the whole resolution refuse.
+
+Any unavailable authority input → resolution refuses (rc 3, resolved state
+stays 0, gated effective values unavailable). Diagnostics reports
+`authorityInputs` availability without mutating resolved state.
+
+**Resolution commit atomicity.** The internal commit is atomic:
+`guard_uci_overlay_invalidate_resolved_state()` first; only if
+`_guard_uci_overlay_resolve_apply()` **succeeds** is `_GUARD_UCO_RESOLVED` set
+to `1`, otherwise state is invalidated again and resolution returns non-zero.
+Explicit handling, not `set -e` reliance inside functions — a partial
+computation can never leave partial effective globals behind or mark the state
+resolved.
+
 **Resolved-state lifecycle.** Layer-B keeps an explicit flag
 `_GUARD_UCO_RESOLVED` (default `0`). Every overlay `load` invalidates all
 prior resolved state (clears every `_GUARD_UCO_EFFECTIVE_*` and the notes,

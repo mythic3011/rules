@@ -403,56 +403,106 @@ guard_uci_overlay_load() {
         esac
     fi
 
-    # Enumerate option paths present. `uci show` emits BOTH section
-    # declarations (openclash_guard.main=openclash_guard) and option lines
-    # (openclash_guard.main.enabled='1'). Only lines whose left-hand side has a
-    # section AND option (two dots after the package prefix) are options;
-    # section declarations have one dot and must not be reported unknown.
-    _guard_uci_ol_paths=$(uci -q show openclash_guard 2>/dev/null \
-        | sed -n "s/^openclash_guard\.\([A-Za-z0-9_]*\.[A-Za-z0-9_]*\)=.*/\1/p" \
-        | sed "s/\[[0-9]*\]\$//" \
-        | sort -u)
-
-    for _guard_uci_ol_path in $_guard_uci_ol_paths
+    # Snapshot-coherent collection. Capture the full `uci show` catalog ONCE,
+    # derive both the option paths and their values from that single captured
+    # representation (NOT a second `uci show` and NOT per-option `uci get`
+    # re-reads, which would assemble one logical snapshot from multiple live
+    # generations). Because catalog capture and field validation are not a true
+    # atomic operation, re-capture the catalog afterward and compare; if the
+    # package changed mid-read, discard the candidate and retry (bounded).
+    _guard_uci_ol_attempt=0
+    _guard_uci_ol_coherent=0
+    while [ "$_guard_uci_ol_attempt" -lt "${GUARD_UCI_OVERLAY_MAX_ATTEMPTS:-2}" ]
     do
-        if ! _guard_uci_overlay_known "$_guard_uci_ol_path"; then
-            _guard_uci_overlay_add_unknown "$_guard_uci_ol_path"
-            continue
+        _guard_uci_ol_attempt=$((_guard_uci_ol_attempt + 1))
+        _guard_uci_ol_catalog_before=$(uci show openclash_guard 2>/dev/null || true)
+        # Reset per-attempt state (unknown/errors/norm vars) without clearing
+        # the Layer-B invalidation already done above.
+        _GUARD_UCI_OVERLAY_VALID=1
+        _GUARD_UCI_OVERLAY_ERRORS=''
+        _GUARD_UCI_OVERLAY_UNKNOWN=''
+        for _guard_uci_ol_line in $_GUARD_UCI_OVERLAY_SPEC
+        do
+            _guard_uci_ol_path=$(printf '%s' "$_guard_uci_ol_line" | cut -d'|' -f1)
+            _guard_uci_ol_dflt=$(printf '%s' "$_guard_uci_ol_line" | cut -d'|' -f3)
+            _guard_uci_ol_var=$(_guard_uci_overlay_var_name "$_guard_uci_ol_path")
+            eval "$_guard_uci_ol_var=\$_guard_uci_ol_dflt"
+            eval "${_guard_uci_ol_var}_RAW=''"
+        done
+        if _guard_uci_overlay_apply_catalog "$_guard_uci_ol_catalog_before"; then
+            # Coherence check: re-capture and compare.
+            _guard_uci_ol_catalog_after=$(uci show openclash_guard 2>/dev/null || true)
+            if [ "$_guard_uci_ol_catalog_before" = "$_guard_uci_ol_catalog_after" ]; then
+                _guard_uci_ol_coherent=1
+                break
+            fi
         fi
-        _guard_uci_ol_type=$(_guard_uci_overlay_type "$_guard_uci_ol_path")
-        case $_guard_uci_ol_type in
-            ipv4-list|rule-list|https-url-list)
-                _guard_uci_ol_nl='
-'
-                # Capture uci's own exit status BEFORE the tr pipe so a failed
-                # get is detected rather than validated as an empty value.
-                if ! _guard_uci_ol_items=$(uci -d "$_guard_uci_ol_nl" -q get "openclash_guard.$_guard_uci_ol_path" 2>/dev/null); then
-                    _guard_uci_overlay_add_error "$_guard_uci_ol_path|read failed"
-                    continue
-                fi
-                _guard_uci_ol_raw=$(printf '%s' "$_guard_uci_ol_items" | tr '\n' ' ')
-                ;;
-            *)
-                if ! _guard_uci_ol_raw=$(uci -q get "openclash_guard.$_guard_uci_ol_path" 2>/dev/null); then
-                    _guard_uci_overlay_add_error "$_guard_uci_ol_path|read failed"
-                    continue
-                fi
-                ;;
-        esac
-        _guard_uci_ol_var=$(_guard_uci_overlay_var_name "$_guard_uci_ol_path")
-        eval "${_guard_uci_ol_var}_RAW=\$_guard_uci_ol_raw"
-        # Validate in the current shell so any recorded error persists (never
-        # wrap in $(...) — that would fork and lose _GUARD_UCI_OVERLAY_VALID).
-        _guard_uci_ol_norm=
-        if _guard_uci_overlay_validate_value "$_guard_uci_ol_path" "$_guard_uci_ol_type" "$_guard_uci_ol_raw" _guard_uci_ol_norm; then
-            eval "$_guard_uci_ol_var=\$_guard_uci_ol_norm"
-        fi
-        # On failure: keep the default in the normalized var; the error has
-        # been recorded and _GUARD_UCI_OVERLAY_VALID is now 0.
+        # Generation changed mid-read: discard candidate and retry.
     done
+    if [ "$_guard_uci_ol_coherent" != 1 ]; then
+        _GUARD_UCI_OVERLAY_UCI_AVAILABLE=0
+        _guard_uci_overlay_add_error 'openclash_guard|snapshot not coherent (config changed during read)'
+        _GUARD_UCI_OVERLAY_LOADED=1
+        return 1
+    fi
 
     _GUARD_UCI_OVERLAY_LOADED=1
     [ "$_GUARD_UCI_OVERLAY_VALID" = 1 ]
+}
+
+# Apply one captured `uci show` catalog to the snapshot. Derives option paths
+# and values ONLY from the supplied catalog text. Validates known options,
+# records unknown options. Returns 0 on completion (validity tracked in state);
+# the caller performs the coherence check.
+_guard_uci_overlay_apply_catalog() {
+    _guard_uci_ac_catalog=$1
+    # Only two-component section.option left-hand sides are options; section
+    # declarations have one dot and are skipped.
+    _guard_uci_ac_paths=$(printf '%s\n' "$_guard_uci_ac_catalog" \
+        | sed -n "s/^openclash_guard\.\([A-Za-z0-9_]*\.[A-Za-z0-9_]*\)=.*/\1/p" \
+        | sed "s/\[[0-9]*\]\$//" \
+        | sort -u)
+    for _guard_uci_ac_path in $_guard_uci_ac_paths
+    do
+        if ! _guard_uci_overlay_known "$_guard_uci_ac_path"; then
+            _guard_uci_overlay_add_unknown "$_guard_uci_ac_path"
+            continue
+        fi
+        _guard_uci_ac_type=$(_guard_uci_overlay_type "$_guard_uci_ac_path")
+        _guard_uci_ac_raw=$(_guard_uci_overlay_catalog_get "$_guard_uci_ac_catalog" "$_guard_uci_ac_path" "$_guard_uci_ac_type")
+        _guard_uci_ac_var=$(_guard_uci_overlay_var_name "$_guard_uci_ac_path")
+        eval "${_guard_uci_ac_var}_RAW=\$_guard_uci_ac_raw"
+        # Validate in the current shell so any recorded error persists (never
+        # wrap in $(...) — that would fork and lose _GUARD_UCI_OVERLAY_VALID).
+        _guard_uci_ac_norm=
+        if _guard_uci_overlay_validate_value "$_guard_uci_ac_path" "$_guard_uci_ac_type" "$_guard_uci_ac_raw" _guard_uci_ac_norm; then
+            eval "$_guard_uci_ac_var=\$_guard_uci_ac_norm"
+        fi
+        # On failure: keep the default; the error was recorded and VALID is 0.
+    done
+    return 0
+}
+
+# Extract a value for PATH from the captured catalog. For list types, joins all
+# matching items with spaces; otherwise prints the single value. Pure function
+# of the captured text (no live uci call).
+_guard_uci_overlay_catalog_get() {
+    _guard_uci_cg_catalog=$1
+    _guard_uci_cg_path=$2
+    _guard_uci_cg_type=$3
+    # `uci show` prints values single-quoted. Match the option line and strip
+    # the surrounding quotes. List indices ([n]) are normalized away when
+    # enumerating paths, so a list value may appear as PATH='v' or PATH[N]='v'.
+    _guard_uci_cg_items=$(printf '%s\n' "$_guard_uci_cg_catalog" \
+        | sed -n "s/^openclash_guard\.$_guard_uci_cg_path\(\[[0-9]*\]\)\?='\\(.*\\)'\$/\\2/p")
+    case $_guard_uci_cg_type in
+        ipv4-list|rule-list|https-url-list)
+            printf '%s' "$_guard_uci_cg_items" | tr '\n' ' '
+            ;;
+        *)
+            printf '%s\n' "$_guard_uci_cg_items" | head -n 1
+            ;;
+    esac
 }
 
 guard_uci_overlay_read_raw() {

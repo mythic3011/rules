@@ -60,13 +60,18 @@ def run_resolve(
     uci_state: dict[str, object],
     dns_backend: str,
     script_body: str,
+    policy_text: str | None = None,
 ) -> subprocess.CompletedProcess:
     shell = sh_available()
     if shell is None:
         raise unittest.SkipTest("no POSIX shell available on this host")
     tmp = Path(tempfile.mkdtemp(prefix="uco-resolve-"))
     policy_file = tmp / "policy.json"
-    policy_file.write_text(json.dumps(policy), encoding="utf-8")
+    if policy_text is not None:
+        # Raw text lets us test malformed JSON and missing structures.
+        policy_file.write_text(policy_text, encoding="utf-8")
+    else:
+        policy_file.write_text(json.dumps(policy), encoding="utf-8")
     state_file = tmp / "state.txt"
     fake_uci = make_fake_uci(uci_state, state_file)
 
@@ -395,6 +400,117 @@ class ResolvedStateLifecycleTests(unittest.TestCase):
         self.assertIn("before=F", proc.stdout)
         self.assertIn("after_diag=F", proc.stdout)
         self.assertIn("STILL_REFUSES", proc.stdout)
+
+
+class AuthorityInputTests(unittest.TestCase):
+    """Resolution requires a validated signed policy AND a valid DNS
+    observation; missing/malformed authority inputs must refuse, never degrade
+    into permissive defaults."""
+
+    def _refusal(self, body: str, policy: dict | None = None, uci_state: dict | None = None, dns: str = "none", policy_text: str | None = None) -> str:
+        proc = run_resolve(policy or open_policy(), uci_state or {}, dns, body, policy_text=policy_text)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        return proc.stdout
+
+    def test_missing_policy_file_refuses(self) -> None:
+        body = (
+            '_GUARD_UCOR_POLICY_FILE="/nonexistent/policy.json"\n'
+            "guard_uci_overlay_load || true\n"
+            "if guard_uci_overlay_resolve; then echo RESOLVED; else echo \"REFUSED rc=$?\"; fi\n"
+            "echo state=$(guard_uci_overlay_resolve_state_valid && echo T || echo F)\n"
+            "if v=$(guard_uci_overlay_effective dns.fail_closed); then echo \"LEAK=$v\"; else echo NO_EFFECTIVE; fi\n"
+        )
+        out = self._refusal(body, uci_state={"dns.fail_closed": "0"})
+        self.assertIn("REFUSED rc=3", out)
+        self.assertIn("state=F", out)
+        self.assertIn("NO_EFFECTIVE", out)
+
+    def test_malformed_policy_json_refuses(self) -> None:
+        body = (
+            "guard_uci_overlay_load || true\n"
+            "if guard_uci_overlay_resolve; then echo RESOLVED; else echo \"REFUSED rc=$?\"; fi\n"
+        )
+        out = self._refusal(body, uci_state={"dns.fail_closed": "0"}, policy_text='{"services": [not json')
+        self.assertIn("REFUSED rc=3", out)
+
+    def test_missing_services_refuses(self) -> None:
+        body = (
+            "guard_uci_overlay_load || true\n"
+            "if guard_uci_overlay_resolve; then echo RESOLVED; else echo \"REFUSED rc=$?\"; fi\n"
+        )
+        # protectionClasses present but services absent -> not a valid authority
+        out = self._refusal(body, uci_state={"dns.fail_closed": "0"}, policy_text='{"schemaVersion":1,"protectionClasses":{"open":{"directAllowed":true,"firewallKillSwitch":false,"failMode":"allow"}}}')
+        self.assertIn("REFUSED rc=3", out)
+
+    def test_missing_protection_classes_refuses(self) -> None:
+        body = (
+            "guard_uci_overlay_load || true\n"
+            "if guard_uci_overlay_resolve; then echo RESOLVED; else echo \"REFUSED rc=$?\"; fi\n"
+        )
+        out = self._refusal(body, uci_state={"dns.fail_closed": "0"}, policy_text='{"schemaVersion":1,"services":{"chatgpt":{"protectionClass":"open","allowedRegions":[]}}}')
+        self.assertIn("REFUSED rc=3", out)
+
+    def test_service_references_missing_class_refuses(self) -> None:
+        body = (
+            "guard_uci_overlay_load || true\n"
+            "if guard_uci_overlay_resolve; then echo RESOLVED; else echo \"REFUSED rc=$?\"; fi\n"
+        )
+        out = self._refusal(body, uci_state={"dns.fail_closed": "0"}, policy_text='{"schemaVersion":1,"services":{"chatgpt":{"protectionClass":"ghost","allowedRegions":[]}},"protectionClasses":{"open":{"directAllowed":true,"firewallKillSwitch":false,"failMode":"allow"}}}')
+        self.assertIn("REFUSED rc=3", out)
+
+    def test_fail_closed_zero_not_honoured_when_policy_unavailable(self) -> None:
+        # The unsafe pattern the gate exists to prevent: UCI fail_closed=0 +
+        # unavailable policy MUST NOT resolve to fail_closed=0.
+        body = (
+            '_GUARD_UCOR_POLICY_FILE="/nonexistent/policy.json"\n'
+            "guard_uci_overlay_load || true\n"
+            "if guard_uci_overlay_resolve; then echo RESOLVED; else echo \"REFUSED rc=$?\"; fi\n"
+            "if v=$(guard_uci_overlay_effective dns.fail_closed); then echo \"EFFECTIVE=$v\"; else echo NO_EFFECTIVE; fi\n"
+        )
+        out = self._refusal(body, uci_state={"dns.fail_closed": "0"})
+        self.assertIn("REFUSED", out)
+        self.assertNotIn("EFFECTIVE=0", out)
+        self.assertIn("NO_EFFECTIVE", out)
+
+    def test_empty_dns_observation_refuses(self) -> None:
+        body = (
+            "guard_uci_overlay_load || true\n"
+            "if guard_uci_overlay_resolve; then echo RESOLVED; else echo \"REFUSED rc=$?\"; fi\n"
+        )
+        out = self._refusal(body, dns="")
+        self.assertIn("REFUSED rc=3", out)
+
+    def test_unexpected_dns_observation_refuses(self) -> None:
+        body = (
+            "guard_uci_overlay_load || true\n"
+            "if guard_uci_overlay_resolve; then echo RESOLVED; else echo \"REFUSED rc=$?\"; fi\n"
+        )
+        out = self._refusal(body, dns="unavailable")
+        self.assertIn("REFUSED rc=3", out)
+
+    def test_none_is_valid_observation(self) -> None:
+        # "none" is a real observation (no backend live) -> resolution succeeds.
+        proc = run_resolve(open_policy(), {"dns.backend": "auto"}, "none",
+                           "guard_uci_overlay_load || true\n"
+                           "guard_uci_overlay_resolve\n"
+                           f'guard_uci_overlay_effective "dns.backend"\n')
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(proc.stdout.strip(), "none")
+
+    def test_atomic_commit_no_partial_state_on_apply_failure(self) -> None:
+        # Force _guard_uci_overlay_resolve_apply to fail; resolved state must
+        # stay 0 and no effective value usable.
+        body = (
+            "_guard_uci_overlay_resolve_apply() { return 1; }\n"
+            "guard_uci_overlay_load || true\n"
+            "if guard_uci_overlay_resolve; then echo RESOLVED; else echo \"REFUSED rc=$?\"; fi\n"
+            "echo state=$(guard_uci_overlay_resolve_state_valid && echo T || echo F)\n"
+            "if v=$(guard_uci_overlay_effective routing.chatgpt); then echo LEAK=$v; else echo NO_EFFECTIVE; fi\n"
+        )
+        out = self._refusal(body, uci_state={"routing.chatgpt": "direct"})
+        self.assertIn("REFUSED rc=1", out)
+        self.assertIn("state=F", out)
+        self.assertIn("NO_EFFECTIVE", out)
 
 
 class ResolutionContractTests(unittest.TestCase):

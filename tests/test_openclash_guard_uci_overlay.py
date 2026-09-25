@@ -307,6 +307,78 @@ class OverlayValidationTests(unittest.TestCase):
         self.assertNotIn("routing", unknowns)
 
 
+def run_module_custom_uci(script_body: str, uci_func: str) -> subprocess.CompletedProcess:
+    """Like run_module but the caller supplies the entire fake uci() body."""
+    shell = sh_available()
+    if shell is None:
+        raise unittest.SkipTest("no POSIX shell available on this host")
+    full = (
+        "set -eu\n"
+        + uci_func
+        + f'. "{MODULE.as_posix()}"\n'
+        + script_body
+        + "\n"
+    )
+    return subprocess.run([shell, "-c", full], capture_output=True, text=True, timeout=60)
+
+
+class OverlayCoherenceTests(unittest.TestCase):
+    """One logical snapshot must not be assembled from multiple live generations."""
+
+    _FLIP_FUNC = (
+        "countfile=\"/tmp/uco-coh-count.$$\"; echo 0 > \"$countfile\"\n"
+        "trap 'rm -f \"$countfile\"' EXIT\n"
+        "uci() {\n"
+        "  if [ \"$1\" = \"show\" ] || { [ \"$1\" = \"-q\" ] && [ \"$2\" = \"show\" ]; }; then\n"
+        "    c=$(cat \"$countfile\"); c=$((c+1)); echo \"$c\" > \"$countfile\"\n"
+        "    echo \"UCI_SHOW_CALL=$c\" >&2\n"
+        "    if [ $((c % 2)) -eq 1 ]; then\n"
+        "      printf \"openclash_guard.main=openclash_guard\\nopenclash_guard.main.enabled='1'\\nopenclash_guard.routing=routing\\nopenclash_guard.routing.proxy_region='us'\\n\"\n"
+        "    else\n"
+        "      printf \"openclash_guard.main=openclash_guard\\nopenclash_guard.main.enabled='0'\\nopenclash_guard.routing=routing\\nopenclash_guard.routing.proxy_region='jp'\\n\"\n"
+        "    fi\n"
+        "    return 0\n"
+        "  fi\n"
+        "  return 1\n"
+        "}\n"
+    )
+
+    _STABLE_FUNC = (
+        "uci() {\n"
+        "  if [ \"$1\" = \"show\" ] || { [ \"$1\" = \"-q\" ] && [ \"$2\" = \"show\" ]; }; then\n"
+        "    printf \"openclash_guard.main=openclash_guard\\nopenclash_guard.main.enabled='1'\\nopenclash_guard.routing=routing\\nopenclash_guard.routing.proxy_region='us'\\n\"\n"
+        "    return 0\n"
+        "  fi\n"
+        "  return 1\n"
+        "}\n"
+    )
+
+    def test_generation_change_rejected(self) -> None:
+        body = (
+            "if guard_uci_overlay_load; then echo ACCEPTED; else echo \"REJECTED rc=$?\"; fi\n"
+            "echo available=$(guard_uci_overlay_available)\n"
+            "echo errors=$(guard_uci_overlay_errors | tr '\\n' ';')\n"
+        )
+        proc = run_module_custom_uci(body, self._FLIP_FUNC)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("REJECTED", proc.stdout)
+        self.assertIn("available=0", proc.stdout)
+        self.assertIn("not coherent", proc.stdout)
+        self.assertNotIn("ACCEPTED", proc.stdout)
+
+    def test_stable_generation_accepted(self) -> None:
+        body = (
+            "guard_uci_overlay_load && echo ACCEPTED || echo REJECTED\n"
+            "echo proxy=$(guard_uci_overlay_get routing.proxy_region)\n"
+            "echo enabled=$(guard_uci_overlay_get main.enabled)\n"
+        )
+        proc = run_module_custom_uci(body, self._STABLE_FUNC)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("ACCEPTED", proc.stdout)
+        self.assertIn("proxy=us", proc.stdout)
+        self.assertIn("enabled=1", proc.stdout)
+
+
 class OverlayAvailabilityTests(unittest.TestCase):
     def test_uci_unavailable_is_unavailable_and_invalid(self) -> None:
         # No fake uci (and no system uci on this host): command -v uci fails.

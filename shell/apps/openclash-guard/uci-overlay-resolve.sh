@@ -45,6 +45,61 @@ _GUARD_UCOR_DEFERRED_OPTIONS='routing.direct_region routing.proxy_region udp.ena
 
 _GUARD_UCO_RESOLUTION_NOTES=''
 
+# --- Authority input validation (trust boundary) --------------------------
+#
+# Resolution consumes validated UCI intent + AUTHENTICATED signed policy +
+# OBSERVED live capability. A missing/malformed authority input must never
+# degrade into permissive defaults. This validates the policy the resolver
+# actually consumes (services + protectionClasses + class-field consistency)
+# plus the live DNS observation. At production wiring time the resolver is
+# expected to consume state already validated by guard_policy_load(); this
+# offline/testable form performs the equivalent focused check over the policy
+# surface the resolver reads, so the trust contract is identical.
+
+# True when the signed policy file is present, well-formed JSON, and contains
+# the fields the resolver requires with consistent references.
+_guard_uci_resolve_policy_available() {
+    _guard_uci_rpa_file=$_GUARD_UCOR_POLICY_FILE
+    if [ -z "$_guard_uci_rpa_file" ] || [ ! -f "$_guard_uci_rpa_file" ]; then
+        return 1
+    fi
+    if ! json_load "$_guard_uci_rpa_file" 2>/dev/null; then
+        return 1
+    fi
+    if ! json_has "$_guard_uci_rpa_file" services 2>/dev/null; then
+        return 1
+    fi
+    if ! json_has "$_guard_uci_rpa_file" protectionClasses 2>/dev/null; then
+        return 1
+    fi
+    # Every service must reference an existing protectionClass.
+    _guard_uci_rpa_svcs=$(json_keys "$_guard_uci_rpa_file" services 2>/dev/null) || _guard_uci_rpa_svcs=
+    for _guard_uci_rpa_svc in $_guard_uci_rpa_svcs
+    do
+        [ -n "$_guard_uci_rpa_svc" ] || continue
+        _guard_uci_rpa_cls=$(json_get "$_guard_uci_rpa_file" "services.${_guard_uci_rpa_svc}.protectionClass" 2>/dev/null) || _guard_uci_rpa_cls=
+        [ -n "$_guard_uci_rpa_cls" ] || return 1
+        json_has "$_guard_uci_rpa_file" "protectionClasses.${_guard_uci_rpa_cls}" 2>/dev/null || return 1
+        # The class fields the resolver reads must be present and boolean.
+        _guard_uci_rpa_da=$(json_get "$_guard_uci_rpa_file" "protectionClasses.${_guard_uci_rpa_cls}.directAllowed" 2>/dev/null) || _guard_uci_rpa_da=
+        case $_guard_uci_rpa_da in true|false) : ;; *) return 1 ;; esac
+        _guard_uci_rpa_ks=$(json_get "$_guard_uci_rpa_file" "protectionClasses.${_guard_uci_rpa_cls}.firewallKillSwitch" 2>/dev/null) || _guard_uci_rpa_ks=
+        case $_guard_uci_rpa_ks in true|false) : ;; *) return 1 ;; esac
+    done
+    return 0
+}
+
+# True when the live DNS backend observation is a VALID observed value
+# (adguardhome | dnsmasq | none). An empty/unset/other value means the
+# observation is unavailable or not performed — NOT the same as "none" (a
+# real observation that no backend is live).
+_guard_uci_resolve_dns_observation_valid() {
+    case $_GUARD_UCOR_DNS_BACKEND in
+        adguardhome|dnsmasq|none) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 _guard_uci_resolve_note() {
     if [ -z "$_GUARD_UCO_RESOLUTION_NOTES" ]; then
         _GUARD_UCO_RESOLUTION_NOTES="$1"
@@ -198,9 +253,28 @@ guard_uci_overlay_resolve() {
         printf '%s\n' 'guard_uci_overlay_resolve: refusing to resolve an invalid overlay; fix openclash_guard values first' >&2
         return 1
     fi
-    # A fresh successful resolution replaces, not merges, prior state.
+    # Trust boundary: require ALL authority inputs. A missing/malformed signed
+    # policy must not degrade into permissive defaults (e.g. an empty service
+    # list would hide the fail-closed floor). An unavailable/invalid DNS
+    # observation is NOT the same as the observed value "none".
+    if ! _guard_uci_resolve_policy_available; then
+        printf '%s\n' 'guard_uci_overlay_resolve: signed policy unavailable or invalid (required authority input)' >&2
+        guard_uci_overlay_invalidate_resolved_state
+        return 3
+    fi
+    if ! _guard_uci_resolve_dns_observation_valid; then
+        printf '%s\n' 'guard_uci_overlay_resolve: live DNS backend observation unavailable or invalid (expected adguardhome|dnsmasq|none)' >&2
+        guard_uci_overlay_invalidate_resolved_state
+        return 3
+    fi
+    # Atomic commit: invalidate, compute, and only mark resolved on success so a
+    # partial computation never leaves partial effective globals behind.
     guard_uci_overlay_invalidate_resolved_state
-    _guard_uci_overlay_resolve_apply
+    if ! _guard_uci_overlay_resolve_apply; then
+        guard_uci_overlay_invalidate_resolved_state
+        printf '%s\n' 'guard_uci_overlay_resolve: computation failed; no effective state committed' >&2
+        return 1
+    fi
     _GUARD_UCO_RESOLVED=1
 }
 
@@ -214,7 +288,13 @@ guard_uci_overlay_resolve_diagnostics() {
         return 0
     fi
     _guard_uci_diag_notes=
-    if guard_uci_overlay_validate; then
+    # Report which authority inputs are available (diagnostic read-only; does
+    # not commit anything).
+    _guard_uci_diag_policy=0
+    _guard_uci_diag_dns=0
+    _guard_uci_resolve_policy_available && _guard_uci_diag_policy=1
+    _guard_uci_resolve_dns_observation_valid && _guard_uci_diag_dns=1
+    if guard_uci_overlay_validate && [ "$_guard_uci_diag_policy" = 1 ] && [ "$_guard_uci_diag_dns" = 1 ]; then
         # Subshell: apply-side-effects (effective vars, RESOLVED, notes) are
         # discarded; only the notes text is captured out.
         _guard_uci_diag_notes=$(
@@ -228,14 +308,19 @@ guard_uci_overlay_resolve_diagnostics() {
     # diagnostics object so the projection is a single-level document.
     _guard_uci_diag_overlay=${_guard_uci_diag_overlay#'{"uciOverlay":'}
     _guard_uci_diag_overlay=${_guard_uci_diag_overlay%'}'}
+    _guard_uci_diag_auth=$(printf '{"policy":%s,"dns":%s}' \
+        "$([ "$_guard_uci_diag_policy" = 1 ] && printf true || printf false)" \
+        "$([ "$_guard_uci_diag_dns" = 1 ] && printf true || printf false)")
     if [ -n "$_guard_uci_diag_notes" ]; then
-        printf '{"resolvedPreviewNotes":"%s","valid":%s,"uciOverlay":%s}\n' \
+        printf '{"resolvedPreviewNotes":"%s","valid":%s,"authorityInputs":%s,"uciOverlay":%s}\n' \
             "$(printf '%s' "$_guard_uci_diag_notes" | tr '\n' ';' | sed 's/"/\\"/g')" \
             "$([ "$(guard_uci_overlay_valid)" = 1 ] && printf true || printf false)" \
+            "$_guard_uci_diag_auth" \
             "$_guard_uci_diag_overlay"
     else
-        printf '{"valid":%s,"uciOverlay":%s}\n' \
+        printf '{"valid":%s,"authorityInputs":%s,"uciOverlay":%s}\n' \
             "$([ "$(guard_uci_overlay_valid)" = 1 ] && printf true || printf false)" \
+            "$_guard_uci_diag_auth" \
             "$_guard_uci_diag_overlay"
     fi
 }
