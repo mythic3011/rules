@@ -105,9 +105,26 @@ today defines the gate. UCI never widens signed policy. Contract:
 
 Gate discipline: `guard_uci_overlay_resolve()` **refuses** (non-zero) when the
 Layer-A snapshot is unloaded or invalid, and presents no effective state as
-usable. A separate read-only projection,
-`guard_uci_overlay_resolve_diagnostics()`, exists for status/doctor and never
-mutates runtime state.
+usable.
+
+**Resolved-state lifecycle.** Layer-B keeps an explicit flag
+`_GUARD_UCO_RESOLVED` (default `0`). Every overlay `load` invalidates all
+prior resolved state (clears every `_GUARD_UCO_EFFECTIVE_*` and the notes,
+flag → `0`) **before** a new snapshot is observable, so a stale effective value
+can never leak across snapshots. The flag becomes `1` only after the full
+normal resolution path succeeds.
+
+- `guard_uci_overlay_resolve_state_valid()` means *loaded* ∧ *Layer-A valid* ∧
+  *Layer-B resolution completed* — **not** merely "loaded + valid". It returns
+  false again after any re-load until re-resolved.
+- `guard_uci_overlay_effective()` for a resolved gated option (`routing.<svc>`,
+  `dns.fail_closed`, `dns.backend`) **refuses** (non-zero) when no completed
+  resolution exists for the current snapshot — it never falls back to the
+  normalized UCI value. Deferred options keep their `DEFERRED:` representation;
+  non-gated options return the normalized value directly.
+- `guard_uci_overlay_resolve_diagnostics()` is read-only: inference runs in a
+  subshell so it cannot mutate `_GUARD_UCO_RESOLVED`, `_GUARD_UCO_EFFECTIVE_*`,
+  or the notes in the caller.
 
 **Computed (authoritative today):**
 

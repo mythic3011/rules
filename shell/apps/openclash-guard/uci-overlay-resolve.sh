@@ -152,10 +152,43 @@ _guard_uci_overlay_resolve_dns_backend() {
     eval "$_guard_uci_rdb_resultvar=\$_guard_uci_rdb_effective"
 }
 
+# Options whose effective value REQUIRES a completed Layer-B resolution. For
+# these, guard_uci_overlay_effective() must never fall back to the normalized
+# (unresolved) UCI value: an unset resolved value means "not yet resolved",
+# which is a hard refusal, not a passthrough.
+_GUARD_UCOR_RESOLVED_OPTIONS='routing.chatgpt routing.claude routing.grok dns.fail_closed dns.backend'
+
+# Explicit Layer-B resolved-state lifecycle flag. 1 only after the complete
+# normal resolution path succeeds; 0 at every other time (initial, and after
+# any overlay re-load invalidates prior effective state).
+_GUARD_UCO_RESOLVED=0
+
+# Invalidate every piece of Layer-B resolved state. Called on sourcing (initial
+# state) and by the Layer-A overlay whenever a new snapshot is loaded, so a
+# previously-resolved effective value can never leak across snapshots.
+guard_uci_overlay_invalidate_resolved_state() {
+    _GUARD_UCO_RESOLVED=0
+    _GUARD_UCO_EFFECTIVE_ROUTING_CHATGPT=
+    _GUARD_UCO_EFFECTIVE_ROUTING_CLAUDE=
+    _GUARD_UCO_EFFECTIVE_ROUTING_GROK=
+    _GUARD_UCO_EFFECTIVE_DNS_FAIL_CLOSED=
+    _GUARD_UCO_EFFECTIVE_DNS_BACKEND=
+    _GUARD_UCO_RESOLUTION_NOTES=
+}
+
+# Establish the initial (unresolved) state.
+guard_uci_overlay_invalidate_resolved_state
+
+_guard_uci_resolve_is_resolved_option() {
+    # shellcheck disable=SC2086
+    _guard_uci_overlay_in_list "$1" $_GUARD_UCOR_RESOLVED_OPTIONS
+}
+
 # Compute effective values for the gated options defined by authoritative
 # sources. Requires a LOADED and VALID Layer-A snapshot; otherwise refuses
-# (non-zero) and presents NO effective state as usable. Use
-# guard_uci_overlay_resolve_diagnostics for the diagnostics-only path.
+# (non-zero) and presents NO effective state as usable. On success sets
+# _GUARD_UCO_RESOLVED=1. Use guard_uci_overlay_resolve_diagnostics for the
+# read-only diagnostics-only path.
 guard_uci_overlay_resolve() {
     if [ "${_GUARD_UCI_OVERLAY_LOADED:-0}" != 1 ]; then
         printf '%s\n' 'guard_uci_overlay_resolve: overlay snapshot not loaded' >&2
@@ -165,28 +198,51 @@ guard_uci_overlay_resolve() {
         printf '%s\n' 'guard_uci_overlay_resolve: refusing to resolve an invalid overlay; fix openclash_guard values first' >&2
         return 1
     fi
+    # A fresh successful resolution replaces, not merges, prior state.
+    guard_uci_overlay_invalidate_resolved_state
     _guard_uci_overlay_resolve_apply
+    _GUARD_UCO_RESOLVED=1
 }
 
 # Diagnostics-only resolution insight for an already-loaded snapshot, including
-# an invalid one. Never mutates runtime state and never treats the result as an
-# authoritative effective value; intended for status/doctor reporting of what
-# the overlay WOULD resolve to. Returns 0 always (it is a read-only projection).
+# an invalid one. Read-only: runs any inference in a SUBSHELL so it cannot
+# mutate the caller's _GUARD_UCO_RESOLVED, _GUARD_UCO_EFFECTIVE_*, or notes.
+# Never treats the result as an authoritative effective value; returns 0.
 guard_uci_overlay_resolve_diagnostics() {
     if [ "${_GUARD_UCI_OVERLAY_LOADED:-0}" != 1 ]; then
         printf '%s\n' '{"error":"overlay not loaded"}'
         return 0
     fi
+    _guard_uci_diag_notes=
     if guard_uci_overlay_validate; then
-        _guard_uci_overlay_resolve_apply
+        # Subshell: apply-side-effects (effective vars, RESOLVED, notes) are
+        # discarded; only the notes text is captured out.
+        _guard_uci_diag_notes=$(
+            guard_uci_overlay_invalidate_resolved_state
+            _guard_uci_overlay_resolve_apply
+            guard_uci_overlay_resolve_notes
+        )
     fi
-    printf '{"valid":%s,"inferred":%s}' \
-        "$(guard_uci_overlay_valid | sed 's/1/true/;s/0/false/')" \
-        "$(guard_uci_overlay_json)"
+    _guard_uci_diag_overlay=$(guard_uci_overlay_json)
+    # guard_uci_overlay_json yields {"uciOverlay":{...}}; unwrap to the inner
+    # diagnostics object so the projection is a single-level document.
+    _guard_uci_diag_overlay=${_guard_uci_diag_overlay#'{"uciOverlay":'}
+    _guard_uci_diag_overlay=${_guard_uci_diag_overlay%'}'}
+    if [ -n "$_guard_uci_diag_notes" ]; then
+        printf '{"resolvedPreviewNotes":"%s","valid":%s,"uciOverlay":%s}\n' \
+            "$(printf '%s' "$_guard_uci_diag_notes" | tr '\n' ';' | sed 's/"/\\"/g')" \
+            "$([ "$(guard_uci_overlay_valid)" = 1 ] && printf true || printf false)" \
+            "$_guard_uci_diag_overlay"
+    else
+        printf '{"valid":%s,"uciOverlay":%s}\n' \
+            "$([ "$(guard_uci_overlay_valid)" = 1 ] && printf true || printf false)" \
+            "$_guard_uci_diag_overlay"
+    fi
 }
 
-# Internal: run resolution. Shared by the normal path (only when valid) and the
-# diagnostics path.
+# Internal: run resolution into the current shell's effective vars + notes.
+# Caller is responsible for having invalidated state first. Does NOT set
+# _GUARD_UCO_RESOLVED (the normal path does, the diagnostics path must not).
 _guard_uci_overlay_resolve_apply() {
     _GUARD_UCO_RESOLUTION_NOTES=
     for _guard_uci_r_svc in chatgpt claude grok
@@ -195,42 +251,60 @@ _guard_uci_overlay_resolve_apply() {
     done
     _guard_uci_overlay_resolve_fail_closed _GUARD_UCO_EFFECTIVE_DNS_FAIL_CLOSED
     _guard_uci_overlay_resolve_dns_backend _GUARD_UCO_EFFECTIVE_DNS_BACKEND
-    # Deferred (contract gap) options: NO _GUARD_UCO_EFFECTIVE_<PATH> is set, so
-    # guard_uci_overlay_effective() falls through to the passthrough flag.
+    # Deferred (contract gap) options: intentionally NOT given an effective var.
     return 0
 }
 
-# True when guard_uci_overlay_resolve() has produced effective state for a
-# LOADED, VALID snapshot this session.
+# True only when a snapshot is LOADED, Layer-A VALID, AND a full Layer-B
+# resolution has completed successfully for THIS snapshot. Distinct from
+# "loaded && valid": it becomes false again as soon as a new snapshot is
+# loaded (which invalidates the prior resolution) until re-resolved.
 guard_uci_overlay_resolve_state_valid() {
-    [ "${_GUARD_UCI_OVERLAY_LOADED:-0}" = 1 ] && guard_uci_overlay_validate
+    [ "${_GUARD_UCI_OVERLAY_LOADED:-0}" = 1 ] \
+        && [ "$_GUARD_UCO_RESOLVED" = 1 ] \
+        && guard_uci_overlay_validate
 }
 
 # Get an effective (resolved) value by option path.
-#   - computed gated options (routing.<svc>, dns.fail_closed, dns.backend):
-#     returns the resolved effective value.
-#   - deferred contract-gap options: prints the NORMALIZED UCI value prefixed
-#     with the exact marker "DEFERRED:" so callers can distinguish "not yet
-#     resolved" from a real resolved value; these MUST NOT be consumed as an
-#     authoritative effective value.
+#   - resolved-gated options (routing.<svc>, dns.fail_closed, dns.backend):
+#     returns the Layer-B resolved value. REFUSES (non-zero, no output) when no
+#     completed resolution exists for the current snapshot — never falls back
+#     to the normalized UCI value, so a stale or unresolved value can't leak.
+#   - deferred contract-gap options: prints "DEFERRED:<normalized>" (explicitly
+#     flagged, never a usable effective value).
 #   - other options (no authority constraint): the normalized UCI value.
 guard_uci_overlay_effective() {
     if _guard_uci_resolve_is_deferred "$1"; then
         printf 'DEFERRED:%s' "$(guard_uci_overlay_get "$1")"
         return 0
     fi
-    _guard_uci_eff_var="_GUARD_UCO_EFFECTIVE_$(printf '%s' "$1" | tr '[:lower:].' '[:upper:]_')"
-    eval "_guard_uci_eff_val=\${$_guard_uci_eff_var-}"
-    if [ -n "$_guard_uci_eff_val" ]; then
+    if _guard_uci_resolve_is_resolved_option "$1"; then
+        if [ "$_GUARD_UCO_RESOLVED" != 1 ]; then
+            printf '%s\n' "guard_uci_overlay_effective: $1 requires a completed resolution (call guard_uci_overlay_resolve first)" >&2
+            return 1
+        fi
+        _guard_uci_eff_var="_GUARD_UCO_EFFECTIVE_$(printf '%s' "$1" | tr '[:lower:].' '[:upper:]_')"
+        eval "_guard_uci_eff_val=\${$_guard_uci_eff_var-}"
+        # A resolved option must have a concrete value; absence here would be a
+        # resolver bug, so treat it as a refusal rather than a silent fallback.
+        if [ -z "$_guard_uci_eff_val" ]; then
+            printf '%s\n' "guard_uci_overlay_effective: $1 has no resolved value" >&2
+            return 1
+        fi
         printf '%s' "$_guard_uci_eff_val"
-    else
-        guard_uci_overlay_get "$1"
+        return 0
     fi
+    guard_uci_overlay_get "$1"
 }
 
 # List the options whose Layer-B gate is a documented contract gap (deferred).
 guard_uci_overlay_deferred_options() {
     printf '%s\n' "$_GUARD_UCOR_DEFERRED_OPTIONS"
+}
+
+# List the options whose effective value requires a completed Layer-B resolution.
+guard_uci_overlay_resolved_options() {
+    printf '%s\n' "$_GUARD_UCOR_RESOLVED_OPTIONS"
 }
 
 # Diagnostics notes (requested/effective/reason), one per line, redacted.

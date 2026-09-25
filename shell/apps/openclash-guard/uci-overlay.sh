@@ -347,6 +347,13 @@ _guard_uci_overlay_validate_value() {
 # option was invalid (errors recorded before any caller can mutate nft).
 guard_uci_overlay_load() {
     _guard_uci_overlay_reset
+    # A new snapshot invalidates any previously resolved Layer-B effective
+    # state. The resolver is an optional higher layer; call its invalidation
+    # hook only when present (guarded, so this module stays dependency-free and
+    # the manifest can wire Layer B after Layer A without a cycle).
+    if command -v guard_uci_overlay_invalidate_resolved_state >/dev/null 2>&1; then
+        guard_uci_overlay_invalidate_resolved_state
+    fi
     # Seed normalized vars with contract defaults (eval name is contract-only).
     for _guard_uci_ol_line in $_GUARD_UCI_OVERLAY_SPEC
     do

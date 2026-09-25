@@ -256,6 +256,7 @@ class ResolveGateTests(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stderr)
         doc = json.loads(proc.stdout.strip())
         self.assertFalse(doc["valid"])
+        self.assertNotIn("resolvedPreviewNotes", doc)
 
     def test_deferred_options_listed(self) -> None:
         body = (
@@ -278,6 +279,122 @@ class RegionGateDeferredTests(unittest.TestCase):
     def test_proxy_region_is_deferred(self) -> None:
         eff = effective(open_policy(), {"routing.proxy_region": "us"}, "none", "routing.proxy_region")
         self.assertTrue(eff.startswith("DEFERRED:"))
+
+
+class ResolvedStateLifecycleTests(unittest.TestCase):
+    """The resolver must track an explicit Layer-B resolved state, invalidated
+    on every re-load, and effective() must not bypass Layer B for gated options."""
+
+    def test_state_valid_requires_completed_resolution(self) -> None:
+        body = (
+            "guard_uci_overlay_load || true\n"
+            "echo before_resolve=$(guard_uci_overlay_resolve_state_valid && echo T || echo F)\n"
+            "guard_uci_overlay_resolve\n"
+            "echo after_resolve=$(guard_uci_overlay_resolve_state_valid && echo T || echo F)\n"
+            "guard_uci_overlay_load || true\n"
+            "echo after_reload=$(guard_uci_overlay_resolve_state_valid && echo T || echo F)\n"
+        )
+        proc = run_resolve(open_policy(), {"routing.chatgpt": "direct"}, "none", body)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("before_resolve=F", proc.stdout)
+        self.assertIn("after_resolve=T", proc.stdout)
+        self.assertIn("after_reload=F", proc.stdout)
+
+    def test_effective_gated_option_refuses_before_resolve(self) -> None:
+        # direct forbidden by signed policy: without resolve, effective must
+        # refuse, NOT return "direct" (the normalized-but-unresolved value).
+        policy = base_policy({"chatgpt": svc("closed", directAllowed=False), "claude": svc("open", directAllowed=True), "grok": svc("open", directAllowed=True)})
+        body = (
+            "guard_uci_overlay_load || true\n"
+            "if v=$(guard_uci_overlay_effective routing.chatgpt); then echo \"LEAK=$v\"; else echo \"REFUSED rc=$?\"; fi\n"
+            "guard_uci_overlay_resolve\n"
+            "echo after=$(guard_uci_overlay_effective routing.chatgpt)\n"
+        )
+        proc = run_resolve(policy, {"routing.chatgpt": "direct"}, "none", body)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("REFUSED rc=1", proc.stdout)
+        self.assertNotIn("LEAK=direct", proc.stdout)
+        self.assertIn("after=proxy", proc.stdout)
+
+    def test_fail_closed_and_dns_backend_also_gated(self) -> None:
+        body = (
+            "guard_uci_overlay_load || true\n"
+            "if v=$(guard_uci_overlay_effective dns.fail_closed); then echo \"fc_LEAK=$v\"; else echo \"fc_REFUSED\"; fi\n"
+            "if v=$(guard_uci_overlay_effective dns.backend); then echo \"db_LEAK=$v\"; else echo \"db_REFUSED\"; fi\n"
+            "guard_uci_overlay_resolve\n"
+            "echo fc_after=$(guard_uci_overlay_effective dns.fail_closed)\n"
+            "echo db_after=$(guard_uci_overlay_effective dns.backend)\n"
+        )
+        policy = base_policy({"chatgpt": svc("ks", firewallKillSwitch=True), "claude": svc("open", directAllowed=True), "grok": svc("open", directAllowed=True)})
+        proc = run_resolve(policy, {"dns.backend": "auto"}, "dnsmasq", body)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("fc_REFUSED", proc.stdout)
+        self.assertIn("db_REFUSED", proc.stdout)
+        self.assertIn("fc_after=1", proc.stdout)
+        self.assertIn("db_after=dnsmasq", proc.stdout)
+
+    def test_no_stale_effective_across_reload(self) -> None:
+        # resolve snapshot A -> proxy; reload B, do NOT resolve -> effective
+        # must refuse (never return A's proxy).
+        policy = base_policy({"chatgpt": svc("closed", directAllowed=False), "claude": svc("open", directAllowed=True), "grok": svc("open", directAllowed=True)})
+        body = (
+            "guard_uci_overlay_load || true\n"
+            "guard_uci_overlay_resolve\n"
+            "echo A=$(guard_uci_overlay_effective routing.chatgpt)\n"
+            "guard_uci_overlay_load || true\n"
+            "if v=$(guard_uci_overlay_effective routing.chatgpt); then echo \"STALE=$v\"; else echo \"B_REFUSED\"; fi\n"
+        )
+        proc = run_resolve(policy, {"routing.chatgpt": "direct"}, "none", body)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("A=proxy", proc.stdout)
+        self.assertIn("B_REFUSED", proc.stdout)
+        self.assertNotIn("STALE=proxy", proc.stdout)
+
+    def test_resolve_valid_A_then_reload_invalidates_until_reresolved(self) -> None:
+        policy = base_policy({"chatgpt": svc("closed", directAllowed=False), "claude": svc("open", directAllowed=True), "grok": svc("open", directAllowed=True)})
+        body = (
+            "guard_uci_overlay_load || true\n"
+            "guard_uci_overlay_resolve\n"
+            "echo A=$(guard_uci_overlay_effective routing.chatgpt)\n"
+            "guard_uci_overlay_load || true\n"
+            "if v=$(guard_uci_overlay_effective routing.chatgpt); then echo \"STALE=$v\"; else echo \"CLEARED\"; fi\n"
+            "guard_uci_overlay_resolve\n"
+            "echo B=$(guard_uci_overlay_effective routing.chatgpt)\n"
+        )
+        proc = run_resolve(policy, {"routing.chatgpt": "direct"}, "none", body)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("A=proxy", proc.stdout)
+        self.assertIn("CLEARED", proc.stdout)
+        self.assertNotIn("STALE=", proc.stdout)
+        self.assertIn("B=proxy", proc.stdout)
+
+    def test_load_invalid_after_resolve_leaves_no_usable_effective(self) -> None:
+        policy = base_policy({"chatgpt": svc("closed", directAllowed=False), "claude": svc("open", directAllowed=True), "grok": svc("open", directAllowed=True)})
+        body = (
+            "guard_uci_overlay_load || true\n"
+            "if guard_uci_overlay_resolve; then echo \"RESOLVED\"; else echo \"REFUSED_RESOLVE rc=$?\"; fi\n"
+            "if v=$(guard_uci_overlay_effective routing.chatgpt); then echo \"USABLE=$v\"; else echo \"NO_EFFECTIVE\"; fi\n"
+        )
+        proc = run_resolve(policy, {"main.enabled": "wat", "routing.chatgpt": "direct"}, "none", body)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("REFUSED_RESOLVE", proc.stdout)
+        self.assertIn("NO_EFFECTIVE", proc.stdout)
+        self.assertNotIn("USABLE=", proc.stdout)
+
+    def test_diagnostics_is_side_effect_free(self) -> None:
+        body = (
+            "guard_uci_overlay_load || true\n"
+            "echo before=$(guard_uci_overlay_resolve_state_valid && echo T || echo F)\n"
+            "guard_uci_overlay_resolve_diagnostics >/dev/null\n"
+            "echo after_diag=$(guard_uci_overlay_resolve_state_valid && echo T || echo F)\n"
+            "if v=$(guard_uci_overlay_effective routing.chatgpt); then echo \"LEAK=$v\"; else echo \"STILL_REFUSES\"; fi\n"
+        )
+        policy = base_policy({"chatgpt": svc("closed", directAllowed=False), "claude": svc("open", directAllowed=True), "grok": svc("open", directAllowed=True)})
+        proc = run_resolve(policy, {"routing.chatgpt": "direct"}, "none", body)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("before=F", proc.stdout)
+        self.assertIn("after_diag=F", proc.stdout)
+        self.assertIn("STILL_REFUSES", proc.stdout)
 
 
 class ResolutionContractTests(unittest.TestCase):

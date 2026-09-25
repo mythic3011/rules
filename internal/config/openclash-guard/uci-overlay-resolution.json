@@ -4,7 +4,8 @@
   "trustModel": {
     "policy": "UCI is operator intent, never a second policy authority. Computed effective values constrain the operator request by signed policy (ceiling/floor) and live capability; UCI can only NARROW, never widen.",
     "rawVsEffective": "The snapshot keeps operator intent (raw) distinct from the resolved value (effective). Diagnostics report both so drift is explainable.",
-    "resolveGate": "guard_uci_overlay_resolve() REQUIRES a loaded AND valid Layer-A snapshot. On an invalid or unloaded snapshot it returns non-zero and presents NO effective state as usable. A separate read-only diagnostics projection (guard_uci_overlay_resolve_diagnostics) exists for status/doctor and never mutates runtime state."
+    "resolveGate": "guard_uci_overlay_resolve() REQUIRES a loaded AND valid Layer-A snapshot. On an invalid or unloaded snapshot it returns non-zero and presents NO effective state as usable.",
+    "resolvedStateLifecycle": "Layer-B maintains an explicit resolved-state flag (_GUARD_UCO_RESOLVED, default 0). Every overlay re-load invalidates all resolved state (_GUARD_UCO_EFFECTIVE_* and notes cleared, flag -> 0) BEFORE a new snapshot is observable, so a stale effective value can never leak across snapshots. The flag becomes 1 only after the complete normal resolution path succeeds. guard_uci_overlay_resolve_state_valid() means loaded AND layer-A-valid AND layer-B-resolution-completed (NOT merely loaded+valid), and goes false again after any re-load until re-resolved. guard_uci_overlay_effective() for a resolved gated option REFUSES (non-zero) when no completed resolution exists for the current snapshot; it never falls back to the normalized UCI value. guard_uci_overlay_resolve_diagnostics() is read-only: inference runs in a subshell so it cannot mutate _GUARD_UCO_RESOLVED, _GUARD_UCO_EFFECTIVE_*, or notes in the caller."
   },
   "computed": {
     "signed-policy-gated-route-mode": {
