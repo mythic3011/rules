@@ -23,12 +23,18 @@ def sh_available() -> str | None:
     return shutil.which("bash") or shutil.which("sh")
 
 
-def run_module(script_body: str, uci_state: dict[str, object] | None = None) -> subprocess.CompletedProcess:
+def run_module(
+    script_body: str,
+    uci_state: dict[str, object] | None = None,
+    front_fake_uci: bool = True,
+) -> subprocess.CompletedProcess:
     """Source the module, optionally front a fake `uci`, run script_body.
 
     uci_state maps option path (e.g. "main.enabled") to either a scalar string
     or a list of strings (rendered as a UCI list). A fake `uci` shell function
-    answers `show`, `get`, and `-d <nl> get` against that state.
+    answers `show`, `get`, and `-d <nl> get` against that state. Pass
+    front_fake_uci=False to test the uci-unavailable path (no uci function and
+    no system uci on this host, so `command -v uci` fails).
     """
     shell = sh_available()
     if shell is None:
@@ -48,20 +54,40 @@ def run_module(script_body: str, uci_state: dict[str, object] | None = None) -> 
     fake_uci = f"""
 uci() {{
     state="{state_file.as_posix()}"
-    if [ "$1" = "-q" ] && [ "$2" = "show" ]; then
-        pkg="$3"
-        awk -F '\\t' '{{ print "'"$3"'." $1 "=" $2 }}' "$state"
+    if [ "$2" = "show" ] || [ "$1" = "show" ]; then
+        # Realistic `uci show openclash_guard`: emits section declarations
+        # (openclash_guard.<section>=<type>) AND option lines
+        # (openclash_guard.<section>.<option>='<value>'). Exits non-zero with
+        # "Entry not found" when the package has no content.
+        if [ ! -s "$state" ]; then
+            echo "uci: Entry not found" >&2
+            return 1
+        fi
+        # Section declarations (one per distinct section).
+        awk -F '\\t' '{{ split($1,a,"."); print "openclash_guard." a[1] "=openclash_guard" }}' "$state" | sort -u
+        # Option lines with single-quoted values.
+        awk -F '\\t' '{{ print "openclash_guard." $1 "=\\x27" $2 "\\x27" }}' "$state"
         return 0
     fi
     if [ "$1" = "-q" ] && [ "$2" = "get" ]; then
         opt="${{3#openclash_guard.}}"
-        awk -F '\\t' -v o="$opt" '$1==o {{ print $2; exit }}' "$state"
+        out=$(awk -F '\\t' -v o="$opt" '$1==o {{ print $2; exit }}' "$state")
+        if [ -z "$out" ]; then
+            echo "uci: Entry not found" >&2
+            return 1
+        fi
+        printf '%s\\n' "$out"
         return 0
     fi
     if [ "$1" = "-d" ]; then
-        # -d <nl> -q get <path>
+        # -d <nl> -q get <path>  (list form)
         opt="${{5#openclash_guard.}}"
-        awk -F '\\t' -v o="$opt" '$1==o {{ print $2 }}' "$state"
+        out=$(awk -F '\\t' -v o="$opt" '$1==o {{ print $2 }}' "$state")
+        if [ -z "$out" ]; then
+            echo "uci: Entry not found" >&2
+            return 1
+        fi
+        printf '%s\\n' "$out"
         return 0
     fi
     return 0
@@ -69,7 +95,7 @@ uci() {{
 """
     full_script = (
         "set -eu\n"
-        + fake_uci
+        + (fake_uci if front_fake_uci else "")
         + f'. "{MODULE.as_posix()}"\n'
         + script_body
         + "\n"
@@ -259,6 +285,64 @@ class OverlayValidationTests(unittest.TestCase):
         self.assertTrue(doc["valid"], doc)
         unknowns = [entry["option"] for entry in doc["unknownOptions"]]
         self.assertIn("main.totally_unknown_opt", unknowns)
+
+    def test_section_declarations_not_reported_unknown(self) -> None:
+        # Realistic `uci show` output includes section declarations
+        # (openclash_guard.main=openclash_guard, openclash_guard.routing=routing).
+        # These must NOT appear in unknownOptions; only genuine unknown
+        # section.option lines must be ignored-and-reported.
+        state = {
+            "main": "openclash_guard",  # a section declaration line
+            "routing": "routing",
+            "main.enabled": "1",
+            "routing.proxy_region": "us",
+            "main.real_unknown": "x",
+        }
+        doc = overlay_json(state)["uciOverlay"]
+        self.assertTrue(doc["valid"], doc)
+        unknowns = [entry["option"] for entry in doc["unknownOptions"]]
+        self.assertIn("main.real_unknown", unknowns)
+        # Section headers themselves must not surface as unknown options.
+        self.assertNotIn("main", unknowns)
+        self.assertNotIn("routing", unknowns)
+
+
+class OverlayAvailabilityTests(unittest.TestCase):
+    def test_uci_unavailable_is_unavailable_and_invalid(self) -> None:
+        # No fake uci (and no system uci on this host): command -v uci fails.
+        # The overlay must NOT silently default; it is unavailable+invalid and
+        # load returns non-zero. This requires that no real `uci` exists in
+        # PATH; skip if one does.
+        import shutil as _sh
+        if _sh.which("uci") is not None:
+            self.skipTest("a real uci is present on PATH")
+        proc = run_module(
+            "if guard_uci_overlay_load; then echo LOAD_OK; else echo \"LOAD_FAIL rc=$?\"; fi\n"
+            "echo valid=$(guard_uci_overlay_valid)\n"
+            "echo available=$(guard_uci_overlay_available)\n",
+            None,
+            front_fake_uci=False,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("LOAD_FAIL", proc.stdout)
+        self.assertIn("valid=0", proc.stdout)
+        self.assertIn("available=0", proc.stdout)
+
+    def test_package_absent_is_valid_defaults(self) -> None:
+        # Empty package read (no openclash_guard config) is a valid empty
+        # config: defaults apply, overlay is valid and available.
+        proc = run_module(
+            "guard_uci_overlay_load && echo LOAD_OK || echo LOAD_FAIL\n"
+            "echo valid=$(guard_uci_overlay_valid)\n"
+            "echo available=$(guard_uci_overlay_available)\n"
+            "echo enabled=$(guard_uci_overlay_get main.enabled)\n",
+            {},
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("LOAD_OK", proc.stdout)
+        self.assertIn("valid=1", proc.stdout)
+        self.assertIn("available=1", proc.stdout)
+        self.assertIn("enabled=1", proc.stdout)
 
     def test_load_fails_and_valid_zero_on_invalid(self) -> None:
         proc = run_module(

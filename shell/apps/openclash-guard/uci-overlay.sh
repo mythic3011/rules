@@ -75,12 +75,16 @@ _GUARD_UCI_OVERLAY_LOADED=0
 _GUARD_UCI_OVERLAY_VALID=1
 _GUARD_UCI_OVERLAY_ERRORS=''
 _GUARD_UCI_OVERLAY_UNKNOWN=''
+# Availability of the local UCI store this session. 1 = read OK (or absent
+# package, a valid empty config), 0 = uci missing or package read failed.
+_GUARD_UCI_OVERLAY_UCI_AVAILABLE=1
 
 _guard_uci_overlay_reset() {
     _GUARD_UCI_OVERLAY_LOADED=0
     _GUARD_UCI_OVERLAY_VALID=1
     _GUARD_UCI_OVERLAY_ERRORS=''
     _GUARD_UCI_OVERLAY_UNKNOWN=''
+    _GUARD_UCI_OVERLAY_UCI_AVAILABLE=1
 }
 
 _guard_uci_overlay_add_error() {
@@ -353,13 +357,54 @@ guard_uci_overlay_load() {
         eval "${_guard_uci_ol_var}_RAW=''"
     done
 
+    # uci must exist AND the package must be readable; otherwise treat the
+    # overlay as unavailable/invalid and fail (never quietly default).
     if ! command -v uci >/dev/null 2>&1; then
+        _GUARD_UCI_OVERLAY_UCI_AVAILABLE=0
+        _guard_uci_overlay_add_error 'openclash_guard|uci command unavailable'
         _GUARD_UCI_OVERLAY_LOADED=1
-        return 0
+        return 1
+    fi
+    if ! uci -q show openclash_guard >/dev/null 2>&1; then
+        # Distinguish "package absent" (valid empty config) from a real read
+        # failure. `uci show` exits non-zero when the package does not exist;
+        # an existing-but-empty or a read failure must not be conflated.
+        # Use `uci -q show` of the package with output captured: absence of the
+        # package config file is reported by uci as a specific message; treat
+        # any non-zero with NO config present as "absent" only when the config
+        # file itself is missing. If we cannot tell, conservatively fail.
+        _guard_uci_ol_show=$(uci show openclash_guard 2>&1) || _guard_uci_ol_show_rc=$?
+        case ${_guard_uci_ol_show_rc:-0} in
+            0) : ;;
+            *)
+                # uci reports "Entry not found" for a package that does not
+                # exist. Anything else is an unexpected read failure.
+                case $_guard_uci_ol_show in
+                    *'Entry not found'*|*'not found'*)
+                        # Package absent: valid empty config; defaults apply.
+                        _GUARD_UCI_OVERLAY_LOADED=1
+                        return 0
+                        ;;
+                    *)
+                        _GUARD_UCI_OVERLAY_UCI_AVAILABLE=0
+                        _guard_uci_overlay_add_error 'openclash_guard|package read failed'
+                        _GUARD_UCI_OVERLAY_LOADED=1
+                        return 1
+                        ;;
+                esac
+                ;;
+        esac
     fi
 
-    # Enumerate option paths present under the package.
-    _guard_uci_ol_paths=$(uci -q show openclash_guard 2>/dev/null | sed -n 's/^openclash_guard\.\([^=]*\)=.*/\1/p' | sed 's/\[[0-9]*\]$//' | sort -u)
+    # Enumerate option paths present. `uci show` emits BOTH section
+    # declarations (openclash_guard.main=openclash_guard) and option lines
+    # (openclash_guard.main.enabled='1'). Only lines whose left-hand side has a
+    # section AND option (two dots after the package prefix) are options;
+    # section declarations have one dot and must not be reported unknown.
+    _guard_uci_ol_paths=$(uci -q show openclash_guard 2>/dev/null \
+        | sed -n "s/^openclash_guard\.\([A-Za-z0-9_]*\.[A-Za-z0-9_]*\)=.*/\1/p" \
+        | sed "s/\[[0-9]*\]\$//" \
+        | sort -u)
 
     for _guard_uci_ol_path in $_guard_uci_ol_paths
     do
@@ -372,10 +417,19 @@ guard_uci_overlay_load() {
             ipv4-list|rule-list|https-url-list)
                 _guard_uci_ol_nl='
 '
-                _guard_uci_ol_raw=$(uci -d "$_guard_uci_ol_nl" -q get "openclash_guard.$_guard_uci_ol_path" 2>/dev/null | tr '\n' ' ' || true)
+                # Capture uci's own exit status BEFORE the tr pipe so a failed
+                # get is detected rather than validated as an empty value.
+                if ! _guard_uci_ol_items=$(uci -d "$_guard_uci_ol_nl" -q get "openclash_guard.$_guard_uci_ol_path" 2>/dev/null); then
+                    _guard_uci_overlay_add_error "$_guard_uci_ol_path|read failed"
+                    continue
+                fi
+                _guard_uci_ol_raw=$(printf '%s' "$_guard_uci_ol_items" | tr '\n' ' ')
                 ;;
             *)
-                _guard_uci_ol_raw=$(uci -q get "openclash_guard.$_guard_uci_ol_path" 2>/dev/null || true)
+                if ! _guard_uci_ol_raw=$(uci -q get "openclash_guard.$_guard_uci_ol_path" 2>/dev/null); then
+                    _guard_uci_overlay_add_error "$_guard_uci_ol_path|read failed"
+                    continue
+                fi
                 ;;
         esac
         _guard_uci_ol_var=$(_guard_uci_overlay_var_name "$_guard_uci_ol_path")
@@ -407,6 +461,12 @@ guard_uci_overlay_validate() {
 
 guard_uci_overlay_valid() {
     printf '%s' "$_GUARD_UCI_OVERLAY_VALID"
+}
+
+# 1 when the local UCI store was read successfully this session (or the package
+# is legitimately absent); 0 when uci is missing or the package read failed.
+guard_uci_overlay_available() {
+    printf '%s' "$_GUARD_UCI_OVERLAY_UCI_AVAILABLE"
 }
 
 guard_uci_overlay_errors() {
@@ -491,12 +551,13 @@ _guard_uci_overlay_json_unknown() {
 }
 
 # Diagnostics JSON (redacted), per #124. No secret values.
-# {"uciOverlay":{"valid":bool,"errors":[...],"unknownOptions":[...]}}
+# {"uciOverlay":{"available":bool,"valid":bool,"errors":[...],"unknownOptions":[...]}}
 guard_uci_overlay_json() {
     if [ "$_GUARD_UCI_OVERLAY_LOADED" != 1 ]; then
         guard_uci_overlay_load || true
     fi
-    printf '{"uciOverlay":{"valid":%s,"errors":%s,"unknownOptions":%s}}' \
+    printf '{"uciOverlay":{"available":%s,"valid":%s,"errors":%s,"unknownOptions":%s}}' \
+        "$([ "$_GUARD_UCI_OVERLAY_UCI_AVAILABLE" = 1 ] && printf true || printf false)" \
         "$([ "$_GUARD_UCI_OVERLAY_VALID" = 1 ] && printf true || printf false)" \
         "$(_guard_uci_overlay_json_errors)" \
         "$(_guard_uci_overlay_json_unknown)"

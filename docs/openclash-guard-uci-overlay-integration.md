@@ -46,6 +46,8 @@ manifest dependencies (so it can be wired without cycles). Responsibilities:
   Returns non-zero when any known option is invalid.
 - `guard_uci_overlay_valid` / `guard_uci_overlay_errors` /
   `guard_uci_overlay_unknown_options` — diagnostics state.
+- `guard_uci_overlay_available` — whether the local UCI store was read (1) or
+  is missing/read-failed (0). See "Availability" below.
 - `guard_uci_overlay_get` / `guard_uci_overlay_get_raw` — normalized vs raw reads.
 - `guard_uci_overlay_json` — redacted diagnostics document:
   `{"uciOverlay":{"valid":bool,"errors":[{option,reason}],"unknownOptions":[{option}]}}`.
@@ -76,26 +78,70 @@ The option table is a manual twin of
 parse that JSON, so `tests/test_openclash_guard_uci_overlay.py` asserts parity
 (options, types, defaults) and the Region Registry twin. Change both together.
 
+### Availability semantics
+
+The loader distinguishes three situations, never conflating them:
+
+| UCI state | result |
+| --------- | ------ |
+| `uci` binary missing, or package read fails unexpectedly | overlay **unavailable** (`guard_uci_overlay_available=0`) AND **invalid**; `load` returns non-zero; **no quiet defaulting** |
+| package read succeeds, option legitimately absent | contract **default** applies; valid; available |
+| package absent entirely (`uci show` → "Entry not found") | valid **empty config**; defaults apply; `load` returns 0 |
+
+The loader captures `uci show` / `uci get` exit statuses **before** any
+`sort`/`sed`/`tr` processing so an upstream `uci` error is never hidden by the
+parse pipeline. `uci show` output includes section *declarations*
+(`openclash_guard.main=openclash_guard`) as well as option lines; only
+two-component `section.option` left-hand sides are treated as options, so
+declarations never surface as unknown options, while genuine unknown options
+are still ignored-and-reported.
+
 ### `shell/apps/openclash-guard/uci-overlay-resolve.sh` (Layer B — authority resolution)
 
-Reads the validated snapshot + the signed runtime policy JSON + live DNS
-capability, and computes the **effective** value for each gated option. UCI
-never widens signed policy. Contract:
+Reads the **validated** snapshot + the signed runtime policy JSON + live DNS
+capability, and computes effective values **only** where an authoritative source
+today defines the gate. UCI never widens signed policy. Contract:
 `internal/config/openclash-guard/uci-overlay-resolution.json`.
 
-- `signed-policy-gated` (routing.\*, udp.\*): a service route of `direct` is
-  honoured only when the service's protection class `directAllowed=true`, and,
-  when `directRequiresSupportedRegion=true`, the requested `direct_region` is
-  within the service's signed `regions[]`; otherwise effective falls back to
-  `proxy`. Operator `direct` never widens signed policy.
-- `signed-policy-floor` (`dns.fail_closed`): when any class has
-  `firewallKillSwitch=true` or `directAllowed=false`, the fail-closed floor is
-  required — an operator `0` cannot lower it (effective stays `1`).
-- `live-capability-gated` (`dns.backend`, `dns.resolver_sync`): `auto` resolves
-  to the detected backend (`adguardhome` / `dnsmasq`) or `unavailable`; an
-  explicit backend resolves to itself only when detected live, else
-  `unavailable`. `resolver_sync` resolves to `1` only when a sync-capable
-  backend is live, else `0`.
+Gate discipline: `guard_uci_overlay_resolve()` **refuses** (non-zero) when the
+Layer-A snapshot is unloaded or invalid, and presents no effective state as
+usable. A separate read-only projection,
+`guard_uci_overlay_resolve_diagnostics()`, exists for status/doctor and never
+mutates runtime state.
+
+**Computed (authoritative today):**
+
+- Route-mode ceiling (`routing.chatgpt/claude/grok`): a requested `direct` is
+  honoured only when the service's protection class has `directAllowed=true`;
+  otherwise effective falls back to `proxy`. Region constraints are **not**
+  part of this config-time gate — `allowedRegions` gates *live route
+  evaluation* in `guard_policy_region_allowed`, not the snapshot.
+- Fail-closed floor (`dns.fail_closed`): mirrors
+  `guard_policy_needs_failclosed` — any class with `firewallKillSwitch=true`
+  or `directAllowed=false` requires fail-closed, and an operator `0` cannot
+  lower the floor (effective stays `1`).
+- DNS backend (`dns.backend`): mirrors `guard_dns_backend()` detection
+  (`adguardhome`/`dnsmasq`/`none`). `auto` resolves to the detected backend or
+  `none`; an explicit request is honoured only when it equals the detected
+  backend, else `none` (a preference cannot install capability). Downstream
+  consumers key off this **effective** backend, not the raw live input — fixing
+  the earlier bug where resolver-sync derived from the raw `_GUARD_UCOR_DNS_BACKEND`.
+
+**Deferred (contract gap — do not invent semantics):** these options are
+contract-marked gated but have **no authoritative Layer-B resolution defined
+today**. They are surfaced by `guard_uci_overlay_effective()` as
+`DEFERRED:<normalized>` (explicitly flagged, never a usable effective value)
+and listed by `guard_uci_overlay_deferred_options()`:
+
+- `dns.resolver_sync` — no contract defines resolver-sync capability. It is
+  **not** a simple "backend is capable" flag: `guard_dns_domain_set_backend`
+  maps `dnsmasq→dnsmasq-nftset`, and `adguardhome` only promotes via the
+  separate `guard_resolver_sync_backend` capability verification.
+- `routing.direct_region` / `routing.proxy_region` — only the Layer-A
+  *validation* (full registry vs `primaryOrder`) is defined; no signed-policy
+  resolution gate exists.
+- `udp.enabled` / `udp.src_ip` — no authoritative signed-policy gate ties them
+  to a policy field.
 
 Reasons are **redacted** (name the constraint, never URLs/tokens/credentials).
 

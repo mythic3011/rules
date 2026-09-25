@@ -1,26 +1,49 @@
 {
   "schemaVersion": 1,
-  "purpose": "Machine-readable contract for UCI overlay authority resolution (Layer B). Implemented by shell/apps/openclash-guard/uci-overlay-resolve.sh and asserted by tests/test_openclash_guard_uci_overlay_resolve.py.",
+  "purpose": "Machine-readable contract for UCI overlay authority resolution (Layer B). Implemented by shell/apps/openclash-guard/uci-overlay-resolve.sh and asserted by tests/test_openclash_guard_uci_overlay_resolve.py. Scope discipline: compute effective values ONLY where an authoritative source defines the gate; everything else is an explicit contract gap (deferred), never invented.",
   "trustModel": {
-    "policy": "UCI is operator intent, never a second policy authority. Effective values are the operator request constrained by signed policy (ceiling/floor) and live capability; UCI can only ever NARROW, never widen.",
-    "rawVsEffective": "The snapshot keeps operator intent (raw) distinct from the resolved value (effective). Diagnostics report both so drift is explainable."
+    "policy": "UCI is operator intent, never a second policy authority. Computed effective values constrain the operator request by signed policy (ceiling/floor) and live capability; UCI can only NARROW, never widen.",
+    "rawVsEffective": "The snapshot keeps operator intent (raw) distinct from the resolved value (effective). Diagnostics report both so drift is explainable.",
+    "resolveGate": "guard_uci_overlay_resolve() REQUIRES a loaded AND valid Layer-A snapshot. On an invalid or unloaded snapshot it returns non-zero and presents NO effective state as usable. A separate read-only diagnostics projection (guard_uci_overlay_resolve_diagnostics) exists for status/doctor and never mutates runtime state."
   },
-  "authorities": {
-    "signed-policy-gated": {
-      "applies": ["routing.direct_region", "routing.proxy_region", "routing.chatgpt", "routing.claude", "routing.grok", "udp.enabled", "udp.src_ip"],
-      "rule": "The operator's value is honoured only if signed policy permits it. For a service route of mode 'direct', all of the following must hold or the EFFECTIVE route is not 'direct': (1) the service's protection class has directAllowed=true; (2) if the class requires it (directRequiresSupportedRegion=true), the requested direct region must be a region the signed policy allows for that service (regions[] contains it, or empty regions[]==all); requested direct routing never widens signed policy. recomputed effective falls back to 'proxy' (or 'block' if the service cannot be proxied)."
+  "computed": {
+    "signed-policy-gated-route-mode": {
+      "applies": ["routing.chatgpt", "routing.claude", "routing.grok"],
+      "rule": "A requested 'direct' is honoured only when the service's protection class has directAllowed=true; otherwise effective falls back to 'proxy'. Region constraints are NOT part of this config-time gate (allowedRegions constrains live route evaluation in guard_policy_region_allowed, not the snapshot)."
     },
     "signed-policy-floor": {
       "applies": ["dns.fail_closed"],
-      "rule": "Signed policy imposes a fail-closed FLOOR: if any service protection class has firewallKillSwitch=true OR directAllowed=false, the signed policy REQUIRES fail-closed. An operator dns.fail_closed=0 request can never lower this floor; the effective value stays 1. When the floor is not required, the operator value is honoured."
+      "rule": "If any service protection class has firewallKillSwitch=true OR directAllowed=false (mirrors guard_policy_needs_failclosed), fail-closed is a signed REQUIREMENT: an operator dns.fail_closed=0 cannot lower the floor and effective stays 1. Otherwise the operator value is honoured."
     },
-    "live-capability-gated": {
-      "applies": ["dns.backend", "dns.resolver_sync"],
-      "rule": "dns.backend='auto' resolves to the detected live backend ('adguardhome' when an AdGuard Home service is present, else 'dnsmasq' when detected, else the literal 'unavailable'). An explicit backend request resolves to the requested backend ONLY when that backend is detected live; otherwise it resolves to 'unavailable' (a preference cannot install capability). dns.resolver_sync is honoured only when the resolved DNS backend is capable of resolver sync (adguardhome or dnsmasq); otherwise it resolves to 0. dnsmasq-nftset and dnsmasq-hosts both count as dnsmasq-capable."
+    "live-capability-gated-backend": {
+      "applies": ["dns.backend"],
+      "rule": "Mirrors guard_dns_backend() detection (adguardhome | dnsmasq | none). 'auto' resolves to the detected backend else 'none'; an explicit request is honoured only when it equals the detected backend, else effective is 'none' (a preference cannot install capability). Downstream consumers key off this EFFECTIVE backend, not the raw live input."
     }
   },
-  "serviceRouteFieldMap": {
-    "comment": "Routing per-service options routing.<name> map onto signed services.<name>. The resolver consults services.<svc>.protectionClass -> protectionClasses.<class> for directAllowed/directRequiresSupportedRegion and the service regions list for region gating."
+  "gaps": {
+    "note": "These options are contract-marked (signed-policy-gated / live-capability-gated) but their exact Layer-B resolution semantics are NOT defined by any authoritative contract today. They are surfaced as DEFERRED (normalized passthrough, explicitly flagged) and MUST NOT be consumed as an authoritative effective value until a contract update lands. Unresolved semantics are intentionally preferred over invented semantics.",
+    "deferred": [
+      {
+        "option": "dns.resolver_sync",
+        "reason": "No authoritative contract defines resolver-sync capability. Current runtime behavior is NOT a simple 'backend is capable' flag: guard_dns_domain_set_backend maps dnsmasq->dnsmasq-nftset, and adguardhome only promotes via the separate guard_resolver_sync_backend capability verification. Treating adguardhome/dnsmasq as generically sync-capable would invent semantics."
+      },
+      {
+        "option": "routing.direct_region",
+        "reason": "#122 marks it signed-policy-gated but no contract defines the config-time gate (allowedRegions gates live route evaluation, not this snapshot). Defer until defined."
+      },
+      {
+        "option": "routing.proxy_region",
+        "reason": "Same as routing.direct_region: gate undefined; only the primaryOrder VALIDATION (Layer A) is defined, not a signed-policy resolution."
+      },
+      {
+        "option": "udp.enabled",
+        "reason": "#122 marks it signed-policy-gated but no authoritative gate ties it to a signed policy field. Defer."
+      },
+      {
+        "option": "udp.src_ip",
+        "reason": "#122 marks it signed-policy-gated but no authoritative gate ties the source-IP list to a signed policy field. Defer."
+      }
+    ]
   },
-  "redaction": "Resolution reasons name the constraint that fired (e.g. 'direct not permitted by signed policy', 'requested DNS backend not available live') and never echo URLs, tokens, or credentials."
+  "redaction": "Resolution reasons name the constraint that fired (e.g. 'direct not permitted by signed policy', 'requested DNS backend not detected live') and never echo URLs, tokens, or credentials."
 }

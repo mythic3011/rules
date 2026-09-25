@@ -1,33 +1,48 @@
 #!/bin/sh
 # Authority resolution for the OpenClash Guard UCI overlay (Layer B).
 #
-# Consumes the validated normalized snapshot produced by uci-overlay.sh and the
-# signed runtime policy + live capability observation, and computes the single
-# EFFECTIVE value for each gated option. UCI is operator intent; it never
-# widens signed policy. See:
+# Consumes the VALIDATED normalized snapshot produced by uci-overlay.sh plus the
+# signed runtime policy + live capability observation, and computes effective
+# values for the options whose signed/live gate is defined by an AUTHORITATIVE
+# source today. UCI is operator intent; it never widens signed policy. See:
 #   - internal/config/openclash-guard/uci-overlay-resolution.json (contract)
 #   - docs/openclash-guard-uci-overlay-integration.md (integration design)
 #
-# Wiring status: UNWIRED (same as uci-overlay.sh). Depends conceptually on
-# guard-policy and guard-environment but is written to be testable offline: it
-# reads the signed policy JSON via shell/lib/json.sh against an explicit file
-# and accepts the live DNS backend as an input so tests can drive it without a
-# router.
+# Wiring status: UNWIRED (same as uci-overlay.sh). Reads the signed policy JSON
+# via shell/lib/json.sh and accepts the live DNS backend as an explicit input so
+# it is testable offline.
+#
+# SCOPE DISCIPLINE (do not invent semantics): this resolver computes effective
+# values ONLY where an authoritative contract/runtime defines the gate:
+#   - routing.<svc> direct ceiling (signed policy class directAllowed)
+#   - dns.fail_closed signed-policy floor (firewallKillSwitch || !directAllowed)
+#   - dns.backend live-capability gating (mirrors guard_dns_backend detection)
+# The following are contract GAPS (see the resolution contract's gaps section)
+# and are NOT resolved here; they surface as PASSTHROUGH (normalized value) and
+# are explicitly flagged, never silently treated as resolved:
+#   - dns.resolver_sync capability semantics
+#   - routing.direct_region / routing.proxy_region signed-policy gate
+#   - udp.enabled / udp.src_ip signed-policy gate
 #
 # Prefix: guard_uci_overlay_resolve_
 set -eu
 
 # Inputs (set explicitly; no hidden global coupling beyond these). These use
 # the _GUARD_UCOR_ prefix to avoid colliding with the overlay's per-option
-# snapshot variables (_GUARD_UCO_<PATH>; for dns.backend that var is _GUARD_UCO_DNS_BACKEND).
+# snapshot variables (_GUARD_UCO_<PATH>, e.g. dns.backend -> _GUARD_UCO_DNS_BACKEND).
 #   _GUARD_UCOR_POLICY_FILE   : path to signed runtime policy JSON
-#   _GUARD_UCOR_DNS_BACKEND   : live detected DNS backend (adguardhome|dnsmasq|
-#                               dnsmasq-nftset|dnsmasq-hosts|unavailable); when
-#                               empty, resolution treats capability as unknown.
+#   _GUARD_UCOR_DNS_BACKEND   : live detected DNS backend as guard_dns_backend()
+#                               reports it (adguardhome|dnsmasq|none); empty
+#                               means capability unknown.
 _GUARD_UCOR_POLICY_FILE=''
 _GUARD_UCOR_DNS_BACKEND=''
 
-# Resolution output: one notes list newline-separated "path|requested|effective|reason".
+# Options whose Layer-B gate is NOT defined by an authoritative contract. These
+# are surfaced as passthrough (identity) with a "deferred" flag; they are NOT
+# treated as resolved and MUST NOT be consumed as an authoritative effective
+# value without a future contract update.
+_GUARD_UCOR_DEFERRED_OPTIONS='routing.direct_region routing.proxy_region udp.enabled udp.src_ip dns.resolver_sync'
+
 _GUARD_UCO_RESOLUTION_NOTES=''
 
 _guard_uci_resolve_note() {
@@ -40,23 +55,12 @@ $1"
 }
 
 _guard_uci_resolve_json_get() {
-    # _guard_uci_resolve_json_get PATH -> value (empty on absence). Pure read.
     [ -n "$_GUARD_UCOR_POLICY_FILE" ] || return 1
     json_get "$_GUARD_UCOR_POLICY_FILE" "$1" 2>/dev/null
 }
 
-_guard_uci_resolve_json_has() {
-    [ -n "$_GUARD_UCOR_POLICY_FILE" ] || return 1
-    json_has "$_GUARD_UCOR_POLICY_FILE" "$1" 2>/dev/null
-}
-
-_guard_uci_resolve_json_list() {
-    [ -n "$_GUARD_UCOR_POLICY_FILE" ] || { printf ''; return 0; }
-    json_list "$_GUARD_UCOR_POLICY_FILE" "$1" 2>/dev/null || printf ''
-}
-
 _guard_uci_resolve_class_field() {
-    # _guard_uci_resolve_class_field SERVICE FIELD
+    # _guard_uci_resolve_class_field SERVICE CLASSFIELD
     _guard_uci_rcf_svc=$1
     _guard_uci_rcf_field=$2
     _guard_uci_rcf_class=$(_guard_uci_resolve_json_get "services.${_guard_uci_rcf_svc}.protectionClass") || return 1
@@ -64,16 +68,17 @@ _guard_uci_resolve_class_field() {
     _guard_uci_resolve_json_get "protectionClasses.${_guard_uci_rcf_class}.${_guard_uci_rcf_field}"
 }
 
-# True when the live DNS backend supports resolver sync to a managed cache.
-_guard_uci_resolve_dns_sync_capable() {
-    case $_GUARD_UCOR_DNS_BACKEND in
-        adguardhome|dnsmasq|dnsmasq-nftset|dnsmasq-hosts) return 0 ;;
-        *) return 1 ;;
-    esac
+_guard_uci_resolve_is_deferred() {
+    # shellcheck disable=SC2086
+    _guard_uci_overlay_in_list "$1" $_GUARD_UCOR_DEFERRED_OPTIONS
 }
 
-# Resolve a per-service route-mode option (routing.<svc>). Assigns the effective
-# mode into the variable named by $2 ("direct" only when signed policy permits).
+# Resolve a per-service route-mode option (routing.<svc>). The ONLY signed gate
+# defined by an authoritative source today is the directAllowed ceiling: a
+# requested "direct" is honoured only when the service's protection class has
+# directAllowed=true; otherwise effective falls back to "proxy". Region gating
+# is NOT part of the config-time gate (allowedRegions constrains live route
+# eval in guard_policy_region_allowed, not this snapshot) and is deferred.
 _guard_uci_overlay_resolve_service_route() {
     _guard_uci_rsr_svc=$1
     _guard_uci_rsr_resultvar=$2
@@ -82,22 +87,7 @@ _guard_uci_overlay_resolve_service_route() {
     _guard_uci_rsr_reason=honoured
     if [ "$_guard_uci_rsr_requested" = "direct" ]; then
         _guard_uci_rsr_da=$(_guard_uci_resolve_class_field "$_guard_uci_rsr_svc" directAllowed 2>/dev/null) || _guard_uci_rsr_da=false
-        _guard_uci_rsr_direct_ok=0
-        if [ "$_guard_uci_rsr_da" = true ]; then
-            _guard_uci_rsr_direct_ok=1
-            _guard_uci_rsr_reqregion=$(_guard_uci_resolve_class_field "$_guard_uci_rsr_svc" directRequiresSupportedRegion 2>/dev/null) || _guard_uci_rsr_reqregion=false
-            if [ "$_guard_uci_rsr_reqregion" = true ]; then
-                _guard_uci_rsr_region=$(guard_uci_overlay_get "routing.direct_region")
-                _guard_uci_rsr_allowed=$(_guard_uci_resolve_json_list "services.${_guard_uci_rsr_svc}.regions")
-                if [ -n "$_guard_uci_rsr_allowed" ]; then
-                    # shellcheck disable=SC2086
-                    if ! _guard_uci_overlay_in_list "$_guard_uci_rsr_region" $_guard_uci_rsr_allowed; then
-                        _guard_uci_rsr_direct_ok=0
-                    fi
-                fi
-            fi
-        fi
-        if [ "$_guard_uci_rsr_direct_ok" != 1 ]; then
+        if [ "$_guard_uci_rsr_da" != true ]; then
             _guard_uci_rsr_effective=proxy
             _guard_uci_rsr_reason='direct not permitted by signed policy'
         fi
@@ -106,13 +96,14 @@ _guard_uci_overlay_resolve_service_route() {
     eval "$_guard_uci_rsr_resultvar=\$_guard_uci_rsr_effective"
 }
 
-# Apply the dns.fail_closed signed-policy FLOOR. Assigns effective into $1.
+# Apply the dns.fail_closed signed-policy FLOOR. Mirrors
+# guard_policy_needs_failclosed: any class with firewallKillSwitch=true OR
+# directAllowed=false forces fail-closed; an operator 0 cannot lower the floor.
 _guard_uci_overlay_resolve_fail_closed() {
     _guard_uci_rfc_resultvar=$1
     _guard_uci_rfc_requested=$(guard_uci_overlay_get dns.fail_closed)
     _guard_uci_rfc_effective=$_guard_uci_rfc_requested
     _guard_uci_rfc_reason=honoured
-    # Signed floor: any class with firewallKillSwitch=true OR directAllowed=false.
     _guard_uci_rfc_svcs=$(json_keys "$_GUARD_UCOR_POLICY_FILE" services 2>/dev/null) || _guard_uci_rfc_svcs=
     _guard_uci_rfc_floor=0
     for _guard_uci_rfc_svc in $_guard_uci_rfc_svcs
@@ -133,57 +124,70 @@ _guard_uci_overlay_resolve_fail_closed() {
     eval "$_guard_uci_rfc_resultvar=\$_guard_uci_rfc_effective"
 }
 
-# Resolve dns.backend against live capability. Assigns effective into $1.
+# Resolve dns.backend against live capability, mirroring guard_dns_backend()
+# detection semantics exactly (adguardhome | dnsmasq | none). "auto" resolves
+# to the detected backend, else "none". An explicit request is honoured only
+# when it equals the detected backend; otherwise effective is "none" — a
+# preference cannot install capability. Downstream (resolver-sync, port
+# availability) keys off this EFFECTIVE value, not the raw live input.
 _guard_uci_overlay_resolve_dns_backend() {
     _guard_uci_rdb_resultvar=$1
     _guard_uci_rdb_requested=$(guard_uci_overlay_get dns.backend)
     _guard_uci_rdb_live=$_GUARD_UCOR_DNS_BACKEND
-    # Normalize the detected backend family.
     case $_guard_uci_rdb_live in
-        adguardhome) _guard_uci_rdb_live_family=adguardhome ;;
-        dnsmasq|dnsmasq-nftset|dnsmasq-hosts) _guard_uci_rdb_live_family=dnsmasq ;;
-        '') _guard_uci_rdb_live_family=unknown ;;
-        *) _guard_uci_rdb_live_family=unavailable ;;
+        adguardhome|dnsmasq) : ;;
+        *) _guard_uci_rdb_live=none ;;
     esac
     _guard_uci_rdb_effective=$_guard_uci_rdb_requested
     _guard_uci_rdb_reason=honoured
     if [ "$_guard_uci_rdb_requested" = "auto" ]; then
-        case $_guard_uci_rdb_live_family in
-            adguardhome|dnsmasq) _guard_uci_rdb_effective=$_guard_uci_rdb_live_family ;;
-            *) _guard_uci_rdb_effective=unavailable ;;
-        esac
+        _guard_uci_rdb_effective=$_guard_uci_rdb_live
+    elif [ "$_guard_uci_rdb_requested" = "$_guard_uci_rdb_live" ]; then
+        _guard_uci_rdb_effective=$_guard_uci_rdb_requested
     else
-        if [ "$_guard_uci_rdb_live_family" = "$_guard_uci_rdb_requested" ]; then
-            _guard_uci_rdb_effective=$_guard_uci_rdb_requested
-        else
-            _guard_uci_rdb_effective=unavailable
-            _guard_uci_rdb_reason='requested DNS backend not available live'
-        fi
+        _guard_uci_rdb_effective=none
+        _guard_uci_rdb_reason='requested DNS backend not detected live'
     fi
     _guard_uci_resolve_note "dns.backend|${_guard_uci_rdb_requested}|${_guard_uci_rdb_effective}|${_guard_uci_rdb_reason}"
     eval "$_guard_uci_rdb_resultvar=\$_guard_uci_rdb_effective"
 }
 
-# Resolve dns.resolver_sync against live capability. Assigns effective into $1.
-_guard_uci_overlay_resolve_resolver_sync() {
-    _guard_uci_rrs_resultvar=$1
-    _guard_uci_rrs_requested=$(guard_uci_overlay_get dns.resolver_sync)
-    _guard_uci_rrs_effective=$_guard_uci_rrs_requested
-    _guard_uci_rrs_reason=honoured
-    if ! _guard_uci_resolve_dns_sync_capable; then
-        if [ "$_guard_uci_rrs_requested" = 1 ]; then
-            _guard_uci_rrs_effective=0
-            _guard_uci_rrs_reason='no sync-capable DNS backend available live'
-        fi
+# Compute effective values for the gated options defined by authoritative
+# sources. Requires a LOADED and VALID Layer-A snapshot; otherwise refuses
+# (non-zero) and presents NO effective state as usable. Use
+# guard_uci_overlay_resolve_diagnostics for the diagnostics-only path.
+guard_uci_overlay_resolve() {
+    if [ "${_GUARD_UCI_OVERLAY_LOADED:-0}" != 1 ]; then
+        printf '%s\n' 'guard_uci_overlay_resolve: overlay snapshot not loaded' >&2
+        return 2
     fi
-    _guard_uci_resolve_note "dns.resolver_sync|${_guard_uci_rrs_requested}|${_guard_uci_rrs_effective}|${_guard_uci_rrs_reason}"
-    eval "$_guard_uci_rrs_resultvar=\$_guard_uci_rrs_effective"
+    if ! guard_uci_overlay_validate; then
+        printf '%s\n' 'guard_uci_overlay_resolve: refusing to resolve an invalid overlay; fix openclash_guard values first' >&2
+        return 1
+    fi
+    _guard_uci_overlay_resolve_apply
 }
 
-# Compute effective values for every gated option. The snapshot (raw) is left
-# untouched; effective values are written into _GUARD_UCO_EFFECTIVE_<PATH> and
-# a notes list records requested->effective for diagnostics.
-guard_uci_overlay_resolve() {
+# Diagnostics-only resolution insight for an already-loaded snapshot, including
+# an invalid one. Never mutates runtime state and never treats the result as an
+# authoritative effective value; intended for status/doctor reporting of what
+# the overlay WOULD resolve to. Returns 0 always (it is a read-only projection).
+guard_uci_overlay_resolve_diagnostics() {
+    if [ "${_GUARD_UCI_OVERLAY_LOADED:-0}" != 1 ]; then
+        printf '%s\n' '{"error":"overlay not loaded"}'
+        return 0
+    fi
+    if guard_uci_overlay_validate; then
+        _guard_uci_overlay_resolve_apply
+    fi
+    printf '{"valid":%s,"inferred":%s}' \
+        "$(guard_uci_overlay_valid | sed 's/1/true/;s/0/false/')" \
+        "$(guard_uci_overlay_json)"
+}
+
+# Internal: run resolution. Shared by the normal path (only when valid) and the
+# diagnostics path.
+_guard_uci_overlay_resolve_apply() {
     _GUARD_UCO_RESOLUTION_NOTES=
     for _guard_uci_r_svc in chatgpt claude grok
     do
@@ -191,13 +195,30 @@ guard_uci_overlay_resolve() {
     done
     _guard_uci_overlay_resolve_fail_closed _GUARD_UCO_EFFECTIVE_DNS_FAIL_CLOSED
     _guard_uci_overlay_resolve_dns_backend _GUARD_UCO_EFFECTIVE_DNS_BACKEND
-    _guard_uci_overlay_resolve_resolver_sync _GUARD_UCO_EFFECTIVE_DNS_RESOLVER_SYNC
+    # Deferred (contract gap) options: NO _GUARD_UCO_EFFECTIVE_<PATH> is set, so
+    # guard_uci_overlay_effective() falls through to the passthrough flag.
     return 0
 }
 
-# Get an effective (resolved) value by option path; falls back to the
-# normalized (non-gated) value for options with no authority constraint.
+# True when guard_uci_overlay_resolve() has produced effective state for a
+# LOADED, VALID snapshot this session.
+guard_uci_overlay_resolve_state_valid() {
+    [ "${_GUARD_UCI_OVERLAY_LOADED:-0}" = 1 ] && guard_uci_overlay_validate
+}
+
+# Get an effective (resolved) value by option path.
+#   - computed gated options (routing.<svc>, dns.fail_closed, dns.backend):
+#     returns the resolved effective value.
+#   - deferred contract-gap options: prints the NORMALIZED UCI value prefixed
+#     with the exact marker "DEFERRED:" so callers can distinguish "not yet
+#     resolved" from a real resolved value; these MUST NOT be consumed as an
+#     authoritative effective value.
+#   - other options (no authority constraint): the normalized UCI value.
 guard_uci_overlay_effective() {
+    if _guard_uci_resolve_is_deferred "$1"; then
+        printf 'DEFERRED:%s' "$(guard_uci_overlay_get "$1")"
+        return 0
+    fi
     _guard_uci_eff_var="_GUARD_UCO_EFFECTIVE_$(printf '%s' "$1" | tr '[:lower:].' '[:upper:]_')"
     eval "_guard_uci_eff_val=\${$_guard_uci_eff_var-}"
     if [ -n "$_guard_uci_eff_val" ]; then
@@ -205,6 +226,11 @@ guard_uci_overlay_effective() {
     else
         guard_uci_overlay_get "$1"
     fi
+}
+
+# List the options whose Layer-B gate is a documented contract gap (deferred).
+guard_uci_overlay_deferred_options() {
+    printf '%s\n' "$_GUARD_UCOR_DEFERRED_OPTIONS"
 }
 
 # Diagnostics notes (requested/effective/reason), one per line, redacted.
