@@ -450,6 +450,23 @@ class AuthorityInputTests(unittest.TestCase):
         out = self._refusal(body, uci_state={"dns.fail_closed": "0"}, policy_text='{"schemaVersion":1,"services":{"chatgpt":{"protectionClass":"open","allowedRegions":[]}}}')
         self.assertIn("REFUSED rc=3", out)
 
+    def test_missing_schema_version_refuses(self) -> None:
+        body = (
+            "guard_uci_overlay_load || true\n"
+            "if guard_uci_overlay_resolve; then echo RESOLVED; else echo \"REFUSED rc=$?\"; fi\n"
+        )
+        # valid shape otherwise but no schemaVersion
+        out = self._refusal(body, uci_state={"routing.chatgpt": "proxy"}, policy_text='{"services":{"chatgpt":{"protectionClass":"open","allowedRegions":[]}},"protectionClasses":{"open":{"directAllowed":true,"firewallKillSwitch":false,"failMode":"allow"}}}')
+        self.assertIn("REFUSED rc=3", out)
+
+    def test_unsupported_schema_version_refuses(self) -> None:
+        body = (
+            "guard_uci_overlay_load || true\n"
+            "if guard_uci_overlay_resolve; then echo RESOLVED; else echo \"REFUSED rc=$?\"; fi\n"
+        )
+        out = self._refusal(body, uci_state={"routing.chatgpt": "proxy"}, policy_text='{"schemaVersion":999,"services":{"chatgpt":{"protectionClass":"open","allowedRegions":[]}},"protectionClasses":{"open":{"directAllowed":true,"firewallKillSwitch":false,"failMode":"allow"}}}')
+        self.assertIn("REFUSED rc=3", out)
+
     def test_service_references_missing_class_refuses(self) -> None:
         body = (
             "guard_uci_overlay_load || true\n"

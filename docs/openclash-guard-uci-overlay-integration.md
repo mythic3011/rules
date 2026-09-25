@@ -108,35 +108,42 @@ Layer-A snapshot is unloaded or invalid, and presents no effective state as
 usable.
 
 **Snapshot coherence (Layer A, not atomic).** One logical snapshot must not be
-assembled from multiple live UCI generations. `load` captures the full
-`uci show` catalog **once** and derives both option paths and per-option values
-from that single captured representation (no second `uci show` for path
-enumeration, no per-option `uci get` re-reads that would mix generations).
-Because capture and validation are not a true atomic operation, the catalog is
-re-captured afterward and compared; if the package changed mid-read, the
-candidate is **discarded** (nothing becomes observable) and the read retries
-(bounded by `GUARD_UCI_OVERLAY_MAX_ATTEMPTS`, default 2). A persistent change
-fails with "snapshot not coherent" rather than publishing a mixed-generation
-snapshot. Residual guarantee: **before/after change detection with
-discard-on-drift** — not a claim that the captured window itself was atomic and NOT
-an unsafe `eval`-parse of UCI output.
+assembled from multiple live UCI generations. `uci show` is used **only** as a
+coherence **fingerprint** (captured before and after, each with an explicit
+exit-status check — never `|| true`, so two failed captures can never compare
+equal-and-succeed). Semantic values are read with the real `uci get` CLI for
+scalars and `uci -d <newline> get` for IPv4 lists, so the UCI CLI itself decodes
+upstream quoting/escaping (`'x'` scalars, space-joined lists, `'\''` apostrophe
+escape) — there is **no home-grown shell quote parser and no `eval` of
+`uci show`**. A failed semantic field read discards the candidate (no
+defaults-as-content snapshot published). Before/after fingerprint comparison
+provides **drift detection with a bounded retry** (`GUARD_UCI_OVERLAY_MAX_ATTEMPTS`,
+default 2). A persistent change or read failure → non-zero load. Residual
+guarantee: before/after drift detection + bounded retry + the classic **ABA
+limitation** (a value changed A→B→A within the window is not detected). This is
+**not** a UCI transaction.
 
 **Authority inputs (trust boundary).** The normal resolver requires ALL:
-validated UCI intent, an **authenticated signed policy**, and an **observed
-live capability**. `_GUARD_UCO_RESOLVED=1` is set only when every authority
-input is valid.
+validated UCI intent, a policy whose **provenance was already established**, and
+an **observed live capability**. `_GUARD_UCO_RESOLVED=1` only when every input
+is valid.
 
-- *Signed policy:* must be present, well-formed JSON, with `services` and
+- *Provenance (owned by the signed pipeline).* Production resolution consumes a
+  runtime policy ONLY after the authoritative `guard_policy_load()` validation
+  (and the signed-runtime release chain establishing its origin) has succeeded.
+  This module **does not authenticate provenance** and never duplicates
+  cryptographic/signature logic.
+- *Schema sanity (defense-in-depth, local).* The resolver additionally runs a
+  focused surface check on the policy it reads: present, well-formed,
+  `schemaVersion=1` (rejecting missing or unsupported versions), `services` +
   `protectionClasses`, every service referencing an existing class, and
-  `directAllowed`/`firewallKillSwitch` boolean. Missing/malformed policy MUST
-  NOT degrade into permissive defaults (an empty services list would hide the
-  fail-closed floor). At production wiring the resolver is expected to consume
-  `guard_policy_load`-validated state; the focused check here covers the
-  resolver-consumed policy surface so the trust contract is identical.
-- *Live DNS observation:* must be a real observed value
-  (`adguardhome`|`dnsmasq`|`none`). An empty/unset/unexpected value is **not**
-  the observed value `none`; it means the observation is unavailable and makes
-  the whole resolution refuse.
+  `directAllowed`/`firewallKillSwitch` boolean. Missing/malformed/unsupported
+  policy fails (refuse rc 3, resolved state 0, no permissive default such as an
+  empty-services-list hiding the fail-closed floor). This is a **schema-sanity
+  gate, not provenance authentication**.
+- *Live DNS observation:* a real observed value (`adguardhome`|`dnsmasq`|
+  `none`). Empty/unset/unexpected is **not** the observed `none`; it makes
+  resolution refuse.
 
 Any unavailable authority input → resolution refuses (rc 3, resolved state
 stays 0, gated effective values unavailable). Diagnostics reports

@@ -30,7 +30,11 @@ set -eu
 # Inputs (set explicitly; no hidden global coupling beyond these). These use
 # the _GUARD_UCOR_ prefix to avoid colliding with the overlay's per-option
 # snapshot variables (_GUARD_UCO_<PATH>, e.g. dns.backend -> _GUARD_UCO_DNS_BACKEND).
-#   _GUARD_UCOR_POLICY_FILE   : path to signed runtime policy JSON
+#   _GUARD_UCOR_POLICY_FILE   : path to runtime policy JSON. Consumption implies
+#                               it has already passed the authoritative
+#                               guard_policy_load() validation in production;
+#                               this module only performs surface/schema sanity
+#                               (it does NOT authenticate provenance).
 #   _GUARD_UCOR_DNS_BACKEND   : live detected DNS backend as guard_dns_backend()
 #                               reports it (adguardhome|dnsmasq|none); empty
 #                               means capability unknown.
@@ -45,19 +49,23 @@ _GUARD_UCOR_DEFERRED_OPTIONS='routing.direct_region routing.proxy_region udp.ena
 
 _GUARD_UCO_RESOLUTION_NOTES=''
 
-# --- Authority input validation (trust boundary) --------------------------
+# --- Policy surface / schema sanity (defense-in-depth, NOT provenance) ----
 #
-# Resolution consumes validated UCI intent + AUTHENTICATED signed policy +
-# OBSERVED live capability. A missing/malformed authority input must never
-# degrade into permissive defaults. This validates the policy the resolver
-# actually consumes (services + protectionClasses + class-field consistency)
-# plus the live DNS observation. At production wiring time the resolver is
-# expected to consume state already validated by guard_policy_load(); this
-# offline/testable form performs the equivalent focused check over the policy
-# surface the resolver reads, so the trust contract is identical.
+# Resolution consumes validated UCI intent + a signed runtime policy that has
+# ALREADY been accepted by the real Guard policy authority + OBSERVED live
+# capability. This module performs a SURFACE/SCHEMA sanity check over the
+# policy fields the resolver reads (schema, services, protectionClasses,
+# class-field consistency); it does NOT authenticate provenance, verify the
+# detached signature, or establish that the file came from the trusted release
+# chain. Production wiring must feed the resolver a policy file ONLY after
+# guard_policy_load() (the authoritative policy validation) has succeeded, and
+# the resolved provenance is owned by the signed-runtime pipeline — not by a
+# caller-supplied _GUARD_UCOR_POLICY_FILE. Never duplicate cryptographic /
+# provenance logic here.
 
-# True when the signed policy file is present, well-formed JSON, and contains
-# the fields the resolver requires with consistent references.
+# True when the supplied policy file is well-formed, declares a supported
+# schemaVersion, and contains services + protectionClasses with consistent
+# references. This is a schema-sanity gate, NOT provenance authentication.
 _guard_uci_resolve_policy_available() {
     _guard_uci_rpa_file=$_GUARD_UCOR_POLICY_FILE
     if [ -z "$_guard_uci_rpa_file" ] || [ ! -f "$_guard_uci_rpa_file" ]; then
@@ -66,6 +74,10 @@ _guard_uci_resolve_policy_available() {
     if ! json_load "$_guard_uci_rpa_file" 2>/dev/null; then
         return 1
     fi
+    # Must declare the supported schema version (mirrors the authoritative
+    # guard_policy_validate_file requirement of schemaVersion 1).
+    _guard_uci_rpa_ver=$(json_get "$_guard_uci_rpa_file" schemaVersion 2>/dev/null) || _guard_uci_rpa_ver=
+    [ "$_guard_uci_rpa_ver" = "1" ] || return 1
     if ! json_has "$_guard_uci_rpa_file" services 2>/dev/null; then
         return 1
     fi
@@ -258,7 +270,7 @@ guard_uci_overlay_resolve() {
     # list would hide the fail-closed floor). An unavailable/invalid DNS
     # observation is NOT the same as the observed value "none".
     if ! _guard_uci_resolve_policy_available; then
-        printf '%s\n' 'guard_uci_overlay_resolve: signed policy unavailable or invalid (required authority input)' >&2
+        printf '%s\n' 'guard_uci_overlay_resolve: policy file unavailable or failed schema sanity (authority input)' >&2
         guard_uci_overlay_invalidate_resolved_state
         return 3
     fi

@@ -41,32 +41,55 @@ def run_module(
         raise unittest.SkipTest("no POSIX shell available on this host")
 
     tmp = tempfile.mkdtemp(prefix="uco-test-")
+
+    def render_show(state: dict[str, object]) -> str:
+        """Render byte-faithful upstream `uci show` output.
+
+        Section declarations (openclash_guard.<section>=openclash_guard) then
+        ONE option line per option. A scalar is one single-quoted value; a LIST
+        is one line with each element single-quoted and space-separated.
+        Embedded apostrophes are escaped exactly as upstream uci/cli.c:  '\'' .
+        """
+        def esc(value: str) -> str:
+            return "'" + value.replace("'", "'\\''") + "'"
+
+        sections = sorted({str(path).split(".")[0] for path in state})
+        out: list[str] = [f"openclash_guard.{s}=openclash_guard" for s in sections]
+        for path, value in state.items():
+            if isinstance(value, list):
+                out.append(f"openclash_guard.{path}=" + " ".join(esc(v) for v in value))
+            else:
+                out.append(f"openclash_guard.{path}={esc(value)}")
+        return "\n".join(out) + ("\n" if out else "")
+
+    # Raw state for `uci get` / `-d <nl> get` (CLI-decoded values).
     state_file = Path(tmp) / "state.txt"
-    lines: list[str] = []
+    state_lines: list[str] = []
     for path, value in (uci_state or {}).items():
         if isinstance(value, list):
             for item in value:
-                lines.append(f"{path}\t{item}")
+                state_lines.append(f"{path}\t{item}")
         else:
-            lines.append(f"{path}\t{value}")
-    state_file.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+            state_lines.append(f"{path}\t{value}")
+    state_file.write_text("\n".join(state_lines) + ("\n" if state_lines else ""), encoding="utf-8")
+
+    # Byte-faithful `uci show` fingerprint (use only if the caller rendered a
+    # None-vs-dict distinction; here always derived from state).
+    show_file = Path(tmp) / "show.txt"
+    show_file.write_text(render_show(uci_state or {}), encoding="utf-8")
 
     fake_uci = f"""
 uci() {{
     state="{state_file.as_posix()}"
+    showfile="{show_file.as_posix()}"
     if [ "$2" = "show" ] || [ "$1" = "show" ]; then
-        # Realistic `uci show openclash_guard`: emits section declarations
-        # (openclash_guard.<section>=<type>) AND option lines
-        # (openclash_guard.<section>.<option>='<value>'). Exits non-zero with
-        # "Entry not found" when the package has no content.
+        # Serve the byte-faithful upstream `uci show` fingerprint. Exits
+        # non-zero ("Entry not found") when the package is empty.
         if [ ! -s "$state" ]; then
             echo "uci: Entry not found" >&2
             return 1
         fi
-        # Section declarations (one per distinct section).
-        awk -F '\\t' '{{ split($1,a,"."); print "openclash_guard." a[1] "=openclash_guard" }}' "$state" | sort -u
-        # Option lines with single-quoted values.
-        awk -F '\\t' '{{ print "openclash_guard." $1 "=\\x27" $2 "\\x27" }}' "$state"
+        cat "$showfile"
         return 0
     fi
     if [ "$1" = "-q" ] && [ "$2" = "get" ]; then
@@ -339,6 +362,14 @@ class OverlayCoherenceTests(unittest.TestCase):
         "    fi\n"
         "    return 0\n"
         "  fi\n"
+        "  if [ \"$1\" = \"-q\" ] && [ \"$2\" = \"get\" ]; then\n"
+        "    case $3 in\n"
+        "      openclash_guard.main.enabled) echo 1 ;;\n"
+        "      openclash_guard.routing.proxy_region) echo us ;;\n"
+        "      *) echo 'uci: Entry not found' >&2; return 1 ;;\n"
+        "    esac\n"
+        "    return 0\n"
+        "  fi\n"
         "  return 1\n"
         "}\n"
     )
@@ -347,6 +378,14 @@ class OverlayCoherenceTests(unittest.TestCase):
         "uci() {\n"
         "  if [ \"$1\" = \"show\" ] || { [ \"$1\" = \"-q\" ] && [ \"$2\" = \"show\" ]; }; then\n"
         "    printf \"openclash_guard.main=openclash_guard\\nopenclash_guard.main.enabled='1'\\nopenclash_guard.routing=routing\\nopenclash_guard.routing.proxy_region='us'\\n\"\n"
+        "    return 0\n"
+        "  fi\n"
+        "  if [ \"$1\" = \"-q\" ] && [ \"$2\" = \"get\" ]; then\n"
+        "    case $3 in\n"
+        "      openclash_guard.main.enabled) echo 1 ;;\n"
+        "      openclash_guard.routing.proxy_region) echo us ;;\n"
+        "      *) echo 'uci: Entry not found' >&2; return 1 ;;\n"
+        "    esac\n"
         "    return 0\n"
         "  fi\n"
         "  return 1\n"
@@ -377,6 +416,90 @@ class OverlayCoherenceTests(unittest.TestCase):
         self.assertIn("ACCEPTED", proc.stdout)
         self.assertIn("proxy=us", proc.stdout)
         self.assertIn("enabled=1", proc.stdout)
+
+    # A uci that returns a real single-line list (byte-faithful show) and a
+    # two-item newline list for `-d` get.
+    def test_two_item_real_list_normalizes_without_quotes(self) -> None:
+        state = {"udp.src_ip": ["10.0.0.1", "10.0.0.2"]}
+        proc = run_module(
+            "guard_uci_overlay_load && echo OK || echo FAIL\n"
+            "echo SRCIP=[$(guard_uci_overlay_get udp.src_ip)]\n",
+            state,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("OK", proc.stdout)
+        self.assertIn("SRCIP=[10.0.0.1 10.0.0.2]", proc.stdout)
+        # no quote chars leaked into the value
+        self.assertNotIn("SRCIP=[10.0.0.1 '", proc.stdout)
+        self.assertNotIn("'", proc.stdout.split("SRCIP=")[1].split("]")[0])
+
+    def test_apostrophe_scalar_loads_via_cli_decode(self) -> None:
+        state = {"main.profile_url": "https://example.test/a'b.ini", "main.enabled": "1"}
+        proc = run_module(
+            "guard_uci_overlay_load && echo OK || echo FAIL\n"
+            "echo URL=[$(guard_uci_overlay_get main.profile_url)]\n",
+            state,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("OK", proc.stdout)
+        self.assertIn("https://example.test/a'b.ini", proc.stdout)
+
+    # --- capture failure regressions -------------------------------------
+
+    _PROBE_FAIL_FUNC = (
+        "uci() {\n"
+        "  # initial `-q show` probe succeeds, but the explicit show used for the\n"
+        "  # coherence fingerprint fails (simulated via a call counter).\n"
+        "  countfile=/tmp/uco-pf-count.$$; [ -f \"$countfile\" ] || echo 0 > \"$countfile\"\n"
+        "  c=$(cat \"$countfile\"); c=$((c+1)); echo \"$c\" > \"$countfile\"\n"
+        "  case \"$1 $2\" in\n"
+        "    \"-q show\")\n"
+        "      printf \"openclash_guard.main=openclash_guard\\nopenclash_guard.main.enabled='1'\\n\"\n"
+        "      return 0\n"
+        "      ;;\n"
+        "    \"show\"*)\n"
+        "      if [ \"$c\" -le 1 ]; then\n"
+        "        printf \"openclash_guard.main.enabled='1'\\n\"; return 0\n"
+        "      fi\n"
+        "      echo \"uci: I/O error\" >&2; return 1\n"
+        "      ;;\n"
+        "  esac\n"
+        "  return 1\n"
+        "}\n"
+    )
+
+    def test_before_capture_fail_load_fails(self) -> None:
+        body = "if guard_uci_overlay_load; then echo ACCEPTED; else echo \"LOADFAIL rc=$?\"; fi\n"
+        proc = run_module_custom_uci(body, self._PROBE_FAIL_FUNC)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("LOADFAIL", proc.stdout)
+        self.assertNotIn("ACCEPTED", proc.stdout)
+
+    _CAPTURE_EMPTY_FUNC = (
+        "uci() {\n"
+        "  case \"$1 $2\" in\n"
+        "    \"-q show\") printf \"openclash_guard.main.enabled='1'\\n\"; return 0 ;;\n"
+        "    \"show\"*)\n"
+        "      echo \"uci: I/O error\" >&2\n"
+        "      return 1\n"
+        "      ;;\n"
+        "  esac\n"
+        "  return 1\n"
+        "}\n"
+    )
+
+    def test_both_captures_fail_empty_never_equal_and_succeeds(self) -> None:
+        # `|| true` would have yielded before=="" after=="" and wrongly
+        # succeeded; now every capture checks the exit status explicitly.
+        body = (
+            "if guard_uci_overlay_load; then echo ACCEPTED; else echo \"LOADFAIL rc=$?\"; fi\n"
+            "echo available=$(guard_uci_overlay_available)\n"
+        )
+        proc = run_module_custom_uci(body, self._CAPTURE_EMPTY_FUNC)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("LOADFAIL", proc.stdout)
+        self.assertNotIn("ACCEPTED", proc.stdout)
+        self.assertIn("available=0", proc.stdout)
 
 
 class OverlayAvailabilityTests(unittest.TestCase):
