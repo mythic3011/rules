@@ -1,0 +1,382 @@
+#!/bin/sh
+set -eu
+
+. /usr/share/libubox/jshn.sh
+
+CONFIG='openclash_guard'
+REGIONS_FILE='/usr/share/openclash-guard/regions.json'
+TRACE_MAX_BYTES=8192
+PROFILE_MAX_BYTES=262144
+HISTORY_DIR='/tmp/openclash-guard/egress-history'
+HISTORY_LIMIT_PER_SERVICE=60
+HISTORY_LIMIT_TOTAL=180
+
+uci_get() {
+	uci -q get "$CONFIG.$1.$2" 2>/dev/null || true
+}
+
+json_error() {
+	json_init
+	json_add_boolean ok 0
+	json_add_string error "$1"
+	json_dump
+	json_cleanup
+}
+
+fetch_https() {
+	url=$1
+	out=$2
+	max_bytes=$3
+	case "$url" in
+		https://*) ;;
+		*) return 2 ;;
+	esac
+	command -v uclient-fetch >/dev/null 2>&1 || return 127
+	uclient-fetch -q -T 12 -O "$out" "$url" >/dev/null 2>&1 || return 1
+	bytes=$(wc -c < "$out" | tr -d ' ')
+	[ "$bytes" -le "$max_bytes" ] || return 3
+}
+
+service_url() {
+	case "$1" in
+		chatgpt) printf '%s\n' 'https://chatgpt.com/cdn-cgi/trace' ;;
+		claude) printf '%s\n' 'https://claude.ai/cdn-cgi/trace' ;;
+		grok) printf '%s\n' 'https://grok.com/cdn-cgi/trace' ;;
+		*) return 1 ;;
+	esac
+}
+
+service_host() {
+	case "$1" in
+		chatgpt) printf '%s\n' 'chatgpt.com' ;;
+		claude) printf '%s\n' 'claude.ai' ;;
+		grok) printf '%s\n' 'grok.com' ;;
+		*) return 1 ;;
+	esac
+}
+
+history_file() {
+	case "$1" in
+		chatgpt|claude|grok) printf '%s/%s.log\n' "$HISTORY_DIR" "$1" ;;
+		*) return 1 ;;
+	esac
+}
+
+history_field() {
+	printf '%s' "${1:-}" | tr '\t\r\n|' '    ' | cut -c1-160
+}
+
+record_history() {
+	service=$1
+	ok=$2
+	ip=$(history_field "$3")
+	country=$(history_field "$4")
+	colo=$(history_field "$5")
+	http=$(history_field "$6")
+	tls=$(history_field "$7")
+	expected_mode=$(history_field "$8")
+	expected_region=$(history_field "$9")
+	error=$(history_field "${10}")
+	file=$(history_file "$service") || return 0
+	epoch=$(date +%s 2>/dev/null || printf '0')
+	case "$epoch" in *[!0-9]*|'') epoch=0 ;; esac
+	mkdir -p "$HISTORY_DIR" 2>/dev/null || return 0
+	printf '%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s\n' \
+		"$epoch" "$service" "$ok" "$ip" "$country" "$colo" "$http" "$tls" \
+		"$expected_mode" "$expected_region" "$error" >> "$file" 2>/dev/null || return 0
+	lines=$(wc -l < "$file" 2>/dev/null | tr -d ' ' || printf '0')
+	case "$lines" in *[!0-9]*|'') lines=0 ;; esac
+	if [ "$lines" -gt "$HISTORY_LIMIT_PER_SERVICE" ]; then
+		tmp=$(mktemp "$HISTORY_DIR/.trim.XXXXXX" 2>/dev/null || true)
+		if [ -n "$tmp" ]; then
+			tail -n "$HISTORY_LIMIT_PER_SERVICE" "$file" > "$tmp" 2>/dev/null && mv "$tmp" "$file" || rm -f "$tmp"
+		fi
+	fi
+}
+
+trace_error() {
+	service=$1
+	expected_mode=$2
+	expected_region=$3
+	error=$4
+	record_history "$service" 0 '' '' '' '' '' "$expected_mode" "$expected_region" "$error" || true
+	json_init
+	json_add_boolean ok 0
+	json_add_string service "$service"
+	json_add_string expectedMode "$expected_mode"
+	json_add_string expectedRegion "$expected_region"
+	json_add_string error "$error"
+	json_dump
+	json_cleanup
+}
+
+get_status() {
+	profile_url=$(uci_get main profile_url)
+	profile_mode=$(uci_get main profile_mode)
+	distribution_source=$(uci_get main distribution_source)
+	auto_refresh=$(uci_get main auto_refresh)
+	config_enabled=$(uci_get main enabled)
+	direct_region=$(uci_get routing direct_region)
+	proxy_region=$(uci_get routing proxy_region)
+	chatgpt_mode=$(uci_get routing chatgpt)
+	claude_mode=$(uci_get routing claude)
+	grok_mode=$(uci_get routing grok)
+	dns_backend=$(uci_get dns backend)
+	resolver_sync=$(uci_get dns resolver_sync)
+	fail_closed=$(uci_get dns fail_closed)
+
+	json_init
+	json_add_boolean ok 1
+	[ "$config_enabled" = 1 ] && json_add_boolean configEnabled 1 || json_add_boolean configEnabled 0
+	if command -v openclash-guard >/dev/null 2>&1; then
+		json_add_boolean guardInstalled 1
+	else
+		json_add_boolean guardInstalled 0
+	fi
+	if pidof clash >/dev/null 2>&1; then
+		json_add_boolean openclashRunning 1
+	else
+		json_add_boolean openclashRunning 0
+	fi
+	if pidof AdGuardHome >/dev/null 2>&1; then
+		json_add_boolean adguardHomeRunning 1
+	else
+		json_add_boolean adguardHomeRunning 0
+	fi
+	[ "$auto_refresh" = 1 ] && json_add_boolean autoRefresh 1 || json_add_boolean autoRefresh 0
+	[ "$resolver_sync" = 1 ] && json_add_boolean resolverSync 1 || json_add_boolean resolverSync 0
+	[ "$fail_closed" = 1 ] && json_add_boolean failClosed 1 || json_add_boolean failClosed 0
+	json_add_string profileUrl "$profile_url"
+	json_add_string profileMode "$profile_mode"
+	json_add_string distributionSource "$distribution_source"
+	json_add_string directRegion "$direct_region"
+	json_add_string proxyRegion "$proxy_region"
+	json_add_string chatgptMode "$chatgpt_mode"
+	json_add_string claudeMode "$claude_mode"
+	json_add_string grokMode "$grok_mode"
+	json_add_string dnsBackend "$dns_backend"
+	json_dump
+	json_cleanup
+}
+
+get_regions() {
+	if [ ! -s "$REGIONS_FILE" ]; then
+		json_error 'region catalog unavailable'
+		return 0
+	fi
+	cat "$REGIONS_FILE"
+}
+
+get_history() {
+	mkdir -p "$HISTORY_DIR" 2>/dev/null || true
+	combined=$(mktemp /tmp/openclash-guard-history.XXXXXX) || { json_error 'unable to allocate history buffer'; return 0; }
+	sorted=$(mktemp /tmp/openclash-guard-history-sorted.XXXXXX) || { rm -f "$combined"; json_error 'unable to allocate history buffer'; return 0; }
+	trap 'rm -f "$combined" "$sorted"' EXIT INT TERM
+	for service in chatgpt claude grok; do
+		file=$(history_file "$service") || continue
+		[ -f "$file" ] && cat "$file" >> "$combined" 2>/dev/null || true
+	done
+	if [ -s "$combined" ]; then
+		sort -nr "$combined" > "$sorted" 2>/dev/null || cp "$combined" "$sorted"
+	fi
+
+	json_init
+	json_add_boolean ok 1
+	json_add_array records
+	count=0
+	while IFS='|' read -r epoch service ok ip country colo http tls expected_mode expected_region error; do
+		[ "$count" -lt "$HISTORY_LIMIT_TOTAL" ] || break
+		case "$epoch" in *[!0-9]*|'') continue ;; esac
+		case "$service" in chatgpt|claude|grok) ;; *) continue ;; esac
+		case "$ok" in 0|1) ;; *) continue ;; esac
+		json_add_object ''
+		json_add_int epoch "$epoch"
+		json_add_string service "$service"
+		json_add_boolean ok "$ok"
+		json_add_string ip "$ip"
+		json_add_string country "$country"
+		json_add_string colo "$colo"
+		json_add_string http "$http"
+		json_add_string tls "$tls"
+		json_add_string expectedMode "$expected_mode"
+		json_add_string expectedRegion "$expected_region"
+		json_add_string error "$error"
+		json_close_object
+		count=$((count + 1))
+	done < "$sorted"
+	json_close_array
+	json_add_int limit "$HISTORY_LIMIT_TOTAL"
+	json_add_boolean volatile 1
+	json_dump
+	json_cleanup
+	rm -f "$combined" "$sorted"
+	trap - EXIT INT TERM
+}
+
+clear_history() {
+	for service in chatgpt claude grok; do
+		file=$(history_file "$service") || continue
+		rm -f "$file"
+	done
+	json_init
+	json_add_boolean ok 1
+	json_dump
+	json_cleanup
+}
+
+trace_service() {
+	service=$1
+	url=$(service_url "$service") || { json_error 'unsupported service'; return 0; }
+	expected_host=$(service_host "$service") || { json_error 'unsupported service'; return 0; }
+	expected_mode=$(uci_get routing "$service")
+	case "$expected_mode" in
+		direct) expected_region=$(uci_get routing direct_region) ;;
+		proxy) expected_region=$(uci_get routing proxy_region) ;;
+		*) expected_region='' ;;
+	esac
+	tmp=$(mktemp /tmp/openclash-guard-trace.XXXXXX) || { trace_error "$service" "$expected_mode" "$expected_region" 'unable to allocate temporary file'; return 0; }
+	trap 'rm -f "$tmp"' EXIT INT TERM
+	if ! fetch_https "$url" "$tmp" "$TRACE_MAX_BYTES"; then
+		rm -f "$tmp"
+		trap - EXIT INT TERM
+		trace_error "$service" "$expected_mode" "$expected_region" 'trace request failed'
+		return 0
+	fi
+
+	host=''; ip=''; colo=''; loc=''; http=''; tls=''; warp=''; gateway=''; ts=''
+	while IFS='=' read -r key value; do
+		case "$key" in
+			h) host=$value ;;
+			ip) ip=$value ;;
+			colo) colo=$value ;;
+			loc) loc=$value ;;
+			http) http=$value ;;
+			tls) tls=$value ;;
+			warp) warp=$value ;;
+			gateway) gateway=$value ;;
+			ts) ts=$value ;;
+		esac
+	done < "$tmp"
+	rm -f "$tmp"
+	trap - EXIT INT TERM
+
+	if [ "$host" != "$expected_host" ]; then
+		trace_error "$service" "$expected_mode" "$expected_region" 'trace endpoint returned an unexpected host'
+		return 0
+	fi
+	if [ -z "$ip" ] || [ -z "$loc" ]; then
+		trace_error "$service" "$expected_mode" "$expected_region" 'trace response missing required fields'
+		return 0
+	fi
+
+	record_history "$service" 1 "$ip" "$loc" "$colo" "$http" "$tls" "$expected_mode" "$expected_region" '' || true
+	json_init
+	json_add_boolean ok 1
+	json_add_string service "$service"
+	json_add_string url "$url"
+	json_add_string host "$host"
+	json_add_string ip "$ip"
+	json_add_string country "$loc"
+	json_add_string colo "$colo"
+	json_add_string http "$http"
+	json_add_string tls "$tls"
+	json_add_string warp "$warp"
+	json_add_string gateway "$gateway"
+	json_add_string timestamp "$ts"
+	json_add_string expectedMode "$expected_mode"
+	json_add_string expectedRegion "$expected_region"
+	json_dump
+	json_cleanup
+}
+
+probe_profile() {
+	url=$1
+	[ -n "$url" ] || url=$(uci_get main profile_url)
+	case "$url" in
+		https://*) ;;
+		*) json_error 'profile URL must use HTTPS'; return 0 ;;
+	esac
+	case "$url" in
+		*@*) json_error 'profile URL must not contain embedded credentials'; return 0 ;;
+	esac
+	case "$url" in
+		*[[:space:]]*) json_error 'profile URL contains whitespace'; return 0 ;;
+	esac
+	tmp=$(mktemp /tmp/openclash-guard-profile.XXXXXX) || { json_error 'unable to allocate temporary file'; return 0; }
+	trap 'rm -f "$tmp"' EXIT INT TERM
+	if ! fetch_https "$url" "$tmp" "$PROFILE_MAX_BYTES"; then
+		rm -f "$tmp"
+		trap - EXIT INT TERM
+		json_error 'profile fetch failed or exceeded 256 KiB'
+		return 0
+	fi
+	bytes=$(wc -c < "$tmp" | tr -d ' ')
+	sections=$(grep -Ec '^[[:space:]]*\[[^]]+\][[:space:]]*$' "$tmp" 2>/dev/null || true)
+	first_section=$(sed -n 's/^[[:space:]]*\[\([^]]*\)\][[:space:]]*$/\1/p' "$tmp" | head -n 1)
+	looks_like_ini=0
+	[ "$sections" -gt 0 ] && looks_like_ini=1
+	rm -f "$tmp"
+	trap - EXIT INT TERM
+
+	json_init
+	json_add_boolean ok 1
+	json_add_string url "$url"
+	json_add_int bytes "$bytes"
+	json_add_int sections "$sections"
+	json_add_string firstSection "$first_section"
+	json_add_boolean looksLikeIni "$looks_like_ini"
+	json_dump
+	json_cleanup
+}
+
+case "${1:-}" in
+	list)
+		json_init
+		json_add_object getStatus
+		json_close_object
+		json_add_object getRegions
+		json_close_object
+		json_add_object getHistory
+		json_close_object
+		json_add_object trace
+		json_add_string service service
+		json_close_object
+		json_add_object probeProfile
+		json_add_string url url
+		json_close_object
+		json_add_object clearHistory
+		json_close_object
+		json_dump
+		json_cleanup
+		;;
+	call)
+		case "${2:-}" in
+			getStatus)
+				get_status
+				;;
+			getRegions)
+				get_regions
+				;;
+			getHistory)
+				get_history
+				;;
+			trace)
+				read -r input
+				json_load "$input"
+				json_get_var service service
+				json_cleanup
+				trace_service "$service"
+				;;
+			probeProfile)
+				read -r input
+				json_load "$input"
+				json_get_var url url
+				json_cleanup
+				probe_profile "$url"
+				;;
+			clearHistory)
+				clear_history
+				;;
+		esac
+		;;
+esac

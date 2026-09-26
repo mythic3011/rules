@@ -1,0 +1,17 @@
+{
+  "luci-app-openclash-guard": {
+    "description": "Grant LuCI access to OpenClash Guard configuration and diagnostics",
+    "read": {
+      "uci": [ "openclash_guard" ],
+      "ubus": {
+        "luci.openclash-guard": [ "getStatus", "getRegions", "getHistory", "trace" ]
+      }
+    },
+    "write": {
+      "uci": [ "openclash_guard" ],
+      "ubus": {
+        "luci.openclash-guard": [ "probeProfile", "clearHistory" ]
+      }
+    }
+  }
+}
