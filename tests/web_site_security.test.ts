@@ -21,6 +21,27 @@ test('web/site HTML files do not use dangerous innerHTML string interpolation', 
   }
 });
 
+test('web/site isIPv4 utility correctly validates IPv4 addresses and rejects leading zeros', async () => {
+  const common = await import('../web/site/assets/common.js');
+
+  // Valid IPv4
+  assert.strictEqual(common.isIPv4('127.0.0.1'), true);
+  assert.strictEqual(common.isIPv4('192.168.1.1'), true);
+  assert.strictEqual(common.isIPv4('0.0.0.0'), true);
+  assert.strictEqual(common.isIPv4('255.255.255.255'), true);
+
+  // Invalid IPv4 with leading zeros
+  assert.strictEqual(common.isIPv4('01.1.1.1'), false);
+  assert.strictEqual(common.isIPv4('192.168.01.1'), false);
+  assert.strictEqual(common.isIPv4('001.002.003.004'), false);
+
+  // Out of range or malformed
+  assert.strictEqual(common.isIPv4('256.1.1.1'), false);
+  assert.strictEqual(common.isIPv4('1.1.1'), false);
+  assert.strictEqual(common.isIPv4('1.1.1.1.1'), false);
+  assert.strictEqual(common.isIPv4('abc.def.ghi.jkl'), false);
+});
+
 test('web/site report page sanitizes dynamic URL schemes before setting href', () => {
   const htmlContent = fs.readFileSync(path.join(SITE_DIR, 'report.html'), 'utf8');
   let jsContent = '';
