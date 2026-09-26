@@ -95,6 +95,70 @@ guard_dns_domain_set_backend() {
     esac
 }
 
+_guard_dns_add_bypass_client() {
+    _guard_dns_client=$1
+    [ -n "$_guard_dns_client" ] || return 0
+    case " ${_GUARD_DNS_BYPASS_CLIENTS:-} " in
+        *" $_guard_dns_client "*) return 0 ;;
+    esac
+    if [ -n "${_GUARD_DNS_BYPASS_CLIENTS:-}" ]; then
+        _GUARD_DNS_BYPASS_CLIENTS="$_GUARD_DNS_BYPASS_CLIENTS $_guard_dns_client"
+    else
+        _GUARD_DNS_BYPASS_CLIENTS=$_guard_dns_client
+    fi
+    _GUARD_DNS_BYPASS_CLIENT_COUNT=$((_GUARD_DNS_BYPASS_CLIENT_COUNT + 1))
+}
+
+guard_dns_detect_firewall_bypasses() {
+    _GUARD_DNS_BYPASS_AVAILABLE=0
+    _GUARD_DNS_BYPASS_CLIENTS=
+    _GUARD_DNS_BYPASS_CLIENT_COUNT=0
+    _GUARD_DNS_BYPASS_PORT53=0
+    _GUARD_DNS_BYPASS_DOT853=0
+    _GUARD_DNS_HIJACK_BYPASS=0
+
+    command -v nft >/dev/null 2>&1 || return 0
+
+    _guard_dns_forward=$(nft -a list chain inet fw4 forward_lan 2>/dev/null) || return 0
+    _guard_dns_dstnat=$(nft -a list chain inet fw4 dstnat 2>/dev/null) || return 0
+    _GUARD_DNS_BYPASS_AVAILABLE=1
+
+    _guard_dns_p53_clients=$(printf '%s\n' "$_guard_dns_forward" | awk '
+        /ip saddr/ && /dport/ && /jump accept_to_wan/ && /(^|[^0-9])53([^0-9]|$)/ {
+            for (i = 1; i <= NF; i++) if ($i == "saddr" && i < NF) print $(i + 1)
+        }
+    ')
+    _guard_dns_p853_clients=$(printf '%s\n' "$_guard_dns_forward" | awk '
+        /ip saddr/ && /dport/ && /jump accept_to_wan/ && /(^|[^0-9])853([^0-9]|$)/ {
+            for (i = 1; i <= NF; i++) if ($i == "saddr" && i < NF) print $(i + 1)
+        }
+    ')
+    _guard_dns_hijack_clients=$(printf '%s\n' "$_guard_dns_dstnat" | awk '
+        /ip saddr/ && /dport/ && /return/ && /(^|[^0-9])53([^0-9]|$)/ {
+            for (i = 1; i <= NF; i++) if ($i == "saddr" && i < NF) print $(i + 1)
+        }
+    ')
+
+    if [ -n "$_guard_dns_p53_clients" ]; then
+        _GUARD_DNS_BYPASS_PORT53=1
+        for _guard_dns_client in $_guard_dns_p53_clients; do
+            _guard_dns_add_bypass_client "$_guard_dns_client"
+        done
+    fi
+    if [ -n "$_guard_dns_p853_clients" ]; then
+        _GUARD_DNS_BYPASS_DOT853=1
+        for _guard_dns_client in $_guard_dns_p853_clients; do
+            _guard_dns_add_bypass_client "$_guard_dns_client"
+        done
+    fi
+    if [ -n "$_guard_dns_hijack_clients" ]; then
+        _GUARD_DNS_HIJACK_BYPASS=1
+        for _guard_dns_client in $_guard_dns_hijack_clients; do
+            _guard_dns_add_bypass_client "$_guard_dns_client"
+        done
+    fi
+}
+
 guard_dns_detect() {
     _GUARD_DNS_BACKEND=$(guard_dns_backend)
     _GUARD_DNS_AGH_ENABLED=0
@@ -118,6 +182,7 @@ guard_dns_detect() {
         fi
     fi
     _GUARD_DNS_DOMAIN_SET=$(guard_dns_domain_set_backend "$_GUARD_DNS_BACKEND")
+    guard_dns_detect_firewall_bypasses
 }
 
 # Guard never resurrects DNS daemons; detection is observation-only.
