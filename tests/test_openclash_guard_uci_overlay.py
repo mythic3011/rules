@@ -1,0 +1,613 @@
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import subprocess
+import tempfile
+import unittest
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+MODULE = ROOT / "shell" / "apps" / "openclash-guard" / "uci-overlay.sh"
+CONTRACT = ROOT / "internal" / "config" / "openclash-guard" / "uci-runtime-contract.json"
+REGIONS = ROOT / "internal" / "config" / "ai-routing" / "catalogs" / "regions.json"
+
+# The module is unwired and external-command-free (uses uci only when present,
+# sed/sort/cut/tr from coreutils). We supply a fake `uci` on PATH that serves
+# fixture state so the whole suite runs on a bare POSIX shell with no router.
+
+
+def sh_available() -> str | None:
+    return shutil.which("bash") or shutil.which("sh")
+
+
+def run_module(
+    script_body: str,
+    uci_state: dict[str, object] | None = None,
+    front_fake_uci: bool = True,
+) -> subprocess.CompletedProcess:
+    """Source the module, optionally front a fake `uci`, run script_body.
+
+    uci_state maps option path (e.g. "main.enabled") to either a scalar string
+    or a list of strings (rendered as a UCI list). A fake `uci` shell function
+    answers `show`, `get`, and `-d <nl> get` against that state. Pass
+    front_fake_uci=False to test the uci-unavailable path (no uci function and
+    no system uci on this host, so `command -v uci` fails).
+    """
+    shell = sh_available()
+    if shell is None:
+        raise unittest.SkipTest("no POSIX shell available on this host")
+
+    tmp = tempfile.mkdtemp(prefix="uco-test-")
+
+    def render_show(state: dict[str, object]) -> str:
+        """Render byte-faithful upstream `uci show` output.
+
+        Section declarations (openclash_guard.<section>=openclash_guard) then
+        ONE option line per option. A scalar is one single-quoted value; a LIST
+        is one line with each element single-quoted and space-separated.
+        Embedded apostrophes are escaped exactly as upstream uci/cli.c:  '\'' .
+        """
+        def esc(value: str) -> str:
+            return "'" + value.replace("'", "'\\''") + "'"
+
+        sections = sorted({str(path).split(".")[0] for path in state})
+        out: list[str] = [f"openclash_guard.{s}=openclash_guard" for s in sections]
+        for path, value in state.items():
+            if isinstance(value, list):
+                out.append(f"openclash_guard.{path}=" + " ".join(esc(v) for v in value))
+            else:
+                out.append(f"openclash_guard.{path}={esc(value)}")
+        return "\n".join(out) + ("\n" if out else "")
+
+    # Raw state for `uci get` / `-d <nl> get` (CLI-decoded values).
+    state_file = Path(tmp) / "state.txt"
+    state_lines: list[str] = []
+    for path, value in (uci_state or {}).items():
+        if isinstance(value, list):
+            for item in value:
+                state_lines.append(f"{path}\t{item}")
+        else:
+            state_lines.append(f"{path}\t{value}")
+    state_file.write_text("\n".join(state_lines) + ("\n" if state_lines else ""), encoding="utf-8")
+
+    # Byte-faithful `uci show` fingerprint (use only if the caller rendered a
+    # None-vs-dict distinction; here always derived from state).
+    show_file = Path(tmp) / "show.txt"
+    show_file.write_text(render_show(uci_state or {}), encoding="utf-8")
+
+    fake_uci = f"""
+uci() {{
+    state="{state_file.as_posix()}"
+    showfile="{show_file.as_posix()}"
+    if [ "$2" = "show" ] || [ "$1" = "show" ]; then
+        # Serve the byte-faithful upstream `uci show` fingerprint. Exits
+        # non-zero ("Entry not found") when the package is empty.
+        if [ ! -s "$state" ]; then
+            echo "uci: Entry not found" >&2
+            return 1
+        fi
+        cat "$showfile"
+        return 0
+    fi
+    if [ "$1" = "-q" ] && [ "$2" = "get" ]; then
+        opt="${{3#openclash_guard.}}"
+        out=$(awk -F '\\t' -v o="$opt" '$1==o {{ print $2; exit }}' "$state")
+        if [ -z "$out" ]; then
+            echo "uci: Entry not found" >&2
+            return 1
+        fi
+        printf '%s\\n' "$out"
+        return 0
+    fi
+    if [ "$1" = "-d" ]; then
+        # -d <nl> -q get <path>  (list form)
+        opt="${{5#openclash_guard.}}"
+        out=$(awk -F '\\t' -v o="$opt" '$1==o {{ print $2 }}' "$state")
+        if [ -z "$out" ]; then
+            echo "uci: Entry not found" >&2
+            return 1
+        fi
+        printf '%s\\n' "$out"
+        return 0
+    fi
+    return 0
+}}
+"""
+    full_script = (
+        "set -eu\n"
+        + (fake_uci if front_fake_uci else "")
+        + f'. "{MODULE.as_posix()}"\n'
+        + script_body
+        + "\n"
+    )
+    return subprocess.run(
+        [shell, "-c", full_script],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+
+
+def load_and(script_body: str, uci_state: dict[str, object] | None = None) -> subprocess.CompletedProcess:
+    return run_module("guard_uci_overlay_load || true\n" + script_body, uci_state)
+
+
+def overlay_json(uci_state: dict[str, object] | None = None) -> dict:
+    proc = load_and("guard_uci_overlay_json\n", uci_state)
+    if proc.returncode != 0:
+        raise AssertionError(f"shell failed: rc={proc.returncode}\nstdout={proc.stdout}\nstderr={proc.stderr}")
+    return json.loads(proc.stdout.strip())
+
+
+class OverlayContractParityTests(unittest.TestCase):
+    """The shell spec table must not drift from the JSON contract."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.contract = json.loads(CONTRACT.read_text(encoding="utf-8"))
+        cls.regions = json.loads(REGIONS.read_text(encoding="utf-8"))
+        # Enumerate option paths from the contract, then read each spec field
+        # via the module's own field helper (robust to empty defaults).
+        paths = sorted(
+            f"{section}.{option}"
+            for section, sec in cls.contract["sections"].items()
+            if section != "rules"
+            for option in sec["options"]
+        )
+        lines = []
+        for path in paths:
+            lines.append(
+                f'printf "%s|%s|%s|%s\\n" "{path}" '
+                f'"$(_guard_uci_overlay_type "{path}")" '
+                f'"$(_guard_uci_overlay_default "{path}")" '
+                f'"$(_guard_uci_overlay_authority "{path}")"'
+            )
+        lines.append('printf "REGIONS=%s\\n" "$_GUARD_UCI_OVERLAY_REGIONS"')
+        lines.append('printf "PRIMARY=%s\\n" "$_GUARD_UCI_OVERLAY_PRIMARY_ORDER"')
+        body = "\n".join(lines) + "\n"
+        proc = run_module(body)
+        if proc.returncode != 0:
+            raise AssertionError(f"shell failed: {proc.stderr}")
+        cls.shell_rows = {}
+        for raw in proc.stdout.splitlines():
+            if raw.startswith("REGIONS="):
+                cls.shell_regions = raw[len("REGIONS="):].split()
+            elif raw.startswith("PRIMARY="):
+                cls.shell_primary = raw[len("PRIMARY="):].split()
+            elif "|" in raw:
+                path, otype, default, auth = raw.split("|")
+                cls.shell_rows[path] = (otype, default, auth)
+
+    def test_covers_exactly_contract_options(self) -> None:
+        contract_paths = {
+            f"{section}.{option}"
+            for section, sec in self.contract["sections"].items()
+            for option in sec["options"]
+            if not section == "rules"  # rules.* deliberately not modeled (contract gap)
+        }
+        self.assertEqual(set(self.shell_rows), contract_paths)
+
+    def _matches(self, contract_default: str, shell_default: str) -> bool:
+        return contract_default == shell_default
+
+    def test_types_and_defaults_match_contract(self) -> None:
+        for section, sec in self.contract["sections"].items():
+            if section == "rules":
+                continue
+            for option, spec in sec["options"].items():
+                path = f"{section}.{option}"
+                self.assertIn(path, self.shell_rows, path)
+                otype, default, _auth = self.shell_rows[path]
+                self.assertEqual(otype, spec["type"], path)
+                self.assertTrue(self._matches(spec.get("default", ""), default), f"{path} default")
+
+    def test_region_catalog_twin_matches_registry(self) -> None:
+        registry_ids = sorted(item["id"] for item in self.regions["regions"])
+        self.assertEqual(sorted(self.shell_regions), registry_ids)
+        self.assertEqual(sorted(self.shell_primary), sorted(self.regions["primaryOrder"]))
+
+
+class OverlayValidationTests(unittest.TestCase):
+    def test_valid_packaged_defaults_parse_clean(self) -> None:
+        state = {
+            "main.enabled": "1",
+            "main.kill_switch": "1",
+            "main.dns_kill_switch": "0",
+            "udp.enabled": "1",
+            "udp.src_ip": ["192.168.1.10", "192.168.1.11"],
+        }
+        doc = overlay_json(state)["uciOverlay"]
+        self.assertTrue(doc["valid"], doc)
+        self.assertEqual(doc["errors"], [])
+        self.assertEqual(doc["unknownOptions"], [])
+
+    def test_invalid_boolean_rejects(self) -> None:
+        for bad in ("wat", "banana", "2", "maybe", "-1"):
+            doc = overlay_json({"main.enabled": bad})["uciOverlay"]
+            self.assertFalse(doc["valid"], bad)
+            self.assertIn("main.enabled", proc_paths(doc), bad)
+
+    def test_invalid_legacy_controls_are_strict(self) -> None:
+        # The five effective legacy controls must reject malformed values.
+        cases = {
+            "main.enabled": "wat",
+            "main.kill_switch": "yesno",
+            "main.dns_kill_switch": "banana",
+            "udp.enabled": "notabool",
+        }
+        for path, bad in cases.items():
+            doc = overlay_json({path: bad})["uciOverlay"]
+            self.assertFalse(doc["valid"], path)
+            self.assertIn(path, proc_paths(doc), path)
+
+    def test_invalid_udp_src_ip_rejects_whole_option(self) -> None:
+        doc = overlay_json({"udp.src_ip": ["192.168.1.10", "not-an-ip", "10.0.0.1"]})["uciOverlay"]
+        self.assertFalse(doc["valid"])
+        self.assertIn("udp.src_ip", proc_paths(doc))
+
+    def test_udp_src_ip_duplicate_normalization(self) -> None:
+        proc = load_and(
+            "guard_uci_overlay_load >/dev/null 2>&1 || true\n"
+            "guard_uci_overlay_get udp.src_ip\n",
+            {"udp.src_ip": ["10.0.0.1", "10.0.0.2", "10.0.0.1"]},
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(proc.stdout.strip(), "10.0.0.1 10.0.0.2")
+
+    def test_invalid_enum_rejects(self) -> None:
+        doc = overlay_json({"dns.backend": "cloudflare"})["uciOverlay"]
+        self.assertFalse(doc["valid"])
+        self.assertIn("dns.backend", proc_paths(doc))
+
+    def test_invalid_service_route_mode_rejects(self) -> None:
+        doc = overlay_json({"routing.chatgpt": "banana"})["uciOverlay"]
+        self.assertFalse(doc["valid"])
+        self.assertIn("routing.chatgpt", proc_paths(doc))
+
+    def test_direct_region_full_registry_allowed(self) -> None:
+        # hk is a valid registry region but NOT a primaryOrder member; it is a
+        # legitimate direct_region and must be accepted.
+        doc = overlay_json({"routing.direct_region": "hk"})["uciOverlay"]
+        self.assertTrue(doc["valid"], doc)
+
+    def test_proxy_region_restricted_to_primary_order(self) -> None:
+        # hk is not in primaryOrder -> proxy_region=hk must reject.
+        doc = overlay_json({"routing.proxy_region": "hk"})["uciOverlay"]
+        self.assertFalse(doc["valid"])
+        self.assertIn("routing.proxy_region", proc_paths(doc))
+
+    def test_proxy_region_valid_primary_member(self) -> None:
+        doc = overlay_json({"routing.proxy_region": "us"})["uciOverlay"]
+        self.assertTrue(doc["valid"], doc)
+
+    def test_invalid_https_url_rejected_without_echo(self) -> None:
+        doc = overlay_json({"main.profile_url": "http://example.com/x.ini"})["uciOverlay"]
+        self.assertFalse(doc["valid"])
+        self.assertIn("main.profile_url", proc_paths(doc))
+        self.assertNotIn("example.com", json.dumps(doc))
+
+    def test_credentials_in_https_url_rejected_and_redacted(self) -> None:
+        secret = "https://user:pass@example.com/token.ini"
+        doc = overlay_json({"main.profile_url": secret})["uciOverlay"]
+        self.assertFalse(doc["valid"])
+        blob = json.dumps(doc)
+        self.assertNotIn("user:pass", blob)
+        self.assertNotIn("example.com", blob)
+        self.assertNotIn(secret, blob)
+
+    def test_https_url_with_whitespace_rejected(self) -> None:
+        doc = overlay_json({"main.profile_url": "https://example.com/a b.ini"})["uciOverlay"]
+        self.assertFalse(doc["valid"])
+
+    def test_unknown_option_ignored_and_reported(self) -> None:
+        state = {"main.enabled": "1", "main.totally_unknown_opt": "zzz"}
+        doc = overlay_json(state)["uciOverlay"]
+        self.assertTrue(doc["valid"], doc)
+        unknowns = [entry["option"] for entry in doc["unknownOptions"]]
+        self.assertIn("main.totally_unknown_opt", unknowns)
+
+    def test_section_declarations_not_reported_unknown(self) -> None:
+        # Realistic `uci show` output includes section declarations
+        # (openclash_guard.main=openclash_guard, openclash_guard.routing=routing).
+        # These must NOT appear in unknownOptions; only genuine unknown
+        # section.option lines must be ignored-and-reported.
+        state = {
+            "main": "openclash_guard",  # a section declaration line
+            "routing": "routing",
+            "main.enabled": "1",
+            "routing.proxy_region": "us",
+            "main.real_unknown": "x",
+        }
+        doc = overlay_json(state)["uciOverlay"]
+        self.assertTrue(doc["valid"], doc)
+        unknowns = [entry["option"] for entry in doc["unknownOptions"]]
+        self.assertIn("main.real_unknown", unknowns)
+        # Section headers themselves must not surface as unknown options.
+        self.assertNotIn("main", unknowns)
+        self.assertNotIn("routing", unknowns)
+
+
+def run_module_custom_uci(script_body: str, uci_func: str) -> subprocess.CompletedProcess:
+    """Like run_module but the caller supplies the entire fake uci() body."""
+    shell = sh_available()
+    if shell is None:
+        raise unittest.SkipTest("no POSIX shell available on this host")
+    full = (
+        "set -eu\n"
+        + uci_func
+        + f'. "{MODULE.as_posix()}"\n'
+        + script_body
+        + "\n"
+    )
+    return subprocess.run([shell, "-c", full], capture_output=True, text=True, timeout=60)
+
+
+class OverlayCoherenceTests(unittest.TestCase):
+    """One logical snapshot must not be assembled from multiple live generations."""
+
+    _FLIP_FUNC = (
+        "countfile=\"/tmp/uco-coh-count.$$\"; echo 0 > \"$countfile\"\n"
+        "trap 'rm -f \"$countfile\"' EXIT\n"
+        "uci() {\n"
+        "  if [ \"$1\" = \"show\" ] || { [ \"$1\" = \"-q\" ] && [ \"$2\" = \"show\" ]; }; then\n"
+        "    c=$(cat \"$countfile\"); c=$((c+1)); echo \"$c\" > \"$countfile\"\n"
+        "    echo \"UCI_SHOW_CALL=$c\" >&2\n"
+        "    if [ $((c % 2)) -eq 1 ]; then\n"
+        "      printf \"openclash_guard.main=openclash_guard\\nopenclash_guard.main.enabled='1'\\nopenclash_guard.routing=routing\\nopenclash_guard.routing.proxy_region='us'\\n\"\n"
+        "    else\n"
+        "      printf \"openclash_guard.main=openclash_guard\\nopenclash_guard.main.enabled='0'\\nopenclash_guard.routing=routing\\nopenclash_guard.routing.proxy_region='jp'\\n\"\n"
+        "    fi\n"
+        "    return 0\n"
+        "  fi\n"
+        "  if [ \"$1\" = \"-q\" ] && [ \"$2\" = \"get\" ]; then\n"
+        "    case $3 in\n"
+        "      openclash_guard.main.enabled) echo 1 ;;\n"
+        "      openclash_guard.routing.proxy_region) echo us ;;\n"
+        "      *) echo 'uci: Entry not found' >&2; return 1 ;;\n"
+        "    esac\n"
+        "    return 0\n"
+        "  fi\n"
+        "  return 1\n"
+        "}\n"
+    )
+
+    _STABLE_FUNC = (
+        "uci() {\n"
+        "  if [ \"$1\" = \"show\" ] || { [ \"$1\" = \"-q\" ] && [ \"$2\" = \"show\" ]; }; then\n"
+        "    printf \"openclash_guard.main=openclash_guard\\nopenclash_guard.main.enabled='1'\\nopenclash_guard.routing=routing\\nopenclash_guard.routing.proxy_region='us'\\n\"\n"
+        "    return 0\n"
+        "  fi\n"
+        "  if [ \"$1\" = \"-q\" ] && [ \"$2\" = \"get\" ]; then\n"
+        "    case $3 in\n"
+        "      openclash_guard.main.enabled) echo 1 ;;\n"
+        "      openclash_guard.routing.proxy_region) echo us ;;\n"
+        "      *) echo 'uci: Entry not found' >&2; return 1 ;;\n"
+        "    esac\n"
+        "    return 0\n"
+        "  fi\n"
+        "  return 1\n"
+        "}\n"
+    )
+
+    def test_generation_change_rejected(self) -> None:
+        body = (
+            "if guard_uci_overlay_load; then echo ACCEPTED; else echo \"REJECTED rc=$?\"; fi\n"
+            "echo available=$(guard_uci_overlay_available)\n"
+            "echo errors=$(guard_uci_overlay_errors | tr '\\n' ';')\n"
+        )
+        proc = run_module_custom_uci(body, self._FLIP_FUNC)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("REJECTED", proc.stdout)
+        self.assertIn("available=0", proc.stdout)
+        self.assertIn("not coherent", proc.stdout)
+        self.assertNotIn("ACCEPTED", proc.stdout)
+
+    def test_stable_generation_accepted(self) -> None:
+        body = (
+            "guard_uci_overlay_load && echo ACCEPTED || echo REJECTED\n"
+            "echo proxy=$(guard_uci_overlay_get routing.proxy_region)\n"
+            "echo enabled=$(guard_uci_overlay_get main.enabled)\n"
+        )
+        proc = run_module_custom_uci(body, self._STABLE_FUNC)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("ACCEPTED", proc.stdout)
+        self.assertIn("proxy=us", proc.stdout)
+        self.assertIn("enabled=1", proc.stdout)
+
+    # A uci that returns a real single-line list (byte-faithful show) and a
+    # two-item newline list for `-d` get.
+    def test_two_item_real_list_normalizes_without_quotes(self) -> None:
+        state = {"udp.src_ip": ["10.0.0.1", "10.0.0.2"]}
+        proc = run_module(
+            "guard_uci_overlay_load && echo OK || echo FAIL\n"
+            "echo SRCIP=[$(guard_uci_overlay_get udp.src_ip)]\n",
+            state,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("OK", proc.stdout)
+        self.assertIn("SRCIP=[10.0.0.1 10.0.0.2]", proc.stdout)
+        # no quote chars leaked into the value
+        self.assertNotIn("SRCIP=[10.0.0.1 '", proc.stdout)
+        self.assertNotIn("'", proc.stdout.split("SRCIP=")[1].split("]")[0])
+
+    def test_apostrophe_scalar_loads_via_cli_decode(self) -> None:
+        state = {"main.profile_url": "https://example.test/a'b.ini", "main.enabled": "1"}
+        proc = run_module(
+            "guard_uci_overlay_load && echo OK || echo FAIL\n"
+            "echo URL=[$(guard_uci_overlay_get main.profile_url)]\n",
+            state,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("OK", proc.stdout)
+        self.assertIn("https://example.test/a'b.ini", proc.stdout)
+
+    # --- capture failure regressions -------------------------------------
+
+    _PROBE_FAIL_FUNC = (
+        "uci() {\n"
+        "  # initial `-q show` probe succeeds, but the explicit show used for the\n"
+        "  # coherence fingerprint fails (simulated via a call counter).\n"
+        "  countfile=/tmp/uco-pf-count.$$; [ -f \"$countfile\" ] || echo 0 > \"$countfile\"\n"
+        "  c=$(cat \"$countfile\"); c=$((c+1)); echo \"$c\" > \"$countfile\"\n"
+        "  case \"$1 $2\" in\n"
+        "    \"-q show\")\n"
+        "      printf \"openclash_guard.main=openclash_guard\\nopenclash_guard.main.enabled='1'\\n\"\n"
+        "      return 0\n"
+        "      ;;\n"
+        "    \"show\"*)\n"
+        "      if [ \"$c\" -le 1 ]; then\n"
+        "        printf \"openclash_guard.main.enabled='1'\\n\"; return 0\n"
+        "      fi\n"
+        "      echo \"uci: I/O error\" >&2; return 1\n"
+        "      ;;\n"
+        "  esac\n"
+        "  return 1\n"
+        "}\n"
+    )
+
+    def test_before_capture_fail_load_fails(self) -> None:
+        body = "if guard_uci_overlay_load; then echo ACCEPTED; else echo \"LOADFAIL rc=$?\"; fi\n"
+        proc = run_module_custom_uci(body, self._PROBE_FAIL_FUNC)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("LOADFAIL", proc.stdout)
+        self.assertNotIn("ACCEPTED", proc.stdout)
+
+    _CAPTURE_EMPTY_FUNC = (
+        "uci() {\n"
+        "  case \"$1 $2\" in\n"
+        "    \"-q show\") printf \"openclash_guard.main.enabled='1'\\n\"; return 0 ;;\n"
+        "    \"show\"*)\n"
+        "      echo \"uci: I/O error\" >&2\n"
+        "      return 1\n"
+        "      ;;\n"
+        "  esac\n"
+        "  return 1\n"
+        "}\n"
+    )
+
+    def test_both_captures_fail_empty_never_equal_and_succeeds(self) -> None:
+        # `|| true` would have yielded before=="" after=="" and wrongly
+        # succeeded; now every capture checks the exit status explicitly.
+        body = (
+            "if guard_uci_overlay_load; then echo ACCEPTED; else echo \"LOADFAIL rc=$?\"; fi\n"
+            "echo available=$(guard_uci_overlay_available)\n"
+        )
+        proc = run_module_custom_uci(body, self._CAPTURE_EMPTY_FUNC)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("LOADFAIL", proc.stdout)
+        self.assertNotIn("ACCEPTED", proc.stdout)
+        self.assertIn("available=0", proc.stdout)
+
+
+class OverlayAvailabilityTests(unittest.TestCase):
+    def test_uci_unavailable_is_unavailable_and_invalid(self) -> None:
+        # No fake uci (and no system uci on this host): command -v uci fails.
+        # The overlay must NOT silently default; it is unavailable+invalid and
+        # load returns non-zero. This requires that no real `uci` exists in
+        # PATH; skip if one does.
+        import shutil as _sh
+        if _sh.which("uci") is not None:
+            self.skipTest("a real uci is present on PATH")
+        proc = run_module(
+            "if guard_uci_overlay_load; then echo LOAD_OK; else echo \"LOAD_FAIL rc=$?\"; fi\n"
+            "echo valid=$(guard_uci_overlay_valid)\n"
+            "echo available=$(guard_uci_overlay_available)\n",
+            None,
+            front_fake_uci=False,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("LOAD_FAIL", proc.stdout)
+        self.assertIn("valid=0", proc.stdout)
+        self.assertIn("available=0", proc.stdout)
+
+    def test_package_absent_is_valid_defaults(self) -> None:
+        # Empty package read (no openclash_guard config) is a valid empty
+        # config: defaults apply, overlay is valid and available.
+        proc = run_module(
+            "guard_uci_overlay_load && echo LOAD_OK || echo LOAD_FAIL\n"
+            "echo valid=$(guard_uci_overlay_valid)\n"
+            "echo available=$(guard_uci_overlay_available)\n"
+            "echo enabled=$(guard_uci_overlay_get main.enabled)\n",
+            {},
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("LOAD_OK", proc.stdout)
+        self.assertIn("valid=1", proc.stdout)
+        self.assertIn("available=1", proc.stdout)
+        self.assertIn("enabled=1", proc.stdout)
+
+    def test_load_fails_and_valid_zero_on_invalid(self) -> None:
+        proc = run_module(
+            "if guard_uci_overlay_load; then printf 'LOAD_OK\\n'; else printf 'LOAD_FAIL\\n'; fi\n"
+            "printf 'VALID=%s\\n' \"$(guard_uci_overlay_valid)\"\n",
+            {"main.enabled": "wat"},
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("LOAD_FAIL", proc.stdout)
+        self.assertIn("VALID=0", proc.stdout)
+
+    def test_defaults_applied_when_absent(self) -> None:
+        proc = load_and(
+            "guard_uci_overlay_load >/dev/null 2>&1 || true\n"
+            "printf 'enabled=%s\\n' \"$(guard_uci_overlay_get main.enabled)\"\n"
+            "printf 'proxy=%s\\n' \"$(guard_uci_overlay_get routing.proxy_region)\"\n"
+            "printf 'direct=%s\\n' \"$(guard_uci_overlay_get routing.direct_region)\"\n",
+            {},
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("enabled=1", proc.stdout)
+        self.assertIn("proxy=us", proc.stdout)
+        self.assertIn("direct=hk", proc.stdout)
+
+
+def proc_paths(doc: dict) -> list[str]:
+    return [entry["option"] for entry in doc["errors"]]
+
+
+class OverlayLegacyBehaviorTests(unittest.TestCase):
+    """Valid legacy configurations must map to the same effective values the
+    current scattered readers produce (normalize to canonical 0/1, preserve
+    src_ip list)."""
+
+    def test_legacy_main_enabled_variants(self) -> None:
+        for raw, expect in (("1", "1"), ("true", "1"), ("yes", "1"), ("0", "0"), ("false", "0")):
+            proc = load_and(
+                "guard_uci_overlay_load >/dev/null 2>&1 || true\n"
+                "guard_uci_overlay_get main.enabled\n",
+                {"main.enabled": raw},
+            )
+            self.assertEqual(proc.returncode, 0, (raw, proc.stderr))
+            self.assertEqual(proc.stdout.strip(), expect, raw)
+
+    def test_legacy_kill_switch_default_on(self) -> None:
+        proc = load_and(
+            "guard_uci_overlay_load >/dev/null 2>&1 || true\n"
+            "guard_uci_overlay_get main.kill_switch\n",
+            {},
+        )
+        self.assertEqual(proc.stdout.strip(), "1")
+
+    def test_legacy_dns_kill_switch_default_off(self) -> None:
+        proc = load_and(
+            "guard_uci_overlay_load >/dev/null 2>&1 || true\n"
+            "guard_uci_overlay_get main.dns_kill_switch\n",
+            {},
+        )
+        self.assertEqual(proc.stdout.strip(), "0")
+
+    def test_legacy_udp_enabled_variants(self) -> None:
+        for raw, expect in (("1", "1"), ("0", "0"), ("on", "1"), ("off", "0")):
+            proc = load_and(
+                "guard_uci_overlay_load >/dev/null 2>&1 || true\n"
+                "guard_uci_overlay_get udp.enabled\n",
+                {"udp.enabled": raw},
+            )
+            self.assertEqual(proc.returncode, 0, (raw, proc.stderr))
+            self.assertEqual(proc.stdout.strip(), expect, raw)
+
+
+if __name__ == "__main__":
+    unittest.main()
