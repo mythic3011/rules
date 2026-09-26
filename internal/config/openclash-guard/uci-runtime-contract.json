@@ -1,0 +1,224 @@
+{
+  "schemaVersion": 1,
+  "package": "openclash_guard",
+  "configPath": "/etc/config/openclash_guard",
+  "releaseWiring": "deferred",
+  "trust": {
+    "invalidRuntimeValue": "reject-reconcile",
+    "unknownOption": "ignore-and-report",
+    "uciMayWidenSignedCapabilities": false,
+    "directRoutingRequiresSignedPermission": true,
+    "localRulesMayBypassProtectedServicePolicy": false,
+    "signedPolicyAuthoritative": [
+      "nft",
+      "protectionClasses",
+      "services",
+      "gaming.protectedUdpPorts",
+      "gaming.udpDestinationPorts",
+      "gaming.tcpPorts"
+    ]
+  },
+  "services": [
+    "chatgpt",
+    "claude",
+    "grok"
+  ],
+  "sections": {
+    "main": {
+      "type": "core",
+      "scope": "mixed",
+      "options": {
+        "enabled": {
+          "type": "boolean",
+          "default": "1",
+          "phase": "effective",
+          "authority": "uci-runtime"
+        },
+        "kill_switch": {
+          "type": "boolean",
+          "default": "1",
+          "phase": "effective",
+          "authority": "uci-runtime"
+        },
+        "dns_kill_switch": {
+          "type": "boolean",
+          "default": "0",
+          "phase": "effective",
+          "authority": "uci-runtime"
+        },
+        "profile_mode": {
+          "type": "enum",
+          "default": "remote_ini",
+          "values": ["remote_ini", "local"],
+          "phase": "next-release",
+          "authority": "uci-overlay"
+        },
+        "profile_url": {
+          "type": "https-url-or-empty",
+          "default": "",
+          "phase": "next-release",
+          "authority": "uci-overlay"
+        },
+        "distribution_source": {
+          "type": "enum",
+          "default": "auto",
+          "values": ["auto", "github-raw", "jsdelivr"],
+          "phase": "next-release",
+          "authority": "uci-overlay"
+        },
+        "auto_refresh": {
+          "type": "boolean",
+          "default": "1",
+          "phase": "next-release",
+          "authority": "uci-overlay"
+        }
+      }
+    },
+    "routing": {
+      "type": "routing",
+      "scope": "next-release",
+      "options": {
+        "direct_region": {
+          "type": "region-ref",
+          "regionSet": "registry",
+          "default": "hk",
+          "phase": "next-release",
+          "authority": "signed-policy-gated"
+        },
+        "proxy_region": {
+          "type": "region-ref",
+          "regionSet": "primaryOrder",
+          "default": "us",
+          "phase": "next-release",
+          "authority": "signed-policy-gated"
+        },
+        "chatgpt": {
+          "type": "service-route-mode",
+          "default": "proxy",
+          "values": ["proxy", "direct", "auto", "block"],
+          "phase": "next-release",
+          "authority": "signed-policy-gated"
+        },
+        "claude": {
+          "type": "service-route-mode",
+          "default": "proxy",
+          "values": ["proxy", "direct", "auto", "block"],
+          "phase": "next-release",
+          "authority": "signed-policy-gated"
+        },
+        "grok": {
+          "type": "service-route-mode",
+          "default": "proxy",
+          "values": ["proxy", "direct", "auto", "block"],
+          "phase": "next-release",
+          "authority": "signed-policy-gated"
+        }
+      }
+    },
+    "dns": {
+      "type": "dns",
+      "scope": "next-release",
+      "options": {
+        "backend": {
+          "type": "enum",
+          "default": "auto",
+          "values": ["auto", "adguardhome", "dnsmasq"],
+          "phase": "next-release",
+          "authority": "live-capability-gated"
+        },
+        "resolver_sync": {
+          "type": "boolean",
+          "default": "1",
+          "phase": "next-release",
+          "authority": "live-capability-gated"
+        },
+        "fail_closed": {
+          "type": "boolean",
+          "default": "1",
+          "phase": "next-release",
+          "authority": "signed-policy-floor"
+        }
+      }
+    },
+    "udp": {
+      "type": "udp",
+      "scope": "effective",
+      "options": {
+        "enabled": {
+          "type": "boolean",
+          "default": "1",
+          "phase": "effective",
+          "authority": "signed-policy-gated"
+        },
+        "src_ip": {
+          "type": "ipv4-list",
+          "phase": "effective",
+          "authority": "signed-policy-gated"
+        }
+      }
+    },
+    "monitoring": {
+      "type": "monitoring",
+      "scope": "luci-only",
+      "options": {
+        "enabled": {
+          "type": "boolean",
+          "default": "0",
+          "phase": "luci-only",
+          "authority": "monitor-service"
+        },
+        "interval": {
+          "type": "integer-enum",
+          "default": "900",
+          "values": ["300", "900", "1800", "3600"],
+          "phase": "luci-only",
+          "authority": "monitor-service"
+        },
+        "chatgpt": {
+          "type": "boolean",
+          "default": "1",
+          "phase": "luci-only",
+          "authority": "monitor-service"
+        },
+        "claude": {
+          "type": "boolean",
+          "default": "1",
+          "phase": "luci-only",
+          "authority": "monitor-service"
+        },
+        "grok": {
+          "type": "boolean",
+          "default": "1",
+          "phase": "luci-only",
+          "authority": "monitor-service"
+        }
+      }
+    },
+    "rules": {
+      "type": "rules",
+      "scope": "next-release",
+      "options": {
+        "direct_rule": {
+          "type": "rule-list",
+          "phase": "next-release",
+          "authority": "signed-policy-gated"
+        },
+        "proxy_rule": {
+          "type": "rule-list",
+          "phase": "next-release",
+          "authority": "uci-overlay"
+        },
+        "direct_source": {
+          "type": "https-url-list",
+          "phase": "next-release",
+          "authority": "signed-policy-gated"
+        },
+        "proxy_source": {
+          "type": "https-url-list",
+          "phase": "next-release",
+          "authority": "uci-overlay"
+        }
+      }
+    }
+  }
+}
