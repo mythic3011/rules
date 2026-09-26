@@ -1469,6 +1469,7 @@ class GuardAppTests(unittest.TestCase):
                     "adguardhomeEnabled",
                     "adguardhomeRunning",
                     "domainSetBackend",
+                    "clientBypass",
                 },
             )
             self.assertEqual(

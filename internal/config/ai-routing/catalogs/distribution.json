@@ -7,7 +7,7 @@
   "releaseMetadataPath": "dist/openclash-guard.release.json",
   "releaseSignaturePath": "dist/openclash-guard.release.json.sig",
   "trustedKeyPath": "/etc/openclash-guard/trusted-release-key.pub",
-  "releaseSequence": 5,
+  "releaseSequence": 6,
   "releaseStatePath": "/etc/openclash-guard/release-state",
   "artifacts": [
     {
