@@ -10464,8 +10464,12 @@ guard_cmd_doctor() {
     # Canonical UCI overlay diagnostics (read-only, redacted). Invalid known
     # options are surfaced as "<path>: <reason>"; unknown options as "unknown
     # option ignored: <path>". Never prints raw values, profile URLs, tokens,
-    # or query strings. Does NOT mutate effective Layer-B state.
-    guard_doctor_uci_overlay
+    # or query strings. Does NOT mutate effective Layer-B state. Guarded so
+    # minimal harnesses that do not source the doctor overlay block still
+    # produce the rest of the doctor output.
+    if command -v guard_doctor_uci_overlay >/dev/null 2>&1; then
+        guard_doctor_uci_overlay
+    fi
     if [ -n "$_guard_doctor_service" ]; then
         # shellcheck disable=SC2153
         if ! json_has "$_GUARD_POLICY_FILE" "services.$_guard_doctor_service"; then
