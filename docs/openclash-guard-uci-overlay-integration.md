@@ -194,13 +194,6 @@ normal resolution path succeeds.
   consumers key off this **effective** backend, not the raw live input — fixing
   the earlier bug where resolver-sync derived from the raw `_GUARD_UCOR_DNS_BACKEND`.
 
-**Reclassified authority.** `udp.enabled` and `udp.src_ip` are contract-marked
-`uci-runtime` (alongside `main.enabled`, `main.kill_switch`,
-`main.dns_kill_switch`). Their only effect is to disable/narrow gaming flows;
-they never widen signed policy, so no signed-policy gate is required and they
-resolve via Layer-A normalization like any other `uci-runtime` option (no
-`DEFERRED:` representation). Fail-closed bounding is preserved.
-
 **Deferred (contract gap — do not invent semantics):** these options are
 contract-marked gated but have **no authoritative Layer-B resolution defined
 today**. They are surfaced by `guard_uci_overlay_effective()` as

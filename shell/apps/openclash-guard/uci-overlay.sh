@@ -58,8 +58,8 @@ routing.grok|service-route-mode|proxy|signed-policy-gated
 dns.backend|enum|auto|live-capability-gated
 dns.resolver_sync|boolean|1|live-capability-gated
 dns.fail_closed|boolean|1|signed-policy-floor
-udp.enabled|boolean|1|uci-runtime
-udp.src_ip|ipv4-list||uci-runtime
+udp.enabled|boolean|1|signed-policy-gated
+udp.src_ip|ipv4-list||signed-policy-gated
 monitoring.enabled|boolean|0|monitor-service
 monitoring.interval|integer-enum|900|monitor-service
 monitoring.chatgpt|boolean|1|monitor-service

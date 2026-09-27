@@ -143,10 +143,7 @@
       "path": "shell/apps/openclash-guard/uci-overlay-resolve.sh",
       "depends": [
         "json",
-        "guard-uci-overlay",
-        "guard-policy",
-        "guard-environment",
-        "guard-dns"
+        "guard-uci-overlay"
       ]
     },
     "guard-environment": {
@@ -178,16 +175,13 @@
         "file",
         "uci",
         "guard-resolver-sync",
-        "guard-uci-overlay",
-        "guard-uci-overlay-resolve"
+        "guard-uci-overlay"
       ]
     },
     "guard-dataplane": {
       "path": "shell/apps/openclash-guard/dataplane.sh",
       "depends": [
-        "nft",
-        "guard-uci-overlay",
-        "guard-uci-overlay-resolve"
+        "nft"
       ],
       "after": [
         "guard-killswitch"
@@ -200,7 +194,6 @@
         "uci",
         "guard-policy",
         "guard-uci-overlay",
-        "guard-uci-overlay-resolve",
         "guard-dataplane"
       ],
       "after": [
@@ -254,8 +247,6 @@
         "guard-template",
         "guard-geo",
         "guard-overlay",
-        "guard-uci-overlay",
-        "guard-uci-overlay-resolve",
         "guard-rules"
       ]
     },
@@ -268,9 +259,7 @@
         "guard-install",
         "guard-template",
         "guard-geo",
-        "guard-preflight",
-        "guard-uci-overlay",
-        "guard-uci-overlay-resolve"
+        "guard-preflight"
       ]
     },
     "guard-main": {
@@ -310,9 +299,7 @@
         "guard-geo",
         "guard-policy",
         "guard-template",
-        "guard-install",
-        "guard-uci-overlay",
-        "guard-uci-overlay-resolve"
+        "guard-install"
       ]
     },
     "guard-health": {
@@ -325,9 +312,7 @@
         "guard-dataplane",
         "guard-gaming",
         "guard-install",
-        "guard-tunnel-health",
-        "guard-uci-overlay",
-        "guard-uci-overlay-resolve"
+        "guard-tunnel-health"
       ],
       "after": [
         "guard-install"
@@ -339,9 +324,7 @@
         "nft",
         "guard-environment",
         "guard-policy",
-        "guard-killswitch",
-        "guard-uci-overlay",
-        "guard-uci-overlay-resolve"
+        "guard-killswitch"
       ],
       "after": [
         "guard-killswitch"
