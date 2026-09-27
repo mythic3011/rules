@@ -1,0 +1,11 @@
+*-text
+*.sh          -text
+setup/**   -text
+dist/**    -text
+internal/** -text
+apps/**    -text
+docs/**    -text
+*.json      -text
+*.yaml      -text
+*.yml       -text
+*.ini       -text
