@@ -362,7 +362,13 @@ def _run_main(
         [shell, str(script_path)],
         capture_output=True,
         text=True,
-        timeout=30,
+        # Windows-bash harness: sourcing the overlay + resolver (spec-table
+        # reset loop ~3s, populate ~4s, full cold-start of guard_uci_overlay_load
+        # up to ~15s under CI load) plus _guard_prepare + reconcile lands just
+        # over 30s (~33.9s) even though it completes successfully. The sibling
+        # shell-harness suites use 60s here; match them. If this regresses
+        # below 60s on a healthy host, the pipeline itself is wedging.
+        timeout=60,
     )
     return (
         proc,
@@ -506,7 +512,8 @@ _guard_prepare
             [shell, str(script_path)],
             capture_output=True,
             text=True,
-            timeout=30,
+            # See _run_main: Windows-bash cold-start + _guard_prepare exceeds
+            # 30s under load; sibling suites use 60s. No logic found guard-valid path resolution; socket timeout to Windows-fork fanout
         )
         self.assertNotEqual(proc.returncode, 0, f"expected refuse: {proc.stdout}\n{proc.stderr}")
         self.assertIn("invalid", proc.stderr, proc.stderr)
@@ -582,7 +589,9 @@ _guard_require_atomic_overlay_for_apply
             [shell, str(script_path)],
             capture_output=True,
             text=True,
-            timeout=30,
+            # See _run_main: Windows-bash prep+prepare+resolve exceeds 30s
+            # under load; sibling suites use 60s.
+            timeout=60,
         )
         self.assertNotEqual(proc.returncode, 0, f"expected refuse: {proc.stdout}\n{proc.stderr}")
         self.assertIn("refusing", proc.stderr, proc.stderr)

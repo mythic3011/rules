@@ -272,12 +272,17 @@ class ResolveGateTests(unittest.TestCase):
         proc = run_resolve(open_policy(), {}, "none", body)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         deferred = proc.stdout.split()
-        # udp.enabled / udp.src_ip are reclassified to uci-runtime (A1): they
-        # resolve via Layer A normalization and are NOT deferred.
-        for opt in ("dns.resolver_sync", "routing.direct_region", "routing.proxy_region"):
+        # udp.enabled / udp.src_ip stay signed-policy-gated (review blocker 2):
+        # no authority semantics are invented to migrate them, so both remain
+        # in the deferred contract-gap set until a signed policy gate is defined.
+        for opt in (
+            "dns.resolver_sync",
+            "routing.direct_region",
+            "routing.proxy_region",
+            "udp.enabled",
+            "udp.src_ip",
+        ):
             self.assertIn(opt, deferred)
-        for opt in ("udp.enabled", "udp.src_ip"):
-            self.assertNotIn(opt, deferred)
 
 
 class RegionGateDeferredTests(unittest.TestCase):

@@ -1067,22 +1067,17 @@ class RedactionSemanticsTests(unittest.TestCase):
 
 
 class UdpAuthorityTargetTests(unittest.TestCase):
-    """udp.enabled / udp.src_ip authority target.
+    """udp.enabled / udp.src_ip authority: signed-policy-gated + deferred.
 
-    A1's contract edit reclassified them to ``uci-runtime`` (Layer A only;
-    their only effect is to disable/narrow gaming flows; they never widen
-    signed policy). The shell modules have not yet absorbed that edit:
-
-      - uci-overlay.sh spec table still tags them ``signed-policy-gated``.
-      - uci-overlay-resolve.sh still lists them in _GUARD_UCOR_DEFERRED_OPTIONS.
-
-    These tests EXPECT the post-A1 contract: the options are NOT deferred,
-    DO resolve via Layer A (their normalized value is the effective value),
-    and do NOT appear in guard_uci_overlay_deferred_options output. They
-    will fail until A1's shell edit lands; that is the intended signal.
+    Review blocker 2 reverted the unapproved A1 ``uci-runtime`` reclass.
+    With no defined signed-policy gate, Layer B must NOT invent semantics:
+    both options stay ``signed-policy-gated`` in the Layer-A spec table,
+    remain in ``_GUARD_UCOR_DEFERRED_OPTIONS``, and ``guard_uci_overlay_effective``
+    surfaces them as ``DEFERRED:<normalized>`` (contract gap, never a
+    runtime authority).
     """
 
-    def test_udp_options_not_listed_in_deferred_options(self) -> None:
+    def test_udp_options_listed_in_deferred_options(self) -> None:
         body = (
             "guard_uci_overlay_load || true\n"
             "guard_uci_overlay_resolve\n"
@@ -1091,12 +1086,12 @@ class UdpAuthorityTargetTests(unittest.TestCase):
         proc = run_overlay_and_resolve(open_policy(), {}, "none", body)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         deferred = proc.stdout.split()
-        self.assertNotIn("udp.enabled", deferred,
-                         "udp.enabled is uci-runtime (NOT deferred) per the post-A1 contract")
-        self.assertNotIn("udp.src_ip", deferred,
-                         "udp.src_ip is uci-runtime (NOT deferred) per the post-A1 contract")
+        self.assertIn("udp.enabled", deferred,
+                      "udp.enabled stays signed-policy-gated/deferred (blocker 2)")
+        self.assertIn("udp.src_ip", deferred,
+                      "udp.src_ip stays signed-policy-gated/deferred (blocker 2)")
 
-    def test_udp_enabled_effective_is_layer_a_normalized_value(self) -> None:
+    def test_udp_enabled_effective_is_deferred_marker(self) -> None:
         body = (
             "guard_uci_overlay_load || true\n"
             "guard_uci_overlay_resolve\n"
@@ -1106,11 +1101,11 @@ class UdpAuthorityTargetTests(unittest.TestCase):
             open_policy(), {"udp.enabled": "0"}, "none", body
         )
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        # Post-A1 contract: effective == normalized UCI value (no Layer-B gate).
-        self.assertEqual(proc.stdout.strip(), "0")
-        self.assertNotIn("DEFERRED:", proc.stdout)
+        # Contract gap: effective surfaces as DEFERRED:<normalized>, never the
+        # raw runtime value and never an invented authority.
+        self.assertEqual(proc.stdout.strip(), "DEFERRED:0")
 
-    def test_udp_src_ip_effective_is_layer_a_normalized_list(self) -> None:
+    def test_udp_src_ip_effective_is_deferred_marker(self) -> None:
         body = (
             "guard_uci_overlay_load || true\n"
             "guard_uci_overlay_resolve\n"
@@ -1120,11 +1115,10 @@ class UdpAuthorityTargetTests(unittest.TestCase):
             open_policy(), {"udp.src_ip": ["10.0.0.1", "10.0.0.2", "10.0.0.1"]}, "none", body
         )
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        self.assertEqual(proc.stdout.strip(), "10.0.0.1 10.0.0.2")
-        self.assertNotIn("DEFERRED:", proc.stdout)
+        self.assertEqual(proc.stdout.strip(), "DEFERRED:10.0.0.1 10.0.0.2")
 
-    def test_overlay_spec_authority_for_udp_is_uci_runtime(self) -> None:
-        """Layer-A spec table tags udp.* as uci-runtime (post-A1 contract)."""
+    def test_overlay_spec_authority_for_udp_is_signed_policy_gated(self) -> None:
+        """Layer-A spec table tags udp.* as signed-policy-gated (blocker 2)."""
         body = (
             '_guard_up_enable_auth=$(_guard_uci_overlay_authority "udp.enabled")\n'
             '_guard_up_src_auth=$(_guard_uci_overlay_authority "udp.src_ip")\n'
@@ -1133,8 +1127,8 @@ class UdpAuthorityTargetTests(unittest.TestCase):
         )
         proc = run_overlay_only(body, {})
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        self.assertIn("udp_enabled_auth=uci-runtime", proc.stdout)
-        self.assertIn("udp_src_ip_auth=uci-runtime", proc.stdout)
+        self.assertIn("udp_enabled_auth=signed-policy-gated", proc.stdout)
+        self.assertIn("udp_src_ip_auth=signed-policy-gated", proc.stdout)
 
 
 # ==========================================================================
@@ -1153,16 +1147,16 @@ class ContractParityTargetTests(unittest.TestCase):
         cls.runtime = json.loads(RUNTIME_CONTRACT.read_text(encoding="utf-8"))
         cls.resolution = json.loads(RESOLUTION_CONTRACT.read_text(encoding="utf-8"))
 
-    def test_runtime_contract_udp_authority_is_uci_runtime(self) -> None:
+    def test_runtime_contract_udp_authority_is_signed_policy_gated(self) -> None:
         udp = self.runtime["sections"]["udp"]["options"]
-        self.assertEqual(udp["enabled"]["authority"], "uci-runtime")
-        self.assertEqual(udp["src_ip"]["authority"], "uci-runtime")
+        self.assertEqual(udp["enabled"]["authority"], "signed-policy-gated")
+        self.assertEqual(udp["src_ip"]["authority"], "signed-policy-gated")
 
-    def test_resolution_contract_does_not_defer_udp_options(self) -> None:
+    def test_resolution_contract_defers_udp_options(self) -> None:
         gaps = self.resolution["gaps"]["deferred"]
         deferred_paths = {entry["option"] for entry in gaps}
-        self.assertNotIn("udp.enabled", deferred_paths)
-        self.assertNotIn("udp.src_ip", deferred_paths)
+        self.assertIn("udp.enabled", deferred_paths)
+        self.assertIn("udp.src_ip", deferred_paths)
 
     def test_resolution_contract_other_defers_remain(self) -> None:
         gaps = self.resolution["gaps"]["deferred"]
