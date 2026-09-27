@@ -2,8 +2,8 @@
   "artifacts": {
     "bootstrapInstaller": {
       "path": "setup/openclash/install.sh",
-      "sha256": "60a08b9bd27e538e33b769df4084483abf7293450b3448cdff647b12cbd2ee7c",
-      "size": 12030
+      "sha256": "eabfd4c75096f0fafccfb4d448337fb4adcc2b0235126d6a2a7ab7978e9ccd7e",
+      "size": 11683
     },
     "guardBundle": {
       "path": "dist/openclash-guard.sh",
@@ -22,7 +22,7 @@
     }
   },
   "repository": "mythic3011/rules",
-  "revision": "sha256:93fcc74648f829d3fca562ed0bc46a1eb87e0e5da261330de53b0eb6748064a2",
+  "revision": "sha256:54b2ee3274e25f8d3fd8dbaebe423d5d0d9008767349c3b11549530e77d0c50b",
   "schemaVersion": 1,
   "sequence": 7
 }
