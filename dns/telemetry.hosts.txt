@@ -2,20 +2,20 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/internal/python/generate_adblock_outputs.py
 # CATEGORY: telemetry
-# GENERATED_AT: 2026-09-26T08:42:09Z
-# TOTAL: 1976
+# GENERATED_AT: 2026-09-27T09:22:30Z
+# TOTAL: 1984
 # FORMAT: hosts
 # UPSTREAM hagezi_native_apple: 109
 # UPSTREAM hagezi_native_apple HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_huawei: 135
 # UPSTREAM hagezi_native_huawei HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_oppo_realme: 486
+# UPSTREAM hagezi_native_oppo_realme: 487
 # UPSTREAM hagezi_native_oppo_realme HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_samsung: 200
 # UPSTREAM hagezi_native_samsung HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_tiktok: 436
+# UPSTREAM hagezi_native_tiktok: 437
 # UPSTREAM hagezi_native_tiktok HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_vivo: 234
+# UPSTREAM hagezi_native_vivo: 240
 # UPSTREAM hagezi_native_vivo HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_xiaomi: 345
 # UPSTREAM hagezi_native_xiaomi HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -92,6 +92,7 @@
 0.0.0.0 ads-bdapi-ph.heytapmobile.com
 0.0.0.0 ads-bdapi-th.heytapmobile.com
 0.0.0.0 ads-bdapi-vn.heytapmobile.com
+0.0.0.0 ads-cps-in.heytapmobile.com
 0.0.0.0 ads-dra.platform.hihonorcloud.com
 0.0.0.0 ads-drcn.platform.hihonorcloud.com
 0.0.0.0 ads-dre.platform.hihonorcloud.com
@@ -518,7 +519,10 @@
 0.0.0.0 cname-in-bom01-nginxpool03.vivoglobal.com
 0.0.0.0 cname-in-ctdbonrt-stsdk.vivoglobal.com
 0.0.0.0 cname-sin01-stsdk09.vivoglobal.com
+0.0.0.0 co-cota.vivoglobal.com
 0.0.0.0 co-domaincfg.vivoglobal.com
+0.0.0.0 co-onrt-stsdk.vivoglobal.com
+0.0.0.0 co-ort-stsdk.vivoglobal.com
 0.0.0.0 co-pnrt-stsdk.vivoglobal.com
 0.0.0.0 co-romsp-unifyconfig.vivoglobal.com
 0.0.0.0 co-st-sl.vivoglobal.com
@@ -526,6 +530,7 @@
 0.0.0.0 co-timesync.vivoglobal.com
 0.0.0.0 co-vcode-api.vivoglobal.com
 0.0.0.0 co-vcode-od.vivoglobal.com
+0.0.0.0 co-vcode-or.vivoglobal.com
 0.0.0.0 comc4l7.pandora.xiaomi.com
 0.0.0.0 conf-in-dc.heytapdl.com
 0.0.0.0 conf-in-dc.heytapmobile.com
@@ -611,6 +616,7 @@
 0.0.0.0 dcintl.push.heytapmobi.com
 0.0.0.0 ddf.di.atlas.samsung.com
 0.0.0.0 de-gdpr-err-up.vivoglobal.com
+0.0.0.0 de-gdpr-vcode-api.vivoglobal.com
 0.0.0.0 de.pandora.xiaomi.com
 0.0.0.0 dev-apigw.samsungdmroute.com
 0.0.0.0 dev.staging.api.developer.n.xiaomi.com
@@ -889,6 +895,7 @@
 0.0.0.0 in-apport-stsdk.vivoglobal.com
 0.0.0.0 in-apppnrt-stsdk.vivoglobal.com
 0.0.0.0 in-appprt-stsdk.vivoglobal.com
+0.0.0.0 in-cfg-stsdk.vivoglobal.com
 0.0.0.0 in-cota.vivoglobal.com
 0.0.0.0 in-ctdbonrt-stsdk.vivoglobal.com
 0.0.0.0 in-ctdbort-stsdk.vivoglobal.com
@@ -974,6 +981,7 @@
 0.0.0.0 location.tiktok.com
 0.0.0.0 location.tiktokv.com
 0.0.0.0 location.tiktokv.eu
+0.0.0.0 location.tiktokv.us
 0.0.0.0 location.tiktokw.us
 0.0.0.0 location.us.tiktokv.com
 0.0.0.0 location16-normal-useastred.tiktokv.eu
