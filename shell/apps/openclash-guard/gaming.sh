@@ -5,14 +5,44 @@ set -eu
 
 _GUARD_GAME_ENABLED=1
 
+# Migrate udp.enabled / udp.src_ip to the normalized UCI overlay when it is
+# loaded and valid; otherwise fall back to the legacy direct uci read so the
+# NOT-yet-wired window remains permissive. Fail-closed semantics are preserved:
+# invalid or empty values yield no eligible flows. The overlay already surfaces
+# a validated/normalized ipv4-list (deduplicated, refuses on invalid input), so
+# we never hard-parse `uci show` here.
+#
+# NOTE (per reviewer contract): the seq7 contract classifies udp.enabled /
+# udp.src_ip as `uci-runtime`. A1 removes them from the resolver's DEFERRED
+# list. If `guard_uci_overlay_effective` ever returns a literal "DEFERRED:" for
+# them, treat as overlay absent and fall back; do NOT invent a gate.
+
 guard_game_read_uci() {
     _GUARD_GAME_ENABLED=1
+    if command -v guard_uci_overlay_validate >/dev/null 2>&1 && \
+       command -v guard_uci_overlay_get >/dev/null 2>&1 && \
+       guard_uci_overlay_validate 2>/dev/null; then
+        _GUARD_GAME_ENABLED=$(guard_uci_overlay_get udp.enabled) || _GUARD_GAME_ENABLED=1
+        # Overlay may supply "DEFERRED:v" pre-A1; never treat that as authoritative.
+        case $_GUARD_GAME_ENABLED in
+            DEFERRED:*) _GUARD_GAME_ENABLED=1 ;;
+        esac
+        return 0
+    fi
     if command -v uci >/dev/null 2>&1; then
         _GUARD_GAME_ENABLED=$(uci_get_bool openclash_guard.udp.enabled 1 2>/dev/null) || _GUARD_GAME_ENABLED=1
     fi
 }
 
 guard_game_src_ips() {
+    if command -v guard_uci_overlay_validate >/dev/null 2>&1 && \
+       command -v guard_uci_overlay_get >/dev/null 2>&1 && \
+       guard_uci_overlay_validate 2>/dev/null; then
+        # Prefer the overlay's valid dedup/space-separated list. Empty stays
+        # empty so fail-closed semantics (no eligible flows) are preserved.
+        guard_uci_overlay_get udp.src_ip
+        return 0
+    fi
     if ! command -v uci >/dev/null 2>&1; then
         return 0
     fi

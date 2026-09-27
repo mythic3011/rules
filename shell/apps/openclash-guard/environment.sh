@@ -137,12 +137,23 @@ _guard_env_proxy_healthy() {
 _guard_env_load_clients() {
     _GUARD_GAME_CLIENTS=0
     _GUARD_GAME_CLIENT_ITEMS=
-    if ! command -v uci >/dev/null 2>&1; then
-        return 0
-    fi
-    _guard_env_nl='
+    # Migrate udp.src_ip to the normalized UCI overlay when it is loaded and
+    # valid; otherwise fall back to the legacy newline-separated uci read so
+    # the NOT-yet-wired window remains permissive. The overlay returns a
+    # space-separated, deduplicated, validated ipv4-list; the legacy read is
+    # newline-separated. The loop below iterates either form identically (both
+    # are whitespace-separated), so _GUARD_GAME_CLIENTS/_GUARD_GAME_CLIENT_ITEMS
+    # semantics are preserved.
+    _guard_env_items=
+    if command -v guard_uci_overlay_validate >/dev/null 2>&1 && \
+       command -v guard_uci_overlay_get >/dev/null 2>&1 && \
+       guard_uci_overlay_validate 2>/dev/null; then
+        _guard_env_items=$(guard_uci_overlay_get udp.src_ip) || _guard_env_items=
+    elif command -v uci >/dev/null 2>&1; then
+        _guard_env_nl='
 '
-    _guard_env_items=$(uci -d "$_guard_env_nl" -q get openclash_guard.udp.src_ip 2>/dev/null) || _guard_env_items=
+        _guard_env_items=$(uci -d "$_guard_env_nl" -q get openclash_guard.udp.src_ip 2>/dev/null) || _guard_env_items=
+    fi
     for _guard_env_item in $_guard_env_items
     do
         [ -n "$_guard_env_item" ] || continue
@@ -210,6 +221,10 @@ guard_env_detect() {
     fi
     _guard_env_load_clients
     _GUARD_GAME_BLANKET=0
+    # CONTRACT GAP (flagged for reviewer): `udp.blanket_udp_bypass` is NOT in
+    # the UCI overlay contract (#122). Keep the legacy direct read for now; do
+    # NOT move it into the overlay until the contract is updated. The
+    # GUARD_GAMING_BLANKET environment override continues to win LAST.
     if command -v uci >/dev/null 2>&1; then
         _GUARD_GAME_BLANKET=$(uci_get_bool openclash_guard.udp.blanket_udp_bypass 0 2>/dev/null) || _GUARD_GAME_BLANKET=0
     fi

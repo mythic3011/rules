@@ -25,7 +25,7 @@
     }
   },
   "gaps": {
-    "note": "These options are contract-marked (signed-policy-gated / live-capability-gated) but their exact Layer-B resolution semantics are NOT defined by any authoritative contract today. They are surfaced as DEFERRED (normalized passthrough, explicitly flagged) and MUST NOT be consumed as an authoritative effective value until a contract update lands. Unresolved semantics are intentionally preferred over invented semantics.",
+    "note": "These options are contract-marked (signed-policy-gated / live-capability-gated) but their exact Layer-B resolution semantics are NOT defined by any authoritative contract today. They are surfaced as DEFERRED (normalized passthrough, explicitly flagged) and MUST NOT be consumed as an authoritative effective value until a contract update lands. Unresolved semantics are intentionally preferred over invented semantics. udp.enabled / udp.src_ip are NOT deferred: their authority was reclassified to uci-runtime (their only effect is to disable/narrow gaming flows; they never widen signed policy), so they resolve via Layer A normalization like main.enabled and need no Layer-B gate.",
     "deferred": [
       {
         "option": "dns.resolver_sync",
@@ -38,14 +38,6 @@
       {
         "option": "routing.proxy_region",
         "reason": "Same as routing.direct_region: gate undefined; only the primaryOrder VALIDATION (Layer A) is defined, not a signed-policy resolution."
-      },
-      {
-        "option": "udp.enabled",
-        "reason": "#122 marks it signed-policy-gated but no authoritative gate ties it to a signed policy field. Defer."
-      },
-      {
-        "option": "udp.src_ip",
-        "reason": "#122 marks it signed-policy-gated but no authoritative gate ties the source-IP list to a signed policy field. Defer."
       }
     ]
   },

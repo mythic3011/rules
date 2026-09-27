@@ -45,7 +45,7 @@ _GUARD_UCOR_DNS_BACKEND=''
 # are surfaced as passthrough (identity) with a "deferred" flag; they are NOT
 # treated as resolved and MUST NOT be consumed as an authoritative effective
 # value without a future contract update.
-_GUARD_UCOR_DEFERRED_OPTIONS='routing.direct_region routing.proxy_region udp.enabled udp.src_ip dns.resolver_sync'
+_GUARD_UCOR_DEFERRED_OPTIONS='routing.direct_region routing.proxy_region dns.resolver_sync'
 
 _GUARD_UCO_RESOLUTION_NOTES=''
 

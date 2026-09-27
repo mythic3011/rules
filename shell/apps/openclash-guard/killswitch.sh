@@ -12,11 +12,34 @@ _GUARD_NFT_TABLE_EXISTS=0
 _guard_kill_comment() {
     printf '%s:%s' "$_GUARD_NFT_PREFIX" "$1"
 }
+
+# Migrate main.enabled/kill_switch/dns_kill_switch to the normalized UCI overlay
+# when it is loaded and valid; otherwise fall back to the legacy direct uci read
+# so the NOT-yet-wired window remains permissive. Defaults are unchanged.
+#
+# CONTRACT GAP (flagged for reviewer): `main.mode` is NOT in the UCI overlay
+# contract (#122). Keep the legacy direct read here for now; do NOT move it
+# into the overlay until the contract is updated.
+
 guard_kill_read_uci() {
     _GUARD_UCI_ENABLED=1
     _GUARD_UCI_MODE=auto
     _GUARD_UCI_KILL_SWITCH=1
     _GUARD_UCI_DNS_KILL_SWITCH=0
+    if command -v guard_uci_overlay_validate >/dev/null 2>&1 && \
+       command -v guard_uci_overlay_get >/dev/null 2>&1 && \
+       guard_uci_overlay_validate 2>/dev/null; then
+        _GUARD_UCI_ENABLED=$(guard_uci_overlay_get main.enabled) || _GUARD_UCI_ENABLED=1
+        _GUARD_UCI_KILL_SWITCH=$(guard_uci_overlay_get main.kill_switch) || _GUARD_UCI_KILL_SWITCH=1
+        _GUARD_UCI_DNS_KILL_SWITCH=$(guard_uci_overlay_get main.dns_kill_switch) || _GUARD_UCI_DNS_KILL_SWITCH=0
+        # main.mode is NOT in the UCI overlay contract (#122). Keep the legacy
+        # direct read here for now; contract gap flagged for reviewer. Do NOT
+        # move it into the overlay until the contract is updated.
+        if command -v uci >/dev/null 2>&1; then
+            _GUARD_UCI_MODE=$(uci_get_default openclash_guard.main.mode auto 2>/dev/null) || _GUARD_UCI_MODE=auto
+        fi
+        return 0
+    fi
     if command -v uci >/dev/null 2>&1; then
         _GUARD_UCI_ENABLED=$(uci_get_bool openclash_guard.main.enabled 1 2>/dev/null) || _GUARD_UCI_ENABLED=1
         _GUARD_UCI_MODE=$(uci_get_default openclash_guard.main.mode auto 2>/dev/null) || _GUARD_UCI_MODE=auto

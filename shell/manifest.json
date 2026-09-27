@@ -135,6 +135,20 @@
         "cli"
       ]
     },
+    "guard-uci-overlay": {
+      "path": "shell/apps/openclash-guard/uci-overlay.sh",
+      "depends": []
+    },
+    "guard-uci-overlay-resolve": {
+      "path": "shell/apps/openclash-guard/uci-overlay-resolve.sh",
+      "depends": [
+        "json",
+        "guard-uci-overlay",
+        "guard-policy",
+        "guard-environment",
+        "guard-dns"
+      ]
+    },
     "guard-environment": {
       "path": "shell/apps/openclash-guard/environment.sh",
       "depends": [
@@ -144,7 +158,8 @@
         "uci",
         "nft",
         "guard-dns",
-        "guard-geo"
+        "guard-geo",
+        "guard-uci-overlay"
       ]
     },
     "guard-policy": {
@@ -162,13 +177,17 @@
         "nft",
         "file",
         "uci",
-        "guard-resolver-sync"
+        "guard-resolver-sync",
+        "guard-uci-overlay",
+        "guard-uci-overlay-resolve"
       ]
     },
     "guard-dataplane": {
       "path": "shell/apps/openclash-guard/dataplane.sh",
       "depends": [
-        "nft"
+        "nft",
+        "guard-uci-overlay",
+        "guard-uci-overlay-resolve"
       ],
       "after": [
         "guard-killswitch"
@@ -180,6 +199,8 @@
         "json",
         "uci",
         "guard-policy",
+        "guard-uci-overlay",
+        "guard-uci-overlay-resolve",
         "guard-dataplane"
       ],
       "after": [
@@ -233,6 +254,8 @@
         "guard-template",
         "guard-geo",
         "guard-overlay",
+        "guard-uci-overlay",
+        "guard-uci-overlay-resolve",
         "guard-rules"
       ]
     },
@@ -245,7 +268,9 @@
         "guard-install",
         "guard-template",
         "guard-geo",
-        "guard-preflight"
+        "guard-preflight",
+        "guard-uci-overlay",
+        "guard-uci-overlay-resolve"
       ]
     },
     "guard-main": {
@@ -269,7 +294,9 @@
         "guard-overlay",
         "guard-rules",
         "guard-preflight",
-        "guard-menu"
+        "guard-menu",
+        "guard-uci-overlay",
+        "guard-uci-overlay-resolve"
       ]
     },
     "guard-preflight": {
@@ -283,7 +310,9 @@
         "guard-geo",
         "guard-policy",
         "guard-template",
-        "guard-install"
+        "guard-install",
+        "guard-uci-overlay",
+        "guard-uci-overlay-resolve"
       ]
     },
     "guard-health": {
@@ -296,7 +325,9 @@
         "guard-dataplane",
         "guard-gaming",
         "guard-install",
-        "guard-tunnel-health"
+        "guard-tunnel-health",
+        "guard-uci-overlay",
+        "guard-uci-overlay-resolve"
       ],
       "after": [
         "guard-install"
@@ -308,7 +339,9 @@
         "nft",
         "guard-environment",
         "guard-policy",
-        "guard-killswitch"
+        "guard-killswitch",
+        "guard-uci-overlay",
+        "guard-uci-overlay-resolve"
       ],
       "after": [
         "guard-killswitch"
@@ -344,7 +377,9 @@
         "guard-overlay",
         "guard-rules",
         "guard-preflight",
-        "guard-menu"
+        "guard-menu",
+        "guard-uci-overlay",
+        "guard-uci-overlay-resolve"
       ],
       "output": "dist/openclash-guard.sh",
       "manifest": "dist/manifest.json",

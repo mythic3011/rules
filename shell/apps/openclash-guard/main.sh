@@ -76,9 +76,28 @@ _guard_distribution_record() {
 }
 
 _guard_prepare() {
+    # Authority-ordered pipeline (per #124):
+    #   1. Layer A overlay snapshot (UCI intent) — HARD REFUSE on known-invalid
+    #      BEFORE any policy/env/geo work or any consumer of the snapshot.
+    #   2. Authoritative policy load.
+    #   3. Environment/DNS-capability observation (region overrides stay
+    #      last-win AFTER guard_env_detect).
+    #   4. Layer B (re-snapshot with observed capability wired into the
+    #      resolver inputs) — refuse on invalid; never reaches nft.
+    #   5. Geo and policy state refresh.
+    # Layer A is intentionally permissive about callers being unaware (we do not
+    # yet migrate killswitch/gaming/etc.), but a KNOWN-invalid overlay aborts
+    # the pipeline so reconcile/apply refuse BEFORE any nft mutation.
     _guard_pp_direct=${_GUARD_NET_DIRECT_REGION:-}
     _guard_pp_proxy=${_GUARD_PROXY_REGION:-}
     _guard_pp_proxy_healthy=${_GUARD_PROXY_HEALTHY:-0}
+    if command -v guard_uci_overlay_load >/dev/null 2>&1; then
+        if ! guard_uci_overlay_load; then
+            cli_error "openclash_guard UCI overlay is invalid; refusing to proceed"
+            return 1
+        fi
+    fi
+    guard_policy_load "$(_guard_policy_default_path)" || return $?
     guard_kill_read_uci
     guard_game_read_uci
     guard_env_detect
@@ -87,7 +106,21 @@ _guard_prepare() {
         _GUARD_PROXY_REGION=$_guard_pp_proxy
         _GUARD_PROXY_HEALTHY=$_guard_pp_proxy_healthy
     fi
-    guard_policy_load "$(_guard_policy_default_path)" || return $?
+    # Feed the Layer-B resolver inputs from observed state. guard_dns_backend
+    # (via guard_dns_detect inside guard_env_detect) reports the live DNS
+    # backend; _GUARD_POLICY_FILE was set by guard_policy_load above. Both are
+    # explicit inputs to uci-overlay-resolve (no hidden global coupling).
+    if command -v guard_uci_overlay_load >/dev/null 2>&1; then
+        _GUARD_UCOR_POLICY_FILE=$_GUARD_POLICY_FILE
+        case ${_GUARD_DNS_BACKEND:-} in
+            adguardhome|dnsmasq) _GUARD_UCOR_DNS_BACKEND=$_GUARD_DNS_BACKEND ;;
+            *) _GUARD_UCOR_DNS_BACKEND=none ;;
+        esac
+        if ! guard_uci_overlay_load; then
+            cli_error "openclash_guard UCI overlay is invalid after environment detect; refusing to proceed"
+            return 1
+        fi
+    fi
     if [ -z "$_GUARD_NET_DIRECT_REGION" ]; then
         guard_geo_detect_direct >/dev/null 2>&1 || true
         _GUARD_NET_DIRECT_REGION=$(guard_geo_cached_country direct 2>/dev/null) || _GUARD_NET_DIRECT_REGION=
@@ -132,6 +165,40 @@ _guard_require_setup_for_apply() {
     return 1
 }
 
+# Atomicity gate for reconcile/apply: the UCI overlay snapshot must be VALID
+# (Layer A) AND a fresh Layer-B resolution must have completed for THIS
+# snapshot. If either fails, the caller must refuse BEFORE any nft mutation
+# (no guard_migrate_stale, no guard_kill_delete_table, no
+# guard_kill_apply_batch). Guarded with `command -v` so this is a no-op while
+# the overlay modules are not yet wired into the bundle.
+_guard_require_atomic_overlay_for_apply() {
+    if ! command -v guard_uci_overlay_validate >/dev/null 2>&1; then
+        return 0
+    fi
+    if ! command -v guard_uci_overlay_resolve_state_valid >/dev/null 2>&1; then
+        return 0
+    fi
+    if ! guard_uci_overlay_validate; then
+        cli_error "openclash_guard UCI overlay invalid; refusing reconcile/apply without any nft mutation"
+        return 1
+    fi
+    # Attempt a fresh Layer-B resolution so this gate is meaningful even when
+    # no higher layer has resolved yet. We do not consume effective values here;
+    # we only require that resolution SUCCEEDS (proves authority inputs are
+    # wired and a coherent effective state exists for this snapshot).
+    if ! guard_uci_overlay_resolve_state_valid; then
+        if ! guard_uci_overlay_resolve >/dev/null 2>&1; then
+            cli_error "openclash_guard UCI overlay resolution failed; refusing reconcile/apply without any nft mutation"
+            return 1
+        fi
+        if ! guard_uci_overlay_resolve_state_valid; then
+            cli_error "openclash_guard UCI overlay resolved state is not current; refusing reconcile/apply without any nft mutation"
+            return 1
+        fi
+    fi
+    return 0
+}
+
 _guard_write_batch() {
     _guard_wb=$1
     : > "$_guard_wb"
@@ -148,6 +215,10 @@ guard_cmd_reconcile() {
     fi
     _guard_require_setup_for_apply || return $?
     _guard_prepare || return $?
+    # Atomicity gate BEFORE any nft mutation: the overlay must be valid AND a
+    # current Layer-B resolution must exist. Refusal here means ZERO nft
+    # operations (no guard_migrate_stale, no delete_table, no apply_batch).
+    _guard_require_atomic_overlay_for_apply || return $?
     if [ "$_GUARD_NFT_AVAILABLE" != 1 ]; then
         cli_error "nft is required"
         return 1
@@ -250,12 +321,112 @@ guard_status_json_extra() {
         "$(_guard_env_json_string "$(guard_firewall_table_state)")"
 }
 
+# Bounded, redacted guardian of the openclash_guard UCI overlay snapshot for
+# status/doctor JSON. Emits `"uciOverlay":{...}` (NO leading comma; the caller
+# adds the separator). Surfaces:
+#   - valid / available (readiness)
+#   - errors[] / unknownOptions[] (path + reason only; no raw values; never
+#     URLs, credentials, query strings, profile tokens, or sensitive bundles)
+#   - authorityInputs (policy/DNS capability availability flags from
+#     guard_uci_overlay_resolve_diagnostics; no values, no policy content)
+#   - effective {} (bounded: routing.chatgpt/claude/grok, dns.fail_closed,
+#     dns.backend ONLY). DEFERRED:* and unresolved paths are omitted entirely;
+#     no fallback to raw UCI values. Read-only.
+_guard_status_uci_overlay_effective_json() {
+    # Emits `"effective":{...}` with bounded resolved keys, or `"effective":{}`.
+    _guard_uoej_first=1
+    printf '"effective":{'
+    if command -v guard_uci_overlay_effective >/dev/null 2>&1 \
+       && command -v guard_uci_overlay_resolve_state_valid >/dev/null 2>&1 \
+       && guard_uci_overlay_resolve_state_valid 2>/dev/null; then
+        for _guard_uoej_path in routing.chatgpt routing.claude routing.grok dns.fail_closed dns.backend
+        do
+            _guard_uoej_val=$(guard_uci_overlay_effective "$_guard_uoej_path" 2>/dev/null) || continue
+            [ -n "$_guard_uoej_val" ] || continue
+            # Skip DEFERRED:*-style sentinel values: they are diagnostics for
+            # un-resolved contract gaps and must not appear as effective.
+            case $_guard_uoej_val in
+                DEFERRED:*) continue ;;
+            esac
+            # Skip empty values as well; only emit concrete keys.
+            [ "$_guard_uoej_first" = 1 ] || printf ','
+            _guard_uoej_first=0
+            # Convert the option path (e.g. routing.chatgpt) to a flat
+            # identifier (routing_chatgpt) so the JSON is a flat object with
+            # bounded, non-secret keys.
+            _guard_uoej_key=$(printf '%s' "$_guard_uoej_path" | tr '.-' '__')
+            printf '"%s":"%s"' \
+                "$(_guard_env_json_string "$_guard_uoej_key")" \
+                "$(_guard_env_json_string "$_guard_uoej_val")"
+        done
+    fi
+    printf '}'
+}
+
+guard_status_uci_overlay_json() {
+    # Emits `"uciOverlay":{...}` (no leading comma). Read-only; never mutates
+    # effective state. All failure paths still emit a valid JSON object.
+    if ! command -v guard_uci_overlay_json >/dev/null 2>&1; then
+        printf '"uciOverlay":{"available":false,"valid":false,"errors":[],"unknownOptions":[]}'
+        return 0
+    fi
+    # Trigger a load ONLY when not already loaded so this status path never
+    # invalidates a previously-resolved Layer-B state. guard_uci_overlay_json
+    # itself performs a lazy load, but doing it here explicitly preserves the
+    # "no-op when already loaded" invariant.
+    if [ "${_GUARD_UCI_OVERLAY_LOADED:-0}" != 1 ] \
+       && command -v guard_uci_overlay_load >/dev/null 2>&1; then
+        guard_uci_overlay_load >/dev/null 2>&1 || true
+    fi
+    _guard_suo_base=$(guard_uci_overlay_json 2>/dev/null) || _guard_suo_base=
+    if [ -z "$_guard_suo_base" ]; then
+        printf '"uciOverlay":{"available":false,"valid":false,"errors":[],"unknownOptions":[]}'
+        return 0
+    fi
+    # Unwrap the overlay module's {"uciOverlay":{...}} envelope so we can
+    # extend the inner object in place. After the two parameter expansions
+    # the result is `"available":...,"unknownOptions":[...]` (no braces).
+    _guard_suo_inner=${_guard_suo_base#'{"uciOverlay":{'}
+    _guard_suo_inner=${_guard_suo_inner%'}}'}
+    printf '"uciOverlay":{%s' "$_guard_suo_inner"
+    # Authority-input availability flags (booleans only), pulled from the
+    # overlay-resolve diagnostics in a read-only manner. The resolver runs its
+    # preview inference in a SUBSHELL, so the caller's Layer-B state is
+    # unchanged. Values recorded in resolvedPreviewNotes are omitted entirely
+    # to keep this projection bounded.
+    if command -v guard_uci_overlay_resolve_diagnostics >/dev/null 2>&1; then
+        _guard_suo_diag=$(guard_uci_overlay_resolve_diagnostics 2>/dev/null) || _guard_suo_diag=
+        if [ -n "$_guard_suo_diag" ]; then
+            _guard_suo_policy_flag=false
+            _guard_suo_dns_flag=false
+            # Substring probe on the resolver's JSON-shaped diagnostic: extract
+            # ONLY the boolean authority inputs. Never propagate resolvedPreviewNotes.
+            case $_guard_suo_diag in
+                *'"policy":true'*) _guard_suo_policy_flag=true ;;
+            esac
+            case $_guard_suo_diag in
+                *'"dns":true'*) _guard_suo_dns_flag=true ;;
+            esac
+            printf ',"authorityInputs":{"policy":%s,"dns":%s}' \
+                "$_guard_suo_policy_flag" "$_guard_suo_dns_flag"
+        fi
+    fi
+    printf ','
+    _guard_status_uci_overlay_effective_json
+    printf '}'
+}
+
 _guard_emit_status_json() {
     _guard_sj=$(guard_env_json)
     _guard_sj=${_guard_sj%?}
     printf '%s,' "$_guard_sj"
     guard_policy_json_extra
     guard_status_json_extra
+    # Canonical UCI overlay diagnostics, redacted and bounded. Always emitted
+    # as a top-level `uciOverlay` key (read-only; never exposes secrets, raw
+    # values, profile URLs, query strings, or unresolved preview notes).
+    printf ','
+    guard_status_uci_overlay_json
     guard_doctor_json_extra
     printf '}\n'
 }
@@ -322,6 +493,69 @@ guard_cmd_status() {
     cli_kv distribution.selectedSource "$(_guard_distribution_selected_or_none)"
 }
 
+# Bounded human-readable overlay diagnostics for `doctor`. Read-only: never
+# mutates effective Layer-B state. Uses ONLY the projection APIs
+# (guard_uci_overlay_errors / guard_uci_overlay_unknown_options /
+# guard_uci_overlay_valid / guard_uci_overlay_available). Surfaces:
+#   invalid known option  -> <path>: <reason>            (cli_warn)
+#   unknown option        -> unknown option ignored: <path> (cli_info)
+# Never prints raw values, never prints profile URLs / tokens / query strings.
+guard_doctor_uci_overlay() {
+    if ! command -v guard_uci_overlay_valid >/dev/null 2>&1; then
+        return 0
+    fi
+    # Trigger a load ONLY when the snapshot is not already loaded so this path
+    # never invalidates a previously-resolved Layer-B state. _guard_prepare
+    # already loads the snapshot before doctor runs; in practice this branch
+    # is a no-op. When the load does happen here it cannot resolve state
+    # (no authority inputs are wired in this read-only path), so the
+    # effective Layer-B surface stays untouched regardless.
+    if [ "${_GUARD_UCI_OVERLAY_LOADED:-0}" != 1 ]; then
+        if ! command -v guard_uci_overlay_load >/dev/null 2>&1; then
+            return 0
+        fi
+        guard_uci_overlay_load >/dev/null 2>&1 || true
+    fi
+    cli_section "uci overlay"
+    cli_kv uciOverlay.available "$(guard_uci_overlay_available 2>/dev/null || printf 0)"
+    cli_kv uciOverlay.valid "$(guard_uci_overlay_valid 2>/dev/null || printf 0)"
+    # Errors: "path|reason" lines; print each as <path>: <reason>. Reasons are
+    # already redacted by the overlay (never URLs / raw values).
+    _guard_duo_errors=$(guard_uci_overlay_errors 2>/dev/null) || _guard_duo_errors=
+    if [ -n "$_guard_duo_errors" ]; then
+        _guard_duo_oldifs=$IFS
+        IFS='
+'
+        for _guard_duo_line in $_guard_duo_errors
+        do
+            IFS=$_guard_duo_oldifs
+            [ -n "$_guard_duo_line" ] || continue
+            _guard_duo_path=${_guard_duo_line%%|*}
+            _guard_duo_reason=${_guard_duo_line#*|}
+            cli_warn "$_guard_duo_path: $_guard_duo_reason"
+            IFS='
+'
+        done
+        IFS=$_guard_duo_oldifs
+    fi
+    # Unknown options: "<path>" lines; print as "unknown option ignored: <path>".
+    _guard_duo_unknown=$(guard_uci_overlay_unknown_options 2>/dev/null) || _guard_duo_unknown=
+    if [ -n "$_guard_duo_unknown" ]; then
+        _guard_duo_oldifs=$IFS
+        IFS='
+'
+        for _guard_duo_path in $_guard_duo_unknown
+        do
+            IFS=$_guard_duo_oldifs
+            [ -n "$_guard_duo_path" ] || continue
+            cli_info "unknown option ignored: $_guard_duo_path"
+            IFS='
+'
+        done
+        IFS=$_guard_duo_oldifs
+    fi
+}
+
 guard_cmd_doctor() {
     _guard_doctor_service=
     while [ "$#" -gt 0 ]; do
@@ -365,6 +599,11 @@ guard_cmd_doctor() {
         cli_warn "client DNS firewall bypass diagnostics unavailable; required fw4 chains could not be observed"
     fi
     cli_info "gaming bypass never matches protected UDP ports (including 443)"
+    # Canonical UCI overlay diagnostics (read-only, redacted). Invalid known
+    # options are surfaced as "<path>: <reason>"; unknown options as "unknown
+    # option ignored: <path>". Never prints raw values, profile URLs, tokens,
+    # or query strings. Does NOT mutate effective Layer-B state.
+    guard_doctor_uci_overlay
     if [ -n "$_guard_doctor_service" ]; then
         # shellcheck disable=SC2153
         if ! json_has "$_GUARD_POLICY_FILE" "services.$_guard_doctor_service"; then

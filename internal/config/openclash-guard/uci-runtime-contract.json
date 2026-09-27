@@ -148,12 +148,12 @@
           "type": "boolean",
           "default": "1",
           "phase": "effective",
-          "authority": "signed-policy-gated"
+          "authority": "uci-runtime"
         },
         "src_ip": {
           "type": "ipv4-list",
           "phase": "effective",
-          "authority": "signed-policy-gated"
+          "authority": "uci-runtime"
         }
       }
     },
