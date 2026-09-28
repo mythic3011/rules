@@ -8,9 +8,14 @@ export function fmt(n) {
 
 export function safeUrl(url) {
   if (typeof url !== 'string') return null;
-  const trimmed = url.trim();
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  return null;
+  const sanitized = url.replace(/[\u0000-\u001F\u007F-\u009F]/g, '').trim();
+  if (!/^https?:\/\//i.test(sanitized)) return null;
+  try {
+    const parsed = new URL(sanitized);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? sanitized : null;
+  } catch {
+    return null;
+  }
 }
 
 export function isIPv4(input) {
