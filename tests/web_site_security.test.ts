@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { isIPv4 } from '../web/site/assets/common.js';
 
 const SITE_DIR = path.resolve('web/site');
 
@@ -19,6 +20,23 @@ test('web/site HTML files do not use dangerous innerHTML string interpolation', 
       `File ${file} contains innerHTML assignment which can introduce XSS risks.`
     );
   }
+});
+
+test('web/site common isIPv4 strictly rejects octal leading zeros and invalid IP formats', () => {
+  assert.equal(isIPv4('192.168.1.1'), true);
+  assert.equal(isIPv4('0.0.0.0'), true);
+  assert.equal(isIPv4('255.255.255.255'), true);
+
+  // Rejects octal-inducing leading zeroes (CWE-1286 / CVE-2021-29921 mitigation)
+  assert.equal(isIPv4('010.0.0.1'), false);
+  assert.equal(isIPv4('192.168.01.1'), false);
+  assert.equal(isIPv4('00.0.0.0'), false);
+
+  // Rejects out of range and malformed inputs
+  assert.equal(isIPv4('256.0.0.1'), false);
+  assert.equal(isIPv4('1.2.3'), false);
+  assert.equal(isIPv4('1.2.3.4.5'), false);
+  assert.equal(isIPv4('abc.def.ghi.jkl'), false);
 });
 
 test('web/site report page sanitizes dynamic URL schemes before setting href', () => {
