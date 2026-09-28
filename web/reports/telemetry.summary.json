@@ -1,6 +1,6 @@
 {
   "category": "telemetry",
-  "generated_at": "2026-09-27T09:22:30Z",
+  "generated_at": "2026-09-28T09:57:13Z",
   "source_config": "internal/config/filtering/sources/telemetry.yaml",
   "custom_source_config": "internal/config/filtering/sources/custom/telemetry.yaml",
   "allowlist": "dns/local_telemetry_allowlist.txt",
@@ -24,7 +24,7 @@
       "priority": 10,
       "url": "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/native.apple.txt",
       "homepage": "https://github.com/hagezi/dns-blocklists",
-      "count": 109
+      "count": 108
     },
     {
       "id": "hagezi_native_huawei",
@@ -64,7 +64,7 @@
       "priority": 60,
       "url": "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/native.vivo.txt",
       "homepage": "https://github.com/hagezi/dns-blocklists",
-      "count": 240
+      "count": 241
     },
     {
       "id": "hagezi_native_xiaomi",

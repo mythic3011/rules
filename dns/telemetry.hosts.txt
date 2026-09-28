@@ -2,10 +2,10 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/internal/python/generate_adblock_outputs.py
 # CATEGORY: telemetry
-# GENERATED_AT: 2026-09-27T09:22:30Z
+# GENERATED_AT: 2026-09-28T09:57:13Z
 # TOTAL: 1984
 # FORMAT: hosts
-# UPSTREAM hagezi_native_apple: 109
+# UPSTREAM hagezi_native_apple: 108
 # UPSTREAM hagezi_native_apple HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_huawei: 135
 # UPSTREAM hagezi_native_huawei HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -15,7 +15,7 @@
 # UPSTREAM hagezi_native_samsung HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_tiktok: 437
 # UPSTREAM hagezi_native_tiktok HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_vivo: 240
+# UPSTREAM hagezi_native_vivo: 241
 # UPSTREAM hagezi_native_vivo HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_xiaomi: 345
 # UPSTREAM hagezi_native_xiaomi HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -351,6 +351,7 @@
 0.0.0.0 bossadmin.pandora.xiaomi.com
 0.0.0.0 box.pandora.xiaomi.com
 0.0.0.0 bpu.samsungelectronics.com
+0.0.0.0 br-cota.vivoglobal.com
 0.0.0.0 br-p.vivoglobal.com
 0.0.0.0 browser-api-br.heytapmobile.com
 0.0.0.0 browser-api-fr.heytapmobile.com
@@ -799,13 +800,13 @@
 0.0.0.0 gui-server-us.allawnos.com
 0.0.0.0 guif-eu.coloros.com
 0.0.0.0 guif.coloros.com
-0.0.0.0 h4g3z1-native.apple.web.app
-0.0.0.0 h4g3z1-native.huawei.web.app
-0.0.0.0 h4g3z1-native.oppo-realme.web.app
-0.0.0.0 h4g3z1-native.samsung.web.app
-0.0.0.0 h4g3z1-native.tiktok.web.app
-0.0.0.0 h4g3z1-native.vivo.web.app
-0.0.0.0 h4g3z1-native.xiaomi.web.app
+0.0.0.0 h4g3z1-native-apple.web.app
+0.0.0.0 h4g3z1-native-huawei.web.app
+0.0.0.0 h4g3z1-native-oppo-realme.web.app
+0.0.0.0 h4g3z1-native-samsung.web.app
+0.0.0.0 h4g3z1-native-tiktok.web.app
+0.0.0.0 h4g3z1-native-vivo.web.app
+0.0.0.0 h4g3z1-native-xiaomi.web.app
 0.0.0.0 h5-ru.video.intl.xiaomi.com
 0.0.0.0 h5.tv.mi.com
 0.0.0.0 haohuo.snssdk.com
@@ -836,7 +837,6 @@
 0.0.0.0 i.xiaomi.com
 0.0.0.0 iad-apple.com.akadns.net
 0.0.0.0 iad.apple.com
-0.0.0.0 iadcontent-lb.apple.com.akadns.net
 0.0.0.0 iadcontent.apple.com
 0.0.0.0 iadmoo.apple.com
 0.0.0.0 iadsdk.apple.com
