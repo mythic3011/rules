@@ -283,6 +283,11 @@ class ResolveGateTests(unittest.TestCase):
             "udp.src_ip",
         ):
             self.assertIn(opt, deferred)
+        # Exact pin: the deferred contract-gap set is precisely these five and
+        # nothing more (guards against silent set growth/shrink).
+        self.assertEqual(set(deferred), {"dns.resolver_sync", "routing.direct_region",
+                                        "routing.proxy_region", "udp.enabled",
+                                        "udp.src_ip"})
 
 
 class RegionGateDeferredTests(unittest.TestCase):

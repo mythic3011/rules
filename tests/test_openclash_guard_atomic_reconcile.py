@@ -402,26 +402,26 @@ class AtomicReconcileGateTests(unittest.TestCase):
         self.assertEqual(nft_log.strip(), "")
         self.assertEqual(kill_apply_log.strip(), "")
 
-    def test_prepare_refuses_before_policy_load_when_layer_a_invalid(self) -> None:
-        """Layer-A invalid overlay short-circuits _guard_prepare BEFORE policy work.
+    def test_prepare_refuses_layer_a_invalid_before_any_apply(self) -> None:
+        """Layer-A invalid overlay => _guard_prepare refuses and no nft mutation.
 
-        We prove this by pointing GUARD_POLICY_FILE at a path that would
-        fail policy_load if reached; if Layer-A works as ordered,
-        _guard_prepare refuses BEFORE policy_load runs and the (invalid)
-        policy path is never observed.
+        This test deliberately uses a VALID policy: _run_main falls back to
+        _minimal_policy() when policy=None. The invalid dimension is the
+        overlay (main.enabled=notaboolean), so the non-zero exit and the
+        "invalid" stderr line prove the Layer-A refuse fired and the pipeline
+        stopped before any nft/apply work (nft and kill_apply logs stay
+        empty). Ordering-before-policy-load is NOT asserted here; only the
+        refuse + zero-mutation invariant is.
         """
         shell = sh_available()
         if shell is None:
             raise unittest.SkipTest("no POSIX shell available on this host")
-        # Use a nonexistent policy path; if the pipeline reaches
-        # guard_policy_load, json_load fails. Otherwise we should still see
-        # the overlay-invalid error and non-zero.
         proc, nft_log, kill_apply_log = _run_main(
             '_guard_prepare\n',
             uci_state={"main.enabled": "notaboolean"},
-            policy=None,  # placeholder, but we'll override GUARD_POLICY_FILE below
+            policy=None,  # _run_main substitutes a valid _minimal_policy()
         )
-        # Policy is otherwise valid so we know the failure is the overlay.
+        # Policy is valid so the failure must come from the overlay.
         self.assertNotEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         self.assertIn("invalid", proc.stderr, proc.stderr)
         self.assertEqual(nft_log.strip(), "")
@@ -447,15 +447,16 @@ class AtomicReconcileGateTests(unittest.TestCase):
         self.assertIn("guard_migrate_stale", nft_log)
 
     def test_layer_a_coherence_still_refuses(self) -> None:
-        """Stale/ABA coherence: a UCI fingerprint that flips mid-read must
-        still refuse the apply path. We prove this by stubbing the AFTER
-        fingerprint differ; the overlay's bounded-retry path exhausts and
-        surfaces ``snapshot not coherent``.
+        """Coherence refuse: apply path refuses when load reports not-coherent.
 
-        We inject the mutation by overriding guard_uci_overlay_populate_from_uci
-        AFTER sourcing the overlay module — a stable test seam that does not
-        require us to race real uci. The function isru n inside the overlay
-        load retry, so flipping ALSO flips the after fingerprint comparison.
+        This exercises the _guard_prepare refuse path via a stubbed
+        guard_uci_overlay_load: our override always adds the
+        ``snapshot not coherent`` error and returns 1, which is exactly the
+        condition _guard_prepare gates on (retry exhaustion surfaces
+        non-zero). We deliberately do NOT race a real fingerprint flip here;
+        _guard_prepare must refuse and zero nft mutation occurs. Real
+        fingerprint/ABA coverage lives in OverlayCoherenceTests
+        (tests/test_openclash_guard_uci_overlay.py).
         """
         shell = sh_available()
         if shell is None:
@@ -513,7 +514,8 @@ _guard_prepare
             capture_output=True,
             text=True,
             # See _run_main: Windows-bash cold-start + _guard_prepare exceeds
-            # 30s under load; sibling suites use 60s. No logic found guard-valid path resolution; socket timeout to Windows-fork fanout
+            # 30s under load; sibling suites use 60s.
+            timeout=60,
         )
         self.assertNotEqual(proc.returncode, 0, f"expected refuse: {proc.stdout}\n{proc.stderr}")
         self.assertIn("invalid", proc.stderr, proc.stderr)

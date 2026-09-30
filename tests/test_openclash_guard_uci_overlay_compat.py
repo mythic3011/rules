@@ -51,25 +51,25 @@ Coverage (per the #124 acceptance list):
      tests/test_openclash_guard_uci_overlay_resolve.py,
      tests/test_openclash_guard_uci_read_guardrail.py).
 
-POST-A1 contract target
-----------------------
-The runtime contract (internal/config/openclash-guard/uci-runtime-contract.json
-+ uci-overlay-resolution.json) was reclassified by A1: ``udp.enabled`` and
-``udp.src_ip`` are authoritative at the ``uci-runtime`` layer (Layer A only;
-no Layer-B gate). The landed shell modules have NOT yet been edited:
+Current deferred-set contract (post-revert)
+-------------------------------------------
+The unapproved A1 ``uci-runtime`` reclass of ``udp.enabled`` / ``udp.src_ip``
+was REVERTED (review blocker 2): with no defined signed-policy gate, Layer B
+must not invent semantics to migrate them. The current contract is:
 
-  * shell/apps/openclash-guard/uci-overlay.sh spec table still tags
-    ``udp.enabled|boolean|1|signed-policy-gated`` (and the matching
-    ``udp.src_ip|ipv4-list||signed-policy-gated``).
+  * ``udp.enabled`` / ``udp.src_ip`` remain signed-policy-gated contract gaps.
+    The Layer-A spec table in shell/apps/openclash-guard/uci-overlay.sh tags
+    them ``signed-policy-gated``, and shell/apps/openclash-guard/uci-overlay-resolve.sh
+    keeps them in ``_GUARD_UCOR_DEFERRED_OPTIONS``.
 
-  * shell/apps/openclash-guard/uci-overlay-resolve.sh still keeps
-    ``udp.enabled udp.src_ip`` in _GUARD_UCOR_DEFERRED_OPTIONS.
+  * Both stay in the five-entry deferred set alongside ``dns.resolver_sync``,
+    ``routing.direct_region``, and ``routing.proxy_region``.
 
-The ``UdpAuthorityTargetTests`` class therefore EXPECTS the post-A1 contract
-(udp.* resolve via Layer A only, NOT listed by guard_uci_overlay_deferred_options,
-NOT deferred at effective()). These tests will fail until A1's shell edit
-lands; that is intentional and documented per the task. Every other class in
-this file passes against the currently-landed modules.
+  * ``guard_uci_overlay_effective`` surfaces them as ``DEFERRED:<normalized>``
+    (normalized value shown, never treated as runtime authority).
+
+The ``UdpAuthorityTargetTests`` and ``ContractParityTargetTests`` classes pin
+this reverted/deferred state and pass against the landed modules.
 """
 
 from __future__ import annotations
@@ -1132,15 +1132,28 @@ class UdpAuthorityTargetTests(unittest.TestCase):
 
 
 # ==========================================================================
-# 9. Cohesion: contract files themselves agree with the post-A1 target.
+# 9. Cohesion: contract files agree with the reverted (blocker 2) deferred
+#    contract: udp.* stay signed-policy-gated and the deferred set is exactly
+#    the five entries below.
 # ==========================================================================
 
 
+# The exact five-entry deferred contract-gap set (post-revert; review blocker 2).
+EXPECTED_DEFERRED_SET = {
+    "dns.resolver_sync",
+    "routing.direct_region",
+    "routing.proxy_region",
+    "udp.enabled",
+    "udp.src_ip",
+}
+
+
 class ContractParityTargetTests(unittest.TestCase):
-    """The runtime contract JSON and the resolution contract JSON were both
-    edited by A1 to reflect the post-A1 authority for udp.enabled /
-    udp.src_ip. This anchors the docs side so the resolver side has a
-    documented target to track."""
+    """The runtime contract JSON and the resolution contract JSON pin the
+    reverted (blocker 2) contract: udp.enabled / udp.src_ip stay
+    signed-policy-gated, and the resolution contract's deferred gap set is
+    exactly the five entries in EXPECTED_DEFERRED_SET. This anchors the docs
+    side against the landed shell modules."""
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -1155,16 +1168,21 @@ class ContractParityTargetTests(unittest.TestCase):
     def test_resolution_contract_defers_udp_options(self) -> None:
         gaps = self.resolution["gaps"]["deferred"]
         deferred_paths = {entry["option"] for entry in gaps}
-        self.assertIn("udp.enabled", deferred_paths)
-        self.assertIn("udp.src_ip", deferred_paths)
+        # udp.* remain deferred AND the whole set is exactly the pinned five.
+        self.assertEqual(deferred_paths, EXPECTED_DEFERRED_SET)
 
     def test_resolution_contract_other_defers_remain(self) -> None:
         gaps = self.resolution["gaps"]["deferred"]
         deferred_paths = {entry["option"] for entry in gaps}
-        # Per the contract, these remain deferred (contract gaps un-edited).
-        self.assertIn("dns.resolver_sync", deferred_paths)
-        self.assertIn("routing.direct_region", deferred_paths)
-        self.assertIn("routing.proxy_region", deferred_paths)
+        # Per the contract, these remain deferred (contract gaps un-edited);
+        # set-equality pins that nothing else entered the deferred set.
+        self.assertEqual(deferred_paths, EXPECTED_DEFERRED_SET)
+
+    def test_deferred_set_has_exactly_five_entries(self) -> None:
+        gaps = self.resolution["gaps"]["deferred"]
+        deferred_paths = {entry["option"] for entry in gaps}
+        self.assertEqual(len(deferred_paths), 5)
+        self.assertEqual(deferred_paths, EXPECTED_DEFERRED_SET)
 
 
 if __name__ == "__main__":
