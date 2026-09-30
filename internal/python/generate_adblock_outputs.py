@@ -422,7 +422,7 @@ def write_text(path: Path, content: str) -> None:
 
 def write_json(path: Path, payload: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=False) + "\n", encoding="utf-8")
+    path.write_text(json.dumps(payload, indent=2, sort_keys=False) + "\n", encoding="utf-8", newline="\n")
 
 
 def _rule_asset(
@@ -588,7 +588,7 @@ def _classify_rule_dir_asset(name: str, rel_path: str) -> dict[str, object] | No
 
 def classify_rule_asset(path: Path) -> dict[str, object]:
     relative_path = path.relative_to(ROOT)
-    rel_path = str(relative_path)
+    rel_path = relative_path.as_posix()
     name = path.name
     top = relative_path.parts[0] if relative_path.parts else ""
     if top == "dns":
