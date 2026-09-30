@@ -21,6 +21,26 @@ test('web/site HTML files do not use dangerous innerHTML string interpolation', 
   }
 });
 
+test('isIPv4 strictly validates IPv4 format and rejects leading zeros', async () => {
+  const { isIPv4 } = await import('../web/site/assets/common.js');
+
+  // Valid IPv4 addresses
+  assert.strictEqual(isIPv4('192.168.1.1'), true);
+  assert.strictEqual(isIPv4('0.0.0.0'), true);
+  assert.strictEqual(isIPv4('255.255.255.255'), true);
+
+  // Octets with leading zeros (prevent octal/decimal ambiguities)
+  assert.strictEqual(isIPv4('192.168.01.1'), false);
+  assert.strictEqual(isIPv4('010.0.0.1'), false);
+  assert.strictEqual(isIPv4('127.000.000.001'), false);
+
+  // Invalid values
+  assert.strictEqual(isIPv4('256.0.0.1'), false);
+  assert.strictEqual(isIPv4('1.2.3'), false);
+  assert.strictEqual(isIPv4('1.2.3.4.5'), false);
+  assert.strictEqual(isIPv4('a.b.c.d'), false);
+});
+
 test('web/site report page sanitizes dynamic URL schemes before setting href', () => {
   const htmlContent = fs.readFileSync(path.join(SITE_DIR, 'report.html'), 'utf8');
   let jsContent = '';
