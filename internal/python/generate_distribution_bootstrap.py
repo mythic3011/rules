@@ -26,7 +26,13 @@ def replace_block(path: Path, begin: str, end: str, lines: list[str]) -> None:
     text = path.read_text(encoding="utf-8")
     start = text.index(begin)
     finish = text.index(end, start) + len(end)
-    path.write_text(text[:start] + "\n".join(lines) + text[finish:], encoding="utf-8")
+    # Deterministic LF for the generated artifacts. The release verifier and
+    # the release metadata hash these bytes against the git blob; a CRLF
+    # working-tree emitter (Windows) would break the guardBundle/
+    # bootstrapInstaller/runtime* digest pairing that the signed chain
+    # depends on. This MUST match the already-LF authoring of every other
+    # generated artifact, so one `newline="\n"` flag is enough.
+    path.write_text(text[:start] + "\n".join(lines) + text[finish:], encoding="utf-8", newline="\n")
 
 
 def main() -> None:

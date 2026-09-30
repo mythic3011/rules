@@ -41,11 +41,11 @@
       },
       {
         "option": "udp.enabled",
-        "reason": "#122 marks it signed-policy-gated but no authoritative gate ties it to a signed policy field. Defer."
+        "reason": "Reverted to contract-landed authority (#122/#126): signed-policy-gated semantic gate undefined in this revision. Restore as contract gap; do not consume as authoritative effective value."
       },
       {
         "option": "udp.src_ip",
-        "reason": "#122 marks it signed-policy-gated but no authoritative gate ties the source-IP list to a signed policy field. Defer."
+        "reason": "Same as udp.enabled: authority restored to signed-policy-gated with no defined gate in this revision; restored to deferred."
       }
     ]
   },

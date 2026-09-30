@@ -10,6 +10,8 @@ The detector reads the live `inet fw4` ruleset and reports only explicit client-
 
 A generic LAN-to-WAN accept rule is not enough to trigger the detector. The rule must contain both a concrete `ip saddr` selector and the relevant DNS destination port.
 
+Destination-port matching accepts exact tokens, braced anonymous sets of exact tokens, numeric ranges of the form `N-M` (matched when the wanted port lies within the `N..M` window), and braced sets whose elements mix exact tokens and such ranges. Named set references (e.g. `@my_set`) and malformed ranges (where `M < N`) never match.
+
 `openclash-guard status --json` exposes the observation under `dns.clientBypass`:
 
 ```json

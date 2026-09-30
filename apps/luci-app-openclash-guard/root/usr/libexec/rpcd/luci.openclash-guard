@@ -55,6 +55,28 @@ service_host() {
 	esac
 }
 
+# redact_profile_url: emit scheme+host only. Profile URLs may carry an opaque
+# bearer-style token in the path (e.g. /p/<token>.ini); the dashboard must never
+# receive the path, query, or embedded userinfo. POSIX parameter expansion only;
+# no eval.
+redact_profile_url() {
+	url=$1
+	case "$url" in
+		https://*)
+			rest=${url#https://}
+			hostport=${rest%%/*}
+			hostport=${hostport%%\?*}
+			hostport=${hostport##*@}
+			case "$hostport" in
+				'') printf '\n' ;;
+				*) printf 'https://%s\n' "$hostport" ;;
+			esac
+			;;
+		'') printf '\n' ;;
+		*) printf '\n' ;;
+	esac
+}
+
 history_file() {
 	case "$1" in
 		chatgpt|claude|grok) printf '%s/%s.log\n' "$HISTORY_DIR" "$1" ;;
@@ -146,7 +168,8 @@ get_status() {
 	[ "$auto_refresh" = 1 ] && json_add_boolean autoRefresh 1 || json_add_boolean autoRefresh 0
 	[ "$resolver_sync" = 1 ] && json_add_boolean resolverSync 1 || json_add_boolean resolverSync 0
 	[ "$fail_closed" = 1 ] && json_add_boolean failClosed 1 || json_add_boolean failClosed 0
-	json_add_string profileUrl "$profile_url"
+	profile_url_redacted=$(redact_profile_url "$profile_url")
+	json_add_string profileUrl "$profile_url_redacted"
 	json_add_string profileMode "$profile_mode"
 	json_add_string distributionSource "$distribution_source"
 	json_add_string directRegion "$direct_region"
@@ -363,14 +386,18 @@ case "${1:-}" in
 			trace)
 				read -r input
 				json_load "$input"
-				json_get_var service service
+				json_get_var service service ''
 				json_cleanup
+				if [ -z "$service" ]; then
+					json_error 'service is required'
+					return 0
+				fi
 				trace_service "$service"
 				;;
 			probeProfile)
 				read -r input
 				json_load "$input"
-				json_get_var url url
+				json_get_var url url ''
 				json_cleanup
 				probe_profile "$url"
 				;;

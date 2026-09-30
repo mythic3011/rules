@@ -1,0 +1,41 @@
+# LF determinism for the signed release chain.
+#
+# Every entry below carries `-text` so Git performs NO end-of-line conversion
+# on checkout or checkin: bytes on disk match bytes in the index exactly. That
+# determinism is load-bearing for the OpenClash Guard signed bundle (generator
+# emits dist/openclash-guard.sh -> verifier hashes -> signer signs -> detached
+# .sig is bound to the exact byte stream). Any CRLF/LF drift inside that
+# chain would invalidate the signature without changing semantics.
+#
+# Rules are intentionally exhaustive at this repository's current shape: any
+# new top-level path or file extension must either be added here or be
+# covered by an existing glob. Do NOT add a bare `*` or `* text=auto` rule —
+# that would re-enable per-platform conversion and break the chain above.
+
+# Meta / docs
+/README.md      -text
+/.gitattributes -text
+*.md            -text
+*.txt           -text
+
+# Tree-wide pins
+setup/**        -text
+dist/**         -text
+internal/**     -text
+apps/**         -text
+docs/**         -text
+dns/**          -text
+web/**          -text
+rule/**         -text
+cfg/**          -text
+tests/**        -text
+tools/**        -text
+.github/**      -text
+
+# Extensions
+*.sh            -text
+*.json          -text
+*.yaml          -text
+*.yml           -text
+*.ini           -text
+*.conf          -text

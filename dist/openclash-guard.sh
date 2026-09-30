@@ -1010,6 +1010,642 @@ huggingface suffix huggingface.co'
 _GUARD_RESOLVER_SYNC_DATA_EXCLUSIONS='flow-music path-scope-expansion'
 # END MODULE: guard-resolver-sync-data
 
+# BEGIN MODULE: guard-uci-overlay
+# Normalized OpenClash Guard UCI overlay.
+#
+# Single authority for reading local operator intent from
+# /etc/config/openclash_guard. It does NOT touch nft or any subsystem; it only
+# reads UCI, validates against the #122 runtime contract, and exposes a
+# normalized snapshot plus redacted diagnostics.
+#
+# Wiring status (see docs/openclash-guard-uci-overlay-integration.md):
+#   WIRED in the seq7 production release. Registered in shell/manifest.json
+#   (guard-uci-overlay) and compiled into the regenerated
+#   dist/openclash-guard.sh. _guard_prepare() loads the snapshot exactly once
+#   pre-reconcile, and guard_cmd_reconcile refires validation via
+#   _guard_require_atomic_overlay_for_apply BEFORE any nft mutation. The seq7
+#   candidate is published unsigned (releaseSignature absent); signing runs
+#   via the protected release-signing chain. Thin-consumer migration of the
+#   legacy killswitch/gaming/environment/dataplane readers to
+#   guard_uci_overlay_effective() is deferred additive cleanup.
+#
+# Trust model (per #122; contract at internal/config/openclash-guard/
+# uci-runtime-contract.json):
+#   - UCI is operator INTENT, not policy authority. It never widens signed
+#     policy. Authority resolution (signed ceiling/floor, live-capability
+#     gating) lives in uci-overlay-resolve.sh (depends on guard-policy /
+#     guard-environment).
+#   - A KNOWN option with an invalid value is a hard error: the overlay becomes
+#     invalid and the error is surfaced so reconcile/apply refuses BEFORE any
+#     nft mutation. No silent fallback to a weaker state. This applies to every
+#     contract-covered option, including the effective legacy controls
+#     (main.enabled, main.kill_switch, main.dns_kill_switch, udp.enabled,
+#     udp.src_ip).
+#   - An UNKNOWN option is ignored-and-reported: it gains no runtime authority
+#     and never invalidates an otherwise-valid config (forward compatibility).
+#
+# Contract parity: the option table mirrors internal/config/openclash-guard/
+# uci-runtime-contract.json. POSIX shell cannot parse that JSON, so the table
+# is kept in sync manually and verified by
+# tests/test_openclash_guard_uci_overlay.py. Change both together.
+#
+# Deliberate omissions: rules.direct_rule/proxy_rule/direct_source/
+# proxy_source are NOT modeled (no grammar/canonicalization/duplicate/conflict/
+# precedence semantics exist yet). See docs "Contract gaps". They are not
+# validated, not normalized, and gain no runtime authority.
+#
+# Prefix: guard_uci_overlay_
+set -eu
+
+# spec line: option_path|type|default|authority
+_GUARD_UCI_OVERLAY_SPEC='
+main.enabled|boolean|1|uci-runtime
+main.kill_switch|boolean|1|uci-runtime
+main.dns_kill_switch|boolean|0|uci-runtime
+main.profile_mode|enum|remote_ini|uci-overlay
+main.profile_url|https-url-or-empty||uci-overlay
+main.distribution_source|enum|auto|uci-overlay
+main.auto_refresh|boolean|1|uci-overlay
+routing.direct_region|region-ref|hk|signed-policy-gated
+routing.proxy_region|region-ref|us|signed-policy-gated
+routing.chatgpt|service-route-mode|proxy|signed-policy-gated
+routing.claude|service-route-mode|proxy|signed-policy-gated
+routing.grok|service-route-mode|proxy|signed-policy-gated
+dns.backend|enum|auto|live-capability-gated
+dns.resolver_sync|boolean|1|live-capability-gated
+dns.fail_closed|boolean|1|signed-policy-floor
+udp.enabled|boolean|1|signed-policy-gated
+udp.src_ip|ipv4-list||signed-policy-gated
+monitoring.enabled|boolean|0|monitor-service
+monitoring.interval|integer-enum|900|monitor-service
+monitoring.chatgpt|boolean|1|monitor-service
+monitoring.claude|boolean|1|monitor-service
+monitoring.grok|boolean|1|monitor-service
+'
+
+# Region catalog twin of internal/config/ai-routing/catalogs/regions.json.
+_GUARD_UCI_OVERLAY_REGIONS='us jp sg tw kr hk mo uk fr de it no ca au ru ua tr'
+_GUARD_UCI_OVERLAY_PRIMARY_ORDER='us jp sg tw kr'
+
+_GUARD_UCI_OVERLAY_LOADED=0
+_GUARD_UCI_OVERLAY_VALID=1
+_GUARD_UCI_OVERLAY_ERRORS=''
+_GUARD_UCI_OVERLAY_UNKNOWN=''
+# Availability of the local UCI store this session. 1 = read OK (or absent
+# package, a valid empty config), 0 = uci missing or package read failed.
+_GUARD_UCI_OVERLAY_UCI_AVAILABLE=1
+
+_guard_uci_overlay_reset() {
+    _GUARD_UCI_OVERLAY_LOADED=0
+    _GUARD_UCI_OVERLAY_VALID=1
+    _GUARD_UCI_OVERLAY_ERRORS=''
+    _GUARD_UCI_OVERLAY_UNKNOWN=''
+    _GUARD_UCI_OVERLAY_UCI_AVAILABLE=1
+}
+
+_guard_uci_overlay_add_error() {
+    if [ -z "$_GUARD_UCI_OVERLAY_ERRORS" ]; then
+        _GUARD_UCI_OVERLAY_ERRORS="$1"
+    else
+        _GUARD_UCI_OVERLAY_ERRORS="$_GUARD_UCI_OVERLAY_ERRORS
+$1"
+    fi
+    _GUARD_UCI_OVERLAY_VALID=0
+}
+
+_guard_uci_overlay_add_unknown() {
+    if [ -z "$_GUARD_UCI_OVERLAY_UNKNOWN" ]; then
+        _GUARD_UCI_OVERLAY_UNKNOWN="$1"
+    else
+        _GUARD_UCI_OVERLAY_UNKNOWN="$_GUARD_UCI_OVERLAY_UNKNOWN
+$1"
+    fi
+}
+
+_guard_uci_overlay_var_name() {
+    printf '_GUARD_UCO_%s' "$(printf '%s' "$1" | tr '[:lower:].' '[:upper:]_')"
+}
+
+_guard_uci_overlay_field() {
+    # _guard_uci_overlay_field PATH FIELDNO -> prints the spec field.
+    # Match is exact: the spec line for PATH is "PATH|type|default|authority",
+    # so we require PATH terminated by the field separator (a bare prefix such
+    # as main.enabled matching main.enabledX would be a false positive).
+    _guard_uci_of_path=$1
+    _guard_uci_of_no=$2
+    _guard_uci_of_found=1
+    for _guard_uci_of_line in $_GUARD_UCI_OVERLAY_SPEC
+    do
+        case $_guard_uci_of_line in
+            "$_guard_uci_of_path"?*)
+                # Candidate shares PATH as prefix; require the very next char
+                # to be the field separator.
+                _guard_uci_of_rest=${_guard_uci_of_line#"$_guard_uci_of_path"}
+                case $_guard_uci_of_rest in
+                    '|'*)
+                        printf '%s' "$_guard_uci_of_rest" | cut -d'|' -f"$_guard_uci_of_no"
+                        _guard_uci_of_found=0
+                        break
+                        ;;
+                esac
+                ;;
+        esac
+    done
+    return $_guard_uci_of_found
+}
+
+_guard_uci_overlay_known() {
+    _guard_uci_overlay_field "$1" 1 >/dev/null
+}
+
+_guard_uci_overlay_type() { _guard_uci_overlay_field "$1" 2; }
+_guard_uci_overlay_default() { _guard_uci_overlay_field "$1" 3; }
+_guard_uci_overlay_authority() { _guard_uci_overlay_field "$1" 4; }
+
+_guard_uci_overlay_enum_values() {
+    case $1 in
+        main.profile_mode) printf 'remote_ini local' ;;
+        main.distribution_source) printf 'auto github-raw jsdelivr' ;;
+        dns.backend) printf 'auto adguardhome dnsmasq' ;;
+        routing.chatgpt|routing.claude|routing.grok) printf 'proxy direct auto block' ;;
+        monitoring.interval) printf '300 900 1800 3600' ;;
+        *) printf '' ;;
+    esac
+}
+
+_guard_uci_overlay_is_boolean() {
+    case $1 in
+        1|true|TRUE|True|yes|YES|on|ON|enabled|ENABLED) return 0 ;;
+        0|false|FALSE|False|no|NO|off|OFF|disabled|DISABLED|'') return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+_guard_uci_overlay_normalize_boolean() {
+    case $1 in
+        1|true|TRUE|True|yes|YES|on|ON|enabled|ENABLED) printf '1' ;;
+        *) printf '0' ;;
+    esac
+}
+
+_guard_uci_overlay_in_list() {
+    # _guard_uci_overlay_in_list NEEDLE item1 item2 ...
+    _guard_uci_il_needle=$1
+    shift || return 1
+    for _guard_uci_il_item in "$@"
+    do
+        [ "$_guard_uci_il_item" = "$_guard_uci_il_needle" ] && return 0
+    done
+    return 1
+}
+
+_guard_uci_overlay_region_set_for() {
+    case $1 in
+        routing.proxy_region) printf 'primaryOrder' ;;
+        *) printf 'registry' ;;
+    esac
+}
+
+_guard_uci_overlay_valid_region() {
+    # $1=value $2=regionSet(registry|primaryOrder)
+    if [ "$2" = "primaryOrder" ]; then
+        # shellcheck disable=SC2086
+        _guard_uci_overlay_in_list "$1" $_GUARD_UCI_OVERLAY_PRIMARY_ORDER
+    else
+        # shellcheck disable=SC2086
+        _guard_uci_overlay_in_list "$1" $_GUARD_UCI_OVERLAY_REGIONS
+    fi
+}
+
+_guard_uci_overlay_valid_ipv4() {
+    _guard_uci_v4=$1
+    case $_guard_uci_v4 in
+        *[!0-9.]*|'') return 1 ;;
+    esac
+    _guard_uci_v4_oldifs=$IFS
+    IFS='.'
+    # shellcheck disable=SC2086
+    set -- $_guard_uci_v4
+    IFS=$_guard_uci_v4_oldifs
+    [ "$#" -eq 4 ] || return 1
+    for _guard_uci_v4_octet in "$@"
+    do
+        case $_guard_uci_v4_octet in
+            0|[1-9]|[1-9][0-9]|[1-9][0-9][0-9]) : ;;
+            *) return 1 ;;
+        esac
+        [ "$_guard_uci_v4_octet" -le 255 ] 2>/dev/null || return 1
+    done
+    return 0
+}
+
+_guard_uci_overlay_check_https_url() {
+    # On failure prints a REASON (never the URL) and returns 1.
+    _guard_uci_url=$1
+    case $_guard_uci_url in
+        *[\ \	]*) printf 'URL contains whitespace'; return 1 ;;
+    esac
+    case $_guard_uci_url in
+        https://*) : ;;
+        http://*) printf 'URL is not HTTPS'; return 1 ;;
+        *) printf 'URL is malformed (must start with https://)'; return 1 ;;
+    esac
+    _guard_uci_url_rest=${_guard_uci_url#https://}
+    case $_guard_uci_url_rest in
+        '') printf 'URL is malformed (empty host)'; return 1 ;;
+        *@*) printf 'URL contains credentials'; return 1 ;;
+    esac
+    _guard_uci_url_host=${_guard_uci_url_rest%%/*}
+    case $_guard_uci_url_host in
+        ''|*[\ \	]*) printf 'URL is malformed (empty host)'; return 1 ;;
+    esac
+    return 0
+}
+
+# Validate an ipv4-list (space-separated). Success assigns the canonical
+# de-duplicated list into the variable named by $3. Failure records an error
+# and returns 1. Runs in the CURRENT shell (no command substitution) so the
+# recorded error persists.
+_guard_uci_overlay_validate_ipv4_list() {
+    _guard_uci_vl_path=$1
+    _guard_uci_vl_value=$2
+    _guard_uci_vl_resultvar=$3
+    _guard_uci_vl_out=''
+    for _guard_uci_vl_item in $_guard_uci_vl_value
+    do
+        [ -n "$_guard_uci_vl_item" ] || continue
+        if ! _guard_uci_overlay_valid_ipv4 "$_guard_uci_vl_item"; then
+            _guard_uci_overlay_add_error "$_guard_uci_vl_path|invalid IPv4 address in list"
+            return 1
+        fi
+        # shellcheck disable=SC2086
+        if _guard_uci_overlay_in_list "$_guard_uci_vl_item" $_guard_uci_vl_out; then
+            continue
+        fi
+        if [ -z "$_guard_uci_vl_out" ]; then
+            _guard_uci_vl_out=$_guard_uci_vl_item
+        else
+            _guard_uci_vl_out="$_guard_uci_vl_out $_guard_uci_vl_item"
+        fi
+    done
+    eval "$_guard_uci_vl_resultvar=\$_guard_uci_vl_out"
+    return 0
+}
+
+# Validate one known option value. On success assigns the NORMALIZED value to
+# the variable named by $4 and returns 0; on failure records "path|reason" and
+# returns 1. IMPORTANT: this mutates shell state (_GUARD_UCI_OVERLAY_ERRORS /
+# _GUARD_UCI_OVERLAY_VALID), so it must be called in the current shell — never
+# via $( command substitution ), which forks and discards the recorded error.
+_guard_uci_overlay_validate_value() {
+    _guard_uci_ovv_path=$1
+    _guard_uci_ovv_type=$2
+    _guard_uci_ovv_value=$3
+    _guard_uci_ovv_resultvar=$4
+    case $_guard_uci_ovv_type in
+        boolean)
+            if _guard_uci_overlay_is_boolean "$_guard_uci_ovv_value"; then
+                eval "$_guard_uci_ovv_resultvar=\$(_guard_uci_overlay_normalize_boolean "\$_guard_uci_ovv_value")"
+                return 0
+            fi
+            _guard_uci_overlay_add_error "$_guard_uci_ovv_path|invalid boolean (expected 0/1)"
+            return 1
+            ;;
+        enum|integer-enum|service-route-mode)
+            _guard_uci_ovv_allowed=$(_guard_uci_overlay_enum_values "$_guard_uci_ovv_path")
+            # shellcheck disable=SC2086
+            if _guard_uci_overlay_in_list "$_guard_uci_ovv_value" $_guard_uci_ovv_allowed; then
+                eval "$_guard_uci_ovv_resultvar=\$_guard_uci_ovv_value"
+                return 0
+            fi
+            _guard_uci_overlay_add_error "$_guard_uci_ovv_path|invalid value (allowed: $_guard_uci_ovv_allowed)"
+            return 1
+            ;;
+        region-ref)
+            _guard_uci_ovv_set=$(_guard_uci_overlay_region_set_for "$_guard_uci_ovv_path")
+            if _guard_uci_overlay_valid_region "$_guard_uci_ovv_value" "$_guard_uci_ovv_set"; then
+                eval "$_guard_uci_ovv_resultvar=\$_guard_uci_ovv_value"
+                return 0
+            fi
+            if [ "$_guard_uci_ovv_set" = "primaryOrder" ]; then
+                _guard_uci_overlay_add_error "$_guard_uci_ovv_path|invalid region (must be a routable proxy-exit region)"
+            else
+                _guard_uci_overlay_add_error "$_guard_uci_ovv_path|invalid region (unknown region id)"
+            fi
+            return 1
+            ;;
+        https-url-or-empty)
+            if [ -z "$_guard_uci_ovv_value" ]; then
+                eval "$_guard_uci_ovv_resultvar=''"
+                return 0
+            fi
+            _guard_uci_ovv_reason=$(_guard_uci_overlay_check_https_url "$_guard_uci_ovv_value") || {
+                _guard_uci_overlay_add_error "$_guard_uci_ovv_path|$_guard_uci_ovv_reason"
+                return 1
+            }
+            eval "$_guard_uci_ovv_resultvar=\$_guard_uci_ovv_value"
+            return 0
+            ;;
+        ipv4-list)
+            _guard_uci_overlay_validate_ipv4_list "$_guard_uci_ovv_path" "$_guard_uci_ovv_value" "$_guard_uci_ovv_resultvar"
+            return $?
+            ;;
+        *)
+            # rule-list / https-url-list intentionally not modeled.
+            eval "$_guard_uci_ovv_resultvar=\$_guard_uci_ovv_value"
+            return 0
+            ;;
+    esac
+}
+
+# Read the whole package, strictly validate known options, collect unknowns.
+# Populates the normalized snapshot. Returns 0 when valid, 1 when any known
+# option was invalid (errors recorded before any caller can mutate nft).
+guard_uci_overlay_load() {
+    _guard_uci_overlay_reset
+    # A new snapshot invalidates any previously resolved Layer-B effective
+    # state. The resolver is an optional higher layer; call its invalidation
+    # hook only when present (guarded, so this module stays dependency-free and
+    # the manifest can wire Layer B after Layer A without a cycle).
+    if command -v guard_uci_overlay_invalidate_resolved_state >/dev/null 2>&1; then
+        guard_uci_overlay_invalidate_resolved_state
+    fi
+    # Seed normalized vars with contract defaults (eval name is contract-only).
+    for _guard_uci_ol_line in $_GUARD_UCI_OVERLAY_SPEC
+    do
+        _guard_uci_ol_path=$(printf '%s' "$_guard_uci_ol_line" | cut -d'|' -f1)
+        _guard_uci_ol_dflt=$(printf '%s' "$_guard_uci_ol_line" | cut -d'|' -f3)
+        _guard_uci_ol_var=$(_guard_uci_overlay_var_name "$_guard_uci_ol_path")
+        eval "$_guard_uci_ol_var=\$_guard_uci_ol_dflt"
+        eval "${_guard_uci_ol_var}_RAW=''"
+    done
+
+    # uci must exist AND the package must be readable; otherwise treat the
+    # overlay as unavailable/invalid and fail (never quietly default).
+    if ! command -v uci >/dev/null 2>&1; then
+        _GUARD_UCI_OVERLAY_UCI_AVAILABLE=0
+        _guard_uci_overlay_add_error 'openclash_guard|uci command unavailable'
+        _GUARD_UCI_OVERLAY_LOADED=1
+        return 1
+    fi
+    if ! uci -q show openclash_guard >/dev/null 2>&1; then
+        # Distinguish "package absent" (valid empty config) from a real read
+        # failure. `uci show` exits non-zero when the package does not exist;
+        # an existing-but-empty or a read failure must not be conflated.
+        # Use `uci -q show` of the package with output captured: absence of the
+        # package config file is reported by uci as a specific message; treat
+        # any non-zero with NO config present as "absent" only when the config
+        # file itself is missing. If we cannot tell, conservatively fail.
+        _guard_uci_ol_show=$(uci show openclash_guard 2>&1) || _guard_uci_ol_show_rc=$?
+        case ${_guard_uci_ol_show_rc:-0} in
+            0) : ;;
+            *)
+                # uci reports "Entry not found" for a package that does not
+                # exist. Anything else is an unexpected read failure.
+                case $_guard_uci_ol_show in
+                    *'Entry not found'*|*'not found'*)
+                        # Package absent: valid empty config; defaults apply.
+                        _GUARD_UCI_OVERLAY_LOADED=1
+                        return 0
+                        ;;
+                    *)
+                        _GUARD_UCI_OVERLAY_UCI_AVAILABLE=0
+                        _guard_uci_overlay_add_error 'openclash_guard|package read failed'
+                        _GUARD_UCI_OVERLAY_LOADED=1
+                        return 1
+                        ;;
+                esac
+                ;;
+        esac
+    fi
+
+    # Snapshot-coherent collection. `uci show` is used ONLY as a coherence
+    # fingerprint (before/after); semantic VALUES are read with the real `uci
+    # get` CLI so UCI itself decodes quoting/escaping (never a home-grown shell
+    # quote parser, never `eval` of `uci show`). The before/after fingerprint
+    # comparison provides drift detection with a bounded retry; it is NOT a
+    # UCI transaction (see ABA caveat in the design doc).
+    _guard_uci_ol_attempt=0
+    _guard_uci_ol_coherent=0
+    while [ "$_guard_uci_ol_attempt" -lt "${GUARD_UCI_OVERLAY_MAX_ATTEMPTS:-2}" ]
+    do
+        _guard_uci_ol_attempt=$((_guard_uci_ol_attempt + 1))
+        # BEFORE fingerprint: explicit exit-status check, never `|| true` (a
+        # failed capture must not masquerade as an empty catalog).
+        if ! _guard_uci_ol_catalog_before=$(uci show openclash_guard 2>/dev/null); then
+            _guard_uci_overlay_add_error 'openclash_guard|coherence fingerprint capture failed (before)'
+            continue
+        fi
+        # Reset per-attempt state (unknown/errors/norm vars) without clearing
+        # the Layer-B invalidation already done above.
+        _GUARD_UCI_OVERLAY_VALID=1
+        _GUARD_UCI_OVERLAY_ERRORS=''
+        _GUARD_UCI_OVERLAY_UNKNOWN=''
+        for _guard_uci_ol_line in $_GUARD_UCI_OVERLAY_SPEC
+        do
+            _guard_uci_ol_path=$(printf '%s' "$_guard_uci_ol_line" | cut -d'|' -f1)
+            _guard_uci_ol_dflt=$(printf '%s' "$_guard_uci_ol_line" | cut -d'|' -f3)
+            _guard_uci_ol_var=$(_guard_uci_overlay_var_name "$_guard_uci_ol_path")
+            eval "$_guard_uci_ol_var=\$_guard_uci_ol_dflt"
+            eval "${_guard_uci_ol_var}_RAW=''"
+        done
+        if _guard_uci_overlay_populate_from_uci "$_guard_uci_ol_catalog_before"; then
+            # AFTER fingerprint: explicit exit-status check.
+            if ! _guard_uci_ol_catalog_after=$(uci show openclash_guard 2>/dev/null); then
+                _guard_uci_overlay_add_error 'openclash_guard|coherence fingerprint capture failed (after)'
+                continue
+            fi
+            if [ "$_guard_uci_ol_catalog_before" = "$_guard_uci_ol_catalog_after" ]; then
+                _guard_uci_ol_coherent=1
+                break
+            fi
+            # Generation changed mid-read: discard candidate and retry.
+        fi
+        # populate failed (a semantic field read failed): discard and retry.
+    done
+    if [ "$_guard_uci_ol_coherent" != 1 ]; then
+        _GUARD_UCI_OVERLAY_UCI_AVAILABLE=0
+        _guard_uci_overlay_add_error 'openclash_guard|snapshot not coherent (config changed or read failed)'
+        _GUARD_UCI_OVERLAY_LOADED=1
+        return 1
+    fi
+
+    _GUARD_UCI_OVERLAY_LOADED=1
+    [ "$_GUARD_UCI_OVERLAY_VALID" = 1 ]
+}
+
+# Derive option PATHS from the captured fingerprint catalog (paths only; values
+# are read separately with the real CLI). Prints one section.option per line.
+_guard_uci_overlay_catalog_paths() {
+    printf '%s\n' "$1" \
+        | sed -n "s/^openclash_guard\.\([A-Za-z0-9_]*\.[A-Za-z0-9_]*\)=.*/\1/p" \
+        | sed "s/\[[0-9]*\]\$//" \
+        | sort -u
+}
+
+# Read and validate semantic values for every option path present in the
+# fingerprint catalog, using the real `uci get` CLI. A failed semantic read on
+# an enumerated option DISCARDS the candidate (returns non-zero) instead of
+# validating an empty/partial value. Returns 0 when every option read cleanly
+# (validity of the VALUES is tracked separately in the overlay state).
+_guard_uci_overlay_populate_from_uci() {
+    _guard_uci_pf_catalog=$1
+    _guard_uci_pf_paths=$(_guard_uci_overlay_catalog_paths "$_guard_uci_pf_catalog")
+    for _guard_uci_pf_path in $_guard_uci_pf_paths
+    do
+        if ! _guard_uci_overlay_known "$_guard_uci_pf_path"; then
+            _guard_uci_overlay_add_unknown "$_guard_uci_pf_path"
+            continue
+        fi
+        _guard_uci_pf_type=$(_guard_uci_overlay_type "$_guard_uci_pf_path")
+        case $_guard_uci_pf_type in
+            ipv4-list|rule-list|https-url-list)
+                _guard_uci_pf_nl='
+'
+                # Explicit exit-status check BEFORE the tr pipe (CLI decodes the
+                # list form; a failed read discards the candidate).
+                if ! _guard_uci_pf_items=$(uci -d "$_guard_uci_pf_nl" -q get "openclash_guard.$_guard_uci_pf_path" 2>/dev/null); then
+                    _guard_uci_overlay_add_error "$_guard_uci_pf_path|read failed"
+                    return 1
+                fi
+                _guard_uci_pf_raw=$(printf '%s' "$_guard_uci_pf_items" | tr '\n' ' ')
+                ;;
+            *)
+                if ! _guard_uci_pf_raw=$(uci -q get "openclash_guard.$_guard_uci_pf_path" 2>/dev/null); then
+                    _guard_uci_overlay_add_error "$_guard_uci_pf_path|read failed"
+                    return 1
+                fi
+                ;;
+        esac
+        _guard_uci_pf_var=$(_guard_uci_overlay_var_name "$_guard_uci_pf_path")
+        eval "${_guard_uci_pf_var}_RAW=\$_guard_uci_pf_raw"
+        # Validate in the current shell so any recorded error persists (never
+        # wrap in $(...) — that would fork and lose _GUARD_UCI_OVERLAY_VALID).
+        _guard_uci_pf_norm=
+        if _guard_uci_overlay_validate_value "$_guard_uci_pf_path" "$_guard_uci_pf_type" "$_guard_uci_pf_raw" _guard_uci_pf_norm; then
+            eval "$_guard_uci_pf_var=\$_guard_uci_pf_norm"
+        fi
+        # On failure: keep the default; the error was recorded and VALID is 0.
+    done
+    return 0
+}
+
+guard_uci_overlay_read_raw() {
+    guard_uci_overlay_load
+}
+
+guard_uci_overlay_validate() {
+    if [ "$_GUARD_UCI_OVERLAY_LOADED" != 1 ]; then
+        guard_uci_overlay_load
+    fi
+    [ "$_GUARD_UCI_OVERLAY_VALID" = 1 ]
+}
+
+guard_uci_overlay_valid() {
+    printf '%s' "$_GUARD_UCI_OVERLAY_VALID"
+}
+
+# 1 when the local UCI store was read successfully this session (or the package
+# is legitimately absent); 0 when uci is missing or the package read failed.
+guard_uci_overlay_available() {
+    printf '%s' "$_GUARD_UCI_OVERLAY_UCI_AVAILABLE"
+}
+
+guard_uci_overlay_errors() {
+    printf '%s\n' "$_GUARD_UCI_OVERLAY_ERRORS"
+}
+
+guard_uci_overlay_unknown_options() {
+    printf '%s\n' "$_GUARD_UCI_OVERLAY_UNKNOWN"
+}
+
+guard_uci_overlay_get() {
+    _guard_uci_og_var=$(_guard_uci_overlay_var_name "$1")
+    eval "printf '%s' \"\${$_guard_uci_og_var:-}\""
+}
+
+guard_uci_overlay_get_raw() {
+    _guard_uci_ogr_var=$(_guard_uci_overlay_var_name "$1")
+    eval "printf '%s' \"\${${_guard_uci_ogr_var}_RAW:-}\""
+}
+
+# JSON-escape and quote a scalar. No secret values are ever passed in reasons.
+_guard_uci_overlay_json_q() {
+    _guard_uci_jq=$1
+    _guard_uci_jq_out=
+    _guard_uci_jq_i=1
+    _guard_uci_jq_len=${#_guard_uci_jq}
+    while [ "$_guard_uci_jq_i" -le "$_guard_uci_jq_len" ]
+    do
+        _guard_uci_jq_c=$(printf '%s' "$_guard_uci_jq" | cut -c "$_guard_uci_jq_i")
+        case $_guard_uci_jq_c in
+            '"') _guard_uci_jq_out="$_guard_uci_jq_out\\\"" ;;
+            '\') _guard_uci_jq_out="$_guard_uci_jq_out\\\\" ;;
+            *) _guard_uci_jq_out="$_guard_uci_jq_out$_guard_uci_jq_c" ;;
+        esac
+        _guard_uci_jq_i=$((_guard_uci_jq_i + 1))
+    done
+    printf '"%s"' "$_guard_uci_jq_out"
+}
+
+_guard_uci_overlay_json_errors() {
+    printf '['
+    _guard_uci_je_first=1
+    _guard_uci_je_oldifs=$IFS
+    IFS='
+'
+    for _guard_uci_je_line in $_GUARD_UCI_OVERLAY_ERRORS
+    do
+        IFS=$_guard_uci_je_oldifs
+        [ -n "$_guard_uci_je_line" ] || continue
+        _guard_uci_je_path=${_guard_uci_je_line%%|*}
+        _guard_uci_je_reason=${_guard_uci_je_line#*|}
+        [ "$_guard_uci_je_first" = 1 ] || printf ','
+        _guard_uci_je_first=0
+        printf '{"option":%s,"reason":%s}' \
+            "$(_guard_uci_overlay_json_q "$_guard_uci_je_path")" \
+            "$(_guard_uci_overlay_json_q "$_guard_uci_je_reason")"
+        IFS='
+'
+    done
+    IFS=$_guard_uci_je_oldifs
+    printf ']'
+}
+
+_guard_uci_overlay_json_unknown() {
+    printf '['
+    _guard_uci_ju_first=1
+    _guard_uci_ju_oldifs=$IFS
+    IFS='
+'
+    for _guard_uci_ju_line in $_GUARD_UCI_OVERLAY_UNKNOWN
+    do
+        IFS=$_guard_uci_ju_oldifs
+        [ -n "$_guard_uci_ju_line" ] || continue
+        [ "$_guard_uci_ju_first" = 1 ] || printf ','
+        _guard_uci_ju_first=0
+        printf '{"option":%s}' "$(_guard_uci_overlay_json_q "$_guard_uci_ju_line")"
+        IFS='
+'
+    done
+    IFS=$_guard_uci_ju_oldifs
+    printf ']'
+}
+
+# Diagnostics JSON (redacted), per #124. No secret values.
+# {"uciOverlay":{"available":bool,"valid":bool,"errors":[...],"unknownOptions":[...]}}
+guard_uci_overlay_json() {
+    if [ "$_GUARD_UCI_OVERLAY_LOADED" != 1 ]; then
+        guard_uci_overlay_load || true
+    fi
+    printf '{"uciOverlay":{"available":%s,"valid":%s,"errors":%s,"unknownOptions":%s}}' \
+        "$([ "$_GUARD_UCI_OVERLAY_UCI_AVAILABLE" = 1 ] && printf true || printf false)" \
+        "$([ "$_GUARD_UCI_OVERLAY_VALID" = 1 ] && printf true || printf false)" \
+        "$(_guard_uci_overlay_json_errors)" \
+        "$(_guard_uci_overlay_json_unknown)"
+}
+# END MODULE: guard-uci-overlay
+
 # BEGIN MODULE: json
 # Restricted JSON get/keys/list. Prefers jsonfilter; POSIX awk fallback.
 # Prefix: json_
@@ -2192,16 +2828,11 @@ guard_policy_validate_file() {
     do
         [ -n "$_guard_pv_class" ] || continue
         _guard_pv_da=$(json_get "$_guard_pv_file" "protectionClasses.${_guard_pv_class}.directAllowed") || _guard_pv_da=
-        _guard_pv_dr=$(json_get "$_guard_pv_file" "protectionClasses.${_guard_pv_class}.directRequiresSupportedRegion" 2>/dev/null) || _guard_pv_dr=false
         _guard_pv_fm=$(json_get "$_guard_pv_file" "protectionClasses.${_guard_pv_class}.failMode") || _guard_pv_fm=
         _guard_pv_quic=$(json_get "$_guard_pv_file" "protectionClasses.${_guard_pv_class}.quic") || _guard_pv_quic=
         _guard_pv_ks=$(json_get "$_guard_pv_file" "protectionClasses.${_guard_pv_class}.firewallKillSwitch") || _guard_pv_ks=
         if ! _guard_policy_is_bool "$_guard_pv_da"; then
             printf '%s\n' "guard_policy: invalid directAllowed on $_guard_pv_class" >&2
-            return 1
-        fi
-        if ! _guard_policy_is_bool "$_guard_pv_dr"; then
-            printf '%s\n' "guard_policy: invalid directRequiresSupportedRegion on $_guard_pv_class" >&2
             return 1
         fi
         case $_guard_pv_fm in
@@ -2408,19 +3039,6 @@ guard_policy_eval() {
             printf '%s\n' "reject"
             return 0
         fi
-        _guard_pe_direct_required=$(_guard_policy_class_field "$_guard_pe_svc" directRequiresSupportedRegion 2>/dev/null) || _guard_pe_direct_required=false
-        if [ "$_guard_pe_direct_required" = true ]; then
-            if guard_policy_region_allowed "$_guard_pe_svc" "$_GUARD_NET_DIRECT_REGION"; then
-                printf '%s\n' "allow-direct"
-                return 0
-            fi
-            if [ "$_GUARD_PROXY_HEALTHY" = 1 ] && guard_policy_region_allowed "$_guard_pe_svc" "$_GUARD_PROXY_REGION"; then
-                printf '%s\n' "allow-proxy"
-                return 0
-            fi
-            printf '%s\n' "reject"
-            return 0
-        fi
         if [ "$_guard_pe_gaming" = 1 ]; then
             printf '%s\n' "allow-direct"
             return 0
@@ -2455,6 +3073,430 @@ guard_policy_json_extra() {
     printf ']'
 }
 # END MODULE: guard-policy
+
+# BEGIN MODULE: guard-uci-overlay-resolve
+# Authority resolution for the OpenClash Guard UCI overlay (Layer B).
+#
+# Consumes the VALIDATED normalized snapshot produced by uci-overlay.sh plus the
+# signed runtime policy + live capability observation, and computes effective
+# values for the options whose signed/live gate is defined by an AUTHORITATIVE
+# source today. UCI is operator intent; it never widens signed policy. See:
+#   - internal/config/openclash-guard/uci-overlay-resolution.json (contract)
+#   - docs/openclash-guard-uci-overlay-integration.md (integration design)
+#
+# Wiring status: UNWIRED (same as uci-overlay.sh). Reads the signed policy JSON
+# via shell/lib/json.sh and accepts the live DNS backend as an explicit input so
+# it is testable offline.
+#
+# SCOPE DISCIPLINE (do not invent semantics): this resolver computes effective
+# values ONLY where an authoritative contract/runtime defines the gate:
+#   - routing.<svc> direct ceiling (signed policy class directAllowed)
+#   - dns.fail_closed signed-policy floor (firewallKillSwitch || !directAllowed)
+#   - dns.backend live-capability gating (mirrors guard_dns_backend detection)
+# The following are contract GAPS (see the resolution contract's gaps section)
+# and are NOT resolved here; they surface as PASSTHROUGH (normalized value) and
+# are explicitly flagged, never silently treated as resolved:
+#   - dns.resolver_sync capability semantics
+#   - routing.direct_region / routing.proxy_region signed-policy gate
+#   - udp.enabled / udp.src_ip signed-policy gate
+#
+# Prefix: guard_uci_overlay_resolve_
+set -eu
+
+# Inputs (set explicitly; no hidden global coupling beyond these). These use
+# the _GUARD_UCOR_ prefix to avoid colliding with the overlay's per-option
+# snapshot variables (_GUARD_UCO_<PATH>, e.g. dns.backend -> _GUARD_UCO_DNS_BACKEND).
+#   _GUARD_UCOR_POLICY_FILE   : path to runtime policy JSON. Consumption implies
+#                               it has already passed the authoritative
+#                               guard_policy_load() validation in production;
+#                               this module only performs surface/schema sanity
+#                               (it does NOT authenticate provenance).
+#   _GUARD_UCOR_DNS_BACKEND   : live detected DNS backend as guard_dns_backend()
+#                               reports it (adguardhome|dnsmasq|none); empty
+#                               means capability unknown.
+_GUARD_UCOR_POLICY_FILE=''
+_GUARD_UCOR_DNS_BACKEND=''
+
+# Options whose Layer-B gate is NOT defined by an authoritative contract. These
+# are surfaced as passthrough (identity) with a "deferred" flag; they are NOT
+# treated as resolved and MUST NOT be consumed as an authoritative effective
+# value without a future contract update.
+_GUARD_UCOR_DEFERRED_OPTIONS='routing.direct_region routing.proxy_region dns.resolver_sync udp.enabled udp.src_ip'
+
+_GUARD_UCO_RESOLUTION_NOTES=''
+
+# --- Policy surface / schema sanity (defense-in-depth, NOT provenance) ----
+#
+# Resolution consumes validated UCI intent + a signed runtime policy that has
+# ALREADY been accepted by the real Guard policy authority + OBSERVED live
+# capability. This module performs a SURFACE/SCHEMA sanity check over the
+# policy fields the resolver reads (schema, services, protectionClasses,
+# class-field consistency); it does NOT authenticate provenance, verify the
+# detached signature, or establish that the file came from the trusted release
+# chain. Production wiring must feed the resolver a policy file ONLY after
+# guard_policy_load() (the authoritative policy validation) has succeeded, and
+# the resolved provenance is owned by the signed-runtime pipeline — not by a
+# caller-supplied _GUARD_UCOR_POLICY_FILE. Never duplicate cryptographic /
+# provenance logic here.
+
+# True when the supplied policy file is well-formed, declares a supported
+# schemaVersion, and contains services + protectionClasses with consistent
+# references. This is a schema-sanity gate, NOT provenance authentication.
+_guard_uci_resolve_policy_available() {
+    _guard_uci_rpa_file=$_GUARD_UCOR_POLICY_FILE
+    if [ -z "$_guard_uci_rpa_file" ] || [ ! -f "$_guard_uci_rpa_file" ]; then
+        return 1
+    fi
+    if ! json_load "$_guard_uci_rpa_file" 2>/dev/null; then
+        return 1
+    fi
+    # Must declare the supported schema version (mirrors the authoritative
+    # guard_policy_validate_file requirement of schemaVersion 1).
+    _guard_uci_rpa_ver=$(json_get "$_guard_uci_rpa_file" schemaVersion 2>/dev/null) || _guard_uci_rpa_ver=
+    [ "$_guard_uci_rpa_ver" = "1" ] || return 1
+    if ! json_has "$_guard_uci_rpa_file" services 2>/dev/null; then
+        return 1
+    fi
+    if ! json_has "$_guard_uci_rpa_file" protectionClasses 2>/dev/null; then
+        return 1
+    fi
+    # Every service must reference an existing protectionClass.
+    _guard_uci_rpa_svcs=$(json_keys "$_guard_uci_rpa_file" services 2>/dev/null) || _guard_uci_rpa_svcs=
+    for _guard_uci_rpa_svc in $_guard_uci_rpa_svcs
+    do
+        [ -n "$_guard_uci_rpa_svc" ] || continue
+        _guard_uci_rpa_cls=$(json_get "$_guard_uci_rpa_file" "services.${_guard_uci_rpa_svc}.protectionClass" 2>/dev/null) || _guard_uci_rpa_cls=
+        [ -n "$_guard_uci_rpa_cls" ] || return 1
+        json_has "$_guard_uci_rpa_file" "protectionClasses.${_guard_uci_rpa_cls}" 2>/dev/null || return 1
+        # The class fields the resolver reads must be present and boolean.
+        _guard_uci_rpa_da=$(json_get "$_guard_uci_rpa_file" "protectionClasses.${_guard_uci_rpa_cls}.directAllowed" 2>/dev/null) || _guard_uci_rpa_da=
+        case $_guard_uci_rpa_da in true|false) : ;; *) return 1 ;; esac
+        _guard_uci_rpa_ks=$(json_get "$_guard_uci_rpa_file" "protectionClasses.${_guard_uci_rpa_cls}.firewallKillSwitch" 2>/dev/null) || _guard_uci_rpa_ks=
+        case $_guard_uci_rpa_ks in true|false) : ;; *) return 1 ;; esac
+    done
+    return 0
+}
+
+# True when the live DNS backend observation is a VALID observed value
+# (adguardhome | dnsmasq | none). An empty/unset/other value means the
+# observation is unavailable or not performed — NOT the same as "none" (a
+# real observation that no backend is live).
+_guard_uci_resolve_dns_observation_valid() {
+    case $_GUARD_UCOR_DNS_BACKEND in
+        adguardhome|dnsmasq|none) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+_guard_uci_resolve_note() {
+    if [ -z "$_GUARD_UCO_RESOLUTION_NOTES" ]; then
+        _GUARD_UCO_RESOLUTION_NOTES="$1"
+    else
+        _GUARD_UCO_RESOLUTION_NOTES="$_GUARD_UCO_RESOLUTION_NOTES
+$1"
+    fi
+}
+
+_guard_uci_resolve_json_get() {
+    [ -n "$_GUARD_UCOR_POLICY_FILE" ] || return 1
+    json_get "$_GUARD_UCOR_POLICY_FILE" "$1" 2>/dev/null
+}
+
+_guard_uci_resolve_class_field() {
+    # _guard_uci_resolve_class_field SERVICE CLASSFIELD
+    _guard_uci_rcf_svc=$1
+    _guard_uci_rcf_field=$2
+    _guard_uci_rcf_class=$(_guard_uci_resolve_json_get "services.${_guard_uci_rcf_svc}.protectionClass") || return 1
+    [ -n "$_guard_uci_rcf_class" ] || return 1
+    _guard_uci_resolve_json_get "protectionClasses.${_guard_uci_rcf_class}.${_guard_uci_rcf_field}"
+}
+
+_guard_uci_resolve_is_deferred() {
+    # shellcheck disable=SC2086
+    _guard_uci_overlay_in_list "$1" $_GUARD_UCOR_DEFERRED_OPTIONS
+}
+
+# Resolve a per-service route-mode option (routing.<svc>). The ONLY signed gate
+# defined by an authoritative source today is the directAllowed ceiling: a
+# requested "direct" is honoured only when the service's protection class has
+# directAllowed=true; otherwise effective falls back to "proxy". Region gating
+# is NOT part of the config-time gate (allowedRegions constrains live route
+# eval in guard_policy_region_allowed, not this snapshot) and is deferred.
+_guard_uci_overlay_resolve_service_route() {
+    _guard_uci_rsr_svc=$1
+    _guard_uci_rsr_resultvar=$2
+    _guard_uci_rsr_requested=$(guard_uci_overlay_get "routing.${_guard_uci_rsr_svc}")
+    _guard_uci_rsr_effective=$_guard_uci_rsr_requested
+    _guard_uci_rsr_reason=honoured
+    if [ "$_guard_uci_rsr_requested" = "direct" ]; then
+        _guard_uci_rsr_da=$(_guard_uci_resolve_class_field "$_guard_uci_rsr_svc" directAllowed 2>/dev/null) || _guard_uci_rsr_da=false
+        if [ "$_guard_uci_rsr_da" != true ]; then
+            _guard_uci_rsr_effective=proxy
+            _guard_uci_rsr_reason='direct not permitted by signed policy'
+        fi
+    fi
+    _guard_uci_resolve_note "routing.${_guard_uci_rsr_svc}|${_guard_uci_rsr_requested}|${_guard_uci_rsr_effective}|${_guard_uci_rsr_reason}"
+    eval "$_guard_uci_rsr_resultvar=\$_guard_uci_rsr_effective"
+}
+
+# Apply the dns.fail_closed signed-policy FLOOR. Mirrors
+# guard_policy_needs_failclosed: any class with firewallKillSwitch=true OR
+# directAllowed=false forces fail-closed; an operator 0 cannot lower the floor.
+_guard_uci_overlay_resolve_fail_closed() {
+    _guard_uci_rfc_resultvar=$1
+    _guard_uci_rfc_requested=$(guard_uci_overlay_get dns.fail_closed)
+    _guard_uci_rfc_effective=$_guard_uci_rfc_requested
+    _guard_uci_rfc_reason=honoured
+    _guard_uci_rfc_svcs=$(json_keys "$_GUARD_UCOR_POLICY_FILE" services 2>/dev/null) || _guard_uci_rfc_svcs=
+    _guard_uci_rfc_floor=0
+    for _guard_uci_rfc_svc in $_guard_uci_rfc_svcs
+    do
+        [ -n "$_guard_uci_rfc_svc" ] || continue
+        _guard_uci_rfc_ks=$(_guard_uci_resolve_class_field "$_guard_uci_rfc_svc" firewallKillSwitch 2>/dev/null) || _guard_uci_rfc_ks=false
+        _guard_uci_rfc_da=$(_guard_uci_resolve_class_field "$_guard_uci_rfc_svc" directAllowed 2>/dev/null) || _guard_uci_rfc_da=true
+        if [ "$_guard_uci_rfc_ks" = true ] || [ "$_guard_uci_rfc_da" = false ]; then
+            _guard_uci_rfc_floor=1
+            break
+        fi
+    done
+    if [ "$_guard_uci_rfc_floor" = 1 ] && [ "$_guard_uci_rfc_requested" != 1 ]; then
+        _guard_uci_rfc_effective=1
+        _guard_uci_rfc_reason='fail-closed floor required by signed policy'
+    fi
+    _guard_uci_resolve_note "dns.fail_closed|${_guard_uci_rfc_requested}|${_guard_uci_rfc_effective}|${_guard_uci_rfc_reason}"
+    eval "$_guard_uci_rfc_resultvar=\$_guard_uci_rfc_effective"
+}
+
+# Resolve dns.backend against live capability, mirroring guard_dns_backend()
+# detection semantics exactly (adguardhome | dnsmasq | none). "auto" resolves
+# to the detected backend, else "none". An explicit request is honoured only
+# when it equals the detected backend; otherwise effective is "none" — a
+# preference cannot install capability. Downstream (resolver-sync, port
+# availability) keys off this EFFECTIVE value, not the raw live input.
+_guard_uci_overlay_resolve_dns_backend() {
+    _guard_uci_rdb_resultvar=$1
+    _guard_uci_rdb_requested=$(guard_uci_overlay_get dns.backend)
+    _guard_uci_rdb_live=$_GUARD_UCOR_DNS_BACKEND
+    case $_guard_uci_rdb_live in
+        adguardhome|dnsmasq) : ;;
+        *) _guard_uci_rdb_live=none ;;
+    esac
+    _guard_uci_rdb_effective=$_guard_uci_rdb_requested
+    _guard_uci_rdb_reason=honoured
+    if [ "$_guard_uci_rdb_requested" = "auto" ]; then
+        _guard_uci_rdb_effective=$_guard_uci_rdb_live
+    elif [ "$_guard_uci_rdb_requested" = "$_guard_uci_rdb_live" ]; then
+        _guard_uci_rdb_effective=$_guard_uci_rdb_requested
+    else
+        _guard_uci_rdb_effective=none
+        _guard_uci_rdb_reason='requested DNS backend not detected live'
+    fi
+    _guard_uci_resolve_note "dns.backend|${_guard_uci_rdb_requested}|${_guard_uci_rdb_effective}|${_guard_uci_rdb_reason}"
+    eval "$_guard_uci_rdb_resultvar=\$_guard_uci_rdb_effective"
+}
+
+# Options whose effective value REQUIRES a completed Layer-B resolution. For
+# these, guard_uci_overlay_effective() must never fall back to the normalized
+# (unresolved) UCI value: an unset resolved value means "not yet resolved",
+# which is a hard refusal, not a passthrough.
+_GUARD_UCOR_RESOLVED_OPTIONS='routing.chatgpt routing.claude routing.grok dns.fail_closed dns.backend'
+
+# Explicit Layer-B resolved-state lifecycle flag. 1 only after the complete
+# normal resolution path succeeds; 0 at every other time (initial, and after
+# any overlay re-load invalidates prior effective state).
+_GUARD_UCO_RESOLVED=0
+
+# Invalidate every piece of Layer-B resolved state. Called on sourcing (initial
+# state) and by the Layer-A overlay whenever a new snapshot is loaded, so a
+# previously-resolved effective value can never leak across snapshots.
+guard_uci_overlay_invalidate_resolved_state() {
+    _GUARD_UCO_RESOLVED=0
+    _GUARD_UCO_EFFECTIVE_ROUTING_CHATGPT=
+    _GUARD_UCO_EFFECTIVE_ROUTING_CLAUDE=
+    _GUARD_UCO_EFFECTIVE_ROUTING_GROK=
+    _GUARD_UCO_EFFECTIVE_DNS_FAIL_CLOSED=
+    _GUARD_UCO_EFFECTIVE_DNS_BACKEND=
+    _GUARD_UCO_RESOLUTION_NOTES=
+}
+
+# Establish the initial (unresolved) state.
+guard_uci_overlay_invalidate_resolved_state
+
+_guard_uci_resolve_is_resolved_option() {
+    # shellcheck disable=SC2086
+    _guard_uci_overlay_in_list "$1" $_GUARD_UCOR_RESOLVED_OPTIONS
+}
+
+# Compute effective values for the gated options defined by authoritative
+# sources. Requires a LOADED and VALID Layer-A snapshot; otherwise refuses
+# (non-zero) and presents NO effective state as usable. On success sets
+# _GUARD_UCO_RESOLVED=1. Use guard_uci_overlay_resolve_diagnostics for the
+# read-only diagnostics-only path.
+guard_uci_overlay_resolve() {
+    if [ "${_GUARD_UCI_OVERLAY_LOADED:-0}" != 1 ]; then
+        printf '%s\n' 'guard_uci_overlay_resolve: overlay snapshot not loaded' >&2
+        return 2
+    fi
+    if ! guard_uci_overlay_validate; then
+        printf '%s\n' 'guard_uci_overlay_resolve: refusing to resolve an invalid overlay; fix openclash_guard values first' >&2
+        return 1
+    fi
+    # Trust boundary: require ALL authority inputs. A missing/malformed signed
+    # policy must not degrade into permissive defaults (e.g. an empty service
+    # list would hide the fail-closed floor). An unavailable/invalid DNS
+    # observation is NOT the same as the observed value "none".
+    if ! _guard_uci_resolve_policy_available; then
+        printf '%s\n' 'guard_uci_overlay_resolve: policy file unavailable or failed schema sanity (authority input)' >&2
+        guard_uci_overlay_invalidate_resolved_state
+        return 3
+    fi
+    if ! _guard_uci_resolve_dns_observation_valid; then
+        printf '%s\n' 'guard_uci_overlay_resolve: live DNS backend observation unavailable or invalid (expected adguardhome|dnsmasq|none)' >&2
+        guard_uci_overlay_invalidate_resolved_state
+        return 3
+    fi
+    # Atomic commit: invalidate, compute, and only mark resolved on success so a
+    # partial computation never leaves partial effective globals behind.
+    guard_uci_overlay_invalidate_resolved_state
+    if ! _guard_uci_overlay_resolve_apply; then
+        guard_uci_overlay_invalidate_resolved_state
+        printf '%s\n' 'guard_uci_overlay_resolve: computation failed; no effective state committed' >&2
+        return 1
+    fi
+    _GUARD_UCO_RESOLVED=1
+}
+
+# Diagnostics-only resolution insight for an already-loaded snapshot, including
+# an invalid one. Read-only: runs any inference in a SUBSHELL so it cannot
+# mutate the caller's _GUARD_UCO_RESOLVED, _GUARD_UCO_EFFECTIVE_*, or notes.
+# Never treats the result as an authoritative effective value; returns 0.
+guard_uci_overlay_resolve_diagnostics() {
+    if [ "${_GUARD_UCI_OVERLAY_LOADED:-0}" != 1 ]; then
+        printf '%s\n' '{"error":"overlay not loaded"}'
+        return 0
+    fi
+    _guard_uci_diag_notes=
+    # Report which authority inputs are available (diagnostic read-only; does
+    # not commit anything).
+    _guard_uci_diag_policy=0
+    _guard_uci_diag_dns=0
+    _guard_uci_resolve_policy_available && _guard_uci_diag_policy=1
+    _guard_uci_resolve_dns_observation_valid && _guard_uci_diag_dns=1
+    if guard_uci_overlay_validate && [ "$_guard_uci_diag_policy" = 1 ] && [ "$_guard_uci_diag_dns" = 1 ]; then
+        # Subshell: apply-side-effects (effective vars, RESOLVED, notes) are
+        # discarded; only the notes text is captured out.
+        _guard_uci_diag_notes=$(
+            guard_uci_overlay_invalidate_resolved_state
+            _guard_uci_overlay_resolve_apply
+            guard_uci_overlay_resolve_notes
+        )
+    fi
+    _guard_uci_diag_overlay=$(guard_uci_overlay_json)
+    # guard_uci_overlay_json yields {"uciOverlay":{...}}; unwrap to the inner
+    # diagnostics object so the projection is a single-level document.
+    _guard_uci_diag_overlay=${_guard_uci_diag_overlay#'{"uciOverlay":'}
+    _guard_uci_diag_overlay=${_guard_uci_diag_overlay%'}'}
+    _guard_uci_diag_auth=$(printf '{"policy":%s,"dns":%s}' \
+        "$([ "$_guard_uci_diag_policy" = 1 ] && printf true || printf false)" \
+        "$([ "$_guard_uci_diag_dns" = 1 ] && printf true || printf false)")
+    if [ -n "$_guard_uci_diag_notes" ]; then
+        printf '{"resolvedPreviewNotes":"%s","valid":%s,"authorityInputs":%s,"uciOverlay":%s}\n' \
+            "$(printf '%s' "$_guard_uci_diag_notes" | tr '\n' ';' | sed 's/"/\\"/g')" \
+            "$([ "$(guard_uci_overlay_valid)" = 1 ] && printf true || printf false)" \
+            "$_guard_uci_diag_auth" \
+            "$_guard_uci_diag_overlay"
+    else
+        printf '{"valid":%s,"authorityInputs":%s,"uciOverlay":%s}\n' \
+            "$([ "$(guard_uci_overlay_valid)" = 1 ] && printf true || printf false)" \
+            "$_guard_uci_diag_auth" \
+            "$_guard_uci_diag_overlay"
+    fi
+}
+
+# Internal: run resolution into the current shell's effective vars + notes.
+# Caller is responsible for having invalidated state first. Does NOT set
+# _GUARD_UCO_RESOLVED (the normal path does, the diagnostics path must not).
+_guard_uci_overlay_resolve_apply() {
+    _GUARD_UCO_RESOLUTION_NOTES=
+    for _guard_uci_r_svc in chatgpt claude grok
+    do
+        _guard_uci_overlay_resolve_service_route "$_guard_uci_r_svc" "_GUARD_UCO_EFFECTIVE_ROUTING_$(printf '%s' "$_guard_uci_r_svc" | tr '[:lower:]' '[:upper:]')"
+    done
+    _guard_uci_overlay_resolve_fail_closed _GUARD_UCO_EFFECTIVE_DNS_FAIL_CLOSED
+    _guard_uci_overlay_resolve_dns_backend _GUARD_UCO_EFFECTIVE_DNS_BACKEND
+    # Deferred (contract gap) options: intentionally NOT given an effective var.
+    return 0
+}
+
+# True only when a snapshot is LOADED, Layer-A VALID, AND a full Layer-B
+# resolution has completed successfully for THIS snapshot. Distinct from
+# "loaded && valid": it becomes false again as soon as a new snapshot is
+# loaded (which invalidates the prior resolution) until re-resolved.
+guard_uci_overlay_resolve_state_valid() {
+    [ "${_GUARD_UCI_OVERLAY_LOADED:-0}" = 1 ] \
+        && [ "$_GUARD_UCO_RESOLVED" = 1 ] \
+        && guard_uci_overlay_validate
+}
+
+# Get an effective (resolved) value by option path.
+#   - resolved-gated options (routing.<svc>, dns.fail_closed, dns.backend):
+#     returns the Layer-B resolved value. REFUSES (non-zero, no output) when no
+#     completed resolution exists for the current snapshot — never falls back
+#     to the normalized UCI value, so a stale or unresolved value can't leak.
+#   - deferred contract-gap options: prints "DEFERRED:<normalized>" (explicitly
+#     flagged, never a usable effective value).
+#   - other options (no authority constraint): the normalized UCI value.
+guard_uci_overlay_effective() {
+    # Pre-validate the option name: anything outside [A-Za-z0-9_.]* would later
+    # be interpolated into a shell variable name (via tr/eval) and die with a
+    # shell-level "bad substitution" instead of a clean refuse. Reject BEFORE
+    # any var-name construction so garbage callers get rc=1 with a standard
+    # error, no side effects, and no accidental eval of attacker-controlled
+    # characters.
+    case $1 in
+        *[!A-Za-z0-9_.]*|"")
+            printf '%s\n' "guard_uci_overlay_effective: invalid option name" >&2
+            return 1
+            ;;
+    esac
+    if _guard_uci_resolve_is_deferred "$1"; then
+        printf 'DEFERRED:%s' "$(guard_uci_overlay_get "$1")"
+        return 0
+    fi
+    if _guard_uci_resolve_is_resolved_option "$1"; then
+        if [ "$_GUARD_UCO_RESOLVED" != 1 ]; then
+            printf '%s\n' "guard_uci_overlay_effective: $1 requires a completed resolution (call guard_uci_overlay_resolve first)" >&2
+            return 1
+        fi
+        _guard_uci_eff_var="_GUARD_UCO_EFFECTIVE_$(printf '%s' "$1" | tr '[:lower:].' '[:upper:]_')"
+        eval "_guard_uci_eff_val=\${$_guard_uci_eff_var-}"
+        # A resolved option must have a concrete value; absence here would be a
+        # resolver bug, so treat it as a refusal rather than a silent fallback.
+        if [ -z "$_guard_uci_eff_val" ]; then
+            printf '%s\n' "guard_uci_overlay_effective: $1 has no resolved value" >&2
+            return 1
+        fi
+        printf '%s' "$_guard_uci_eff_val"
+        return 0
+    fi
+    guard_uci_overlay_get "$1"
+}
+
+# List the options whose Layer-B gate is a documented contract gap (deferred).
+guard_uci_overlay_deferred_options() {
+    printf '%s\n' "$_GUARD_UCOR_DEFERRED_OPTIONS"
+}
+
+# List the options whose effective value requires a completed Layer-B resolution.
+guard_uci_overlay_resolved_options() {
+    printf '%s\n' "$_GUARD_UCOR_RESOLVED_OPTIONS"
+}
+
+# Diagnostics notes (requested/effective/reason), one per line, redacted.
+guard_uci_overlay_resolve_notes() {
+    printf '%s\n' "$_GUARD_UCO_RESOLUTION_NOTES"
+}
+# END MODULE: guard-uci-overlay-resolve
 
 # BEGIN MODULE: lock
 # Directory lock with timeout. mkdir is the atomic primitive (no flock).
@@ -4538,9 +5580,35 @@ guard_dns_domain_set_backend() {
     esac
 }
 
+_guard_dns_is_ipv4() {
+    _guard_dns_ip=$1
+    case $_guard_dns_ip in
+        *[!0-9.]*) return 1 ;;
+    esac
+    _guard_dns_old_ifs=$IFS
+    IFS=.
+    # shellcheck disable=SC2086
+    set -- $_guard_dns_ip
+    IFS=$_guard_dns_old_ifs
+    [ "$#" -eq 4 ] || return 1
+    for _guard_dns_octet; do
+        case $_guard_dns_octet in
+            ''|*[!0-9]*) return 1 ;;
+        esac
+        [ "${#_guard_dns_octet}" -le 3 ] || return 1
+        # reject leading zeros like "01" (but allow plain "0")
+        case $_guard_dns_octet in
+            0?*) return 1 ;;
+        esac
+        [ "$_guard_dns_octet" -le 255 ] 2>/dev/null || return 1
+    done
+    return 0
+}
+
 _guard_dns_add_bypass_client() {
     _guard_dns_client=$1
     [ -n "$_guard_dns_client" ] || return 0
+    _guard_dns_is_ipv4 "$_guard_dns_client" || return 0
     case " ${_GUARD_DNS_BYPASS_CLIENTS:-} " in
         *" $_guard_dns_client "*) return 0 ;;
     esac
@@ -4550,6 +5618,87 @@ _guard_dns_add_bypass_client() {
         _GUARD_DNS_BYPASS_CLIENTS=$_guard_dns_client
     fi
     _GUARD_DNS_BYPASS_CLIENT_COUNT=$((_GUARD_DNS_BYPASS_CLIENT_COUNT + 1))
+}
+
+# Emit saddr IPv4 tokens for nft rules that:
+#   - match the wanted dport EXACTLY (token == want), via a numeric range
+#     "N-M" whose window contains want, or via a braced anonymous port set
+#     whose numeric/range elements match on the same rules
+#     (e.g. "{ 53, 853 }", "{ 53-853 }", "{ 80, 53-853 }"),
+#   - do NOT reference a named set (@name) for ports,
+#   - carry the wanted action pattern (jump/return).
+# The saddr may be a single IPv4 token or a braced anonymous set
+# "{ ip1, ip2 }" — every IPv4-shaped token in the set is emitted, one per line.
+_guard_dns_nft_emit_bypass_saddr() {
+    _guard_dns_text=$1
+    _guard_dns_action_mode=$2
+    _guard_dns_want_port=$3
+    printf '%s\n' "$_guard_dns_text" | awk \
+        -v action_mode="$_guard_dns_action_mode" \
+        -v want="$_guard_dns_want_port" '
+        function port_token_matches(tok,    lo, hi, dash) {
+            if (tok ~ /^[0-9]+$/) return (tok == want)
+            if (tok ~ /^[0-9]+-[0-9]+$/) {
+                dash = index(tok, "-")
+                lo = substr(tok, 1, dash - 1) + 0
+                hi = substr(tok, dash + 1) + 0
+                if (hi < lo) return 0
+                return (want + 0 >= lo && want + 0 <= hi)
+            }
+            return 0
+        }
+        function port_match(idx,    j, tok, inner) {
+            if (idx > NF) return 0
+            tok = $(idx)
+            if (tok == "{") {
+                for (j = idx + 1; j <= NF; j++) {
+                    if ($j == "}") break
+                    inner = $j
+                    sub(/,$/, "", inner)
+                    if (port_token_matches(inner)) return 1
+                }
+                return 0
+            }
+            # named-set reference (e.g. "@my_853set") — never matches
+            if (tok ~ /^@/) return 0
+            sub(/,$/, "", tok)
+            return port_token_matches(tok)
+        }
+        function action_match(    i, in_comment) {
+            in_comment = 0
+            for (i = 1; i <= NF; i++) {
+                if ($i == "comment") in_comment = 1
+                if (in_comment) continue
+                if (action_mode == "jump_accept_to_wan") {
+                    if ($i == "jump" && i < NF && $(i + 1) == "accept_to_wan") return 1
+                } else if (action_mode == "return") {
+                    if ($i == "return") return 1
+                }
+            }
+            return 0
+        }
+        /ip saddr/ && /dport/ && action_match() {
+            si = 0; di = 0
+            for (i = 1; i <= NF; i++) {
+                if ($i == "saddr" && si == 0) si = i
+                if ($i == "dport" && di == 0) di = i
+            }
+            if (si == 0 || di == 0) next
+            if (si + 1 > NF) next
+            if (!port_match(di + 1)) next
+            if ($(si + 1) == "{") {
+                for (j = si + 2; j <= NF; j++) {
+                    if ($j == "}") break
+                    tok = $j
+                    sub(/,$/, "", tok)
+                    if (tok != "") print tok
+                }
+            } else {
+                tok = $(si + 1)
+                sub(/,$/, "", tok)
+                if (tok != "") print tok
+            }
+        }'
 }
 
 guard_dns_detect_firewall_bypasses() {
@@ -4566,21 +5715,12 @@ guard_dns_detect_firewall_bypasses() {
     _guard_dns_dstnat=$(nft -a list chain inet fw4 dstnat 2>/dev/null) || return 0
     _GUARD_DNS_BYPASS_AVAILABLE=1
 
-    _guard_dns_p53_clients=$(printf '%s\n' "$_guard_dns_forward" | awk '
-        /ip saddr/ && /dport/ && /jump accept_to_wan/ && /(^|[^0-9])53([^0-9]|$)/ {
-            for (i = 1; i <= NF; i++) if ($i == "saddr" && i < NF) print $(i + 1)
-        }
-    ')
-    _guard_dns_p853_clients=$(printf '%s\n' "$_guard_dns_forward" | awk '
-        /ip saddr/ && /dport/ && /jump accept_to_wan/ && /(^|[^0-9])853([^0-9]|$)/ {
-            for (i = 1; i <= NF; i++) if ($i == "saddr" && i < NF) print $(i + 1)
-        }
-    ')
-    _guard_dns_hijack_clients=$(printf '%s\n' "$_guard_dns_dstnat" | awk '
-        /ip saddr/ && /dport/ && /return/ && /(^|[^0-9])53([^0-9]|$)/ {
-            for (i = 1; i <= NF; i++) if ($i == "saddr" && i < NF) print $(i + 1)
-        }
-    ')
+    _guard_dns_p53_clients=$(_guard_dns_nft_emit_bypass_saddr \
+        "$_guard_dns_forward" "jump_accept_to_wan" 53)
+    _guard_dns_p853_clients=$(_guard_dns_nft_emit_bypass_saddr \
+        "$_guard_dns_forward" "jump_accept_to_wan" 853)
+    _guard_dns_hijack_clients=$(_guard_dns_nft_emit_bypass_saddr \
+        "$_guard_dns_dstnat" "return" 53)
 
     if [ -n "$_guard_dns_p53_clients" ]; then
         _GUARD_DNS_BYPASS_PORT53=1
@@ -4879,12 +6019,23 @@ _guard_env_proxy_healthy() {
 _guard_env_load_clients() {
     _GUARD_GAME_CLIENTS=0
     _GUARD_GAME_CLIENT_ITEMS=
-    if ! command -v uci >/dev/null 2>&1; then
-        return 0
-    fi
-    _guard_env_nl='
+    # Migrate udp.src_ip to the normalized UCI overlay when it is loaded and
+    # valid; otherwise fall back to the legacy newline-separated uci read so
+    # the NOT-yet-wired window remains permissive. The overlay returns a
+    # space-separated, deduplicated, validated ipv4-list; the legacy read is
+    # newline-separated. The loop below iterates either form identically (both
+    # are whitespace-separated), so _GUARD_GAME_CLIENTS/_GUARD_GAME_CLIENT_ITEMS
+    # semantics are preserved.
+    _guard_env_items=
+    if command -v guard_uci_overlay_validate >/dev/null 2>&1 && \
+       command -v guard_uci_overlay_get >/dev/null 2>&1 && \
+       guard_uci_overlay_validate 2>/dev/null; then
+        _guard_env_items=$(guard_uci_overlay_get udp.src_ip) || _guard_env_items=
+    elif command -v uci >/dev/null 2>&1; then
+        _guard_env_nl='
 '
-    _guard_env_items=$(uci -d "$_guard_env_nl" -q get openclash_guard.udp.src_ip 2>/dev/null) || _guard_env_items=
+        _guard_env_items=$(uci -d "$_guard_env_nl" -q get openclash_guard.udp.src_ip 2>/dev/null) || _guard_env_items=
+    fi
     for _guard_env_item in $_guard_env_items
     do
         [ -n "$_guard_env_item" ] || continue
@@ -4952,6 +6103,10 @@ guard_env_detect() {
     fi
     _guard_env_load_clients
     _GUARD_GAME_BLANKET=0
+    # CONTRACT GAP (flagged for reviewer): `udp.blanket_udp_bypass` is NOT in
+    # the UCI overlay contract (#122). Keep the legacy direct read for now; do
+    # NOT move it into the overlay until the contract is updated. The
+    # GUARD_GAMING_BLANKET environment override continues to win LAST.
     if command -v uci >/dev/null 2>&1; then
         _GUARD_GAME_BLANKET=$(uci_get_bool openclash_guard.udp.blanket_udp_bypass 0 2>/dev/null) || _GUARD_GAME_BLANKET=0
     fi
@@ -5067,11 +6222,34 @@ _GUARD_NFT_TABLE_EXISTS=0
 _guard_kill_comment() {
     printf '%s:%s' "$_GUARD_NFT_PREFIX" "$1"
 }
+
+# Migrate main.enabled/kill_switch/dns_kill_switch to the normalized UCI overlay
+# when it is loaded and valid; otherwise fall back to the legacy direct uci read
+# so the NOT-yet-wired window remains permissive. Defaults are unchanged.
+#
+# CONTRACT GAP (flagged for reviewer): `main.mode` is NOT in the UCI overlay
+# contract (#122). Keep the legacy direct read here for now; do NOT move it
+# into the overlay until the contract is updated.
+
 guard_kill_read_uci() {
     _GUARD_UCI_ENABLED=1
     _GUARD_UCI_MODE=auto
     _GUARD_UCI_KILL_SWITCH=1
     _GUARD_UCI_DNS_KILL_SWITCH=0
+    if command -v guard_uci_overlay_validate >/dev/null 2>&1 && \
+       command -v guard_uci_overlay_get >/dev/null 2>&1 && \
+       guard_uci_overlay_validate 2>/dev/null; then
+        _GUARD_UCI_ENABLED=$(guard_uci_overlay_get main.enabled) || _GUARD_UCI_ENABLED=1
+        _GUARD_UCI_KILL_SWITCH=$(guard_uci_overlay_get main.kill_switch) || _GUARD_UCI_KILL_SWITCH=1
+        _GUARD_UCI_DNS_KILL_SWITCH=$(guard_uci_overlay_get main.dns_kill_switch) || _GUARD_UCI_DNS_KILL_SWITCH=0
+        # main.mode is NOT in the UCI overlay contract (#122). Keep the legacy
+        # direct read here for now; contract gap flagged for reviewer. Do NOT
+        # move it into the overlay until the contract is updated.
+        if command -v uci >/dev/null 2>&1; then
+            _GUARD_UCI_MODE=$(uci_get_default openclash_guard.main.mode auto 2>/dev/null) || _GUARD_UCI_MODE=auto
+        fi
+        return 0
+    fi
     if command -v uci >/dev/null 2>&1; then
         _GUARD_UCI_ENABLED=$(uci_get_bool openclash_guard.main.enabled 1 2>/dev/null) || _GUARD_UCI_ENABLED=1
         _GUARD_UCI_MODE=$(uci_get_default openclash_guard.main.mode auto 2>/dev/null) || _GUARD_UCI_MODE=auto
@@ -5727,14 +6905,50 @@ set -eu
 
 _GUARD_GAME_ENABLED=1
 
+# Migrate udp.enabled / udp.src_ip to the normalized UCI overlay when it is
+# loaded and valid; otherwise fall back to the legacy direct uci read so the
+# NOT-yet-wired window remains permissive. Fail-closed semantics are preserved:
+# invalid or empty values yield no eligible flows. The overlay already surfaces
+# a validated/normalized ipv4-list (deduplicated, refuses on invalid input), so
+# we never hard-parse `uci show` here.
+#
+# NOTE (per reviewer contract): the seq7 contract classifies udp.enabled /
+# udp.src_ip as `signed-policy-gated`, and the Layer-B resolution semantics are
+# NOT defined for them in this revision — they remain on the resolver's
+# DEFERRED list (restored under review blocker 2 after an earlier uci-runtime
+# classification was reverted). `guard_uci_overlay_effective` therefore returns
+# the literal "DEFERRED:<normalized>" sentinel for both. This module treats
+# that sentinel as overlay-absent and falls back to the legacy direct uci read
+# below; do NOT promote them to authoritative effective values, and do NOT
+# invent a gate.
+
 guard_game_read_uci() {
     _GUARD_GAME_ENABLED=1
+    if command -v guard_uci_overlay_validate >/dev/null 2>&1 && \
+       command -v guard_uci_overlay_get >/dev/null 2>&1 && \
+       guard_uci_overlay_validate 2>/dev/null; then
+        _GUARD_GAME_ENABLED=$(guard_uci_overlay_get udp.enabled) || _GUARD_GAME_ENABLED=1
+        # Overlay legitimately supplies "DEFERRED:v" while udp.* auth remains
+        # a contract gap; never treat the sentinel as authoritative.
+        case $_GUARD_GAME_ENABLED in
+            DEFERRED:*) _GUARD_GAME_ENABLED=1 ;;
+        esac
+        return 0
+    fi
     if command -v uci >/dev/null 2>&1; then
         _GUARD_GAME_ENABLED=$(uci_get_bool openclash_guard.udp.enabled 1 2>/dev/null) || _GUARD_GAME_ENABLED=1
     fi
 }
 
 guard_game_src_ips() {
+    if command -v guard_uci_overlay_validate >/dev/null 2>&1 && \
+       command -v guard_uci_overlay_get >/dev/null 2>&1 && \
+       guard_uci_overlay_validate 2>/dev/null; then
+        # Prefer the overlay's valid dedup/space-separated list. Empty stays
+        # empty so fail-closed semantics (no eligible flows) are preserved.
+        guard_uci_overlay_get udp.src_ip
+        return 0
+    fi
     if ! command -v uci >/dev/null 2>&1; then
         return 0
     fi
@@ -8826,9 +10040,28 @@ _guard_distribution_record() {
 }
 
 _guard_prepare() {
+    # Authority-ordered pipeline (per #124):
+    #   1. Layer A overlay snapshot (UCI intent) — HARD REFUSE on known-invalid
+    #      BEFORE any policy/env/geo work or any consumer of the snapshot.
+    #   2. Authoritative policy load.
+    #   3. Environment/DNS-capability observation (region overrides stay
+    #      last-win AFTER guard_env_detect).
+    #   4. Layer B (re-snapshot with observed capability wired into the
+    #      resolver inputs) — refuse on invalid; never reaches nft.
+    #   5. Geo and policy state refresh.
+    # Layer A is intentionally permissive about callers being unaware (we do not
+    # yet migrate killswitch/gaming/etc.), but a KNOWN-invalid overlay aborts
+    # the pipeline so reconcile/apply refuse BEFORE any nft mutation.
     _guard_pp_direct=${_GUARD_NET_DIRECT_REGION:-}
     _guard_pp_proxy=${_GUARD_PROXY_REGION:-}
     _guard_pp_proxy_healthy=${_GUARD_PROXY_HEALTHY:-0}
+    if command -v guard_uci_overlay_load >/dev/null 2>&1; then
+        if ! guard_uci_overlay_load; then
+            cli_error "openclash_guard UCI overlay is invalid; refusing to proceed"
+            return 1
+        fi
+    fi
+    guard_policy_load "$(_guard_policy_default_path)" || return $?
     guard_kill_read_uci
     guard_game_read_uci
     guard_env_detect
@@ -8837,7 +10070,37 @@ _guard_prepare() {
         _GUARD_PROXY_REGION=$_guard_pp_proxy
         _GUARD_PROXY_HEALTHY=$_guard_pp_proxy_healthy
     fi
-    guard_policy_load "$(_guard_policy_default_path)" || return $?
+    # Feed the Layer-B resolver inputs from observed state. guard_dns_backend
+    # (via guard_dns_detect inside guard_env_detect) reports the live DNS
+    # backend; _GUARD_POLICY_FILE was set by guard_policy_load above. Both are
+    # explicit inputs to uci-overlay-resolve (no hidden global coupling).
+    if command -v guard_uci_overlay_load >/dev/null 2>&1; then
+        _GUARD_UCOR_POLICY_FILE=$_GUARD_POLICY_FILE
+        case ${_GUARD_DNS_BACKEND:-} in
+            adguardhome|dnsmasq) _GUARD_UCOR_DNS_BACKEND=$_GUARD_DNS_BACKEND ;;
+            *) _GUARD_UCOR_DNS_BACKEND=none ;;
+        esac
+        # Resolve the already-loaded snapshot NOW (against the just-wired
+        # authority inputs) instead of re-loading UCI. The first load at the
+        # top of _guard_prepare captured the canonical Layer-A snapshot and
+        # invalidated any prior Layer-B state; re-loading here would (a) open
+        # a second UCI read window (ABA drift detection is bounded per-load;
+        # back-to-back loads widen the window), and (b) destroy any resolved
+        # state from a previous pipeline. Resolution consumes the existing
+        # snapshot and refuses (rc 3, or rc 1 on internal apply failure) when
+        # the just-wired authority inputs are not yet coherent; surfacing
+        # that here lets callers (reconcile, eval) refuse BEFORE any consumer
+        # of effective values, instead of deferring the refusal to the
+        # reconcile-only gate. guard_cmd_reconcile still runs its own gate
+        # via _guard_require_atomic_overlay_for_apply for defense-in-depth
+        # (resolve_state_valid is cheap and idempotent when already resolved).
+        if command -v guard_uci_overlay_resolve >/dev/null 2>&1; then
+            if ! guard_uci_overlay_resolve >/dev/null 2>&1; then
+                cli_error "openclash_guard UCI overlay resolution failed; refusing to proceed"
+                return 1
+            fi
+        fi
+    fi
     if [ -z "$_GUARD_NET_DIRECT_REGION" ]; then
         guard_geo_detect_direct >/dev/null 2>&1 || true
         _GUARD_NET_DIRECT_REGION=$(guard_geo_cached_country direct 2>/dev/null) || _GUARD_NET_DIRECT_REGION=
@@ -8882,6 +10145,40 @@ _guard_require_setup_for_apply() {
     return 1
 }
 
+# Atomicity gate for reconcile/apply: the UCI overlay snapshot must be VALID
+# (Layer A) AND a fresh Layer-B resolution must have completed for THIS
+# snapshot. If either fails, the caller must refuse BEFORE any nft mutation
+# (no guard_migrate_stale, no guard_kill_delete_table, no
+# guard_kill_apply_batch). Guarded with `command -v` so this is a no-op while
+# the overlay modules are not yet wired into the bundle.
+_guard_require_atomic_overlay_for_apply() {
+    if ! command -v guard_uci_overlay_validate >/dev/null 2>&1; then
+        return 0
+    fi
+    if ! command -v guard_uci_overlay_resolve_state_valid >/dev/null 2>&1; then
+        return 0
+    fi
+    if ! guard_uci_overlay_validate; then
+        cli_error "openclash_guard UCI overlay invalid; refusing reconcile/apply without any nft mutation"
+        return 1
+    fi
+    # Attempt a fresh Layer-B resolution so this gate is meaningful even when
+    # no higher layer has resolved yet. We do not consume effective values here;
+    # we only require that resolution SUCCEEDS (proves authority inputs are
+    # wired and a coherent effective state exists for this snapshot).
+    if ! guard_uci_overlay_resolve_state_valid; then
+        if ! guard_uci_overlay_resolve >/dev/null 2>&1; then
+            cli_error "openclash_guard UCI overlay resolution failed; refusing reconcile/apply without any nft mutation"
+            return 1
+        fi
+        if ! guard_uci_overlay_resolve_state_valid; then
+            cli_error "openclash_guard UCI overlay resolved state is not current; refusing reconcile/apply without any nft mutation"
+            return 1
+        fi
+    fi
+    return 0
+}
+
 _guard_write_batch() {
     _guard_wb=$1
     : > "$_guard_wb"
@@ -8898,6 +10195,10 @@ guard_cmd_reconcile() {
     fi
     _guard_require_setup_for_apply || return $?
     _guard_prepare || return $?
+    # Atomicity gate BEFORE any nft mutation: the overlay must be valid AND a
+    # current Layer-B resolution must exist. Refusal here means ZERO nft
+    # operations (no guard_migrate_stale, no delete_table, no apply_batch).
+    _guard_require_atomic_overlay_for_apply || return $?
     if [ "$_GUARD_NFT_AVAILABLE" != 1 ]; then
         cli_error "nft is required"
         return 1
@@ -9000,12 +10301,117 @@ guard_status_json_extra() {
         "$(_guard_env_json_string "$(guard_firewall_table_state)")"
 }
 
+# Bounded, redacted guardian of the openclash_guard UCI overlay snapshot for
+# status/doctor JSON. Emits `"uciOverlay":{...}` (NO leading comma; the caller
+# adds the separator). Surfaces:
+#   - valid / available (readiness)
+#   - errors[] / unknownOptions[] (path + reason only; no raw values; never
+#     URLs, credentials, query strings, profile tokens, or sensitive bundles)
+#   - authorityInputs (policy/DNS capability availability flags from
+#     guard_uci_overlay_resolve_diagnostics; no values, no policy content)
+#   - effective {} (bounded: routing.chatgpt/claude/grok, dns.fail_closed,
+#     dns.backend ONLY). DEFERRED:* and unresolved paths are omitted entirely;
+#     no fallback to raw UCI values. Read-only.
+_guard_status_uci_overlay_effective_json() {
+    # Emits `"effective":{...}` with bounded resolved keys, or `"effective":{}`.
+    _guard_uoej_first=1
+    printf '"effective":{'
+    if command -v guard_uci_overlay_effective >/dev/null 2>&1 \
+       && command -v guard_uci_overlay_resolve_state_valid >/dev/null 2>&1 \
+       && guard_uci_overlay_resolve_state_valid 2>/dev/null; then
+        for _guard_uoej_path in routing.chatgpt routing.claude routing.grok dns.fail_closed dns.backend
+        do
+            _guard_uoej_val=$(guard_uci_overlay_effective "$_guard_uoej_path" 2>/dev/null) || continue
+            [ -n "$_guard_uoej_val" ] || continue
+            # Skip DEFERRED:*-style sentinel values: they are diagnostics for
+            # un-resolved contract gaps and must not appear as effective.
+            case $_guard_uoej_val in
+                DEFERRED:*) continue ;;
+            esac
+            # Skip empty values as well; only emit concrete keys.
+            [ "$_guard_uoej_first" = 1 ] || printf ','
+            _guard_uoej_first=0
+            # Convert the option path (e.g. routing.chatgpt) to a flat
+            # identifier (routing_chatgpt) so the JSON is a flat object with
+            # bounded, non-secret keys.
+            _guard_uoej_key=$(printf '%s' "$_guard_uoej_path" | tr '.-' '__')
+            printf '"%s":"%s"' \
+                "$(_guard_env_json_string "$_guard_uoej_key")" \
+                "$(_guard_env_json_string "$_guard_uoej_val")"
+        done
+    fi
+    printf '}'
+}
+
+guard_status_uci_overlay_json() {
+    # Emits `"uciOverlay":{...}` (no leading comma). Read-only; never mutates
+    # effective state. All failure paths still emit a valid JSON object.
+    if ! command -v guard_uci_overlay_json >/dev/null 2>&1; then
+        printf '"uciOverlay":{"available":false,"valid":false,"errors":[],"unknownOptions":[]}'
+        return 0
+    fi
+    # Trigger a load ONLY when not already loaded so this status path never
+    # invalidates a previously-resolved Layer-B state. guard_uci_overlay_json
+    # itself performs a lazy load, but doing it here explicitly preserves the
+    # "no-op when already loaded" invariant.
+    if [ "${_GUARD_UCI_OVERLAY_LOADED:-0}" != 1 ] \
+       && command -v guard_uci_overlay_load >/dev/null 2>&1; then
+        guard_uci_overlay_load >/dev/null 2>&1 || true
+    fi
+    _guard_suo_base=$(guard_uci_overlay_json 2>/dev/null) || _guard_suo_base=
+    if [ -z "$_guard_suo_base" ]; then
+        printf '"uciOverlay":{"available":false,"valid":false,"errors":[],"unknownOptions":[]}'
+        return 0
+    fi
+    # Unwrap the overlay module's {"uciOverlay":{...}} envelope so we can
+    # extend the inner object in place. After the two parameter expansions
+    # the result is `"available":...,"unknownOptions":[...]` (no braces).
+    # braces carried in vars so naive bundle-table brace counters stay balanced
+    _guard_suo_open='{'
+    _guard_suo_close='}'
+    _guard_suo_prefix=$_guard_suo_open'"uciOverlay":'$_guard_suo_open
+    _guard_suo_suffix=$_guard_suo_close$_guard_suo_close
+    _guard_suo_inner=${_guard_suo_base#"$_guard_suo_prefix"}
+    _guard_suo_inner=${_guard_suo_inner%"$_guard_suo_suffix"}
+    printf '"uciOverlay":%s%s' "$_guard_suo_open" "$_guard_suo_inner"
+    # Authority-input availability flags (booleans only), pulled from the
+    # overlay-resolve diagnostics in a read-only manner. The resolver runs its
+    # preview inference in a SUBSHELL, so the caller's Layer-B state is
+    # unchanged. Values recorded in resolvedPreviewNotes are omitted entirely
+    # to keep this projection bounded.
+    if command -v guard_uci_overlay_resolve_diagnostics >/dev/null 2>&1; then
+        _guard_suo_diag=$(guard_uci_overlay_resolve_diagnostics 2>/dev/null) || _guard_suo_diag=
+        if [ -n "$_guard_suo_diag" ]; then
+            _guard_suo_policy_flag=false
+            _guard_suo_dns_flag=false
+            # Substring probe on the resolver's JSON-shaped diagnostic: extract
+            # ONLY the boolean authority inputs. Never propagate resolvedPreviewNotes.
+            case $_guard_suo_diag in
+                *'"policy":true'*) _guard_suo_policy_flag=true ;;
+            esac
+            case $_guard_suo_diag in
+                *'"dns":true'*) _guard_suo_dns_flag=true ;;
+            esac
+            printf ',"authorityInputs":{"policy":%s,"dns":%s}' \
+                "$_guard_suo_policy_flag" "$_guard_suo_dns_flag"
+        fi
+    fi
+    printf ','
+    _guard_status_uci_overlay_effective_json
+    printf '}'
+}
+
 _guard_emit_status_json() {
     _guard_sj=$(guard_env_json)
     _guard_sj=${_guard_sj%?}
     printf '%s,' "$_guard_sj"
     guard_policy_json_extra
     guard_status_json_extra
+    # Canonical UCI overlay diagnostics, redacted and bounded. Always emitted
+    # as a top-level `uciOverlay` key (read-only; never exposes secrets, raw
+    # values, profile URLs, query strings, or unresolved preview notes).
+    printf ','
+    guard_status_uci_overlay_json
     guard_doctor_json_extra
     printf '}\n'
 }
@@ -9072,6 +10478,73 @@ guard_cmd_status() {
     cli_kv distribution.selectedSource "$(_guard_distribution_selected_or_none)"
 }
 
+# Bounded human-readable overlay diagnostics for `doctor`. Read-only: never
+# mutates effective Layer-B state. Uses ONLY the projection APIs
+# (guard_uci_overlay_errors / guard_uci_overlay_unknown_options /
+# guard_uci_overlay_valid / guard_uci_overlay_available). Surfaces:
+#   invalid known option  -> <path>: <reason>            (cli_warn)
+#   unknown option        -> unknown option ignored: <path> (cli_info)
+# Never prints raw values, never prints profile URLs / tokens / query strings.
+guard_doctor_uci_overlay() {
+    if ! command -v guard_uci_overlay_valid >/dev/null 2>&1; then
+        return 0
+    fi
+    # Trigger a load ONLY when the snapshot is not already loaded so this path
+    # never invalidates a previously-resolved Layer-B state. _guard_prepare
+    # already loads the snapshot before doctor runs; in practice this branch
+    # is a no-op. When the load does happen here it cannot resolve state
+    # (no authority inputs are wired in this read-only path), so the
+    # effective Layer-B surface stays untouched regardless.
+    if [ "${_GUARD_UCI_OVERLAY_LOADED:-0}" != 1 ]; then
+        if ! command -v guard_uci_overlay_load >/dev/null 2>&1; then
+            return 0
+        fi
+        guard_uci_overlay_load >/dev/null 2>&1 || true
+    fi
+    cli_section "uci overlay"
+    cli_kv uciOverlay.available "$(guard_uci_overlay_available 2>/dev/null || printf 0)"
+    cli_kv uciOverlay.valid "$(guard_uci_overlay_valid 2>/dev/null || printf 0)"
+    # Errors: "path|reason" lines; print each as <path>: <reason>. Reasons are
+    # already redacted by the overlay (never URLs / raw values).
+    _guard_duo_errors=$(guard_uci_overlay_errors 2>/dev/null) || _guard_duo_errors=
+    if [ -n "$_guard_duo_errors" ]; then
+        _guard_duo_oldifs=$IFS
+        IFS='
+'
+        for _guard_duo_line in $_guard_duo_errors
+        do
+            IFS=$_guard_duo_oldifs
+            [ -n "$_guard_duo_line" ] || continue
+            _guard_duo_path=${_guard_duo_line%%|*}
+            # Strip "path|" prefix without a bare '#': a literal '#' in a glob
+            # pattern makes naive bundle-table comment strippers drop the rest
+            # of the line (including the expansion's closing '}'), unbalancing
+            # the brace counter. cut -f2- keeps any '|' inside the reason.
+            _guard_duo_reason=$(printf '%s' "$_guard_duo_line" | cut -d'|' -f2-)
+            cli_warn "$_guard_duo_path: $_guard_duo_reason"
+            IFS='
+'
+        done
+        IFS=$_guard_duo_oldifs
+    fi
+    # Unknown options: "<path>" lines; print as "unknown option ignored: <path>".
+    _guard_duo_unknown=$(guard_uci_overlay_unknown_options 2>/dev/null) || _guard_duo_unknown=
+    if [ -n "$_guard_duo_unknown" ]; then
+        _guard_duo_oldifs=$IFS
+        IFS='
+'
+        for _guard_duo_path in $_guard_duo_unknown
+        do
+            IFS=$_guard_duo_oldifs
+            [ -n "$_guard_duo_path" ] || continue
+            cli_info "unknown option ignored: $_guard_duo_path"
+            IFS='
+'
+        done
+        IFS=$_guard_duo_oldifs
+    fi
+}
+
 guard_cmd_doctor() {
     _guard_doctor_service=
     while [ "$#" -gt 0 ]; do
@@ -9115,6 +10588,15 @@ guard_cmd_doctor() {
         cli_warn "client DNS firewall bypass diagnostics unavailable; required fw4 chains could not be observed"
     fi
     cli_info "gaming bypass never matches protected UDP ports (including 443)"
+    # Canonical UCI overlay diagnostics (read-only, redacted). Invalid known
+    # options are surfaced as "<path>: <reason>"; unknown options as "unknown
+    # option ignored: <path>". Never prints raw values, profile URLs, tokens,
+    # or query strings. Does NOT mutate effective Layer-B state. Guarded so
+    # minimal harnesses that do not source the doctor overlay block still
+    # produce the rest of the doctor output.
+    if command -v guard_doctor_uci_overlay >/dev/null 2>&1; then
+        guard_doctor_uci_overlay
+    fi
     if [ -n "$_guard_doctor_service" ]; then
         # shellcheck disable=SC2153
         if ! json_has "$_GUARD_POLICY_FILE" "services.$_guard_doctor_service"; then

@@ -45,7 +45,7 @@ _GUARD_UCOR_DNS_BACKEND=''
 # are surfaced as passthrough (identity) with a "deferred" flag; they are NOT
 # treated as resolved and MUST NOT be consumed as an authoritative effective
 # value without a future contract update.
-_GUARD_UCOR_DEFERRED_OPTIONS='routing.direct_region routing.proxy_region udp.enabled udp.src_ip dns.resolver_sync'
+_GUARD_UCOR_DEFERRED_OPTIONS='routing.direct_region routing.proxy_region dns.resolver_sync udp.enabled udp.src_ip'
 
 _GUARD_UCO_RESOLUTION_NOTES=''
 
@@ -371,6 +371,18 @@ guard_uci_overlay_resolve_state_valid() {
 #     flagged, never a usable effective value).
 #   - other options (no authority constraint): the normalized UCI value.
 guard_uci_overlay_effective() {
+    # Pre-validate the option name: anything outside [A-Za-z0-9_.]* would later
+    # be interpolated into a shell variable name (via tr/eval) and die with a
+    # shell-level "bad substitution" instead of a clean refuse. Reject BEFORE
+    # any var-name construction so garbage callers get rc=1 with a standard
+    # error, no side effects, and no accidental eval of attacker-controlled
+    # characters.
+    case $1 in
+        *[!A-Za-z0-9_.]*|"")
+            printf '%s\n' "guard_uci_overlay_effective: invalid option name" >&2
+            return 1
+            ;;
+    esac
     if _guard_uci_resolve_is_deferred "$1"; then
         printf 'DEFERRED:%s' "$(guard_uci_overlay_get "$1")"
         return 0
