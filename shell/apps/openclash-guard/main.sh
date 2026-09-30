@@ -386,9 +386,14 @@ guard_status_uci_overlay_json() {
     # Unwrap the overlay module's {"uciOverlay":{...}} envelope so we can
     # extend the inner object in place. After the two parameter expansions
     # the result is `"available":...,"unknownOptions":[...]` (no braces).
-    _guard_suo_inner=${_guard_suo_base#'{"uciOverlay":{'}
-    _guard_suo_inner=${_guard_suo_inner%'}}'}
-    printf '"uciOverlay":{%s' "$_guard_suo_inner"
+    # braces carried in vars so naive bundle-table brace counters stay balanced
+    _guard_suo_open='{'
+    _guard_suo_close='}'
+    _guard_suo_prefix=$_guard_suo_open'"uciOverlay":'$_guard_suo_open
+    _guard_suo_suffix=$_guard_suo_close$_guard_suo_close
+    _guard_suo_inner=${_guard_suo_base#"$_guard_suo_prefix"}
+    _guard_suo_inner=${_guard_suo_inner%"$_guard_suo_suffix"}
+    printf '"uciOverlay":%s%s' "$_guard_suo_open" "$_guard_suo_inner"
     # Authority-input availability flags (booleans only), pulled from the
     # overlay-resolve diagnostics in a read-only manner. The resolver runs its
     # preview inference in a SUBSHELL, so the caller's Layer-B state is
@@ -531,7 +536,11 @@ guard_doctor_uci_overlay() {
             IFS=$_guard_duo_oldifs
             [ -n "$_guard_duo_line" ] || continue
             _guard_duo_path=${_guard_duo_line%%|*}
-            _guard_duo_reason=${_guard_duo_line#*|}
+            # Strip "path|" prefix without a bare '#': a literal '#' in a glob
+            # pattern makes naive bundle-table comment strippers drop the rest
+            # of the line (including the expansion's closing '}'), unbalancing
+            # the brace counter. cut -f2- keeps any '|' inside the reason.
+            _guard_duo_reason=$(printf '%s' "$_guard_duo_line" | cut -d'|' -f2-)
             cli_warn "$_guard_duo_path: $_guard_duo_reason"
             IFS='
 '
