@@ -37,8 +37,8 @@ esac
             script = textwrap.dedent(
                 f"""\
                 set -eu
-                PATH={tmp_path}:$PATH
-                . {DNS_SH}
+                PATH={tmp_path.as_posix()}:$PATH
+                . "{DNS_SH.as_posix()}"
                 guard_dns_detect_firewall_bypasses
                 printf '%s\n' \\
                   "available=$_GUARD_DNS_BYPASS_AVAILABLE" \\
@@ -203,6 +203,117 @@ esac
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         self.assertNotIn("client DNS firewall bypass detected", result.stdout)
         self.assertNotIn("client DNS firewall bypass diagnostics unavailable", result.stdout)
+
+    def test_expands_anonymous_saddr_set_and_reports_both_clients(self) -> None:
+        values = self._run_detector(
+            forward=textwrap.dedent(
+                """\
+                chain forward_lan {
+                    ip saddr { 10.0.0.60, 10.0.0.61 } udp dport 53 jump accept_to_wan comment "lan-dns-out-bypass"
+                }
+                """
+            ),
+            dstnat="chain dstnat {}",
+        )
+        self.assertEqual(values["available"], "1")
+        self.assertEqual(values["count"], "2")
+        clients = values["clients"].split()
+        self.assertIn("10.0.0.60", clients)
+        self.assertIn("10.0.0.61", clients)
+        self.assertNotIn("{", values["clients"])
+        self.assertNotIn("}", values["clients"])
+        self.assertEqual(values["port53"], "1")
+        self.assertEqual(values["dot853"], "0")
+        self.assertEqual(values["hijack53"], "0")
+
+    def test_ignores_dport_5353(self) -> None:
+        values = self._run_detector(
+            forward=textwrap.dedent(
+                """\
+                chain forward_lan {
+                    ip saddr 10.0.0.70 udp dport 5353 jump accept_to_wan comment "mdns"
+                }
+                """
+            ),
+            dstnat="chain dstnat {}",
+        )
+        self.assertEqual(values["available"], "1")
+        self.assertEqual(values["count"], "0")
+        self.assertEqual(values["clients"], "")
+        self.assertEqual(values["port53"], "0")
+        self.assertEqual(values["dot853"], "0")
+
+    def test_ignores_named_set_port_reference(self) -> None:
+        values = self._run_detector(
+            forward=textwrap.dedent(
+                """\
+                chain forward_lan {
+                    ip saddr 10.0.0.71 udp dport @my_853set jump accept_to_wan comment "via named set"
+                }
+                """
+            ),
+            dstnat="chain dstnat {}",
+        )
+        self.assertEqual(values["available"], "1")
+        self.assertEqual(values["count"], "0")
+        self.assertEqual(values["clients"], "")
+        self.assertEqual(values["port53"], "0")
+        self.assertEqual(values["dot853"], "0")
+
+    def test_ignores_port_153_and_531_substring_lookalikes(self) -> None:
+        values = self._run_detector(
+            forward=textwrap.dedent(
+                """\
+                chain forward_lan {
+                    ip saddr 10.0.0.72 udp dport 153 jump accept_to_wan comment "not-dns-153"
+                    ip saddr 10.0.0.73 udp dport 531 jump accept_to_wan comment "not-dns-531"
+                }
+                """
+            ),
+            dstnat="chain dstnat {}",
+        )
+        self.assertEqual(values["available"], "1")
+        self.assertEqual(values["count"], "0")
+        self.assertEqual(values["clients"], "")
+        self.assertEqual(values["port53"], "0")
+        self.assertEqual(values["dot853"], "0")
+
+    def test_multi_client_rules_dedupe_and_count(self) -> None:
+        values = self._run_detector(
+            forward=textwrap.dedent(
+                """\
+                chain forward_lan {
+                    ip saddr 10.0.0.60 udp dport 53 jump accept_to_wan comment "first-client"
+                    ip saddr 10.0.0.61 udp dport 53 jump accept_to_wan comment "second-client"
+                    ip saddr 10.0.0.60 tcp dport 53 jump accept_to_wan comment "first-client-again"
+                }
+                """
+            ),
+            dstnat="chain dstnat {}",
+        )
+        self.assertEqual(values["available"], "1")
+        self.assertEqual(values["count"], "2")
+        clients = values["clients"].split()
+        self.assertEqual(sorted(clients), ["10.0.0.60", "10.0.0.61"])
+        self.assertEqual(values["port53"], "1")
+
+    def test_detects_braced_anonymous_port_set(self) -> None:
+        values = self._run_detector(
+            forward=textwrap.dedent(
+                """\
+                chain forward_lan {
+                    ip saddr 10.0.0.80 udp dport { 53, 853 } jump accept_to_wan comment "braced-dns-ports"
+                }
+                """
+            ),
+            dstnat="chain dstnat {}",
+        )
+        self.assertEqual(values["available"], "1")
+        self.assertEqual(values["count"], "1")
+        self.assertEqual(values["clients"], "10.0.0.80")
+        self.assertEqual(values["port53"], "1")
+        self.assertEqual(values["dot853"], "1")
+        self.assertEqual(values["hijack53"], "0")
 
 
 if __name__ == "__main__":

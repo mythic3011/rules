@@ -95,9 +95,35 @@ guard_dns_domain_set_backend() {
     esac
 }
 
+_guard_dns_is_ipv4() {
+    _guard_dns_ip=$1
+    case $_guard_dns_ip in
+        *[!0-9.]*) return 1 ;;
+    esac
+    _guard_dns_old_ifs=$IFS
+    IFS=.
+    # shellcheck disable=SC2086
+    set -- $_guard_dns_ip
+    IFS=$_guard_dns_old_ifs
+    [ "$#" -eq 4 ] || return 1
+    for _guard_dns_octet; do
+        case $_guard_dns_octet in
+            ''|*[!0-9]*) return 1 ;;
+        esac
+        [ "${#_guard_dns_octet}" -le 3 ] || return 1
+        # reject leading zeros like "01" (but allow plain "0")
+        case $_guard_dns_octet in
+            0?*) return 1 ;;
+        esac
+        [ "$_guard_dns_octet" -le 255 ] 2>/dev/null || return 1
+    done
+    return 0
+}
+
 _guard_dns_add_bypass_client() {
     _guard_dns_client=$1
     [ -n "$_guard_dns_client" ] || return 0
+    _guard_dns_is_ipv4 "$_guard_dns_client" || return 0
     case " ${_GUARD_DNS_BYPASS_CLIENTS:-} " in
         *" $_guard_dns_client "*) return 0 ;;
     esac
@@ -107,6 +133,75 @@ _guard_dns_add_bypass_client() {
         _GUARD_DNS_BYPASS_CLIENTS=$_guard_dns_client
     fi
     _GUARD_DNS_BYPASS_CLIENT_COUNT=$((_GUARD_DNS_BYPASS_CLIENT_COUNT + 1))
+}
+
+# Emit saddr IPv4 tokens for nft rules that:
+#   - match the wanted dport EXACTLY (token == want) or via a braced anonymous
+#     port set whose elements are all numerics (e.g. "{ 53, 853 }"),
+#   - do NOT reference a named set (@name) for ports,
+#   - carry the wanted action pattern (jump/return).
+# The saddr may be a single IPv4 token or a braced anonymous set
+# "{ ip1, ip2 }" — every IPv4-shaped token in the set is emitted, one per line.
+_guard_dns_nft_emit_bypass_saddr() {
+    _guard_dns_text=$1
+    _guard_dns_action_mode=$2
+    _guard_dns_want_port=$3
+    printf '%s\n' "$_guard_dns_text" | awk \
+        -v action_mode="$_guard_dns_action_mode" \
+        -v want="$_guard_dns_want_port" '
+        function port_match(idx,    j, tok, inner) {
+            if (idx > NF) return 0
+            tok = $(idx)
+            if (tok == "{") {
+                for (j = idx + 1; j <= NF; j++) {
+                    if ($j == "}") break
+                    inner = $j
+                    sub(/,$/, "", inner)
+                    if (inner ~ /^[0-9]+$/ && inner == want) return 1
+                }
+                return 0
+            }
+            # named-set reference (e.g. "@my_853set") — never matches
+            if (tok ~ /^@/) return 0
+            sub(/,$/, "", tok)
+            if (tok !~ /^[0-9]+$/) return 0
+            return (tok == want)
+        }
+        function action_match(    i, in_comment) {
+            in_comment = 0
+            for (i = 1; i <= NF; i++) {
+                if ($i == "comment") in_comment = 1
+                if (in_comment) continue
+                if (action_mode == "jump_accept_to_wan") {
+                    if ($i == "jump" && i < NF && $(i + 1) == "accept_to_wan") return 1
+                } else if (action_mode == "return") {
+                    if ($i == "return") return 1
+                }
+            }
+            return 0
+        }
+        /ip saddr/ && /dport/ && action_match() {
+            si = 0; di = 0
+            for (i = 1; i <= NF; i++) {
+                if ($i == "saddr" && si == 0) si = i
+                if ($i == "dport" && di == 0) di = i
+            }
+            if (si == 0 || di == 0) next
+            if (si + 1 > NF) next
+            if (!port_match(di + 1)) next
+            if ($(si + 1) == "{") {
+                for (j = si + 2; j <= NF; j++) {
+                    if ($j == "}") break
+                    tok = $j
+                    sub(/,$/, "", tok)
+                    if (tok != "") print tok
+                }
+            } else {
+                tok = $(si + 1)
+                sub(/,$/, "", tok)
+                if (tok != "") print tok
+            }
+        }'
 }
 
 guard_dns_detect_firewall_bypasses() {
@@ -123,21 +218,12 @@ guard_dns_detect_firewall_bypasses() {
     _guard_dns_dstnat=$(nft -a list chain inet fw4 dstnat 2>/dev/null) || return 0
     _GUARD_DNS_BYPASS_AVAILABLE=1
 
-    _guard_dns_p53_clients=$(printf '%s\n' "$_guard_dns_forward" | awk '
-        /ip saddr/ && /dport/ && /jump accept_to_wan/ && /(^|[^0-9])53([^0-9]|$)/ {
-            for (i = 1; i <= NF; i++) if ($i == "saddr" && i < NF) print $(i + 1)
-        }
-    ')
-    _guard_dns_p853_clients=$(printf '%s\n' "$_guard_dns_forward" | awk '
-        /ip saddr/ && /dport/ && /jump accept_to_wan/ && /(^|[^0-9])853([^0-9]|$)/ {
-            for (i = 1; i <= NF; i++) if ($i == "saddr" && i < NF) print $(i + 1)
-        }
-    ')
-    _guard_dns_hijack_clients=$(printf '%s\n' "$_guard_dns_dstnat" | awk '
-        /ip saddr/ && /dport/ && /return/ && /(^|[^0-9])53([^0-9]|$)/ {
-            for (i = 1; i <= NF; i++) if ($i == "saddr" && i < NF) print $(i + 1)
-        }
-    ')
+    _guard_dns_p53_clients=$(_guard_dns_nft_emit_bypass_saddr \
+        "$_guard_dns_forward" "jump_accept_to_wan" 53)
+    _guard_dns_p853_clients=$(_guard_dns_nft_emit_bypass_saddr \
+        "$_guard_dns_forward" "jump_accept_to_wan" 853)
+    _guard_dns_hijack_clients=$(_guard_dns_nft_emit_bypass_saddr \
+        "$_guard_dns_dstnat" "return" 53)
 
     if [ -n "$_guard_dns_p53_clients" ]; then
         _GUARD_DNS_BYPASS_PORT53=1
