@@ -192,10 +192,11 @@ return view.extend({
 		});
 
 		var dnsValue = status.adguardHomeRunning ? _('AdGuard Home') : (status.dnsBackend || _('Auto'));
-		var dnsDetail = status.adguardHomeRunning ? _('Running') : _('Configured backend') + ': ' + (status.dnsBackend || 'auto');
+		var dnsDetail = status.adguardHomeRunning ? _('Running') : _('Configured backend') + ': ' + (status.dnsBackend || 'auto') + ' · ' + _('Staged intent');
 		var guardValue = status.guardInstalled ? _('Installed') : _('Missing');
 		var guardDetail = _('Configuration') + ': ' + (status.configEnabled ? _('Enabled') : _('Disabled'));
 		var protectionValue = status.failClosed ? _('Fail closed') : _('Relaxed');
+		protectionValue = protectionValue + ' · ' + _('Staged intent');
 		var protectionDetail = _('Auto refresh') + ': ' + yesNo(status.autoRefresh);
 
 		return E('div', {}, [
@@ -231,7 +232,7 @@ return view.extend({
 				E('div', { 'class': 'ocg-grid' }, [
 					card(_('Guard'), guardValue, guardDetail, stateClass(status.guardInstalled && status.configEnabled)),
 					card(_('OpenClash'), status.openclashRunning ? _('Running') : _('Stopped'), _('Traffic engine'), stateClass(status.openclashRunning)),
-					card(_('DNS'), dnsValue, dnsDetail + ' · ' + _('Resolver sync') + ': ' + yesNo(status.resolverSync), stateClass(status.adguardHomeRunning || status.dnsBackend !== 'adguardhome')),
+					card(_('DNS'), dnsValue, dnsDetail + ' · ' + _('Resolver sync intent') + ': ' + yesNo(status.resolverSync), stateClass(status.adguardHomeRunning || status.dnsBackend !== 'adguardhome')),
 					card(_('Protection'), protectionValue, protectionDetail, status.failClosed ? 'ocg-ok' : 'ocg-warn')
 				]),
 
@@ -250,11 +251,11 @@ return view.extend({
 					E('h3', {}, _('Routing policy & recent egress')),
 					E('div', { 'class': 'ocg-route-summary' }, [
 						E('div', { 'class': 'ocg-route-box' }, [
-							E('div', { 'class': 'ocg-route-label' }, _('Direct region')),
+							E('div', { 'class': 'ocg-route-label' }, _('Direct region') + ' · ' + _('Staged intent')),
 							E('div', { 'class': 'ocg-route-value' }, (status.directRegion || '-').toUpperCase())
 						]),
 						E('div', { 'class': 'ocg-route-box' }, [
-							E('div', { 'class': 'ocg-route-label' }, _('Proxy region')),
+							E('div', { 'class': 'ocg-route-label' }, _('Proxy region') + ' · ' + _('Staged intent')),
 							E('div', { 'class': 'ocg-route-value' }, (status.proxyRegion || '-').toUpperCase())
 						])
 					]),

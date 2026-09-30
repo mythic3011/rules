@@ -138,6 +138,38 @@ class LuCIOpenClashGuardContractTests(unittest.TestCase):
         self.assertIn("option claude 'proxy'", config)
         self.assertIn("option grok 'proxy'", config)
 
+    def test_profile_url_is_redacted_server_side(self) -> None:
+        """Profile URLs may carry opaque token paths (e.g. /p/<token>.ini). The rpcd
+        backend must redact path/query before emitting profileUrl so LuCI never
+        receives credentials."""
+        rpcd = RPCD.read_text(encoding="utf-8")
+        # Redaction helper must exist and use parameter expansion only (no eval).
+        self.assertIn("redact_profile_url() {", rpcd)
+        self.assertIn("${url#https://}", rpcd)
+        self.assertIn("${rest%%/*}", rpcd)
+        self.assertNotIn("eval", rpcd.split("redact_profile_url() {", 1)[1].split("}", 1)[0])
+        # get_status must feed the redacted string to json_add_string profileUrl.
+        get_status = rpcd.split("get_status() {", 1)[1].split("\n}", 1)[0]
+        self.assertIn(
+            'profile_url_redacted=$(redact_profile_url "$profile_url")', get_status
+        )
+        self.assertIn('json_add_string profileUrl "$profile_url_redacted"', get_status)
+        self.assertNotIn('json_add_string profileUrl "$profile_url"', get_status)
+        # overview.js must not reconstruct or re-append a path; it consumes the
+        # already-redacted string and relies on E() text encoding.
+        overview = OVERVIEW.read_text(encoding="utf-8")
+        self.assertIn("status.profileUrl", overview)
+        self.assertNotIn("eval(", overview.split("status.profileUrl")[0] if "eval(" in overview else "")
+
+    def test_rpcd_json_get_var_has_defaults(self) -> None:
+        """With set -eu, a missing key in json_get_var would abort before
+        json_cleanup. Both trace and probeProfile dispatch paths must supply
+        defaults, and trace must explicitly reject an empty service."""
+        rpcd = RPCD.read_text(encoding="utf-8")
+        self.assertIn("json_get_var service service ''", rpcd)
+        self.assertIn("json_get_var url url ''", rpcd)
+        self.assertIn("service is required", rpcd)
+
 
 if __name__ == "__main__":
     unittest.main()
