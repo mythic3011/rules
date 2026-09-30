@@ -2,14 +2,14 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/internal/python/generate_adblock_outputs.py
 # CATEGORY: telemetry
-# GENERATED_AT: 2026-09-29T09:57:40Z
-# TOTAL: 1984
+# GENERATED_AT: 2026-09-30T09:49:32Z
+# TOTAL: 1985
 # FORMAT: hosts
 # UPSTREAM hagezi_native_apple: 108
 # UPSTREAM hagezi_native_apple HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_huawei: 135
 # UPSTREAM hagezi_native_huawei HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_oppo_realme: 487
+# UPSTREAM hagezi_native_oppo_realme: 488
 # UPSTREAM hagezi_native_oppo_realme HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_samsung: 200
 # UPSTREAM hagezi_native_samsung HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -273,6 +273,7 @@
 0.0.0.0 api.sms.intl.miui.com
 0.0.0.0 api.xmpush.global.xiaomi.com
 0.0.0.0 api.xmpush.xiaomi.com
+0.0.0.0 apisnd.heytapmobi.com
 0.0.0.0 apkrep.ff.avast.sec.miui.com
 0.0.0.0 app.bugsnag.com
 0.0.0.0 app.getsentry.com

@@ -1,6 +1,6 @@
 {
   "category": "telemetry",
-  "generated_at": "2026-09-29T09:57:40Z",
+  "generated_at": "2026-09-30T09:49:32Z",
   "source_config": "internal/config/filtering/sources/telemetry.yaml",
   "custom_source_config": "internal/config/filtering/sources/custom/telemetry.yaml",
   "allowlist": "dns/local_telemetry_allowlist.txt",
@@ -9,12 +9,12 @@
   "hosts_output": "dns/telemetry.hosts.txt",
   "clash_output": "rule/Telemetry_Lite_Domain.yaml",
   "clash_name": "Telemetry_Lite_Domain",
-  "upstream_unique_count": 1953,
+  "upstream_unique_count": 1954,
   "local_blocklist_count": 47,
   "allowlist_count": 0,
-  "merged_pre_allowlist_count": 1985,
-  "post_allowlist_count": 1985,
-  "final_domain_count": 1984,
+  "merged_pre_allowlist_count": 1986,
+  "post_allowlist_count": 1986,
+  "final_domain_count": 1985,
   "clash_seed_count": 5,
   "clash_domain_count": 46,
   "sources": [
@@ -40,7 +40,7 @@
       "priority": 30,
       "url": "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/native.oppo-realme.txt",
       "homepage": "https://github.com/hagezi/dns-blocklists",
-      "count": 487
+      "count": 488
     },
     {
       "id": "hagezi_native_samsung",
