@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 import subprocess
 import unittest
 from pathlib import Path
@@ -9,8 +10,16 @@ ROOT = Path(__file__).resolve().parents[1]
 POLICY = ROOT / "shell" / "apps" / "openclash-guard" / "policy.sh"
 
 
+def _posix_shell() -> str | None:
+    """Locate a POSIX shell (Windows hosts do not expose a literal /bin/sh)."""
+    return shutil.which("bash") or shutil.which("sh")
+
+
 class OpenClashGuardPolicyScopeTests(unittest.TestCase):
     def run_refresh(self, *, openclash_healthy: bool, kill_switch: bool = True) -> dict[str, str]:
+        shell = _posix_shell()
+        if shell is None:
+            raise unittest.SkipTest("no POSIX shell available on this host")
         script = f'''\\
 set -eu
 . "{POLICY}"
@@ -28,7 +37,7 @@ printf 'global=%s\n' "$_GUARD_POLICY_GLOBAL_FAILCLOSED"
 printf 'reason=%s\n' "$_GUARD_POLICY_STATE_REASON"
 '''
         result = subprocess.run(
-            ["/bin/sh", "-c", script],
+            [shell, "-c", script],
             cwd=ROOT,
             capture_output=True,
             text=True,

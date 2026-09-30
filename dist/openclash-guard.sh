@@ -2824,16 +2824,11 @@ guard_policy_validate_file() {
     do
         [ -n "$_guard_pv_class" ] || continue
         _guard_pv_da=$(json_get "$_guard_pv_file" "protectionClasses.${_guard_pv_class}.directAllowed") || _guard_pv_da=
-        _guard_pv_dr=$(json_get "$_guard_pv_file" "protectionClasses.${_guard_pv_class}.directRequiresSupportedRegion" 2>/dev/null) || _guard_pv_dr=false
         _guard_pv_fm=$(json_get "$_guard_pv_file" "protectionClasses.${_guard_pv_class}.failMode") || _guard_pv_fm=
         _guard_pv_quic=$(json_get "$_guard_pv_file" "protectionClasses.${_guard_pv_class}.quic") || _guard_pv_quic=
         _guard_pv_ks=$(json_get "$_guard_pv_file" "protectionClasses.${_guard_pv_class}.firewallKillSwitch") || _guard_pv_ks=
         if ! _guard_policy_is_bool "$_guard_pv_da"; then
             printf '%s\n' "guard_policy: invalid directAllowed on $_guard_pv_class" >&2
-            return 1
-        fi
-        if ! _guard_policy_is_bool "$_guard_pv_dr"; then
-            printf '%s\n' "guard_policy: invalid directRequiresSupportedRegion on $_guard_pv_class" >&2
             return 1
         fi
         case $_guard_pv_fm in
@@ -3035,19 +3030,6 @@ guard_policy_eval() {
         if [ "$_guard_pe_da" = false ]; then
             if [ "$_GUARD_PROXY_HEALTHY" = 1 ] && guard_policy_region_allowed "$_guard_pe_svc" "$_GUARD_PROXY_REGION"; then
                 printf '%s\n' "reject-direct"
-                return 0
-            fi
-            printf '%s\n' "reject"
-            return 0
-        fi
-        _guard_pe_direct_required=$(_guard_policy_class_field "$_guard_pe_svc" directRequiresSupportedRegion 2>/dev/null) || _guard_pe_direct_required=false
-        if [ "$_guard_pe_direct_required" = true ]; then
-            if guard_policy_region_allowed "$_guard_pe_svc" "$_GUARD_NET_DIRECT_REGION"; then
-                printf '%s\n' "allow-direct"
-                return 0
-            fi
-            if [ "$_GUARD_PROXY_HEALTHY" = 1 ] && guard_policy_region_allowed "$_guard_pe_svc" "$_GUARD_PROXY_REGION"; then
-                printf '%s\n' "allow-proxy"
                 return 0
             fi
             printf '%s\n' "reject"
@@ -9978,9 +9960,25 @@ _guard_prepare() {
             adguardhome|dnsmasq) _GUARD_UCOR_DNS_BACKEND=$_GUARD_DNS_BACKEND ;;
             *) _GUARD_UCOR_DNS_BACKEND=none ;;
         esac
-        if ! guard_uci_overlay_load; then
-            cli_error "openclash_guard UCI overlay is invalid after environment detect; refusing to proceed"
-            return 1
+        # Resolve the already-loaded snapshot NOW (against the just-wired
+        # authority inputs) instead of re-loading UCI. The first load at the
+        # top of _guard_prepare captured the canonical Layer-A snapshot and
+        # invalidated any prior Layer-B state; re-loading here would (a) open
+        # a second UCI read window (ABA drift detection is bounded per-load;
+        # back-to-back loads widen the window), and (b) destroy any resolved
+        # state from a previous pipeline. Resolution consumes the existing
+        # snapshot and refuses (rc 3, or rc 1 on internal apply failure) when
+        # the just-wired authority inputs are not yet coherent; surfacing
+        # that here lets callers (reconcile, eval) refuse BEFORE any consumer
+        # of effective values, instead of deferring the refusal to the
+        # reconcile-only gate. guard_cmd_reconcile still runs its own gate
+        # via _guard_require_atomic_overlay_for_apply for defense-in-depth
+        # (resolve_state_valid is cheap and idempotent when already resolved).
+        if command -v guard_uci_overlay_resolve >/dev/null 2>&1; then
+            if ! guard_uci_overlay_resolve >/dev/null 2>&1; then
+                cli_error "openclash_guard UCI overlay resolution failed; refusing to proceed"
+                return 1
+            fi
         fi
     fi
     if [ -z "$_GUARD_NET_DIRECT_REGION" ]; then

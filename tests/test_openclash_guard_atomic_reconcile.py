@@ -537,9 +537,15 @@ _guard_prepare
     def test_atomic_gate_refuses_when_resolution_fails(self) -> None:
         """Layer A valid + authority inputs broken -> Layer-B resolution fails.
 
-        We sabotage _GUARD_UCOR_DNS_BACKEND to something the resolver
-        rejects (empty), forcing guard_uci_overlay_resolve to return its
-        authority-input-refused code. The gate must then refuse.
+        Under the Option-A layout, _guard_prepare itself calls
+        guard_uci_overlay_resolve AFTER wiring _GUARD_UCOR_POLICY_FILE and
+        _GUARD_UCOR_DNS_BACKEND. We sabotage the resolver's DNS observation
+        validator BEFORE _guard_prepare runs (by overriding
+        _guard_uci_resolve_dns_observation_valid to always fail). Resolution
+        then refuses (rc=3) inside _guard_prepare, which propagates non-zero
+        and emits the new error line. The reconcile-time gate never runs in
+        this scenario because the prepare refusal short-circuits the
+        pipeline; we assert the prepare-side refusal and zero nft mutation.
         """
         shell = sh_available()
         if shell is None:
@@ -570,20 +576,15 @@ export TMPDIR="{tmp.as_posix()}"
 {_common_stubs(nft_log, kill_apply_log)}
 {_strip_main_entrypoint()}
 
-# Wrap guard_env_detect so the observed backend is unusable as authority
-# input (the resolver insists on adguardhome|dnsmasq|none as a REAL
-# observation; we simulate an unobservable environment).
-guard_env_detect() {{ _GUARD_DNS_BACKEND=; _GUARD_PROXY_HEALTHY=0; _GUARD_NFT_AVAILABLE=1; }}
-# _guard_prepare normalizes empty backend to 'none' for the resolver input.
-# Sabotage AFTER prepare: blank the resolver input directly so resolve fails.
-_guard_prepare_orig() {{ :; }}
+# Provide a real observed DNS backend so _guard_prepare wires
+# _GUARD_UCOR_DNS_BACKEND=dnsmasq, but sabotage the resolver's DNS
+# observation validator BEFORE _guard_prepare invokes the resolver.
+guard_env_detect() {{ _GUARD_DNS_BACKEND=dnsmasq; _GUARD_PROXY_HEALTHY=0; _GUARD_NFT_AVAILABLE=1; }}
+_guard_uci_resolve_dns_observation_valid() {{ return 1; }}
 
-# Run the pipeline, then strip the resolver input so resolve_state_valid
-# cannot transition to true.
+# _guard_prepare must refuse: it now runs the resolver itself, and the
+# resolver refuses (rc=3) on the sabotaged DNS observation check.
 _guard_prepare
-_GUARD_UCOR_DNS_BACKEND=
-# Now invoke the gate; resolve must refuse with rc=3 (authority input).
-_guard_require_atomic_overlay_for_apply
 """
         script_path = tmp / "run.sh"
         script_path.write_text(script, encoding="utf-8")
@@ -596,7 +597,11 @@ _guard_require_atomic_overlay_for_apply
             timeout=60,
         )
         self.assertNotEqual(proc.returncode, 0, f"expected refuse: {proc.stdout}\n{proc.stderr}")
-        self.assertIn("refusing", proc.stderr, proc.stderr)
+        # The Option-A prepare-resolves path emits "resolution failed" via
+        # cli_error and short-circuits before any nft mutation.
+        self.assertIn("resolution failed", proc.stderr, proc.stderr)
+        self.assertEqual(nft_log.read_text(encoding="utf-8").strip(), "")
+        self.assertEqual(kill_apply_log.read_text(encoding="utf-8").strip(), "")
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@
 
 This document defines the hand-off between the native LuCI configuration model and the signed OpenClash Guard runtime.
 
-The contract is intentionally split from runtime wiring. The current release line already has a signed sequence-6 candidate pending in #98, so this preparatory change must not alter `dist/openclash-guard.sh`, runtime policy bytes, release metadata, or detached signatures.
+The contract was originally drafted as a preparatory (unwired) slice pending the authenticated sequence-6 candidate (#98). Sequence 7 has since **landed the production wiring**: `dist/openclash-guard.sh` has been regenerated to include both overlay modules and `dist/manifest.json`/`dist/openclash-guard.sha256` have been refreshed. Runtime policy bytes are unchanged. Critically, the sequence-7 candidate is **published unsigned** — `dist/manifest.json` deliberately carries no `releaseSignature` and no `dist/openclash-guard.sig` exists yet; signing is deferred to the protected release-signing chain (`.github/workflows/sign-openclash-guard-release.yml`) which consumes a verified generator run.
 
 ## REUSE
 
@@ -42,13 +42,13 @@ The UCI overlay is local intent, not a second policy authority.
 
 ## Release sequencing
 
-Runtime wiring is deliberately deferred. After the authenticated sequence-6 diagnostics release becomes the `main` baseline, the next Guard release can consume this contract while advancing the release sequence once. That release should:
+Sequence 7 has landed the runtime wiring of this contract. The following commitments from the draft are now in effect:
 
-- add one shared UCI overlay reader/validator instead of scattering `uci get` calls through policy modules;
-- normalize validated values into runtime state once per reconcile;
-- keep signed JSON as the capability ceiling/floor;
-- expose invalid values and ignored unknown options through `status --json` and `doctor`;
-- add fixture tests for malformed booleans, enums, region IDs, URLs, IP lists, and attempted policy widening;
-- regenerate and sign the resulting Guard bundle through the protected release chain.
+- one shared UCI overlay reader/validator (`shell/apps/openclash-guard/uci-overlay.sh`) instead of scattered `uci get` calls through policy modules — added;
+- normalized validated values resolved into runtime state once per reconcile (`_guard_prepare()` runs `guard_uci_overlay_load` + `guard_uci_overlay_resolve`) — done;
+- signed JSON kept as the capability ceiling/floor (Layer B never widens signed policy) — done;
+- invalid values and ignored unknown options surfaced through `status --json` (`guard_status_json_extra`) and `doctor` — done;
+- fixture tests for malformed booleans, enums, region IDs, URLs, IP lists, and attempted policy widening — done;
+- regenerated `dist/openclash-guard.sh` — done; the resulting Guard bundle is published as an **unsigned** seq7 candidate with `releaseSignature` intentionally absent, to be signed by the protected release chain.
 
-Until that release lands, entries marked `next-release` are configuration intent only.
+The remaining follow-up (consumer thin-migration of legacy `uci get` callers to `guard_uci_overlay_effective`) is additive cleanup and does not block the atomicity guarantees already in force.

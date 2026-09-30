@@ -544,6 +544,37 @@ class AuthorityInputTests(unittest.TestCase):
         self.assertIn("NO_EFFECTIVE", out)
 
 
+class EffectiveInputRobustnessTests(unittest.TestCase):
+    def test_garbage_option_name_is_cleanly_refused_with_no_side_effects(self) -> None:
+        # A name that is not in [A-Za-z0-9_.]* must NOT reach the var-name
+        # construction (which would previously die with a shell-level
+        # "bad substitution" via tr/eval). It must instead be refused rc=1
+        # with the standard error, and resolved state must remain UNSET.
+        policy = base_policy({
+            "chatgpt": svc("open", directAllowed=True),
+            "claude": svc("open", directAllowed=True),
+            "grok": svc("open", directAllowed=True),
+        })
+        body = (
+            "guard_uci_overlay_load || true\n"
+            "guard_uci_overlay_resolve\n"
+            'if v=$(guard_uci_overlay_effective "dns.backend;echo X"); then echo "LEAK=$v"; else echo "REFUSED rc=$?"; fi\n'
+            'if v=$(guard_uci_overlay_effective ""); then echo "LEAK_EMPTY=$v"; else echo "REFUSED_EMPTY rc=$?"; fi\n'
+            # A previously-resolved option must STILL resolve (no global state
+            # corruption from the refused call).
+            'echo "after=$(guard_uci_overlay_effective dns.fail_closed)"\n'
+        )
+        proc = run_resolve(policy, {"dns.fail_closed": "0"}, "none", body)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("REFUSED rc=1", proc.stdout)
+        self.assertIn("REFUSED_EMPTY rc=1", proc.stdout)
+        self.assertNotIn("LEAK=", proc.stdout)
+        self.assertNotIn("LEAK_EMPTY=", proc.stdout)
+        self.assertNotIn("bad substitution", proc.stderr)
+        self.assertIn("guard_uci_overlay_effective: invalid option name", proc.stderr)
+        self.assertIn("after=0", proc.stdout)
+
+
 class ResolutionContractTests(unittest.TestCase):
     def test_resolution_contract_is_versioned_and_closed(self) -> None:
         doc = json.loads(RESOLUTION_CONTRACT.read_text(encoding="utf-8"))

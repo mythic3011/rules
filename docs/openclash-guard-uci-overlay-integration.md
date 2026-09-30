@@ -1,8 +1,15 @@
 # OpenClash Guard UCI overlay integration design (#124)
 
-Status: **preparatory slice** — unwired architecture + tests + guardrails.
-Released wiring intentionally deferred while the sequence-6 candidate (#98) is
-open. This document is the design contract for the seq7 integration.
+Status: **wired in seq7 production** — Layer A and Layer B are registered in
+`shell/manifest.json`, loaded by `_guard_prepare()` once per reconcile, and
+resolved inside `_guard_prepare()` with authority inputs (`_GUARD_POLICY_FILE`,
+live DNS observation) explicitly wired. `guard_cmd_reconcile` re-asserts the
+zero-nft-on-invalid gate before any nft mutation. The regenerated
+`dist/openclash-guard.sh` bundle therefore contains both overlay modules.
+The seq7 release candidate has been published as an **unsigned** candidate
+(`releaseSignature` absent from `dist/manifest.json`); signing is handled by
+the protected release chain. This document remains the design contract for
+the overlay.
 
 ## Goal
 
@@ -50,7 +57,7 @@ manifest dependencies (so it can be wired without cycles). Responsibilities:
   is missing/read-failed (0). See "Availability" below.
 - `guard_uci_overlay_get` / `guard_uci_overlay_get_raw` — normalized vs raw reads.
 - `guard_uci_overlay_json` — redacted diagnostics document:
-  `{"uciOverlay":{"valid":bool,"errors":[{option,reason}],"unknownOptions":[{option}]}}`.
+  `{"uciOverlay":{"available":bool,"valid":bool,"errors":[{option,reason}],"unknownOptions":[{option}]}}`.
 
 Trust semantics baked in:
 
@@ -198,41 +205,75 @@ normal resolution path succeeds.
 contract-marked gated but have **no authoritative Layer-B resolution defined
 today**. They are surfaced by `guard_uci_overlay_effective()` as
 `DEFERRED:<normalized>` (explicitly flagged, never a usable effective value)
-and listed by `guard_uci_overlay_deferred_options()`:
+and listed by `guard_uci_overlay_deferred_options()`. The list mirrors
+`internal/config/openclash-guard/uci-overlay-resolution.json` exactly:
 
-- `dns.resolver_sync` — no contract defines resolver-sync capability. It is
-  **not** a simple "backend is capable" flag: `guard_dns_domain_set_backend`
-  maps `dnsmasq→dnsmasq-nftset`, and `adguardhome` only promotes via the
-  separate `guard_resolver_sync_backend` capability verification.
-- `routing.direct_region` / `routing.proxy_region` — only the Layer-A
-  *validation* (full registry vs `primaryOrder`) is defined; no signed-policy
-  resolution gate exists.
+- `dns.resolver_sync` — no authoritative contract defines resolver-sync
+  capability. Current runtime behavior is **not** a simple "backend is
+  capable" flag: `guard_dns_domain_set_backend` maps `dnsmasq→dnsmasq-nftset`,
+  and `adguardhome` only promotes via the separate
+  `guard_resolver_sync_backend` capability verification.
+- `routing.direct_region` — #122 marks it signed-policy-gated but no contract
+  defines the config-time gate (`allowedRegions` gates live route evaluation,
+  not this snapshot).
+- `routing.proxy_region` — same as `routing.direct_region`: gate undefined;
+  only the `primaryOrder` **validation** (Layer A) is defined, not a
+  signed-policy resolution.
+- `udp.enabled` — #122/#126 lands authority as `signed-policy-gated`, but the
+  gate semantics are undefined in this revision (restored to a contract gap
+  after review blocker 2; do not consume as authoritative effective value).
+- `udp.src_ip` — same as `udp.enabled`: authority restored to
+  `signed-policy-gated` with no defined gate in this revision; restored to
+  deferred.
 
 Reasons are **redacted** (name the constraint, never URLs/tokens/credentials).
 
-## Manifest wiring plan (deferred)
+## Manifest wiring (landed in seq7)
 
-When wiring into `shell/manifest.json` for the seq7 release:
+The overlay modules are registered in `shell/manifest.json` and compiled into
+the regenerated `dist/openclash-guard.sh`:
 
 - `guard-uci-overlay` (Layer A): `depends: []` (self-contained).
 - `guard-uci-overlay-resolve` (Layer B): `depends: [json, guard-uci-overlay]`,
-  and consumers come after `guard-policy`/`guard-environment`.
+  and both are added to the modules list ahead of `guard-policy`,
+  `guard-environment`, `guard-dns`, and the consumer modules
+  (`guard-main`, `guard-reconcile`, `guard-status`, `guard-doctor`).
 - Separate raw-load/validation (Layer A) from policy/live resolution (Layer B)
   so the dependency graph stays acyclic: A has no guard-* deps; B depends on A.
 
 ## Atomicity
 
-Full reconcile target:
+Pipeline ordering (current production behavior):
 
 ```
-load → validate → policy-resolve → capability-resolve → render complete
-intended state → apply
+_guard_prepare:
+  1. guard_uci_overlay_load      — capture Layer-A snapshot (HARD REFUSE
+                                   on KNOWN-invalid BEFORE any policy/env
+                                   mutation; invalidates prior Layer-B state).
+  2. guard_policy_load            — populate _GUARD_POLICY_FILE.
+  3. guard_env_detect             — populate _GUARD_DNS_BACKEND (live
+                                   observation).
+  4. Wire resolver inputs: _GUARD_UCOR_POLICY_FILE=_GUARD_POLICY_FILE,
+     _GUARD_UCOR_DNS_BACKEND=<observed>.
+  5. guard_uci_overlay_resolve    — consume the canonical snapshot exactly
+                                   ONCE against the just-wired authority
+                                   inputs; refuse (rc 1/3) on unavailable
+                                   inputs BEFORE any consumer reads
+                                   effective values.
+  6. guard_geo_detect / guard_policy_refresh_state — downstream state.
+
+guard_cmd_reconcile:
+  7. _guard_require_atomic_overlay_for_apply — idempotent zero-nft-on-invalid
+     gate, runs BEFORE any nft mutation (no guard_migrate_stale, no
+     guard_kill_delete_table, no guard_kill_apply_batch). Re-asserts that
+     Layer-A is valid AND a current Layer-B resolution exists for this
+     snapshot; safe no-op if `_guard_prepare` already resolved.
 ```
 
 The overlay validator returns failure and `guard_uci_overlay_valid=0` when any
-known option is malformed. The reconcile/apply path MUST check validity and
-refuse **before** any `nft` mutation (i.e. before `guard_kill_apply_batch` and
-friends). It must NOT "apply half → discover bad option → fail".
+known option is malformed. The reconcile/apply path checks validity and
+refuses **before** any `nft` mutation (i.e. before `guard_kill_apply_batch`
+and friends). It never "applies half → discovers bad option → fails".
 
 ## Diagnostics integration
 
@@ -295,16 +336,38 @@ these are read as runtime policy outside installer/template assertions, so no
 live-read drift exists; but the contract and this overlay intentionally model
 only the contract's option set.
 
-## Deferred until authenticated seq6 baseline on main
+## Landed in the seq7 production release
 
-- `shell/manifest.json` runtime wiring of the overlay modules
-- killswitch/gaming/environment/dataplane/main/preflight consumer migration
-- `_guard_prepare()` production pipeline reorder
-- nft-coupled runtime integration (atomicity enforcement at apply)
-- `make generate` / regenerated `dist/openclash-guard.sh`
-- sequence-7 metadata / signing
+The following are now part of the wired seq7 candidate (no longer deferred):
 
-**BLOCKER:** runtime/release integration waits for the authenticated seq6 main
-baseline (#98). This slice deliberately lands only: the unwired Layer A/B
-modules, the resolution contract, parser + validator + resolver tests, the
-structural guardrail, the migration map, and this design doc.
+- `shell/manifest.json` runtime wiring of the overlay modules — DONE
+  (`guard-uci-overlay` and `guard-uci-overlay-resolve` registered and
+  dependency-ordered ahead of consumers).
+- `_guard_prepare()` production pipeline reorder — DONE (Layer-A snapshot at
+  the top; authority inputs wired mid-prepare; Layer-B resolve inside
+  `_guard_prepare`; zero-nft-on-invalid gate re-asserted in
+  `_guard_require_atomic_overlay_for_apply` before any nft mutation).
+- nft-coupled runtime integration (atomicity enforcement at apply) — DONE
+  (`guard_cmd_reconcile` calls `_guard_require_atomic_overlay_for_apply`
+  unconditionally before every apply path).
+- `make generate` / regenerated `dist/openclash-guard.sh` — DONE (bundle
+  contains both overlay modules; `dist/manifest.json` and
+  `dist/openclash-guard.sha256` are refreshed).
+- Sequence-7 metadata — DONE (unsigned candidate published; `releaseSignature`
+  intentionally absent from `dist/manifest.json` pending the protected
+  signing chain).
+
+Still deferred (consumer migration is additive and not required for the
+atomicity guarantees above):
+
+- killswitch/gaming/environment/dataplane/main/preflight thin-consumer
+  migration — these modules still read `openclash_guard.*` directly via
+  their legacy helpers; the structural guardrail
+  (`tests/test_openclash_guard_uci_read_guardrail.py`) tolerates the
+  allowlisted reads. Migrating them to consume only
+  `guard_uci_overlay_effective()` is a follow-up cleanup.
+
+The seq7 candidate is **published unsigned** — `dist/manifest.json` carries
+only `sha256`, with `releaseSignature` deliberately absent until the
+protected signing workflow (`.github/workflows/sign-openclash-guard-release.yml`)
+runs on the trusted generator chain.

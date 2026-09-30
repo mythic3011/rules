@@ -116,9 +116,25 @@ _guard_prepare() {
             adguardhome|dnsmasq) _GUARD_UCOR_DNS_BACKEND=$_GUARD_DNS_BACKEND ;;
             *) _GUARD_UCOR_DNS_BACKEND=none ;;
         esac
-        if ! guard_uci_overlay_load; then
-            cli_error "openclash_guard UCI overlay is invalid after environment detect; refusing to proceed"
-            return 1
+        # Resolve the already-loaded snapshot NOW (against the just-wired
+        # authority inputs) instead of re-loading UCI. The first load at the
+        # top of _guard_prepare captured the canonical Layer-A snapshot and
+        # invalidated any prior Layer-B state; re-loading here would (a) open
+        # a second UCI read window (ABA drift detection is bounded per-load;
+        # back-to-back loads widen the window), and (b) destroy any resolved
+        # state from a previous pipeline. Resolution consumes the existing
+        # snapshot and refuses (rc 3, or rc 1 on internal apply failure) when
+        # the just-wired authority inputs are not yet coherent; surfacing
+        # that here lets callers (reconcile, eval) refuse BEFORE any consumer
+        # of effective values, instead of deferring the refusal to the
+        # reconcile-only gate. guard_cmd_reconcile still runs its own gate
+        # via _guard_require_atomic_overlay_for_apply for defense-in-depth
+        # (resolve_state_valid is cheap and idempotent when already resolved).
+        if command -v guard_uci_overlay_resolve >/dev/null 2>&1; then
+            if ! guard_uci_overlay_resolve >/dev/null 2>&1; then
+                cli_error "openclash_guard UCI overlay resolution failed; refusing to proceed"
+                return 1
+            fi
         fi
     fi
     if [ -z "$_GUARD_NET_DIRECT_REGION" ]; then

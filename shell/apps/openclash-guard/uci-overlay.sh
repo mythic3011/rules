@@ -7,11 +7,15 @@
 # normalized snapshot plus redacted diagnostics.
 #
 # Wiring status (see docs/openclash-guard-uci-overlay-integration.md):
-#   Intentionally UNWIRED from the release bundle while the sequence-6
-#   candidate (#98) is pending. shell/manifest.json is unchanged, so
-#   dist/openclash-guard.sh is unaffected. Consumer migration, manifest wiring,
-#   the _guard_prepare() pipeline reorder, and nft-coupled integration are
-#   deferred until the authenticated seq6 baseline lands on main.
+#   WIRED in the seq7 production release. Registered in shell/manifest.json
+#   (guard-uci-overlay) and compiled into the regenerated
+#   dist/openclash-guard.sh. _guard_prepare() loads the snapshot exactly once
+#   pre-reconcile, and guard_cmd_reconcile refires validation via
+#   _guard_require_atomic_overlay_for_apply BEFORE any nft mutation. The seq7
+#   candidate is published unsigned (releaseSignature absent); signing runs
+#   via the protected release-signing chain. Thin-consumer migration of the
+#   legacy killswitch/gaming/environment/dataplane readers to
+#   guard_uci_overlay_effective() is deferred additive cleanup.
 #
 # Trust model (per #122; contract at internal/config/openclash-guard/
 # uci-runtime-contract.json):

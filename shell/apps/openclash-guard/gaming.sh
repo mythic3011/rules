@@ -13,9 +13,14 @@ _GUARD_GAME_ENABLED=1
 # we never hard-parse `uci show` here.
 #
 # NOTE (per reviewer contract): the seq7 contract classifies udp.enabled /
-# udp.src_ip as `uci-runtime`. A1 removes them from the resolver's DEFERRED
-# list. If `guard_uci_overlay_effective` ever returns a literal "DEFERRED:" for
-# them, treat as overlay absent and fall back; do NOT invent a gate.
+# udp.src_ip as `signed-policy-gated`, and the Layer-B resolution semantics are
+# NOT defined for them in this revision — they remain on the resolver's
+# DEFERRED list (restored under review blocker 2 after an earlier uci-runtime
+# classification was reverted). `guard_uci_overlay_effective` therefore returns
+# the literal "DEFERRED:<normalized>" sentinel for both. This module treats
+# that sentinel as overlay-absent and falls back to the legacy direct uci read
+# below; do NOT promote them to authoritative effective values, and do NOT
+# invent a gate.
 
 guard_game_read_uci() {
     _GUARD_GAME_ENABLED=1
@@ -23,7 +28,8 @@ guard_game_read_uci() {
        command -v guard_uci_overlay_get >/dev/null 2>&1 && \
        guard_uci_overlay_validate 2>/dev/null; then
         _GUARD_GAME_ENABLED=$(guard_uci_overlay_get udp.enabled) || _GUARD_GAME_ENABLED=1
-        # Overlay may supply "DEFERRED:v" pre-A1; never treat that as authoritative.
+        # Overlay legitimately supplies "DEFERRED:v" while udp.* auth remains
+        # a contract gap; never treat the sentinel as authoritative.
         case $_GUARD_GAME_ENABLED in
             DEFERRED:*) _GUARD_GAME_ENABLED=1 ;;
         esac
