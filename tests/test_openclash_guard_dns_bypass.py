@@ -315,6 +315,92 @@ esac
         self.assertEqual(values["dot853"], "1")
         self.assertEqual(values["hijack53"], "0")
 
+    def test_detects_numeric_dport_range_covering_wanted_port(self) -> None:
+        values = self._run_detector(
+            forward=textwrap.dedent(
+                """\
+                chain forward_lan {
+                    ip saddr 10.0.0.90 udp dport 53-853 jump accept_to_wan comment "dns-range"
+                }
+                """
+            ),
+            dstnat="chain dstnat {}",
+        )
+        self.assertEqual(values["available"], "1")
+        self.assertEqual(values["count"], "1")
+        self.assertEqual(values["clients"], "10.0.0.90")
+        self.assertEqual(values["port53"], "1")
+        self.assertEqual(values["dot853"], "1")
+
+    def test_detects_braced_anonymous_range_set(self) -> None:
+        values = self._run_detector(
+            forward=textwrap.dedent(
+                """\
+                chain forward_lan {
+                    ip saddr 10.0.0.91 udp dport { 53-853 } jump accept_to_wan comment "braced-dns-range"
+                }
+                """
+            ),
+            dstnat="chain dstnat {}",
+        )
+        self.assertEqual(values["available"], "1")
+        self.assertEqual(values["count"], "1")
+        self.assertEqual(values["clients"], "10.0.0.91")
+        self.assertEqual(values["port53"], "1")
+        self.assertEqual(values["dot853"], "1")
+
+    def test_detects_range_as_element_of_braced_set(self) -> None:
+        values = self._run_detector(
+            forward=textwrap.dedent(
+                """\
+                chain forward_lan {
+                    ip saddr 10.0.0.92 udp dport { 80, 53-853 } jump accept_to_wan comment "mixed-set"
+                }
+                """
+            ),
+            dstnat="chain dstnat {}",
+        )
+        self.assertEqual(values["available"], "1")
+        self.assertEqual(values["count"], "1")
+        self.assertEqual(values["clients"], "10.0.0.92")
+        self.assertEqual(values["port53"], "1")
+        self.assertEqual(values["dot853"], "1")
+
+    def test_range_not_covering_wanted_port_only_matches_covered(self) -> None:
+        # want=53 must NOT match 54-853, but want=853 MUST match it.
+        values = self._run_detector(
+            forward=textwrap.dedent(
+                """\
+                chain forward_lan {
+                    ip saddr 10.0.0.93 udp dport 54-853 jump accept_to_wan comment "upper-range"
+                }
+                """
+            ),
+            dstnat="chain dstnat {}",
+        )
+        self.assertEqual(values["available"], "1")
+        self.assertEqual(values["count"], "1")
+        self.assertEqual(values["clients"], "10.0.0.93")
+        self.assertEqual(values["port53"], "0")
+        self.assertEqual(values["dot853"], "1")
+
+    def test_malformed_range_with_hi_below_lo_does_not_match(self) -> None:
+        values = self._run_detector(
+            forward=textwrap.dedent(
+                """\
+                chain forward_lan {
+                    ip saddr 10.0.0.94 udp dport 853-53 jump accept_to_wan comment "inverted-range"
+                }
+                """
+            ),
+            dstnat="chain dstnat {}",
+        )
+        self.assertEqual(values["available"], "1")
+        self.assertEqual(values["count"], "0")
+        self.assertEqual(values["clients"], "")
+        self.assertEqual(values["port53"], "0")
+        self.assertEqual(values["dot853"], "0")
+
 
 if __name__ == "__main__":
     unittest.main()

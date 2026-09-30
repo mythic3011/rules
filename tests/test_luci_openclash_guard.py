@@ -147,6 +147,10 @@ class LuCIOpenClashGuardContractTests(unittest.TestCase):
         self.assertIn("redact_profile_url() {", rpcd)
         self.assertIn("${url#https://}", rpcd)
         self.assertIn("${rest%%/*}", rpcd)
+        # The helper must also strip any userinfo and any query-without-path
+        # before assembling the emitted scheme+host string.
+        self.assertIn("${hostport##*@}", rpcd)
+        self.assertIn("${hostport%%\\?*}", rpcd)
         self.assertNotIn("eval", rpcd.split("redact_profile_url() {", 1)[1].split("}", 1)[0])
         # get_status must feed the redacted string to json_add_string profileUrl.
         get_status = rpcd.split("get_status() {", 1)[1].split("\n}", 1)[0]

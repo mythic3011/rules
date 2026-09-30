@@ -57,13 +57,16 @@ service_host() {
 
 # redact_profile_url: emit scheme+host only. Profile URLs may carry an opaque
 # bearer-style token in the path (e.g. /p/<token>.ini); the dashboard must never
-# receive the path or query. POSIX parameter expansion only; no eval.
+# receive the path, query, or embedded userinfo. POSIX parameter expansion only;
+# no eval.
 redact_profile_url() {
 	url=$1
 	case "$url" in
 		https://*)
 			rest=${url#https://}
 			hostport=${rest%%/*}
+			hostport=${hostport%%\?*}
+			hostport=${hostport##*@}
 			case "$hostport" in
 				'') printf '\n' ;;
 				*) printf 'https://%s\n' "$hostport" ;;
