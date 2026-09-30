@@ -1019,11 +1019,15 @@ _GUARD_RESOLVER_SYNC_DATA_EXCLUSIONS='flow-music path-scope-expansion'
 # normalized snapshot plus redacted diagnostics.
 #
 # Wiring status (see docs/openclash-guard-uci-overlay-integration.md):
-#   Intentionally UNWIRED from the release bundle while the sequence-6
-#   candidate (#98) is pending. shell/manifest.json is unchanged, so
-#   dist/openclash-guard.sh is unaffected. Consumer migration, manifest wiring,
-#   the _guard_prepare() pipeline reorder, and nft-coupled integration are
-#   deferred until the authenticated seq6 baseline lands on main.
+#   WIRED in the seq7 production release. Registered in shell/manifest.json
+#   (guard-uci-overlay) and compiled into the regenerated
+#   dist/openclash-guard.sh. _guard_prepare() loads the snapshot exactly once
+#   pre-reconcile, and guard_cmd_reconcile refires validation via
+#   _guard_require_atomic_overlay_for_apply BEFORE any nft mutation. The seq7
+#   candidate is published unsigned (releaseSignature absent); signing runs
+#   via the protected release-signing chain. Thin-consumer migration of the
+#   legacy killswitch/gaming/environment/dataplane readers to
+#   guard_uci_overlay_effective() is deferred additive cleanup.
 #
 # Trust model (per #122; contract at internal/config/openclash-guard/
 # uci-runtime-contract.json):
@@ -3443,6 +3447,18 @@ guard_uci_overlay_resolve_state_valid() {
 #     flagged, never a usable effective value).
 #   - other options (no authority constraint): the normalized UCI value.
 guard_uci_overlay_effective() {
+    # Pre-validate the option name: anything outside [A-Za-z0-9_.]* would later
+    # be interpolated into a shell variable name (via tr/eval) and die with a
+    # shell-level "bad substitution" instead of a clean refuse. Reject BEFORE
+    # any var-name construction so garbage callers get rc=1 with a standard
+    # error, no side effects, and no accidental eval of attacker-controlled
+    # characters.
+    case $1 in
+        *[!A-Za-z0-9_.]*|"")
+            printf '%s\n' "guard_uci_overlay_effective: invalid option name" >&2
+            return 1
+            ;;
+    esac
     if _guard_uci_resolve_is_deferred "$1"; then
         printf 'DEFERRED:%s' "$(guard_uci_overlay_get "$1")"
         return 0
@@ -5564,9 +5580,35 @@ guard_dns_domain_set_backend() {
     esac
 }
 
+_guard_dns_is_ipv4() {
+    _guard_dns_ip=$1
+    case $_guard_dns_ip in
+        *[!0-9.]*) return 1 ;;
+    esac
+    _guard_dns_old_ifs=$IFS
+    IFS=.
+    # shellcheck disable=SC2086
+    set -- $_guard_dns_ip
+    IFS=$_guard_dns_old_ifs
+    [ "$#" -eq 4 ] || return 1
+    for _guard_dns_octet; do
+        case $_guard_dns_octet in
+            ''|*[!0-9]*) return 1 ;;
+        esac
+        [ "${#_guard_dns_octet}" -le 3 ] || return 1
+        # reject leading zeros like "01" (but allow plain "0")
+        case $_guard_dns_octet in
+            0?*) return 1 ;;
+        esac
+        [ "$_guard_dns_octet" -le 255 ] 2>/dev/null || return 1
+    done
+    return 0
+}
+
 _guard_dns_add_bypass_client() {
     _guard_dns_client=$1
     [ -n "$_guard_dns_client" ] || return 0
+    _guard_dns_is_ipv4 "$_guard_dns_client" || return 0
     case " ${_GUARD_DNS_BYPASS_CLIENTS:-} " in
         *" $_guard_dns_client "*) return 0 ;;
     esac
@@ -5576,6 +5618,75 @@ _guard_dns_add_bypass_client() {
         _GUARD_DNS_BYPASS_CLIENTS=$_guard_dns_client
     fi
     _GUARD_DNS_BYPASS_CLIENT_COUNT=$((_GUARD_DNS_BYPASS_CLIENT_COUNT + 1))
+}
+
+# Emit saddr IPv4 tokens for nft rules that:
+#   - match the wanted dport EXACTLY (token == want) or via a braced anonymous
+#     port set whose elements are all numerics (e.g. "{ 53, 853 }"),
+#   - do NOT reference a named set (@name) for ports,
+#   - carry the wanted action pattern (jump/return).
+# The saddr may be a single IPv4 token or a braced anonymous set
+# "{ ip1, ip2 }" — every IPv4-shaped token in the set is emitted, one per line.
+_guard_dns_nft_emit_bypass_saddr() {
+    _guard_dns_text=$1
+    _guard_dns_action_mode=$2
+    _guard_dns_want_port=$3
+    printf '%s\n' "$_guard_dns_text" | awk \
+        -v action_mode="$_guard_dns_action_mode" \
+        -v want="$_guard_dns_want_port" '
+        function port_match(idx,    j, tok, inner) {
+            if (idx > NF) return 0
+            tok = $(idx)
+            if (tok == "{") {
+                for (j = idx + 1; j <= NF; j++) {
+                    if ($j == "}") break
+                    inner = $j
+                    sub(/,$/, "", inner)
+                    if (inner ~ /^[0-9]+$/ && inner == want) return 1
+                }
+                return 0
+            }
+            # named-set reference (e.g. "@my_853set") — never matches
+            if (tok ~ /^@/) return 0
+            sub(/,$/, "", tok)
+            if (tok !~ /^[0-9]+$/) return 0
+            return (tok == want)
+        }
+        function action_match(    i, in_comment) {
+            in_comment = 0
+            for (i = 1; i <= NF; i++) {
+                if ($i == "comment") in_comment = 1
+                if (in_comment) continue
+                if (action_mode == "jump_accept_to_wan") {
+                    if ($i == "jump" && i < NF && $(i + 1) == "accept_to_wan") return 1
+                } else if (action_mode == "return") {
+                    if ($i == "return") return 1
+                }
+            }
+            return 0
+        }
+        /ip saddr/ && /dport/ && action_match() {
+            si = 0; di = 0
+            for (i = 1; i <= NF; i++) {
+                if ($i == "saddr" && si == 0) si = i
+                if ($i == "dport" && di == 0) di = i
+            }
+            if (si == 0 || di == 0) next
+            if (si + 1 > NF) next
+            if (!port_match(di + 1)) next
+            if ($(si + 1) == "{") {
+                for (j = si + 2; j <= NF; j++) {
+                    if ($j == "}") break
+                    tok = $j
+                    sub(/,$/, "", tok)
+                    if (tok != "") print tok
+                }
+            } else {
+                tok = $(si + 1)
+                sub(/,$/, "", tok)
+                if (tok != "") print tok
+            }
+        }'
 }
 
 guard_dns_detect_firewall_bypasses() {
@@ -5592,21 +5703,12 @@ guard_dns_detect_firewall_bypasses() {
     _guard_dns_dstnat=$(nft -a list chain inet fw4 dstnat 2>/dev/null) || return 0
     _GUARD_DNS_BYPASS_AVAILABLE=1
 
-    _guard_dns_p53_clients=$(printf '%s\n' "$_guard_dns_forward" | awk '
-        /ip saddr/ && /dport/ && /jump accept_to_wan/ && /(^|[^0-9])53([^0-9]|$)/ {
-            for (i = 1; i <= NF; i++) if ($i == "saddr" && i < NF) print $(i + 1)
-        }
-    ')
-    _guard_dns_p853_clients=$(printf '%s\n' "$_guard_dns_forward" | awk '
-        /ip saddr/ && /dport/ && /jump accept_to_wan/ && /(^|[^0-9])853([^0-9]|$)/ {
-            for (i = 1; i <= NF; i++) if ($i == "saddr" && i < NF) print $(i + 1)
-        }
-    ')
-    _guard_dns_hijack_clients=$(printf '%s\n' "$_guard_dns_dstnat" | awk '
-        /ip saddr/ && /dport/ && /return/ && /(^|[^0-9])53([^0-9]|$)/ {
-            for (i = 1; i <= NF; i++) if ($i == "saddr" && i < NF) print $(i + 1)
-        }
-    ')
+    _guard_dns_p53_clients=$(_guard_dns_nft_emit_bypass_saddr \
+        "$_guard_dns_forward" "jump_accept_to_wan" 53)
+    _guard_dns_p853_clients=$(_guard_dns_nft_emit_bypass_saddr \
+        "$_guard_dns_forward" "jump_accept_to_wan" 853)
+    _guard_dns_hijack_clients=$(_guard_dns_nft_emit_bypass_saddr \
+        "$_guard_dns_dstnat" "return" 53)
 
     if [ -n "$_guard_dns_p53_clients" ]; then
         _GUARD_DNS_BYPASS_PORT53=1
@@ -6799,9 +6901,14 @@ _GUARD_GAME_ENABLED=1
 # we never hard-parse `uci show` here.
 #
 # NOTE (per reviewer contract): the seq7 contract classifies udp.enabled /
-# udp.src_ip as `uci-runtime`. A1 removes them from the resolver's DEFERRED
-# list. If `guard_uci_overlay_effective` ever returns a literal "DEFERRED:" for
-# them, treat as overlay absent and fall back; do NOT invent a gate.
+# udp.src_ip as `signed-policy-gated`, and the Layer-B resolution semantics are
+# NOT defined for them in this revision — they remain on the resolver's
+# DEFERRED list (restored under review blocker 2 after an earlier uci-runtime
+# classification was reverted). `guard_uci_overlay_effective` therefore returns
+# the literal "DEFERRED:<normalized>" sentinel for both. This module treats
+# that sentinel as overlay-absent and falls back to the legacy direct uci read
+# below; do NOT promote them to authoritative effective values, and do NOT
+# invent a gate.
 
 guard_game_read_uci() {
     _GUARD_GAME_ENABLED=1
@@ -6809,7 +6916,8 @@ guard_game_read_uci() {
        command -v guard_uci_overlay_get >/dev/null 2>&1 && \
        guard_uci_overlay_validate 2>/dev/null; then
         _GUARD_GAME_ENABLED=$(guard_uci_overlay_get udp.enabled) || _GUARD_GAME_ENABLED=1
-        # Overlay may supply "DEFERRED:v" pre-A1; never treat that as authoritative.
+        # Overlay legitimately supplies "DEFERRED:v" while udp.* auth remains
+        # a contract gap; never treat the sentinel as authoritative.
         case $_GUARD_GAME_ENABLED in
             DEFERRED:*) _GUARD_GAME_ENABLED=1 ;;
         esac
