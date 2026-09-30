@@ -6,10 +6,20 @@ export function fmt(n) {
   return new Intl.NumberFormat('en-US').format(n || 0);
 }
 
+// Security enhancement: strip ASCII control characters (\u0000-\u001F\u007F-\u009F) and strictly
+// validate http: and https: protocols using the standard URL parser to prevent CRLF injection and malformed URL bypasses.
 export function safeUrl(url) {
   if (typeof url !== 'string') return null;
-  const trimmed = url.trim();
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  const cleaned = url.replace(/[\u0000-\u001F\u007F-\u009F]/g, '').trim();
+  if (!/^https?:\/\//i.test(cleaned)) return null;
+  try {
+    const parsed = new URL(cleaned);
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      return parsed.href;
+    }
+  } catch {
+    return null;
+  }
   return null;
 }
 

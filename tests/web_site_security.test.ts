@@ -63,6 +63,20 @@ test('web/site report page sets rel="noopener noreferrer" and target="_blank" on
   );
 });
 
+test('safeUrl utility strips control characters and strictly validates http/https URLs', async () => {
+  const { safeUrl } = await import('../web/site/assets/common.js');
+
+  assert.equal(safeUrl('https://example.com/path'), 'https://example.com/path');
+  assert.equal(safeUrl('http://example.org'), 'http://example.org/');
+  assert.equal(safeUrl('https://example.com/path\u0000'), 'https://example.com/path');
+  assert.equal(safeUrl('https://example.com\r\nHeader: value'), null);
+  assert.equal(safeUrl('javascript:alert(1)'), null);
+  assert.equal(safeUrl('file:///etc/passwd'), null);
+  assert.equal(safeUrl('data:text/html,test'), null);
+  assert.equal(safeUrl('https://[invalid-host'), null);
+  assert.equal(safeUrl(12345 as unknown as string), null);
+});
+
 test('web/site HTML files include Pico CSS framework', () => {
   const htmlFiles = fs.readdirSync(SITE_DIR).filter(file => file.endsWith('.html'));
 
