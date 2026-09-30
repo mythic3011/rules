@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { isIPv4 } from '../web/site/assets/common.js';
 
 const SITE_DIR = path.resolve('web/site');
 
@@ -19,6 +20,17 @@ test('web/site HTML files do not use dangerous innerHTML string interpolation', 
       `File ${file} contains innerHTML assignment which can introduce XSS risks.`
     );
   }
+});
+
+test('web/site common.js isIPv4 strictly rejects octets with leading zeros (preventing IP address ambiguity)', () => {
+  assert.equal(isIPv4('192.168.1.1'), true);
+  assert.equal(isIPv4('0.0.0.0'), true);
+  assert.equal(isIPv4('255.255.255.255'), true);
+
+  // Reject octal-style leading zeros (CWE-1389)
+  assert.equal(isIPv4('010.0.0.1'), false);
+  assert.equal(isIPv4('192.168.01.1'), false);
+  assert.equal(isIPv4('00.0.0.0'), false);
 });
 
 test('web/site report page sanitizes dynamic URL schemes before setting href', () => {

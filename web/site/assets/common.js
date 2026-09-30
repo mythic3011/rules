@@ -13,11 +13,12 @@ export function safeUrl(url) {
   return null;
 }
 
+// Strict IPv4 octet validation: Reject octets with leading zeros (e.g. '010') to prevent IP ambiguity / octal parsing confusion (CWE-1389).
 export function isIPv4(input) {
   const parts = input.trim().split('.');
   return (
     parts.length === 4 &&
-    parts.every((part) => /^\d+$/.test(part) && Number(part) >= 0 && Number(part) <= 255)
+    parts.every((part) => /^(0|[1-9]\d*)$/.test(part) && Number(part) >= 0 && Number(part) <= 255)
   );
 }
 
