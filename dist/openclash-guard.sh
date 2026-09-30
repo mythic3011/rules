@@ -5621,8 +5621,10 @@ _guard_dns_add_bypass_client() {
 }
 
 # Emit saddr IPv4 tokens for nft rules that:
-#   - match the wanted dport EXACTLY (token == want) or via a braced anonymous
-#     port set whose elements are all numerics (e.g. "{ 53, 853 }"),
+#   - match the wanted dport EXACTLY (token == want), via a numeric range
+#     "N-M" whose window contains want, or via a braced anonymous port set
+#     whose numeric/range elements match on the same rules
+#     (e.g. "{ 53, 853 }", "{ 53-853 }", "{ 80, 53-853 }"),
 #   - do NOT reference a named set (@name) for ports,
 #   - carry the wanted action pattern (jump/return).
 # The saddr may be a single IPv4 token or a braced anonymous set
@@ -5634,6 +5636,17 @@ _guard_dns_nft_emit_bypass_saddr() {
     printf '%s\n' "$_guard_dns_text" | awk \
         -v action_mode="$_guard_dns_action_mode" \
         -v want="$_guard_dns_want_port" '
+        function port_token_matches(tok,    lo, hi, dash) {
+            if (tok ~ /^[0-9]+$/) return (tok == want)
+            if (tok ~ /^[0-9]+-[0-9]+$/) {
+                dash = index(tok, "-")
+                lo = substr(tok, 1, dash - 1) + 0
+                hi = substr(tok, dash + 1) + 0
+                if (hi < lo) return 0
+                return (want + 0 >= lo && want + 0 <= hi)
+            }
+            return 0
+        }
         function port_match(idx,    j, tok, inner) {
             if (idx > NF) return 0
             tok = $(idx)
@@ -5642,15 +5655,14 @@ _guard_dns_nft_emit_bypass_saddr() {
                     if ($j == "}") break
                     inner = $j
                     sub(/,$/, "", inner)
-                    if (inner ~ /^[0-9]+$/ && inner == want) return 1
+                    if (port_token_matches(inner)) return 1
                 }
                 return 0
             }
             # named-set reference (e.g. "@my_853set") — never matches
             if (tok ~ /^@/) return 0
             sub(/,$/, "", tok)
-            if (tok !~ /^[0-9]+$/) return 0
-            return (tok == want)
+            return port_token_matches(tok)
         }
         function action_match(    i, in_comment) {
             in_comment = 0
