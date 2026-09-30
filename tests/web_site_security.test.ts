@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+// @ts-expect-error JS module without declaration file
+import { isIPv4 } from '../web/site/assets/common.js';
 
 const SITE_DIR = path.resolve('web/site');
 
@@ -19,6 +21,24 @@ test('web/site HTML files do not use dangerous innerHTML string interpolation', 
       `File ${file} contains innerHTML assignment which can introduce XSS risks.`
     );
   }
+});
+
+test('isIPv4 enforces strict decimal format without leading zeros', () => {
+  assert.equal(isIPv4('10.0.0.1'), true);
+  assert.equal(isIPv4('127.0.0.1'), true);
+  assert.equal(isIPv4('0.0.0.0'), true);
+  assert.equal(isIPv4('255.255.255.255'), true);
+
+  // Reject leading zeros (octal IP parsing ambiguity)
+  assert.equal(isIPv4('010.0.0.1'), false);
+  assert.equal(isIPv4('10.00.0.1'), false);
+  assert.equal(isIPv4('10.0.0.01'), false);
+
+  // Reject invalid values
+  assert.equal(isIPv4('256.0.0.1'), false);
+  assert.equal(isIPv4('10.0.0'), false);
+  assert.equal(isIPv4('10.0.0.1.2'), false);
+  assert.equal(isIPv4('abc.def.ghi.jkl'), false);
 });
 
 test('web/site report page sanitizes dynamic URL schemes before setting href', () => {
