@@ -2,8 +2,8 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/internal/python/generate_adblock_outputs.py
 # CATEGORY: telemetry
-# GENERATED_AT: 2026-10-01T10:16:54Z
-# TOTAL: 1985
+# GENERATED_AT: 2026-10-02T09:54:20Z
+# TOTAL: 1988
 # FORMAT: hosts
 # UPSTREAM hagezi_native_apple: 108
 # UPSTREAM hagezi_native_apple HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -13,7 +13,7 @@
 # UPSTREAM hagezi_native_oppo_realme HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_samsung: 200
 # UPSTREAM hagezi_native_samsung HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_tiktok: 437
+# UPSTREAM hagezi_native_tiktok: 440
 # UPSTREAM hagezi_native_tiktok HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_vivo: 241
 # UPSTREAM hagezi_native_vivo HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -752,9 +752,11 @@
 0.0.0.0 fr-register.xmpush.global.xiaomi.com
 0.0.0.0 fr.feedback.xmpush.global.xiaomi.com
 0.0.0.0 freshmarketer.com
+0.0.0.0 frontier-us-ttp2.capcutw.us
 0.0.0.0 frontier.byteoversea.com
 0.0.0.0 frontier.capcutw.us
 0.0.0.0 frontier.capcutw.us.edgesuite.net
+0.0.0.0 frontier.us.capcut.com
 0.0.0.0 fwtracks.freshmarketer.com
 0.0.0.0 gallery.cdn.pandora.xiaomi.com
 0.0.0.0 gamebox.sec.intl.miui.com
@@ -1843,6 +1845,7 @@
 0.0.0.0 tnc16-normal-ie.tiktokv.eu
 0.0.0.0 tnc16-normal-no1a.tiktokv.eu
 0.0.0.0 tnc16-normal-us-ttp.capcutapi.us
+0.0.0.0 tnc16-normal-us-ttp2.capcutapi.us
 0.0.0.0 tnc16-normal-useast5.tiktokv.us
 0.0.0.0 tnc16-normal-useast8.tiktokv.us
 0.0.0.0 tnc16-normal-useast8.us.tiktokv.com
