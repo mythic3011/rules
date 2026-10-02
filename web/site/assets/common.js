@@ -8,16 +8,25 @@ export function fmt(n) {
 
 export function safeUrl(url) {
   if (typeof url !== 'string') return null;
-  const trimmed = url.trim();
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  const sanitized = url.replace(/[\u0000-\u001F\u007F-\u009F]/g, '').trim();
+  if (!/^https?:\/\//i.test(sanitized)) return null;
+  try {
+    const parsed = new URL(sanitized);
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      return parsed.href;
+    }
+  } catch {
+    return null;
+  }
   return null;
 }
 
 export function isIPv4(input) {
+  if (typeof input !== 'string') return false;
   const parts = input.trim().split('.');
   return (
     parts.length === 4 &&
-    parts.every((part) => /^\d+$/.test(part) && Number(part) >= 0 && Number(part) <= 255)
+    parts.every((part) => /^(0|[1-9]\d*)$/.test(part) && Number(part) <= 255)
   );
 }
 
