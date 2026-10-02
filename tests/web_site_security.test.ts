@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { safeUrl, isIPv4 } from '../web/site/assets/common.js';
 
 const SITE_DIR = path.resolve('web/site');
 
@@ -19,6 +20,28 @@ test('web/site HTML files do not use dangerous innerHTML string interpolation', 
       `File ${file} contains innerHTML assignment which can introduce XSS risks.`
     );
   }
+});
+
+test('safeUrl strips control characters and strictly validates http/https URLs', () => {
+  assert.equal(safeUrl('https://example.com/test'), 'https://example.com/test');
+  assert.equal(safeUrl('http://example.com:8080/path'), 'http://example.com:8080/path');
+  assert.equal(safeUrl('https://example.com\u0007/test'), 'https://example.com/test');
+  assert.equal(safeUrl('javascript:alert(1)'), null);
+  assert.equal(safeUrl('data:text/html,test'), null);
+  assert.equal(safeUrl('https://'), null);
+  assert.equal(safeUrl(null as unknown as string), null);
+});
+
+test('isIPv4 strictly rejects octets with leading zeros and invalid values', () => {
+  assert.equal(isIPv4('192.168.1.1'), true);
+  assert.equal(isIPv4('0.0.0.0'), true);
+  assert.equal(isIPv4('255.255.255.255'), true);
+  assert.equal(isIPv4('10.0.0.010'), false);
+  assert.equal(isIPv4('10.0.0.01'), false);
+  assert.equal(isIPv4('10.0.0.00'), false);
+  assert.equal(isIPv4('256.0.0.1'), false);
+  assert.equal(isIPv4('1.2.3'), false);
+  assert.equal(isIPv4('invalid'), false);
 });
 
 test('web/site report page sanitizes dynamic URL schemes before setting href', () => {
