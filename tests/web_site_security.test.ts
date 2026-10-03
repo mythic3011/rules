@@ -21,6 +21,39 @@ test('web/site HTML files do not use dangerous innerHTML string interpolation', 
   }
 });
 
+test('isIPv4 strictly rejects octets with leading zeros and invalid lengths', async () => {
+  const { isIPv4 } = await import('../web/site/assets/common.js');
+
+  assert.equal(isIPv4('1.1.1.1'), true);
+  assert.equal(isIPv4('192.168.0.1'), true);
+  assert.equal(isIPv4('0.0.0.0'), true);
+
+  // Rejections
+  assert.equal(isIPv4('01.2.3.4'), false, 'Leading zeros in octet must be rejected');
+  assert.equal(isIPv4('192.168.01.1'), false, 'Leading zeros in octet must be rejected');
+  assert.equal(isIPv4('256.1.1.1'), false);
+  assert.equal(isIPv4('1.1.1.1.1'), false);
+  assert.equal(isIPv4('1.1.1.1'.repeat(5)), false, 'Overly long string must be rejected');
+  assert.equal(isIPv4(null as unknown as string), false);
+});
+
+test('safeUrl strips control chars, enforces max length, and validates URL parser', async () => {
+  const { safeUrl } = await import('../web/site/assets/common.js');
+
+  assert.equal(safeUrl('https://example.com'), 'https://example.com');
+  assert.equal(safeUrl('http://example.com/path?a=1'), 'http://example.com/path?a=1');
+
+  // Control character sanitization
+  assert.equal(safeUrl('https://example.com\u0000/test'), 'https://example.com/test');
+
+  // Rejections
+  assert.equal(safeUrl('javascript:alert(1)'), null);
+  assert.equal(safeUrl('ftp://example.com'), null);
+  assert.equal(safeUrl('https://' + 'a'.repeat(2050)), null, 'Overly long URL must be rejected');
+  assert.equal(safeUrl('not-a-url'), null);
+  assert.equal(safeUrl(123 as unknown as string), null);
+});
+
 test('web/site report page sanitizes dynamic URL schemes before setting href', () => {
   const htmlContent = fs.readFileSync(path.join(SITE_DIR, 'report.html'), 'utf8');
   let jsContent = '';
