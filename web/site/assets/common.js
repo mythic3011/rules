@@ -7,17 +7,25 @@ export function fmt(n) {
 }
 
 export function safeUrl(url) {
-  if (typeof url !== 'string') return null;
-  const trimmed = url.trim();
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  return null;
+  if (typeof url !== 'string' || url.length > 2048) return null;
+  const clean = url.replace(/[\u0000-\u001F\u007F-\u009F]/g, '').trim();
+  if (!/^https?:\/\//i.test(clean)) return null;
+  try {
+    const parsed = new URL(clean);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? clean : null;
+  } catch {
+    return null;
+  }
 }
 
 export function isIPv4(input) {
-  const parts = input.trim().split('.');
+  if (typeof input !== 'string') return false;
+  const trimmed = input.trim();
+  if (trimmed.length > 15) return false;
+  const parts = trimmed.split('.');
   return (
     parts.length === 4 &&
-    parts.every((part) => /^\d+$/.test(part) && Number(part) >= 0 && Number(part) <= 255)
+    parts.every((part) => /^(0|[1-9]\d*)$/.test(part) && Number(part) >= 0 && Number(part) <= 255)
   );
 }
 
