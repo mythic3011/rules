@@ -2,10 +2,10 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/internal/python/generate_adblock_outputs.py
 # CATEGORY: telemetry
-# GENERATED_AT: 2026-10-03T09:16:27Z
-# TOTAL: 1988
+# GENERATED_AT: 2026-10-04T09:57:31Z
+# TOTAL: 1986
 # FORMAT: hosts
-# UPSTREAM hagezi_native_apple: 108
+# UPSTREAM hagezi_native_apple: 106
 # UPSTREAM hagezi_native_apple HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_huawei: 135
 # UPSTREAM hagezi_native_huawei HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -13,9 +13,9 @@
 # UPSTREAM hagezi_native_oppo_realme HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_samsung: 200
 # UPSTREAM hagezi_native_samsung HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_tiktok: 440
+# UPSTREAM hagezi_native_tiktok: 441
 # UPSTREAM hagezi_native_tiktok HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_vivo: 241
+# UPSTREAM hagezi_native_vivo: 240
 # UPSTREAM hagezi_native_vivo HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_xiaomi: 345
 # UPSTREAM hagezi_native_xiaomi HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -30,7 +30,6 @@
 0.0.0.0 a.market.xiaomi.com
 0.0.0.0 a.union.mi.com
 0.0.0.0 a.union.xiaomi.com
-0.0.0.0 ab.apple.com.akadns.net
 0.0.0.0 abroad.api.comm.intl.miui.com
 0.0.0.0 abtest-ch.snssdk.com
 0.0.0.0 acfeedbackws.icloud.com
@@ -352,7 +351,6 @@
 0.0.0.0 bossadmin.pandora.xiaomi.com
 0.0.0.0 box.pandora.xiaomi.com
 0.0.0.0 bpu.samsungelectronics.com
-0.0.0.0 br-cota.vivoglobal.com
 0.0.0.0 br-p.vivoglobal.com
 0.0.0.0 browser-api-br.heytapmobile.com
 0.0.0.0 browser-api-fr.heytapmobile.com
@@ -633,7 +631,6 @@
 0.0.0.0 dhfs-th.oppomobile.com
 0.0.0.0 dhfs-vn.oppomobile.com
 0.0.0.0 dhfsf.oppomobile.com
-0.0.0.0 diagassets-lb.apple.com.akadns.net
 0.0.0.0 diagassets.apple.com
 0.0.0.0 diagassets.g.aaplimg.com
 0.0.0.0 diagmon-policy.samsungdm.com
@@ -1509,6 +1506,7 @@
 0.0.0.0 ro-up.vivoglobal.com
 0.0.0.0 rtc-logger-i18n.tiktokv.com
 0.0.0.0 rtc-logger-ie.tiktokv.eu
+0.0.0.0 rtc-logger-ttp2.tiktokv.us
 0.0.0.0 rtc-logger-ttp2.us.tiktokv.com
 0.0.0.0 rtc-logger-va.tiktokv.com
 0.0.0.0 rtc-logger.tiktokv.com
