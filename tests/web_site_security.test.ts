@@ -63,6 +63,28 @@ test('web/site report page sets rel="noopener noreferrer" and target="_blank" on
   );
 });
 
+test('safeUrl strictly sanitizes control characters, invalid URLs, and unsafe protocols', async () => {
+  const commonPath = path.join(SITE_DIR, 'assets', 'common.js');
+  const common = await import(`file://${commonPath}`);
+  const { safeUrl } = common;
+
+  assert.equal(safeUrl('https://example.com/path?a=1'), 'https://example.com/path?a=1');
+  assert.equal(safeUrl('http://example.org'), 'http://example.org');
+
+  assert.equal(safeUrl('javascript:alert(1)'), null);
+  assert.equal(safeUrl('data:text/html,<script>alert(1)</script>'), null);
+  assert.equal(safeUrl('file:///etc/passwd'), null);
+
+  assert.equal(safeUrl('https://example.com/\npath'), null);
+  assert.equal(safeUrl('https://example.com/\r\npath'), null);
+  assert.equal(safeUrl('https://example.com/\0path'), null);
+
+  assert.equal(safeUrl('http:\\\\example.com'), null);
+  assert.equal(safeUrl('not-a-url'), null);
+  assert.equal(safeUrl(123), null);
+  assert.equal(safeUrl(null), null);
+});
+
 test('web/site HTML files include Pico CSS framework', () => {
   const htmlFiles = fs.readdirSync(SITE_DIR).filter(file => file.endsWith('.html'));
 

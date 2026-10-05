@@ -9,7 +9,16 @@ export function fmt(n) {
 export function safeUrl(url) {
   if (typeof url !== 'string') return null;
   const trimmed = url.trim();
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  if (!/^https?:\/\//i.test(trimmed)) return null;
+  if (/[\u0000-\u001F\u007F-\u009F]/.test(trimmed)) return null;
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      return trimmed;
+    }
+  } catch {
+    return null;
+  }
   return null;
 }
 
