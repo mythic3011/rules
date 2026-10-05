@@ -1,6 +1,6 @@
 {
   "category": "telemetry",
-  "generated_at": "2026-10-04T09:57:31Z",
+  "generated_at": "2026-10-05T10:38:07Z",
   "source_config": "internal/config/filtering/sources/telemetry.yaml",
   "custom_source_config": "internal/config/filtering/sources/custom/telemetry.yaml",
   "allowlist": "dns/local_telemetry_allowlist.txt",
@@ -9,12 +9,12 @@
   "hosts_output": "dns/telemetry.hosts.txt",
   "clash_output": "rule/Telemetry_Lite_Domain.yaml",
   "clash_name": "Telemetry_Lite_Domain",
-  "upstream_unique_count": 1955,
+  "upstream_unique_count": 1963,
   "local_blocklist_count": 47,
   "allowlist_count": 0,
-  "merged_pre_allowlist_count": 1987,
-  "post_allowlist_count": 1987,
-  "final_domain_count": 1986,
+  "merged_pre_allowlist_count": 1995,
+  "post_allowlist_count": 1995,
+  "final_domain_count": 1994,
   "clash_seed_count": 5,
   "clash_domain_count": 46,
   "sources": [
@@ -56,7 +56,7 @@
       "priority": 50,
       "url": "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/native.tiktok.txt",
       "homepage": "https://github.com/hagezi/dns-blocklists",
-      "count": 441
+      "count": 449
     },
     {
       "id": "hagezi_native_vivo",

@@ -2,8 +2,8 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/internal/python/generate_adblock_outputs.py
 # CATEGORY: telemetry
-# GENERATED_AT: 2026-10-04T09:57:31Z
-# TOTAL: 1986
+# GENERATED_AT: 2026-10-05T10:38:07Z
+# TOTAL: 1994
 # FORMAT: hosts
 # UPSTREAM hagezi_native_apple: 106
 # UPSTREAM hagezi_native_apple HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -13,7 +13,7 @@
 # UPSTREAM hagezi_native_oppo_realme HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_samsung: 200
 # UPSTREAM hagezi_native_samsung HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_tiktok: 441
+# UPSTREAM hagezi_native_tiktok: 449
 # UPSTREAM hagezi_native_tiktok HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_vivo: 240
 # UPSTREAM hagezi_native_vivo HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -1320,15 +1320,23 @@
 0.0.0.0 mssdk-ru.tiktokv.com
 0.0.0.0 mssdk-sg-bu.byteoversea.com
 0.0.0.0 mssdk-sg.byteoversea.com
+0.0.0.0 mssdk-sg.capcutapi.com
 0.0.0.0 mssdk-sg.tiktokv.com
 0.0.0.0 mssdk-va-useast2a.byteoversea.com
 0.0.0.0 mssdk-va-useast2a.tiktokv.com
 0.0.0.0 mssdk-va.byteoversea.com
+0.0.0.0 mssdk.capcutapi.us
 0.0.0.0 mssdk.snssdk.com
 0.0.0.0 mssdk.tiktokw.eu
 0.0.0.0 mssdk.tiktokw.us
 0.0.0.0 mssdk.us.tiktok.com
 0.0.0.0 mssdk.us.tiktokv.com
+0.0.0.0 mssdk16-normal-sg.capcutapi.com
+0.0.0.0 mssdk16-normal-us-ttp.capcutapi.us
+0.0.0.0 mssdk16-normal-us-ttp2.capcutapi.us
+0.0.0.0 mssdk16-normal.capcutapi.com
+0.0.0.0 mssdk32-normal-sg.capcutapi.com
+0.0.0.0 mssdk32-normal.capcutapi.com
 0.0.0.0 mx-album-api.vivoglobal.com
 0.0.0.0 mx-cota.vivoglobal.com
 0.0.0.0 mx-domaincfg.vivoglobal.com
