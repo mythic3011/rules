@@ -37,21 +37,36 @@ test('isIPv4 strictly rejects octets with leading zeros and invalid lengths', as
   assert.equal(isIPv4(null as unknown as string), false);
 });
 
-test('safeUrl strips control chars, enforces max length, and validates URL parser', async () => {
+test('safeUrl rejects control chars, enforces max length, and returns the canonical href', async () => {
   const { safeUrl } = await import('../web/site/assets/common.js');
 
-  assert.equal(safeUrl('https://example.com'), 'https://example.com');
+  // Accepted URLs come back as the parser's canonical href
+  assert.equal(safeUrl('https://example.com'), 'https://example.com/');
   assert.equal(safeUrl('http://example.com/path?a=1'), 'http://example.com/path?a=1');
+  assert.equal(safeUrl('  https://example.com/x  '), 'https://example.com/x');
 
-  // Control character sanitization
-  assert.equal(safeUrl('https://example.com\u0000/test'), 'https://example.com/test');
+  // Normalization: scheme/host casing and IDN -> punycode
+  assert.equal(safeUrl('HTTPS://EXAMPLE.com/a'), 'https://example.com/a');
+  assert.equal(safeUrl('https://bücher.example/'), 'https://xn--bcher-kva.example/');
+
+  // Control characters are rejected, never stripped (fail closed)
+  assert.equal(safeUrl('https://example.com\u0000/test'), null);
+  assert.equal(safeUrl('https://example.com/\npath'), null);
+  assert.equal(safeUrl('https://example.com/\r\npath'), null);
+  assert.equal(safeUrl('https://example.com/\tpath'), null);
+  assert.equal(safeUrl('https://example.com/\u007Fpath'), null);
+  assert.equal(safeUrl('https://example.com/\u0085path'), null);
 
   // Rejections
   assert.equal(safeUrl('javascript:alert(1)'), null);
+  assert.equal(safeUrl('data:text/html,<script>alert(1)</script>'), null);
+  assert.equal(safeUrl('file:///etc/passwd'), null);
   assert.equal(safeUrl('ftp://example.com'), null);
+  assert.equal(safeUrl('http:\\\\example.com'), null);
   assert.equal(safeUrl('https://' + 'a'.repeat(2050)), null, 'Overly long URL must be rejected');
   assert.equal(safeUrl('not-a-url'), null);
   assert.equal(safeUrl(123 as unknown as string), null);
+  assert.equal(safeUrl(null as unknown as string), null);
 });
 
 test('web/site report page sanitizes dynamic URL schemes before setting href', () => {

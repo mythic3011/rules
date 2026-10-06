@@ -8,11 +8,17 @@ export function fmt(n) {
 
 export function safeUrl(url) {
   if (typeof url !== 'string' || url.length > 2048) return null;
-  const clean = url.replace(/[\u0000-\u001F\u007F-\u009F]/g, '').trim();
-  if (!/^https?:\/\//i.test(clean)) return null;
+  const trimmed = url.trim();
+  // Fail closed: reject (never strip) embedded C0/C1 control characters.
+  // Stripping can turn an invalid string into a different, valid-looking URL.
+  if (/[\u0000-\u001F\u007F-\u009F]/.test(trimmed)) return null;
+  if (!/^https?:\/\//i.test(trimmed)) return null;
   try {
-    const parsed = new URL(clean);
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? clean : null;
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+    // Return the canonical form the parser validated, not the raw input.
+    const href = parsed.href;
+    return href.length > 2048 ? null : href;
   } catch {
     return null;
   }
