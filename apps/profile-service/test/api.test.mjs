@@ -69,3 +69,18 @@ test("profile writes honor Cloudflare rate-limit binding when configured", async
   assert.equal(response.status, 429);
   assert.equal(response.headers.get("retry-after"), "60");
 });
+
+test("requests with excessive Content-Length header are rejected early", async () => {
+  const request = new Request("https://rules.example/api/v1/resolve", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "content-length": "65536",
+    },
+    body: JSON.stringify({ spec: {} }),
+  });
+  const response = await worker.fetch(request, envWithoutDb);
+  assert.equal(response.status, 400);
+  const body = await response.json();
+  assert.equal(body.error, "body_too_large");
+});
