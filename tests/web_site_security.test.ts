@@ -21,7 +21,7 @@ test('web/site HTML files do not use dangerous innerHTML string interpolation', 
   }
 });
 
-test('web/site report page sanitizes dynamic URL schemes before setting href', () => {
+test('web/site report page sanitizes dynamic URL schemes before setting href', async () => {
   const htmlContent = fs.readFileSync(path.join(SITE_DIR, 'report.html'), 'utf8');
   let jsContent = '';
   const assetsDir = path.join(SITE_DIR, 'assets');
@@ -45,6 +45,14 @@ test('web/site report page sanitizes dynamic URL schemes before setting href', (
     /\/\^https\?:\\\/\\\//i,
     'report page URL sanitizer should require http:// or https:// schemes.'
   );
+
+  const { safeUrl } = await import('../web/site/assets/common.js');
+  assert.equal(safeUrl('https://example.com'), 'https://example.com');
+  assert.equal(safeUrl('http://example.com/path?a=1'), 'http://example.com/path?a=1');
+  assert.equal(safeUrl('javascript:alert(1)'), null);
+  assert.equal(safeUrl('https://example.com\r\nSet-Cookie: session=1'), null);
+  assert.equal(safeUrl('https://example.com\0'), null);
+  assert.equal(safeUrl('http://[invalid-host'), null);
 });
 
 test('web/site report page sets rel="noopener noreferrer" and target="_blank" on dynamic links', () => {
