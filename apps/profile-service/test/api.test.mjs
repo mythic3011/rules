@@ -69,3 +69,13 @@ test("profile writes honor Cloudflare rate-limit binding when configured", async
   assert.equal(response.status, 429);
   assert.equal(response.headers.get("retry-after"), "60");
 });
+
+test("managed profile read accepts lowercase bearer auth scheme", async () => {
+  const request = new Request("https://rules.example/api/v1/profiles/00000000-0000-0000-0000-000000000000", {
+    method: "GET",
+    headers: { authorization: "bearer " + "a".repeat(40) },
+  });
+  const response = await worker.fetch(request, envWithoutDb);
+  assert.equal(response.status, 503); // Progresses past 401 unauthorized to 503 store unavailable
+  assert.equal((await response.json()).error, "profile_store_unavailable");
+});
