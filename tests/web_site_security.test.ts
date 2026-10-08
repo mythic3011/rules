@@ -21,6 +21,49 @@ test('web/site HTML files do not use dangerous innerHTML string interpolation', 
   }
 });
 
+test('common.js safeUrl validates http/https URLs and rejects control characters', async () => {
+  // @ts-expect-error common.js does not have type definitions
+  const { safeUrl } = await import('../web/site/assets/common.js');
+
+  assert.equal(safeUrl('https://example.com/path'), 'https://example.com/path');
+  assert.equal(safeUrl('http://example.org'), 'http://example.org/');
+  assert.equal(safeUrl('  https://example.com  '), 'https://example.com/');
+
+  // Reject non-http/https schemes
+  assert.equal(safeUrl('javascript:alert(1)'), null);
+  assert.equal(safeUrl('ftp://example.com'), null);
+  assert.equal(safeUrl('file:///etc/passwd'), null);
+
+  // Reject control characters
+  assert.equal(safeUrl('https://example.com\r\nHeader: value'), null);
+  assert.equal(safeUrl('https://example.com\u0000bad'), null);
+
+  // Reject non-string or malformed inputs
+  assert.equal(safeUrl(123), null);
+  assert.equal(safeUrl('https://'), null);
+});
+
+test('common.js isIPv4 validates dotted quad and rejects leading zeros', async () => {
+  // @ts-expect-error common.js does not have type definitions
+  const { isIPv4 } = await import('../web/site/assets/common.js');
+
+  // Valid IPv4 addresses
+  assert.equal(isIPv4('192.168.1.1'), true);
+  assert.equal(isIPv4('0.0.0.0'), true);
+  assert.equal(isIPv4('255.255.255.255'), true);
+
+  // Reject leading zeros in octets (octal ambiguity)
+  assert.equal(isIPv4('010.0.0.1'), false);
+  assert.equal(isIPv4('192.168.01.1'), false);
+  assert.equal(isIPv4('00.0.0.0'), false);
+
+  // Reject out of range or malformed IPs
+  assert.equal(isIPv4('256.0.0.1'), false);
+  assert.equal(isIPv4('1.2.3'), false);
+  assert.equal(isIPv4('1.2.3.4.5'), false);
+  assert.equal(isIPv4('abc.def.ghi.jkl'), false);
+});
+
 test('web/site report page sanitizes dynamic URL schemes before setting href', () => {
   const htmlContent = fs.readFileSync(path.join(SITE_DIR, 'report.html'), 'utf8');
   let jsContent = '';
