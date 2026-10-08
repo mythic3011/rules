@@ -302,6 +302,9 @@ probe_profile() {
 	case "$url" in
 		*[[:space:]]*) json_error 'profile URL contains whitespace'; return 0 ;;
 	esac
+	case "$url" in
+		*[[:cntrl:]]*) json_error 'profile URL contains control characters'; return 0 ;;
+	esac
 	tmp=$(mktemp /tmp/openclash-guard-profile.XXXXXX) || { json_error 'unable to allocate temporary file'; return 0; }
 	trap 'rm -f "$tmp"' EXIT INT TERM
 	if ! fetch_https "$url" "$tmp" "$PROFILE_MAX_BYTES"; then
