@@ -132,6 +132,7 @@ The service MUST NOT accept external "kill switch verified" claims without local
 - Respect `AGENTS.md`: `cfg/`, `rule/`, `dns/` are public artifact APIs. Generated files originate from `internal/config/` and generators.
 - Do not silently replace signed Guard policy or alter the release-signing workflow. In-flight PRs must be assessed against merged `main` before integration.
 - New cross-platform components should live in a separate repository/workspace, with a versioned adapter protocol. This RFC does **not** choose or create that repository.
+- The separate OpenWrt builder/provisioning workspace is an **infrastructure reference**, not a runtime policy authority: see [OpenWrt provisioning reference](openwrt-provisioning-reference.md). Do not copy private topology, credentials, or live UCI defaults into public release artifacts; Guard keeps ownership of its nft/firewall policy and signed distribution.
 - Required acceptance for a future *code* PR: `make check`; TypeScript routing changes additionally `npm ci && make check-all`, plus environment-specific tests where applicable.
 
 ## 9. Deliberate nonclaims
