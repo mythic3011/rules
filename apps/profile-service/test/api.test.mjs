@@ -55,6 +55,17 @@ test("unknown renderer directives are rejected before persistence", async () => 
   assert.equal((await response.json()).error, "unknown_profile_field");
 });
 
+test("non-standard Content-Type headers are rejected", async () => {
+  const request = new Request("https://rules.example/api/v1/resolve", {
+    method: "POST",
+    headers: { "content-type": "application/jsonfoo" },
+    body: JSON.stringify({ spec: { disabledNodeRegions: ["jp"] } }),
+  });
+  const response = await worker.fetch(request, envWithoutDb);
+  assert.equal(response.status, 400);
+  assert.equal((await response.json()).error, "invalid_content_type");
+});
+
 test("profile writes honor Cloudflare rate-limit binding when configured", async () => {
   const env = {
     ...envWithoutDb,
