@@ -68,6 +68,14 @@ async function parseJson(request) {
   if (!contentType.toLowerCase().startsWith("application/json")) {
     throw new ProfileSpecError("Content-Type must be application/json", "invalid_content_type");
   }
+  // Early check Content-Length header to prevent buffering oversized payloads into memory (DoS protection)
+  const contentLength = request.headers.get("content-length");
+  if (contentLength !== null) {
+    const parsedLength = Number(contentLength);
+    if (!Number.isFinite(parsedLength) || parsedLength > 32_768) {
+      throw new ProfileSpecError("Request body is too large", "body_too_large");
+    }
+  }
   const text = await request.text();
   if (text.length > 32_768) {
     throw new ProfileSpecError("Request body is too large", "body_too_large");
