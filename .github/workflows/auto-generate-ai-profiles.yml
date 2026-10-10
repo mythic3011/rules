@@ -1,36 +1,9 @@
 name: Auto generate AI profiles
 on:
-  push:
-    paths:
-      - "internal/python/generate_ai_profiles.py"
-      - "internal/python/generate_profile_service_runtime.py"
-      - "internal/python/generate_openclash_guard_release.py"
-      - "internal/python/generate_openclash_guard_runtime.py"
-      - "apps/profile-service/**"
-      - "internal/python/ai_profiles/**"
-      - "internal/python/local_profile_compose.py"
-      - "internal/python/validate_generated_profiles.py"
-      - "internal/typescript/routing/**"
-      - "internal/config/ai-routing/**"
-      - "internal/templates/ai-routing/**"
-      - "internal/generated/ai-routing/**"
-      - "internal/examples/ai-routing/**"
-      - "setup/openclash/install.sh"
-      - "setup/openclash/scripts/ai-routing-controller.sh"
-      - "shell/**"
-      - "dist/openclash-guard.release.json"
-      - "tests/routing/**"
-      - "tests/fixtures/routing/**"
-      - "tests/test_*.py"
-      - "internal/schemas/routing-config.schema.json"
-      - "docs/ai-routing-schema-foundation.md"
-      - "docs/ai-routing-firewall-proof.md"
-      - "docs/ai-profile-generator.md"
-      - "docs/kill-switch.md"
-      - "package.json"
-      - "package-lock.json"
-      - "tsconfig.json"
-      - ".github/workflows/auto-generate-ai-profiles.yml"
+  # Every branch advance gets its own trusted repair run. This lets a stale
+  # writer yield safely without ever executing a newer, unvalidated revision
+  # with a write-capable token.
+  push: {}
   pull_request:
     paths:
       - "internal/python/generate_ai_profiles.py"
@@ -68,6 +41,10 @@ on:
 
 permissions:
   contents: read
+
+concurrency:
+  group: auto-generate-ai-profiles-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   validate-ai-profiles:
@@ -137,7 +114,8 @@ jobs:
 
   commit-managed-python-outputs:
     # PR code is validated with a read-only token above. Only trusted push/schedule
-    # events may reach this separate write-capable job.
+    # events may reach this separate write-capable job. The writer executes only
+    # the exact revision that the validation job approved.
     if: github.event_name == 'push' || github.event_name == 'schedule'
     needs: validate-ai-profiles
     runs-on: ubuntu-latest
@@ -148,7 +126,7 @@ jobs:
       TARGET_REF: ${{ github.ref }}
 
     steps:
-      - name: Checkout pushed revision
+      - name: Checkout validated revision
         uses: actions/checkout@v6
         with:
           ref: ${{ github.sha }}
@@ -185,25 +163,48 @@ jobs:
       - name: Regenerate repository outputs
         run: make generate
 
-      - name: Test profile service solver
-        run: npm run test:profile-service
+      - name: Validate generated outputs before write
+        run: python3 internal/python/validate_generated_profiles.py
+
+      - name: Revalidate source tree before write
+        run: make check-all
 
       - name: Audit generated upstream ownership
         run: python3 internal/python/generate_ai_profiles.py --audit-rule-coverage
 
       - name: Commit generated changes
+        shell: bash
         run: |
+          set -euo pipefail
           case "$TARGET_REF" in
             refs/heads/*) ;;
             *) echo "Refusing to push a non-branch ref: $TARGET_REF" >&2; exit 1 ;;
           esac
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           mapfile -t managed_paths < <(./rulesctl managed-paths)
           git add -A -- "${managed_paths[@]}"
-          if ! git diff --cached --quiet; then
-            git commit -m "chore(ai): auto generate AI profiles"
-            git push origin "HEAD:${TARGET_REF}"
-          else
+          if git diff --cached --quiet; then
             echo "No generated changes."
+            exit 0
           fi
+
+          git commit -m "chore(generated): refresh managed outputs"
+          if git push origin "HEAD:${TARGET_REF}"; then
+            exit 0
+          fi
+
+          # Never rebase/reset onto a newer target inside this write-capable job:
+          # doing so would execute or commit against code that this run did not
+          # validate. Every push triggers this workflow, so a newer branch tip has
+          # its own exact-SHA run and safely supersedes this stale writer.
+          git fetch --no-tags origin "$TARGET_REF"
+          remote_tip=$(git rev-parse FETCH_HEAD)
+          if [ "${{ github.event_name }}" = push ] && [ "$remote_tip" != "${{ github.sha }}" ]; then
+            echo "Writer superseded by newer target $remote_tip; its own push workflow will repair managed outputs."
+            exit 0
+          fi
+
+          echo "Managed-output push failed without a superseding trusted push." >&2
+          exit 1
