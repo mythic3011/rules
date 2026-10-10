@@ -81,7 +81,7 @@ async function parseJson(request) {
 
 function bearer(request) {
   const value = request.headers.get("authorization") ?? "";
-  if (!value.startsWith("Bearer ")) return null;
+  if (value.slice(0, 7).toLowerCase() !== "bearer ") return null;
   const token = value.slice(7).trim();
   return TOKEN_RE.test(token) ? token : null;
 }
