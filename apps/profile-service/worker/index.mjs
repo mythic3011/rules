@@ -68,6 +68,10 @@ async function parseJson(request) {
   if (!contentType.toLowerCase().startsWith("application/json")) {
     throw new ProfileSpecError("Content-Type must be application/json", "invalid_content_type");
   }
+  const contentLength = request.headers.get("content-length");
+  if (contentLength && (Number.isNaN(Number(contentLength)) || Number(contentLength) > 32_768)) {
+    throw new ProfileSpecError("Request body is too large", "body_too_large");
+  }
   const text = await request.text();
   if (text.length > 32_768) {
     throw new ProfileSpecError("Request body is too large", "body_too_large");
