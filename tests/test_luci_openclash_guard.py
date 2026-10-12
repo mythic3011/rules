@@ -74,6 +74,7 @@ class LuCIOpenClashGuardContractTests(unittest.TestCase):
         self.assertIn("profile URL must use HTTPS", rpcd)
         self.assertIn("profile URL must not contain embedded credentials", rpcd)
         self.assertIn("profile URL contains whitespace", rpcd)
+        self.assertIn("profile URL contains control characters", rpcd)
         self.assertIn("probeProfile", PROFILE_VIEW.read_text(encoding="utf-8"))
 
     def test_dashboard_uses_real_history_not_placeholder_charts(self) -> None:
