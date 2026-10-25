@@ -2,6 +2,7 @@ import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { z } from "zod";
 
+import { compare as compareCodeUnits } from "../mihomo/types.js";
 import { compileMihomoFragment, renderMihomoFragment } from "../mihomo-projection.js";
 import { compileRoutingProfile } from "../compiler.js";
 import { composeShadowProfile, expectedShadowArtifacts } from "../shadow-profile.js";
@@ -49,7 +50,7 @@ export async function buildRoutingInputArtifacts(
   ));
   artifacts.push(artifact(context.project.regionsV1Output, renderJson(legacy)));
 
-  return artifacts.sort((left, right) => left.path.localeCompare(right.path));
+  return artifacts.sort((left, right) => compareCodeUnits(left.path, right.path));
 }
 
 export async function buildRoutingArtifacts(
@@ -74,7 +75,7 @@ export async function buildRoutingArtifacts(
     ),
     renderSemanticParityReport(semanticParity),
   ));
-  return artifacts.sort((left, right) => left.path.localeCompare(right.path));
+  return artifacts.sort((left, right) => compareCodeUnits(left.path, right.path));
 }
 
 export async function writeRoutingArtifacts(

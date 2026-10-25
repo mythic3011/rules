@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { compileRoutingProfile } from "./compiler.js";
+import { compare as compareCodeUnits } from "./mihomo/types.js";
 import type { MihomoProjectionConfig } from "./mihomo-projection.js";
 import type { RoutingConfig } from "./schema.js";
 import { isOwnershipOverrideService } from "./semantic-validator.js";
@@ -207,7 +208,7 @@ export function compileIniMvpPlan(config: RoutingConfig, projection: MihomoProje
   let protectedGroup: string | undefined;
   let protectedRule: z.infer<typeof RemoteClassicalRuleSchema> | undefined;
   const groups: z.infer<typeof SelectGroupSchema>[] = Object.entries(projection.regions)
-    .sort(([left], [right]) => left.localeCompare(right))
+    .sort(([left], [right]) => compareCodeUnits(left, right))
     .map(([, region]) => ({
       kind: "select" as const,
       name: region.stableGroup,
