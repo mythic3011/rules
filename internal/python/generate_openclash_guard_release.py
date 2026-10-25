@@ -8,6 +8,7 @@ from pathlib import Path
 
 from ai_profiles.distribution import load_distribution
 from ai_profiles.settings import AI_DISTRIBUTION_PATH, ROOT
+from ai_profiles.writer import atomic_write_text
 
 ROLE_KEYS = {
     "guard-bundle": "guardBundle",
@@ -49,12 +50,7 @@ def main() -> None:
         "artifacts": artifacts,
     }
     output = ROOT / catalog.release_metadata_path
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(
-        json.dumps(document, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-        newline="\n",
-    )
+    atomic_write_text(output, json.dumps(document, indent=2, sort_keys=True) + "\n")
     print(output.relative_to(ROOT).as_posix())
 
 

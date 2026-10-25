@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+import secrets
+import stat
 from pathlib import Path
 
 from .catalog import load_catalog
@@ -10,9 +13,49 @@ from .render.rule_provider import render_comment_rule_file, render_process_rule_
 from .settings import ENABLE_PROCESS_RULES, RULE_DIR
 
 
-def write_text(path: Path, content: str) -> None:
+def atomic_write_text(path: Path, content: str) -> None:
+    """Publish deterministic UTF-8/LF text without exposing partial output."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content.rstrip() + "\n", encoding="utf-8", newline="\n")
+    try:
+        existing_mode = stat.S_IMODE(path.stat().st_mode)
+    except FileNotFoundError:
+        existing_mode = None
+
+    temporary_path: Path | None = None
+    file_descriptor: int | None = None
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    create_mode = existing_mode if existing_mode is not None else 0o666
+    for _ in range(100):
+        candidate = path.parent / f".{path.name}.{secrets.token_hex(8)}.tmp"
+        try:
+            file_descriptor = os.open(candidate, flags, create_mode)
+        except FileExistsError:
+            continue
+        temporary_path = candidate
+        break
+    if temporary_path is None or file_descriptor is None:
+        raise FileExistsError(f"unable to create temporary output for {path}")
+
+    try:
+        with os.fdopen(file_descriptor, "w", encoding="utf-8", newline="\n") as handle:
+            file_descriptor = None
+            normalized = content.replace("\r\n", "\n").replace("\r", "\n")
+            handle.write(normalized)
+            handle.flush()
+            os.fsync(handle.fileno())
+        if existing_mode is not None:
+            os.chmod(temporary_path, existing_mode)
+        os.replace(temporary_path, path)
+        temporary_path = None
+    finally:
+        if file_descriptor is not None:
+            os.close(file_descriptor)
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
+
+
+def write_text(path: Path, content: str) -> None:
+    atomic_write_text(path, content.rstrip() + "\n")
 
 
 def remove_stale_ai_rule_outputs() -> None:

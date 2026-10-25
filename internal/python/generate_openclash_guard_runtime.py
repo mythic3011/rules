@@ -13,6 +13,12 @@ from typing import Any, Iterable, Mapping
 
 import yaml
 
+_PYTHON_PACKAGE_DIR = Path(__file__).resolve().parent
+if str(_PYTHON_PACKAGE_DIR) not in sys.path:
+    sys.path.insert(0, str(_PYTHON_PACKAGE_DIR))
+
+from ai_profiles.writer import atomic_write_text  # noqa: E402
+
 ROOT = Path(__file__).resolve().parents[2]
 AI_ROUTING_DIR = ROOT / "internal" / "config" / "ai-routing" / "core"
 AI_CATALOGS_DIR = ROOT / "internal" / "config" / "ai-routing" / "catalogs"
@@ -1099,8 +1105,7 @@ def dumps_runtime(document: Mapping[str, Any]) -> str:
 
 
 def write_runtime(path: Path, document: Mapping[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dumps_runtime(document), encoding="utf-8", newline="\n")
+    atomic_write_text(path, dumps_runtime(document))
 
 
 def main(argv: list[str] | None = None) -> None:

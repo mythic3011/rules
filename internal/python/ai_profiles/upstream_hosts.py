@@ -12,6 +12,7 @@ from .catalog import load_catalog
 from .domains import DOMAIN_PATTERN
 from .models import AdGuardDomainRule, AdGuardHomeSpec
 from .settings import AI_CATALOG_DIR
+from .writer import atomic_write_text
 
 SnapshotKind = Literal["exact", "suffix", "regex"]
 FetchText = Callable[[str], str]
@@ -188,7 +189,7 @@ def refresh_upstream_host_snapshot(
             for entry in entries
         ],
     }
-    path.write_text(json.dumps(document, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    atomic_write_text(path, json.dumps(document, ensure_ascii=False, indent=2) + "\n")
     return path
 
 
