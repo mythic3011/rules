@@ -1,0 +1,435 @@
+#!/bin/sh
+set -eu
+
+LC_ALL=C
+export LC_ALL
+
+CATALOG_FILE='/usr/share/openclash-guard/device-profiles.json'
+UCI_PACKAGE='openclash_guard_devices'
+
+fail() {
+	printf '%s\n' "$1" >&2
+	exit 1
+}
+
+check_catalog() {
+	[ -r "$CATALOG_FILE" ] || return 1
+	jq -e -s '
+		length == 1 and
+		(.[0] | type == "object" and .version == 1 and
+			(.limits | type == "object") and
+			(.reportContract | type == "object") and
+			(.cache | type == "object"))
+	' "$CATALOG_FILE" >/dev/null 2>&1
+}
+
+catalog_value() {
+	jq -er "$1" "$CATALOG_FILE"
+}
+
+stat_owner() {
+	stat -c '%u' "$1" 2>/dev/null || stat -f '%u' "$1" 2>/dev/null
+}
+
+stat_mode() {
+	stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1" 2>/dev/null
+}
+
+validate_cache_path() {
+	CACHE_DIR=$(catalog_value '.cache.root') || return 1
+	case "$CACHE_DIR" in
+		/tmp/*) ;;
+		*) return 1 ;;
+	esac
+	case "$CACHE_DIR" in
+		*'/../'*|*/..|*'/./'*|*/.) return 1 ;;
+	esac
+	[ "$CACHE_DIR" != /tmp ] || return 1
+	CACHE_PARENT=${CACHE_DIR%/*}
+	[ -n "$CACHE_PARENT" ] && [ "$CACHE_PARENT" != "$CACHE_DIR" ]
+}
+
+check_directory() {
+	path=$1
+	wanted_mode=$2
+	[ -d "$path" ] && [ ! -L "$path" ] || return 1
+	[ "$(stat_owner "$path")" = "$(id -u)" ] || return 1
+	if [ -n "$wanted_mode" ]; then
+		[ "$(stat_mode "$path")" = "$wanted_mode" ] || return 1
+	else
+		mode=$(stat_mode "$path") || return 1
+		case "$mode" in ''|*[!0-7]*) return 1 ;; esac
+		while [ "${#mode}" -gt 3 ]; do
+			mode=${mode#?}
+		done
+		group_and_other=${mode#?}
+		case "$group_and_other" in *[2367]*) return 1 ;; esac
+	fi
+}
+
+ensure_cache_dir() {
+	validate_cache_path || return 1
+	if [ ! -e "$CACHE_PARENT" ]; then
+		mkdir -m 755 "$CACHE_PARENT" 2>/dev/null || return 1
+	fi
+	check_directory "$CACHE_PARENT" '' || return 1
+	if [ ! -e "$CACHE_DIR" ]; then
+		umask 077
+		mkdir -m 700 "$CACHE_DIR" 2>/dev/null || return 1
+	fi
+	check_directory "$CACHE_DIR" 700
+}
+
+existing_cache_dir() {
+	validate_cache_path || return 1
+	if [ ! -e "$CACHE_PARENT" ]; then
+		return 2
+	fi
+	check_directory "$CACHE_PARENT" '' || return 1
+	if [ ! -e "$CACHE_DIR" ]; then
+		return 2
+	fi
+	check_directory "$CACHE_DIR" 700
+}
+
+validate_device_id() {
+	device_id=$1
+	max_id=$(catalog_value '.limits.maxDeviceIdLength') || return 1
+	case "$device_id" in
+		''|*[!A-Za-z0-9_]*) return 1 ;;
+	esac
+	[ "${#device_id}" -le "$max_id" ]
+}
+
+receive_timeout() {
+	value=$(catalog_value '.reportPolicy.receiveTimeoutSeconds') || return 1
+	case "$value" in ''|*[!0-9]*) return 1 ;; esac
+	[ "$value" -gt 0 ] && [ "$value" -le 120 ] || return 1
+	printf '%s\n' "$value"
+}
+
+acquire_record_lock() {
+	lock_path=$1
+	wait_limit=$2
+	waited=0
+	lock_dir=''
+	while ! mkdir -m 700 "$lock_path" 2>/dev/null; do
+		if [ -L "$lock_path" ] || { [ -e "$lock_path" ] && [ ! -d "$lock_path" ]; }; then
+			return 1
+		fi
+		if [ -d "$lock_path" ]; then
+			[ "$(stat_owner "$lock_path")" = "$(id -u)" ] && [ "$(stat_mode "$lock_path")" = 700 ] || return 1
+		fi
+		[ "$waited" -lt "$wait_limit" ] || return 1
+		sleep 1 || return 1
+		waited=$((waited + 1))
+	done
+	lock_dir=$lock_path
+	if ! check_directory "$lock_dir" 700; then
+		release_record_lock
+		return 1
+	fi
+}
+
+release_record_lock() {
+	[ -n "${lock_dir:-}" ] || return 0
+	rmdir "$lock_dir" 2>/dev/null || true
+	lock_dir=''
+}
+
+configured_device() {
+	validate_device_id "$1" || return 1
+	[ "$(uci -q get "$UCI_PACKAGE.$1" 2>/dev/null || true)" = device ]
+}
+
+valid_report_filter() {
+	cat <<'JQ'
+def exact_keys($expected):
+	type == "object" and (keys | sort) == ($expected | sort);
+def is_integer:
+	type == "number" and . == floor;
+def in_range($minimum; $maximum):
+	is_integer and . >= $minimum and . <= $maximum;
+length == 1 and
+(.[0] as $report |
+	$catalog[0].reportContract as $contract |
+	$contract.limits as $limits |
+	$report |
+	[
+		exact_keys($contract.requiredKeys),
+		.schema_version == $contract.schemaVersion,
+		.role_catalog_version == $contract.roleCatalogVersion,
+		(.platform as $platform | ($contract.platforms | index($platform)) != null),
+		(.observed_at_ms | in_range($limits.timestampMin; $limits.timestampMax)),
+		(.ttl_ms == $limits.ttlMs),
+		(.window |
+			exact_keys($contract.windowKeys) and
+			.bucket_ms == $limits.bucketMs and
+			(.bucket_count | in_range($limits.bucketCountMin; $limits.bucketCountMax)) and
+			(.freshness as $freshness | ($contract.freshnessValues | index($freshness)) != null)),
+		(.collection_status as $status | ($contract.collectionStatuses | index($status)) != null),
+		(.reason_code as $reason | ($contract.reasonCodes | index($reason)) != null),
+		($contract.platformHandling | any(
+			.platform == $report.platform and
+			.collection_status == $report.collection_status and
+			.reason_code == $report.reason_code
+		)),
+		(.role_suggestions as $suggestions |
+			($suggestions | type == "array" and length <= $limits.maxSuggestions) and
+			($suggestions | all(.[];
+				exact_keys($contract.roleSuggestionKeys) and
+				(.role as $role | ($contract.roles | index($role)) != null) and
+				(.active_bucket_count | in_range($limits.bucketCountMin; $limits.bucketCountMax)) and
+				(.confidence as $confidence | ($contract.confidenceValues | index($confidence)) != null)
+			)) and
+			($suggestions | all(.[]; .active_bucket_count <= $report.window.bucket_count)) and
+			($suggestions | [.[].role] | length == (unique | length))
+		),
+		(.authority == $contract.authority),
+		(.observed_at_ms + .ttl_ms <= $limits.timestampMax),
+		(.observed_at_ms <= $now + $futureSkew),
+		((.collection_status == "unsupported" or .collection_status == "blocked") | not) or (.role_suggestions | length == 0)
+	] | all
+)
+JQ
+}
+
+validate_report() {
+	report_file=$1
+	now_ms=$2
+	future_skew=$(catalog_value '.reportPolicy.maxFutureClockSkewMs') || return 1
+	jq -e -s --slurpfile catalog "$CATALOG_FILE" --argjson now "$now_ms" --argjson futureSkew "$future_skew" \
+		"$(valid_report_filter)" "$report_file" >/dev/null 2>&1
+}
+
+current_time_ms() {
+	jq -n -er 'now * 1000 | ceil'
+}
+
+read_bounded_report() {
+	report_file=$1
+	max_bytes=$(catalog_value '.reportContract.limits.maxReportBytes') || return 1
+	read_timeout=$(receive_timeout) || return 1
+	case "$max_bytes" in
+		''|*[!0-9]*) return 1 ;;
+	esac
+	[ "$max_bytes" -gt 0 ] || return 1
+	[ "$max_bytes" -lt 1048576 ] || return 1
+	# Read at most one byte above the contract bound, then reject the oversize
+	# input without buffering the remainder in memory or on disk.
+	command -v timeout >/dev/null 2>&1 || return 1
+	timeout "$read_timeout" head -c "$((max_bytes + 1))" > "$report_file" || return 1
+	byte_count=$(wc -c < "$report_file" | tr -d '[:space:]')
+	case "$byte_count" in
+		''|*[!0-9]*) return 1 ;;
+	esac
+	[ "$byte_count" -le "$max_bytes" ]
+}
+
+validate_cache_file() {
+	cache_file=$1
+	[ -f "$cache_file" ] && [ ! -L "$cache_file" ] || return 1
+	[ "$(stat_owner "$cache_file")" = "$(id -u)" ] || return 1
+	[ "$(stat_mode "$cache_file")" = 600 ] || return 1
+	validate_report "$cache_file" "$(current_time_ms)"
+}
+
+report_is_unexpired() {
+	report_file=$1
+	now_ms=$2
+	jq -e -s --argjson now "$now_ms" 'length == 1 and (.[0] | .observed_at_ms + .ttl_ms > $now)' "$report_file" >/dev/null 2>&1
+}
+
+cleanup_ingest() {
+	[ -z "${input_tmp:-}" ] || rm -f "$input_tmp"
+	[ -z "${output_tmp:-}" ] || rm -f "$output_tmp"
+	release_record_lock
+}
+
+ingest_report() {
+	device_id=$1
+	validate_device_id "$device_id" || fail 'invalid device ID'
+	configured_device "$device_id" || fail 'device ID is not configured'
+	check_catalog || fail 'device profile catalog is unavailable or invalid'
+	ensure_cache_dir || fail 'device observation cache is unavailable'
+	cache_file="$CACHE_DIR/$device_id.json"
+	input_tmp=''
+	output_tmp=''
+	lock_dir=''
+	input_tmp=$(mktemp "$CACHE_DIR/.ingest.XXXXXX") || fail 'unable to allocate private report buffer'
+	output_tmp=''
+	trap cleanup_ingest EXIT
+	trap 'cleanup_ingest; exit 1' HUP INT TERM
+	umask 077
+	read_bounded_report "$input_tmp" || fail 'report exceeds the byte limit or could not be read'
+	now_ms=$(current_time_ms) || fail 'system clock is unavailable'
+	validate_report "$input_tmp" "$now_ms" || fail 'report does not match the device role observation contract'
+	report_is_unexpired "$input_tmp" "$now_ms" || fail 'incoming report is already expired'
+	observed_at_ms=$(jq -sr '.[0].observed_at_ms' "$input_tmp") || fail 'report timestamp is unavailable'
+	output_tmp=$(mktemp "$CACHE_DIR/.ingest.XXXXXX") || fail 'unable to allocate cache staging file'
+	jq -c -s '.[0]' "$input_tmp" > "$output_tmp" || fail 'unable to serialize accepted report'
+	chmod 600 "$output_tmp" || fail 'unable to protect staged report'
+	lock_wait=$(receive_timeout) || fail 'device report receive policy is invalid'
+	acquire_record_lock "$CACHE_DIR/.lock.$device_id" "$lock_wait" || fail 'device observation is busy'
+	if [ -e "$cache_file" ] || [ -L "$cache_file" ]; then
+		validate_cache_file "$cache_file" || fail 'device observation cache entry is invalid'
+		previous_observed_at=$(jq -sr '.[0].observed_at_ms' "$cache_file") || fail 'cached report timestamp is unavailable'
+		if ! jq -en --argjson incoming "$observed_at_ms" --argjson previous "$previous_observed_at" '$incoming > $previous' >/dev/null; then
+			fail 'incoming report is a replay or is out of order'
+		fi
+	fi
+	now_ms=$(current_time_ms) || fail 'system clock is unavailable'
+	validate_report "$output_tmp" "$now_ms" || fail 'report no longer matches the receive policy'
+	report_is_unexpired "$output_tmp" "$now_ms" || fail 'incoming report expired before publication'
+	mv -f "$output_tmp" "$cache_file" || fail 'unable to publish device observation'
+	output_tmp=''
+	cleanup_ingest
+	input_tmp=''
+	trap - EXIT HUP INT TERM
+}
+
+project_cache_entry() {
+	device_id=$1
+	cache_file=$2
+	now_ms=$3
+	validate_cache_file "$cache_file" || return 1
+	jq -e -s --arg id "$device_id" --argjson now "$now_ms" '
+		if length == 1 then
+		(.[0] as $report |
+			($report.observed_at_ms + $report.ttl_ms) as $expires |
+			($report.window.freshness == "fresh" and $now < $expires) as $fresh |
+			{
+				id: $id,
+				fresh: $fresh,
+				observation: (if $now >= $expires then null else {
+					observed_at_ms: $report.observed_at_ms,
+					expires_at_ms: $expires,
+					platform: $report.platform,
+					collection: { status: $report.collection_status, reason: $report.reason_code },
+					role_suggestions: (if $fresh then $report.role_suggestions else [] end)
+				} end)
+			}
+		)
+		else error("cache report is not one JSON object") end
+	' "$cache_file"
+}
+
+list_devices() {
+	check_catalog || fail 'device profile catalog is unavailable or invalid'
+	max_devices=$(catalog_value '.limits.maxDevices') || fail 'device profile catalog limits are invalid'
+	max_id=$(catalog_value '.limits.maxDeviceIdLength') || fail 'device profile catalog limits are invalid'
+	case "$max_devices:$max_id" in *[!0-9:]*|:*|*:) fail 'device profile catalog limits are invalid' ;; esac
+	ids_tmp=$(mktemp /tmp/openclash-guard-device-ids.XXXXXX) || fail 'unable to allocate device list buffer'
+	rows_tmp=$(mktemp /tmp/openclash-guard-device-rows.XXXXXX) || { rm -f "$ids_tmp"; fail 'unable to allocate device list buffer'; }
+	uci_tmp=$(mktemp /tmp/openclash-guard-device-uci.XXXXXX) || { rm -f "$ids_tmp" "$rows_tmp"; fail 'unable to allocate device list buffer'; }
+	trap 'rm -f "$ids_tmp" "$rows_tmp" "$uci_tmp"' EXIT HUP INT TERM
+	if ! uci -q -X show "$UCI_PACKAGE" > "$uci_tmp" 2>/dev/null; then
+		fail 'device UCI configuration is unavailable'
+	fi
+	awk -v prefix="$UCI_PACKAGE." -v max="$max_id" '
+		index($0, prefix) != 1 { next }
+		substr($0, length($0) - 6) != "=device" { next }
+		{
+			id = substr($0, length(prefix) + 1, length($0) - length(prefix) - 7)
+			if (length(id) > 0 && length(id) <= max && id ~ /^[A-Za-z0-9_]+$/)
+				print id
+		}
+	' "$uci_tmp" | sort -u > "$ids_tmp"
+	device_count=$(awk 'END { print NR + 0 }' "$ids_tmp")
+	[ "$device_count" -le "$max_devices" ] || fail 'device UCI configuration exceeds the catalog limit'
+	cache_status=0
+	existing_cache_dir || cache_status=$?
+	case "$cache_status" in
+		0) ;;
+		2) CACHE_DIR='' ;;
+		*) fail 'device observation cache permissions are invalid' ;;
+	esac
+	now_ms=$(current_time_ms) || fail 'system clock is unavailable'
+	while IFS= read -r device_id; do
+		[ -n "$device_id" ] || continue
+		cache_file=''
+		if [ -n "$CACHE_DIR" ]; then
+			candidate="$CACHE_DIR/$device_id.json"
+			if [ -e "$candidate" ] || [ -L "$candidate" ]; then
+				cache_file=$candidate
+			fi
+		fi
+		if [ -n "$cache_file" ]; then
+			if project_cache_entry "$device_id" "$cache_file" "$now_ms" >> "$rows_tmp"; then
+				:
+			elif [ -e "$cache_file" ] || [ -L "$cache_file" ]; then
+				fail 'device observation cache entry is invalid'
+			else
+				jq -cn --arg id "$device_id" '{id:$id,fresh:false,observation:null}' >> "$rows_tmp"
+			fi
+		else
+			jq -cn --arg id "$device_id" '{id:$id,fresh:false,observation:null}' >> "$rows_tmp"
+		fi
+	done < "$ids_tmp"
+	jq -s '{version:1,devices:.}' "$rows_tmp"
+	rm -f "$ids_tmp" "$rows_tmp" "$uci_tmp"
+	trap - EXIT HUP INT TERM
+}
+
+prune_cache() {
+	check_catalog || fail 'device profile catalog is unavailable or invalid'
+	cache_status=0
+	existing_cache_dir || cache_status=$?
+	case "$cache_status" in
+		0) ;;
+		2) printf 'pruned 0 expired device observations\n'; return 0 ;;
+		*) fail 'device observation cache permissions are invalid' ;;
+	esac
+	now_ms=$(current_time_ms) || fail 'system clock is unavailable'
+	lock_wait=$(receive_timeout) || fail 'device report receive policy is invalid'
+	pruned=0
+	lock_dir=''
+	trap release_record_lock EXIT
+	trap 'release_record_lock; exit 1' HUP INT TERM
+	for cache_file in "$CACHE_DIR"/*.json; do
+		[ -e "$cache_file" ] || [ -L "$cache_file" ] || continue
+		base=${cache_file##*/}
+		device_id=${base%.json}
+		validate_device_id "$device_id" || continue
+		acquire_record_lock "$CACHE_DIR/.lock.$device_id" "$lock_wait" || fail 'device observation is busy'
+		if [ -e "$cache_file" ] || [ -L "$cache_file" ]; then
+			validate_cache_file "$cache_file" || fail 'device observation cache entry is invalid'
+			expired=$(jq -s -r --argjson now "$now_ms" 'length == 1 and (.[0] | .observed_at_ms + .ttl_ms <= $now)' "$cache_file" 2>/dev/null || printf 'invalid')
+			if [ "$expired" = true ]; then
+				rm -f "$cache_file" || fail 'unable to remove expired device observation'
+				pruned=$((pruned + 1))
+			fi
+		fi
+		release_record_lock
+	done
+	printf 'pruned %s expired device observations\n' "$pruned"
+	trap - EXIT HUP INT TERM
+}
+
+check_catalog || fail 'device profile catalog is unavailable or invalid'
+case "${1:-}" in
+	catalog)
+		[ "$#" -eq 1 ] || fail 'catalog takes no arguments'
+		cat "$CATALOG_FILE"
+		;;
+	list)
+		[ "$#" -eq 1 ] || fail 'list takes no arguments'
+		list_devices
+		;;
+	ingest)
+		[ "$#" -eq 2 ] || fail 'ingest requires one device ID'
+		ingest_report "$2"
+		;;
+	receive)
+		[ "$#" -eq 2 ] || fail 'receive requires one device ID'
+		[ "${SSH_ORIGINAL_COMMAND:-}" = openclash-guard-role-report-v1 ] || fail 'unsupported SSH report command'
+		ingest_report "$2"
+		;;
+	prune)
+		[ "$#" -eq 1 ] || fail 'prune takes no arguments'
+		prune_cache
+		;;
+	*)
+		fail 'unsupported device command'
+		;;
+esac

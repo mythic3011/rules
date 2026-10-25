@@ -44,5 +44,10 @@
     "title": "Tests",
     "order": 8,
     "action": { "type": "view", "path": "openclash-guard/tests" }
+  },
+  "admin/services/openclash-guard/devices": {
+    "title": "Devices",
+    "order": 9,
+    "action": { "type": "view", "path": "openclash-guard/devices" }
   }
 }

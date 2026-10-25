@@ -1,0 +1,49 @@
+#!/bin/sh
+set -eu
+
+CATALOG_FILE='/usr/share/openclash-guard/device-profiles.json'
+PRUNE_COMMAND='/usr/libexec/openclash-guard-devices'
+
+fail() {
+	printf 'openclash-guard-device-cache: %s\n' "$1" >&2
+	exit 1
+}
+
+stop() {
+	exit 0
+}
+
+trap stop HUP INT TERM
+
+[ -r "$CATALOG_FILE" ] || fail 'device profile catalog is unavailable'
+command -v jq >/dev/null 2>&1 || fail 'jq is unavailable'
+[ -x "$PRUNE_COMMAND" ] || fail 'device cache command is unavailable'
+
+interval=$(jq -er '
+	if type == "object" and
+		.version == 1 and
+		(.cache | type == "object") and
+		(.cache.root | type == "string" and length > 0) and
+		.cache.volatile == true and
+		(.cache.pruneIntervalSeconds |
+			type == "number" and isfinite and . > 0 and floor == .)
+	then
+		.cache.pruneIntervalSeconds
+	else
+		error("invalid cache catalog")
+	end
+' "$CATALOG_FILE" 2>/dev/null) || fail 'device cache interval is invalid'
+
+case "$interval" in
+	''|*[!0-9]*) fail 'device cache interval is invalid' ;;
+esac
+[ "$interval" != 0 ] || fail 'device cache interval is invalid'
+command -v sleep >/dev/null 2>&1 || fail 'sleep is unavailable'
+
+while :; do
+	if ! "$PRUNE_COMMAND" prune >/dev/null 2>&1; then
+		fail 'cache pruning failed; service stopped'
+	fi
+
+	sleep "$interval" || fail 'maintenance wait failed; service stopped'
+done

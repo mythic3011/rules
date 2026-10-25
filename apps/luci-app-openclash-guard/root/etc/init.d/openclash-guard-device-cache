@@ -1,0 +1,22 @@
+#!/bin/sh /etc/rc.common
+# shellcheck disable=SC2034
+
+START=97
+STOP=10
+USE_PROCD=1
+
+PROG='/usr/libexec/openclash-guard-device-cache'
+
+start_service() {
+	[ -x "$PROG" ] || {
+		printf '%s\n' 'openclash-guard-device-cache: maintenance program is unavailable' >&2
+		return 1
+	}
+
+	procd_open_instance
+	procd_set_param command "$PROG"
+	procd_set_param stdout 1
+	procd_set_param stderr 1
+	# Deliberately omit respawn: inspect and restart after a maintenance failure.
+	procd_close_instance
+}

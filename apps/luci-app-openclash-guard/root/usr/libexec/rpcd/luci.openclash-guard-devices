@@ -1,0 +1,48 @@
+#!/bin/sh
+set -eu
+
+DEVICE_HELPER='/usr/libexec/openclash-guard-devices'
+
+json_error() {
+	json_init
+	json_add_boolean ok 0
+	json_add_string error "$1"
+	json_dump
+	json_cleanup
+}
+
+emit_helper_result() {
+	result=$("$DEVICE_HELPER" "$1" 2>/dev/null) || {
+		json_error 'device data is unavailable'
+		return 0
+	}
+	if ! printf '%s\n' "$result" | jq -e -s 'length == 1 and (.[0] | type == "object")' >/dev/null 2>&1; then
+		json_error 'device data is invalid'
+		return 0
+	fi
+	printf '%s\n' "$result"
+}
+
+case "${1:-}" in
+	list)
+		. /usr/share/libubox/jshn.sh
+		json_init
+		json_add_object getCatalog
+		json_close_object
+		json_add_object getDevices
+		json_close_object
+		json_dump
+		json_cleanup
+		;;
+	call)
+		. /usr/share/libubox/jshn.sh
+		case "${2:-}" in
+			getCatalog) emit_helper_result catalog ;;
+			getDevices) emit_helper_result list ;;
+			*) json_error 'unsupported device method' ;;
+		esac
+		;;
+	*)
+		exit 2
+		;;
+esac
