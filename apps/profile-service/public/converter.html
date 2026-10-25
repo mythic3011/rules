@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en" data-i18n-ready="false">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="referrer" content="no-referrer">
+  <title data-i18n="converterTitle">Online YAML converter</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="shell tool-converter">
+    <header>
+      <p class="eyebrow">mythic3011/rules · Profile Service</p>
+      <h1 data-i18n="converterTitle">Online YAML converter</h1>
+      <p class="lede" data-i18n="converterDescription">Combine proxy links and subscriptions into one YAML profile for manual node selection.</p>
+      <label class="language-picker"><span data-i18n="language">Language</span>
+        <select id="language" autocomplete="off">
+          <option value="en" data-language-option="en">English</option>
+          <option value="zh-Hant" data-language-option="zh-Hant">繁體中文</option>
+          <option value="zh-Hans" data-language-option="zh-Hans">简体中文</option>
+        </select>
+      </label>
+    </header>
+
+    <nav class="tool-nav" data-i18n-aria-label="toolsNavigation" aria-label="Profile tools">
+      <a href="/" data-i18n="iniBuilder">INI template builder</a>
+      <a href="/converter.html" aria-current="page" data-i18n="yamlConverter">Online YAML converter</a>
+    </nav>
+
+    <div class="converter-layout">
+      <section id="profile-options" class="panel" aria-labelledby="profile-options-title"></section>
+
+      <div class="converter-stage">
+    <form id="converter-form" novalidate>
+      <section class="panel" aria-labelledby="input-title">
+        <h2 id="input-title" data-i18n="inputTitle">Input</h2>
+        <label for="input-format" data-i18n="inputType">Input type</label>
+        <select id="input-format" name="format" aria-describedby="format-help">
+          <option value="auto" data-i18n="inputAuto">Auto detect / mixed inputs</option>
+          <option value="proxy" data-i18n="inputProxy">Proxy links</option>
+          <option value="subscription" data-i18n="inputSubscription">Subscription URLs or content</option>
+        </select>
+        <p id="format-help" class="hint" data-i18n="inputFormatHelp">Paste one link per line. Auto detect combines different proxy types and approved subscription URLs. Choose “Proxy links” for HTTPS proxies. Paste a Clash YAML or Base64 subscription content as one complete input.</p>
+
+        <label for="converter-input" data-i18n="converterInputLabel">Proxy links, subscription URLs, or pasted subscription content</label>
+        <textarea id="converter-input" name="input" rows="8" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="socks5h://…&#10;https://…&#10;vless://… or subscription content"></textarea>
+        <p class="hint" data-i18n="inputPrivacy">Input stays in this page's memory and is sent only to this converter. YAML may contain credentials; clear it when finished.</p>
+
+        <div class="converter-actions">
+          <button id="convert-button" type="submit" class="primary" data-i18n="convert">Convert to YAML</button>
+          <button id="clear-button" type="button" data-i18n="clear">Clear input and output</button>
+        </div>
+      </section>
+    </form>
+
+    <p id="converter-status" class="panel status" role="status" aria-live="polite" aria-atomic="true" hidden></p>
+
+    <section id="output-panel" class="panel" aria-labelledby="output-title" hidden>
+      <div class="result-heading">
+        <h2 id="output-title" data-i18n="outputTitle">YAML output</h2>
+        <span id="node-count" class="node-count"></span>
+      </div>
+      <p id="output-help" class="hint" data-i18n="outputHelp">Select a node in a regional group, then choose that region in the pinned selector. With fail closed enabled, also select allowed routes for DNS and the services you use. Selections stay manual.</p>
+      <label for="converted-yaml" data-i18n="convertedProfile">Converted profile</label>
+      <textarea id="converted-yaml" class="output" rows="18" readonly spellcheck="false" aria-describedby="output-help"></textarea>
+      <div class="converter-actions">
+        <button id="copy-yaml" type="button" data-i18n="copyYaml">Copy YAML</button>
+        <button id="download-yaml" type="button" data-i18n="downloadYaml">Download .yaml</button>
+      </div>
+    </section>
+      </div>
+    </div>
+  </main>
+  <script type="module" src="/converter.js"></script>
+</body>
+</html>

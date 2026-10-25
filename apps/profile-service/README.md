@@ -1,161 +1,162 @@
 # OpenClash Profile Service
 
-Self-hosted Cloudflare Worker + Web Builder for generating personalized **OpenClash/subconverter custom-template INI** profiles.
+A self-hosted Cloudflare Worker with two browser tools:
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/mythic3011/rules/tree/main/apps/profile-service)
-[![Built with Cloudflare](https://workers.cloudflare.com/built-with-cloudflare.svg)](https://cloudflare.com)
+| Tool | Use it for | Result |
+| --- | --- | --- |
+| INI template builder | Choose a subscription template and routing preferences | An opaque `/p/<token>` URL that redirects to the `.ini` subscription |
+| Online YAML converter | Convert proxy links or subscriptions | A downloadable YAML profile with manual node selection |
 
-The application is intentionally isolated inside `apps/profile-service/`, so Cloudflare's Deploy button can treat this directory as a standalone Worker project.
+## Use the web UI
 
-## What it does
+1. Open the deployed Worker URL.
+2. Choose **INI template builder** or **Online YAML converter** in the top navigation.
+3. Choose a template. AI templates offer region and service controls. Preview the INI, then create its subscription URL; later edits update that same URL.
+4. For YAML, use **Auto detect** to paste proxy links and HTTPS subscription URLs together, one entry per line. A conversion accepts at most five remote subscriptions, 256 KiB of downloaded subscription content in total, and 100 nodes. Pasted input has a separate 262,144-character limit and a 300,000-byte JSON request limit.
+5. Copy or download the YAML. After import, select a node in a regional group, then choose that region in the pinned selector. With **Fail closed** enabled, also select allowed routes for DNS and each service you use. Selections stay manual.
 
-Instead of exposing routing preferences in a long subscription query string, the builder stores a typed `ProfileSpec` and returns an opaque read-only custom-template URL:
+The YAML converter accepts `socks5h`, HTTPS proxy, and standard node links, plus pasted subscription text. Put each link or subscription URL on its own line. Paste Clash YAML or Base64 subscription data as a complete document by itself, not mixed with links. Every remote URL must match the exact-host allowlist; if any entry fails, the request returns no partial profile. Input and output stay in the page until you clear them or close the page. YAML can contain proxy credentials.
 
-```text
-https://<your-worker-domain>/p/<opaque-read-capability>.ini
-```
+An HTTPS link with explicit proxy connection details is a proxy in **Auto detect** mode. Use **Subscription URLs or content** mode for bare HTTPS subscription URLs with an explicit port.
 
-Paste that URL into OpenClash **Custom Template URL**.
+## Templates and routing controls
 
-```text
-Browser UI
-  -> POST /api/v1/resolve          preview only
-  -> POST /api/v1/profiles         save ProfileSpec
-       -> D1 saved state
-       -> opaque read capability
+| Output | Available templates |
+| --- | --- |
+| INI | AI Balanced, Standard, Lite, GFW, Full, Mainland |
+| YAML | AI Balanced, AI Strict, Standard |
 
-OpenClash
-  -> GET /p/<read-token>.ini
-       -> ProfileSpec solver
-       -> SubconverterPlan
-       -> INI renderer
-```
+The registry is `internal/config/ai-routing/catalogs/profile-templates.json`. The repository's placeholder YAML files are not offered. General-purpose templates retain their service routing and receive manual selectors and the shared privacy/DNS safeguards. The UI shows advanced options only for templates that support them.
 
-The public v1 profile schema stays deliberately small:
+For AI templates:
 
-```json
-{
-  "schemaVersion": 1,
-  "baseProfile": "ai-balanced",
-  "disabledNodeRegions": ["hk"],
-  "onlyNodeRegions": [],
-  "preferredNodeRegions": ["jp", "sg"]
+1. **Groups:** choose or create a group in the left list. Open **Group settings** to rename it, change its display order, or delete it. Restoring the template is under **Advanced actions** and requires confirmation.
+2. **Services:** search for a service, then click or drag it into the selected group. Remove a service with its × button. Unassigned services are blocked. The account protection group keeps its separate identity and approved membership.
+3. **Exit order:** search the available exits, then click or drag them into the numbered list. Drag to reorder; keyboard and touch controls appear on each row. Unavailable exits explain their restrictions. **Start with traffic blocked** controls the initial REJECT state separately from the exit list. This is a manual selector, so the order does not enable automatic failover.
+
+A group shares its exits across its member services. Adding HK creates a manual exit for that group; it does not add HK to the global pool. Group layouts are saved separately for each template and output format.
+
+Global controls still take precedence:
+
+- Disable regions, or allow only selected regions. Add preferred regions and move them into an order such as **US → JP → SG**.
+- Keep **Fail closed** enabled to place **REJECT** first in applicable selectors. These are manual choices, not automatic failover; select an allowed route after import.
+- Enable **Allow DIRECT** only when direct routing is intended. Disabling it removes direct choices, rejects routes that otherwise go direct, and routes application DNS through the proxy. Encrypted proxy-host bootstrap stays independent to avoid a DNS cycle. Protected account routes retain their stricter policy.
+- Disable a service to reject its traffic. Shared hostnames are blocked too, which can affect another service using the same backend.
+
+The language menu supports English, Traditional Chinese, and Simplified Chinese. Translations load from JSON locale files. The selection also controls generated INI explanations and the YAML comment header; protocol syntax, group identifiers, and URLs keep their original values.
+
+For Clash YAML input, only the `proxies` list is imported into the managed profile. Node options are retained after basic type, name, server, and port validation; the converter does not validate every Mihomo option.
+
+## Allow remote subscription hosts
+
+Remote subscriptions are fetched only from exact HTTPS hostnames configured by the operator. Add a comma-separated `CONVERTER_SUBSCRIPTION_HOSTS` Worker variable in `wrangler.jsonc` or the Cloudflare dashboard:
+
+```jsonc
+"vars": {
+  "CONVERTER_SUBSCRIPTION_HOSTS": "subs.example.net,feed.example.org"
 }
 ```
 
-Arbitrary raw rules, regexes, provider URLs, and renderer directives are not accepted as public API fields.
+Use hostnames only: no scheme, port, path, wildcard, or redirect. Pasted subscription content does not use this allowlist. Leave the variable unset to disable remote subscription fetching.
 
-## One-click deployment
+Allow only subscription hosts you trust and control. The Worker resolves those hosts when fetching; the allowlist does not pin their DNS addresses.
 
-Click the button at the top of this README.
+## Run locally
 
-Cloudflare will import this subdirectory as a standalone Worker project, provision the declared D1 database binding, run the repository's deploy script, apply D1 migrations, and deploy the Worker + static Web Builder.
-
-The Worker also declares a write rate-limiter binding for anonymous create/update/rotate endpoints.
-
-After deployment, open the Worker URL and generate your first profile. No separate frontend deployment is required; Workers Static Assets serves the builder from the same application.
-
-## Manual deployment
-
-Prerequisites: Node.js 22+ and a Cloudflare account.
-
-The checked-in `wrangler.jsonc` uses Cloudflare automatic resource provisioning for D1. For a fresh standalone checkout:
+Install [mise](https://mise.jdx.dev/getting-started.html), then run these
+commands from the repository root. `make bootstrap` installs the
+versions declared in `mise.toml`, Python development requirements, and one
+frozen pnpm workspace for both the root tools and this Worker.
 
 ```sh
-npm run deploy
+make bootstrap
+mise run dev
 ```
 
-If you prefer to bind an already-created D1 database explicitly, the repository still provides the local helper:
+`mise run dev` applies the local D1 migration, then starts the Worker on its
+loopback development URL. It does not contact or deploy to a remote Worker.
+
+### Browser end-to-end tests
+
+Keep the development server running in one terminal. Run the E2E suite in a
+second terminal:
 
 ```sh
-npx wrangler@latest d1 create mythic-rules-profiles
-node tools/configure-d1.mjs <database-id>
-
-npx wrangler@latest d1 migrations apply DB --remote --config wrangler.local.jsonc
-npx wrangler@latest deploy --config wrangler.local.jsonc
+mise run e2e
 ```
 
-`wrangler.local.jsonc` is gitignored.
-
-## Local development
-
-The solver tests do not require a Cloudflare account:
+The default target is `http://127.0.0.1:8787`. Set
+`PROFILE_SERVICE_E2E_BASE_URL` to another loopback URL if Wrangler uses a
+different local port; non-loopback URLs are rejected. Set
+`PLAYWRIGHT_CHANNEL=chrome` to use an installed Chrome browser. To use
+Playwright's bundled Chromium instead, install it once with:
 
 ```sh
-npm test
+mise exec -- pnpm --filter mythic-rules-profile-service exec playwright install chromium
 ```
 
-For a local Worker with automatically provisioned local D1 state:
+Run the profile-service unit tests with:
 
 ```sh
-npx wrangler@latest d1 migrations apply DB --local
-npm run dev
+mise exec -- pnpm --filter mythic-rules-profile-service test
 ```
 
-From the parent repository, Python owns the generated Worker runtime and parity fixtures:
+The INI renderer uses generated runtime data. Regenerate it from the parent
+repository with `mise run generate` before testing parity-sensitive changes.
+
+## Deploy
+
+Deploy from the repository root so pnpm uses the checked-in workspace lockfile. The Worker serves both browser tools and uses the `DB` and `PROFILE_WRITE_LIMITER` bindings declared in its Wrangler config.
+
+For a first deployment, install the pinned tools and dependencies, authenticate once, then deploy:
 
 ```sh
-python3 internal/python/generate_profile_service_runtime.py
-npm run test:profile-service
+make bootstrap
+mise run deploy:login
+mise run deploy
 ```
 
-Representative specs are hashed across the Python compiler and JavaScript Worker renderer; CI fails if the two projections drift.
+The deploy command bundles locally first, reuses or creates the configured D1 database, applies pending migrations, then publishes the Worker and browser assets. `mise run deploy:setup` performs the bundle check and D1 setup/migrations without publishing. `mise run deploy:check` validates and bundles without changing remote resources; authenticated Wrangler may read existing deployment metadata. All stages use the same selected Wrangler config; the default is `apps/profile-service/wrangler.jsonc`.
+
+Wrangler uses the currently authenticated account when only one is available. Select the destination explicitly when your login has multiple accounts:
+
+```sh
+CLOUDFLARE_ACCOUNT_ID=your-account-id mise run deploy
+```
+
+Before migrations, setup records the selected D1 database ID in that Wrangler config so later steps keep using the same database. The default config may therefore gain an account-specific `database_id` after first setup; do not commit that live ID to shared source. For another account or environment, use a separate operator-owned config. `wrangler.local.jsonc` is gitignored and can be selected explicitly with `--config`; Wrangler does not discover it automatically. Config paths are relative to `apps/profile-service/`:
+
+```sh
+mise exec -- pnpm --filter mythic-rules-profile-service deploy --config wrangler.local.jsonc --env staging
+```
+
+Automatic D1 ID recording requires a JSON or JSONC config. For TOML, set `database_id` explicitly before deployment; otherwise setup stops before creating a database.
+
+`make bootstrap` installs Python development dependencies for repository checks and generation; Python is not part of the deployed Worker runtime.
+
+### GitHub Actions
+
+Pull requests run the existing AI-profile validation pipeline, a Worker bundle check, and the two browser journeys against local Wrangler with Chromium.
+
+For deployment, create the GitHub environment **profile-service-production** and add its `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` secrets. Scope the token to the intended account with Workers Scripts and D1 edit permissions. Then select **Actions → Deploy profile service → Run workflow** on the default branch. The workflow validates the checked-in sources and generated outputs, then uses the same `mise run deploy` entrypoint. It does not deploy automatically on pushes or pull requests. No live D1 ID is committed back from the runner.
+
+To require approval, configure required reviewers in that environment's protection rules. Naming an environment alone does not add an approval step.
+
+Do not commit credentials. See Cloudflare's [Wrangler environment variables](https://developers.cloudflare.com/workers/wrangler/system-environment-variables/) and [GitHub Actions deployment guide](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/).
+
+The Wrangler config sets `keep_vars: true`, so deploys preserve dashboard variables such as `CONVERTER_SUBSCRIPTION_HOSTS`. Values declared by the selected Wrangler config take precedence. You can manage the subscription allowlist in the config or in the dashboard; the allowlist accepts exact HTTPS hostnames only. Keep invocation logs and request traces disabled: they can expose `/p/<token>` capability URLs. The Worker logs only a fixed, sanitized error event.
 
 ## API
 
-### `GET /api/v1/catalog`
+- `GET /api/v1/catalog` returns the public profile catalog.
+- `POST /api/v1/resolve` previews a typed INI `ProfileSpec` without saving it.
+- `POST /api/v1/profiles` saves an INI profile and returns separate read and management capabilities.
+- `GET /p/<token>` redirects to `/p/<token>.ini` with an empty response body.
+- `GET /p/<token>.ini` returns the OpenClash custom-template INI; existing URLs keep working.
+- `POST /api/v1/convert` accepts `{ "input": "…", "format": "auto|proxy|subscription", "spec": { "baseProfile": "ai-balanced" } }` and returns `{ "yaml": "…", "nodeCount": 1 }`.
 
-Returns the public base-profile and Region Registry data required by the builder.
+`format` selects the input parser. `spec.baseProfile` selects a registered output template. Use the catalog's `templates`, `services`, `serviceGroups`, and `optionDefaults` fields to discover supported choices. AI options are `disabledNodeRegions`, `onlyNodeRegions`, `preferredNodeRegions`, `disabledServices`, `preferredServices`, `serviceGroups`, `allowDirect`, and `failClosed`. Both formats accept `language` (`en`, `zh-Hant`, or `zh-Hans`). Unsupported fields or template/option combinations return an error.
 
-### `POST /api/v1/resolve`
+When supplied, `spec.serviceGroups` is the complete group layout for the selected output format. Each record has `id`, `name`, `serviceIds`, and ordered `routes`. Start from that format's catalog entries and use their `defaultRoutes` and `allowedRoutes`. A service can belong to one group; unassigned services are rejected. Empty groups match no traffic, and an empty route list rejects traffic. Account groups retain their canonical identity and membership. Services sharing an exact rule cannot be assigned to different destinations. Omitting this field preserves the template's group layout.
 
-Validates and previews a `ProfileSpec` without persistence.
-
-### `POST /api/v1/profiles`
-
-Creates a saved profile and returns separate read and management capabilities.
-
-### `GET /p/<read-token>.ini`
-
-Returns the generated subconverter custom-template INI. Query-string routing directives are ignored; routing comes only from the saved `ProfileSpec`.
-
-### `GET|PUT /api/v1/profiles/<id>`
-
-Reads or updates a saved profile with the management capability in `Authorization: Bearer ...`.
-
-### `POST /api/v1/profiles/<id>/rotate-read-token`
-
-Rotates only the read/subscription capability.
-
-## Capability model
-
-A saved profile creates two independent high-entropy capabilities:
-
-- **read capability** — can fetch `/p/<token>.ini` only;
-- **management capability** — can read/update the saved `ProfileSpec` and rotate the read token.
-
-D1 stores only SHA-256 token hashes. The browser management URL places the management token in the URL fragment, then moves it into `sessionStorage` and clears the fragment so normal HTTP navigation does not transmit it.
-
-A leaked subscription URL therefore does not grant profile mutation rights; it can also be revoked independently by rotating the read capability.
-
-## Region constraint semantics
-
-- `disabledNodeRegions`: exclude those regions from generated candidates.
-- `preferredNodeRegions`: reorder remaining routable regions without broadening the candidate set.
-- `onlyNodeRegions`: closed-world allowlist. Generic provider matching receives a positive allow filter, preventing unlisted/unknown-region nodes from leaking through catch-all groups.
-
-Observation-only regions such as `hk` may be disabled but cannot be used as an `only` exit unless the Region Registry marks them routable.
-
-## Cloudflare resources
-
-| Binding | Purpose |
-| --- | --- |
-| `ASSETS` | Web Builder static assets |
-| `DB` | Saved typed ProfileSpec state + capability hashes |
-| `PROFILE_WRITE_LIMITER` | Anonymous write abuse guard |
-
-D1 is authoritative for saved profiles. Generated INI is derived state and can always be rebuilt from the saved spec + repository runtime data.
-
-## Security boundary
-
-The Worker accepts a typed allowlisted schema. HTTP input never passes arbitrary text directly into the INI renderer. The subscription path is opaque, but the `.ini` extension is intentional because OpenClash/subconverter consumes a custom-template INI; the response format itself is not treated as a secret.
+The INI endpoints accept only typed `ProfileSpec` fields. The YAML endpoint converts pasted links or subscription data; it does not save profiles. Do not put proxy or subscription credentials in query strings.
