@@ -3,6 +3,8 @@
 # Prefix: json_
 set -eu
 
+_JSON_MAX_DEPTH=64
+
 _json_normalize_path() {
     printf '%s\n' "$1" | sed -e 's/^\$\.//' -e 's/^@\.//' -e 's/^\.//' -e 's/\[\([0-9][0-9]*\)\]/.\1/g'
 }
@@ -27,7 +29,7 @@ _json_path_simple() {
 }
 
 _json_flatten_awk() {
-    awk '
+    awk -v max_depth="$_JSON_MAX_DEPTH" '
         {
             src = src $0 "\n"
         }
@@ -49,13 +51,35 @@ _json_flatten_awk() {
             bad = 1
             exit 2
         }
+        function escape_frame(value,    i, c, out) {
+            out = ""
+            for (i = 1; i <= length(value); i++) {
+                c = substr(value, i, 1)
+                if (c == "\\") {
+                    out = out "\\\\"
+                } else if (c == "\t") {
+                    out = out "\\t"
+                } else if (c == "\n") {
+                    out = out "\\n"
+                } else if (c == "\r") {
+                    out = out "\\r"
+                } else if (c == "\b") {
+                    out = out "\\b"
+                } else if (c == "\f") {
+                    out = out "\\f"
+                } else {
+                    out = out c
+                }
+            }
+            return out
+        }
         function emit(path, val) {
             if (path == "") {
                 return
             }
-            print path "\t" val
+            print path "\t" escape_frame(val)
         }
-        function parse_string(    c, out) {
+        function parse_string(    c, out, hex) {
             if (peek() != "\"") {
                 fail("expected string")
             }
@@ -84,12 +108,20 @@ _json_flatten_awk() {
                     } else if (c == "f") {
                         out = out "\f"
                     } else if (c == "u") {
-                        out = out "\\u" substr(src, pos, 4)
-                        pos += 4
-                    } else {
+                        hex = substr(src, pos, 4)
+                        if (length(hex) != 4 || hex ~ /[^0-9A-Fa-f]/) {
+                            fail("invalid unicode escape")
+                        }
+                        fail("Unicode escape decoding requires a structured JSON parser")
+                    } else if (c == "\"" || c == "\\" || c == "/") {
                         out = out c
+                    } else {
+                        fail("invalid string escape")
                     }
                     continue
+                }
+                if (c ~ /[[:cntrl:]]/) {
+                    fail("unescaped control character in string")
                 }
                 out = out c
             }
@@ -109,12 +141,25 @@ _json_flatten_awk() {
             if (raw == "") {
                 fail("expected value")
             }
+            if (raw == "true" || raw == "false" || raw == "null") {
+                return raw
+            }
+            if (raw !~ /^-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?$/) {
+                fail("invalid JSON literal")
+            }
             return raw
+        }
+        function enter_container() {
+            depth++
+            if (depth > max_depth) {
+                fail("JSON nesting exceeds supported depth")
+            }
         }
         function parse_object(prefix,    key, child, c, nkeys) {
             if (peek() != "{") {
                 fail("expected object")
             }
+            enter_container()
             pos++
             skip()
             nkeys = 0
@@ -123,11 +168,15 @@ _json_flatten_awk() {
                 if (prefix != "") {
                     emit(prefix, "{}")
                 }
+                depth--
                 return
             }
             while (pos <= n) {
                 skip()
                 key = parse_string()
+                if (key ~ /[[:cntrl:]]/) {
+                    fail("object key contains unsupported control characters")
+                }
                 skip()
                 if (peek() != ":") {
                     fail("expected colon")
@@ -149,6 +198,7 @@ _json_flatten_awk() {
                 }
                 if (c == "}") {
                     pos++
+                    depth--
                     return
                 }
                 fail("expected comma or }")
@@ -159,6 +209,7 @@ _json_flatten_awk() {
             if (peek() != "[") {
                 fail("expected array")
             }
+            enter_container()
             pos++
             skip()
             i = 0
@@ -167,6 +218,7 @@ _json_flatten_awk() {
                 if (prefix != "") {
                     emit(prefix, "[]")
                 }
+                depth--
                 return
             }
             while (pos <= n) {
@@ -182,6 +234,7 @@ _json_flatten_awk() {
                 }
                 if (c == "]") {
                     pos++
+                    depth--
                     return
                 }
                 fail("expected comma or ]")
@@ -209,6 +262,7 @@ _json_flatten_awk() {
             n = length(src)
             pos = 1
             bad = 0
+            depth = 0
             skip()
             if (pos > n) {
                 fail("empty JSON")
@@ -261,9 +315,33 @@ json_get() {
         fi
     fi
     _json_flat "$_json_jg_file" | awk -F '\t' -v q="$_json_jg_path" '
+        function fail() {
+            printf "%s\n", "json: invalid flattened value escape" > "/dev/stderr"
+            exit 2
+        }
+        function decode(value,    i, c, escape_char, out) {
+            out = ""
+            for (i = 1; i <= length(value); i++) {
+                c = substr(value, i, 1)
+                if (c != "\\") {
+                    out = out c
+                    continue
+                }
+                i++
+                if (i > length(value)) fail()
+                escape_char = substr(value, i, 1)
+                if (escape_char == "\\") out = out "\\"
+                else if (escape_char == "t") out = out "\t"
+                else if (escape_char == "n") out = out "\n"
+                else if (escape_char == "r") out = out "\r"
+                else if (escape_char == "b") out = out "\b"
+                else if (escape_char == "f") out = out "\f"
+                else fail()
+            }
+            return out
+        }
         $1 == q {
-            sub(/^[^\t]*\t/, "")
-            print
+            print decode(substr($0, index($0, "\t") + 1))
             found = 1
             exit 0
         }
@@ -327,6 +405,31 @@ json_list() {
     fi
     _json_jl_path=$(_json_normalize_path "$_json_jl_path")
     _json_flat "$_json_jl_file" | awk -F '\t' -v p="$_json_jl_path" '
+        function fail() {
+            printf "%s\n", "json: invalid flattened value escape" > "/dev/stderr"
+            exit 2
+        }
+        function decode(value,    i, c, escape_char, out) {
+            out = ""
+            for (i = 1; i <= length(value); i++) {
+                c = substr(value, i, 1)
+                if (c != "\\") {
+                    out = out c
+                    continue
+                }
+                i++
+                if (i > length(value)) fail()
+                escape_char = substr(value, i, 1)
+                if (escape_char == "\\") out = out "\\"
+                else if (escape_char == "t") out = out "\t"
+                else if (escape_char == "n") out = out "\n"
+                else if (escape_char == "r") out = out "\r"
+                else if (escape_char == "b") out = out "\b"
+                else if (escape_char == "f") out = out "\f"
+                else fail()
+            }
+            return out
+        }
         $1 == p && $2 == "[]" { empty = 1; next }
         {
             prefix = p "."
@@ -335,8 +438,7 @@ json_list() {
             }
             rest = substr($1, length(prefix) + 1)
             if (rest ~ /^[0-9]+$/) {
-                val = $0
-                sub(/^[^\t]*\t/, "", val)
+                val = substr($0, index($0, "\t") + 1)
                 items[rest + 0] = val
                 if (rest + 0 > max) {
                     max = rest + 0
@@ -353,7 +455,12 @@ json_list() {
             }
             for (i = 0; i <= max; i++) {
                 if (i in items) {
-                    print items[i]
+                    value = decode(items[i])
+                    if (index(value, "\n") > 0) {
+                        printf "%s\n", "json: json_list cannot frame values containing newlines" > "/dev/stderr"
+                        exit 2
+                    }
+                    print value
                 }
             }
         }

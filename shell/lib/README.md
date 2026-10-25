@@ -29,5 +29,16 @@ Implementation notes:
   unrelated fw4/OpenClash objects.
 - Fetch writes a candidate, optionally validates, then atomically replaces.
   A failed fetch leaves the last-known-good file in place.
+- Downloads default to HTTPS-only through curl, with a 16 MiB response limit.
+  Per-call limits cannot exceed 64 MiB; timeouts cannot exceed one hour.
+  HTTP and the wget compatibility path require the explicit trailing argument
+  `allow_insecure=1`. Setting the legacy HTTPS flag to `0` alone is rejected.
+  Strict requests fail with an actionable error when curl is unavailable.
+  Wget compatibility is for public URLs without credentials or query strings;
+  use curl for subscription or capability URLs, including tokens in paths.
+- Curl URLs and proxy credentials stay in a private temporary configuration
+  file, removed on exit. They are not passed in command arguments or diagnostics.
+- The minimal AWK JSON fallback rejects Unicode escapes it cannot decode.
+  Use jsonfilter or jq for those inputs; literal UTF-8 text remains supported.
 - Tests inject `uci`/`nft`/`curl` via `PATH` and init scripts via
   `SVC_INITD_DIR`.

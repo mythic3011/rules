@@ -496,6 +496,7 @@ esac
 FAKE_CURL = r'''#!/usr/bin/env python3
 import json
 import os
+import shlex
 import sys
 from pathlib import Path
 
@@ -504,45 +505,97 @@ LOG_PATH = Path(os.environ["FETCH_FAKE_LOG"])
 
 
 def main(argv):
-    LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with LOG_PATH.open("a", encoding="utf-8") as handle:
-        handle.write("curl " + " ".join(argv) + "\n")
     output = None
     url = None
+    config_path = None
+    max_filesize = None
+    safe_args = ["curl"]
     args = list(argv)
     i = 0
     while i < len(args):
         arg = args[i]
+        if arg == "--config" and i + 1 < len(args):
+            config_path = args[i + 1]
+            safe_args.extend((arg, "<private-config>"))
+            i += 2
+            continue
         if arg in ("-o", "--output"):
+            if i + 1 < len(args):
+                safe_args.extend((arg, "<output-file>"))
             output = args[i + 1]
+            i += 2
+            continue
+        if arg == "--max-filesize" and i + 1 < len(args):
+            max_filesize = int(args[i + 1])
+            safe_args.extend((arg, args[i + 1]))
             i += 2
             continue
         if arg in (
             "--connect-timeout",
             "--max-time",
-            "--max-filesize",
             "--max-redirs",
             "--proto",
             "--proto-redir",
             "-m",
         ):
+            if i + 1 < len(args):
+                safe_args.extend((arg, args[i + 1]))
+            i += 2
+            continue
+        if arg in ("--proxy", "--proxy-user", "--noproxy") and i + 1 < len(args):
+            value = args[i + 1]
+            marker = "<configured>" if value else "<empty>"
+            safe_args.extend((arg, marker))
             i += 2
             continue
         if arg.startswith("-"):
+            if arg in ("-q", "-fLSs", "-f", "-L", "-s", "-S"):
+                safe_args.append(arg)
             i += 1
             continue
         url = arg
         i += 1
+
+    config = {}
+    if config_path is not None:
+        try:
+            config_text = Path(config_path).read_text(encoding="utf-8")
+            for line in config_text.splitlines():
+                key, separator, raw_value = line.partition("=")
+                if not separator:
+                    continue
+                values = shlex.split(raw_value.strip(), comments=False, posix=True)
+                config[key.strip()] = values[0] if values else ""
+        except (OSError, ValueError):
+            print("curl: invalid private config", file=sys.stderr)
+            return 2
+        url = config.get("url", url)
+
+    LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with LOG_PATH.open("a", encoding="utf-8") as handle:
+        handle.write(" ".join(safe_args))
+        if config.get("proxy"):
+            handle.write(" proxy-configured")
+        if config.get("proxy-user"):
+            handle.write(" proxy-auth-configured")
+        handle.write("\n")
+
     mapping = json.loads(MAP_PATH.read_text(encoding="utf-8")) if MAP_PATH.is_file() else {}
     spec = mapping.get(url or "")
     if spec is None or spec.get("fail"):
-        print(f"curl: failed to fetch {url}", file=sys.stderr)
+        print("curl: failed to fetch", file=sys.stderr)
         return 22
     body = spec.get("body", "ok\n")
+    body_bytes = body.encode("utf-8")
+    if max_filesize is not None and not spec.get("unknown_size") and len(body_bytes) > max_filesize:
+        return 63
     if output is None:
         sys.stdout.write(body)
         return 0
-    Path(output).write_text(body, encoding="utf-8")
+    try:
+        Path(output).write_bytes(body_bytes)
+    except OSError:
+        return 63
     return 0
 
 

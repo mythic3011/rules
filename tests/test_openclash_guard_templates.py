@@ -619,6 +619,9 @@ class TemplateAndInstallCliTests(unittest.TestCase):
         self.assertEqual(payload["country"], "aa")
         self.assertTrue((self.geo_cache / "route-aa-stable.json").is_file())
         self.assertFalse((self.geo_cache / "direct.json").is_file())
+        fetch_invocation = self.fetch_log.read_text(encoding="utf-8")
+        self.assertIn("proxy-configured", fetch_invocation)
+        self.assertNotIn("http://127.0.0.1:7890", fetch_invocation)
 
 
 if __name__ == "__main__":

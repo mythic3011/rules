@@ -17,6 +17,30 @@ _nft_require_prefix() {
     fi
 }
 
+_nft_owned_name() {
+    _nft_on_name=${1:-}
+    _nft_on_prefix=${2:-}
+    [ -n "$_nft_on_prefix" ] || return 1
+    [ "$_nft_on_name" = "$_nft_on_prefix" ] && return 0
+    case $_nft_on_prefix in
+        *[-_.:])
+            case $_nft_on_name in
+                "$_nft_on_prefix"?*) return 0 ;;
+            esac
+            ;;
+        *)
+            case $_nft_on_name in
+                "$_nft_on_prefix"-*|"$_nft_on_prefix"_*|"$_nft_on_prefix".*|"$_nft_on_prefix":*)
+                    _nft_on_suffix=${_nft_on_name#"$_nft_on_prefix"}
+                    _nft_on_suffix=${_nft_on_suffix#?}
+                    [ -n "$_nft_on_suffix" ] && return 0
+                    ;;
+            esac
+            ;;
+    esac
+    return 1
+}
+
 _nft_parse_comment_handles() {
     awk '
         {
@@ -40,14 +64,7 @@ _nft_parse_comment_handles() {
 }
 
 _nft_comment_owned() {
-    case $1 in
-        "$2"|"$2"*)
-            return 0
-            ;;
-        *)
-            return 1
-            ;;
-    esac
+    _nft_owned_name "${1:-}" "${2:-}"
 }
 
 nft_table_exists() {
@@ -111,14 +128,10 @@ nft_delete_owned_set() {
     _nft_ds_table=$2
     _nft_ds_set=$3
     _nft_ds_prefix=$4
-    case $_nft_ds_set in
-        "$_nft_ds_prefix"|"$_nft_ds_prefix"*)
-            ;;
-        *)
-            printf '%s\n' "nft: refusing to delete unowned set: $_nft_ds_set" >&2
-            return 2
-            ;;
-    esac
+    if ! _nft_owned_name "$_nft_ds_set" "$_nft_ds_prefix"; then
+        printf '%s\n' "nft: refusing to delete unowned set: $_nft_ds_set" >&2
+        return 2
+    fi
     if ! nft_set_exists "$_nft_ds_family" "$_nft_ds_table" "$_nft_ds_set"; then
         return 0
     fi
@@ -169,10 +182,8 @@ nft_dump_owned_state() {
         while IFS= read -r _nft_do_set
         do
             [ -n "$_nft_do_set" ] || continue
-            case $_nft_do_set in
-                "$_nft_do_prefix"|"$_nft_do_prefix"*)
-                    printf 'set\t%s\n' "$_nft_do_set"
-                    ;;
-            esac
+            if _nft_owned_name "$_nft_do_set" "$_nft_do_prefix"; then
+                printf 'set\t%s\n' "$_nft_do_set"
+            fi
         done
 }

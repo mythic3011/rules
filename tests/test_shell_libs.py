@@ -10,8 +10,10 @@ import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Mapping
 
@@ -312,6 +314,8 @@ if __name__ == "__main__":
 FAKE_CURL = r'''#!/usr/bin/env python3
 import json
 import os
+import shlex
+import stat
 import sys
 from pathlib import Path
 
@@ -325,15 +329,25 @@ def main(argv):
         handle.write("curl " + " ".join(argv) + "\n")
     output = None
     url = None
+    config_path = None
+    max_filesize = None
     args = list(argv)
     i = 0
     while i < len(args):
         arg = args[i]
+        if arg == "--config":
+            config_path = args[i + 1]
+            i += 2
+            continue
         if arg in ("-o", "--output"):
             output = args[i + 1]
             i += 2
             continue
-        if arg in ("--connect-timeout", "--max-time", "-m", "--retry", "--retry-delay"):
+        if arg == "--max-filesize":
+            max_filesize = int(args[i + 1])
+            i += 2
+            continue
+        if arg in ("--connect-timeout", "--max-time", "--max-redirs", "--proto", "--proto-redir", "--noproxy", "--proxy", "--proxy-user", "-m", "--retry", "--retry-delay"):
             i += 2
             continue
         if arg.startswith("-"):
@@ -341,16 +355,53 @@ def main(argv):
             continue
         url = arg
         i += 1
+    config = {}
+    config_raw = ""
+    config_mode = None
+    config_uid = None
+    if config_path is not None:
+        path = Path(config_path)
+        config_raw = path.read_text(encoding="utf-8")
+        info = path.stat()
+        config_mode = stat.S_IMODE(info.st_mode)
+        config_uid = info.st_uid
+        for line in config_raw.splitlines():
+            key, separator, raw_value = line.partition("=")
+            if separator:
+                values = shlex.split(raw_value.strip(), comments=False, posix=True)
+                config[key.strip()] = values[0] if values else ""
+        url = config.get("url", url)
+    audit_path = os.environ.get("FETCH_FAKE_AUDIT")
+    if audit_path:
+        audit = {
+            "argv": argv,
+            "config_path": config_path,
+            "config_raw": config_raw,
+            "config_mode": config_mode,
+            "config_uid": config_uid,
+            "config_values": config,
+        }
+        path = Path(audit_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+        with os.fdopen(fd, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps(audit) + "\n")
     mapping = json.loads(MAP_PATH.read_text(encoding="utf-8")) if MAP_PATH.is_file() else {}
     spec = mapping.get(url or "")
     if spec is None or spec.get("fail"):
-        print(f"curl: failed to fetch {url}", file=sys.stderr)
+        print("curl: failed to fetch", file=sys.stderr)
         return 22
     body = spec.get("body", "ok\n")
+    body_bytes = body.encode("utf-8")
+    if max_filesize is not None and not spec.get("unknown_size") and len(body_bytes) > max_filesize:
+        return 63
     if output is None:
         sys.stdout.write(body)
         return 0
-    Path(output).write_text(body, encoding="utf-8")
+    try:
+        Path(output).write_bytes(body_bytes)
+    except OSError:
+        return 63
     return 0
 
 
@@ -399,7 +450,10 @@ def main(argv):
     if output in (None, "-"):
         sys.stdout.write(body)
         return 0
-    Path(output).write_text(body, encoding="utf-8")
+    try:
+        Path(output).write_bytes(body.encode("utf-8"))
+    except OSError:
+        return 1
     return 0
 
 
@@ -462,6 +516,7 @@ class ShellLibHarness(unittest.TestCase):
         self.nft_state = self.base / "nft-state.json"
         self.fetch_map = self.base / "fetch-map.json"
         self.fetch_log = self.base / "fetch.log"
+        self.fetch_audit = self.base / "fetch-audit.jsonl"
         _write_exec(self.bin / "uci", FAKE_UCI)
         _write_exec(self.bin / "nft", FAKE_NFT)
         _write_exec(self.bin / "curl", FAKE_CURL)
@@ -522,6 +577,8 @@ class ShellLibHarness(unittest.TestCase):
         self.fetch_map.write_text(json.dumps(mapping, indent=2) + "\n", encoding="utf-8")
         if self.fetch_log.exists():
             self.fetch_log.write_text("", encoding="utf-8")
+        if self.fetch_audit.exists():
+            self.fetch_audit.unlink()
 
     def _install_service(
         self, name: str, *, enabled: bool = False, running: bool = False
@@ -545,6 +602,7 @@ class ShellLibHarness(unittest.TestCase):
             "NFT_FAKE_STATE": str(self.nft_state),
             "FETCH_FAKE_MAP": str(self.fetch_map),
             "FETCH_FAKE_LOG": str(self.fetch_log),
+            "FETCH_FAKE_AUDIT": str(self.fetch_audit),
         }
         if extra:
             env.update(extra)
@@ -916,7 +974,177 @@ uci_commit_if_changed network
         self.assertIn("Entry not found", result.stderr)
 
 
+class JsonLibTests(ShellLibHarness):
+    def test_json_literals_follow_json_grammar(self) -> None:
+        bad_dir = self.work / "bad-json"
+        bad_dir.mkdir()
+        for index, literal in enumerate(("truely", "nulll", "123abc", "01", "1.2.3", "+1", "NaN", "1e", "-")):
+            (bad_dir / f"bad-{index}.json").write_text(
+                f'{{"value":{literal}}}\n', encoding="utf-8"
+            )
+        result = self.run_sh(
+            ["json"],
+            f"""
+for document in '{bad_dir}'/*.json; do
+    if json_load "$document"; then
+        printf 'accepted malformed JSON: %s\\n' "$document" >&2
+        exit 1
+    fi
+done
+""",
+            extra_env={"JSON_FORCE_AWK": "1"},
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_valid_numbers_and_restricted_key_names_remain_readable(self) -> None:
+        document = self.work / "valid.json"
+        document.write_text(
+            '{"zero":0,"negativeZero":-0,"integer":-12,"fraction":1.25,'
+            '"exponent":1E-2,"truth":true,"nothing":null,"literalEscape":"\\\\u0061",'
+            '"valid_key":1,"hyphen-key":2,"dotted.key":3}\n',
+            encoding="utf-8",
+        )
+        result = self.run_sh(
+            ["json"],
+            f"""
+json_load '{document}'
+[ "$(json_get '{document}' zero)" = 0 ]
+[ "$(json_get '{document}' negativeZero)" = -0 ]
+[ "$(json_get '{document}' integer)" = -12 ]
+[ "$(json_get '{document}' fraction)" = 1.25 ]
+[ "$(json_get '{document}' exponent)" = 1E-2 ]
+[ "$(json_get '{document}' truth)" = true ]
+[ "$(json_get '{document}' nothing)" = null ]
+[ "$(json_get '{document}' literalEscape)" = '\\u0061' ]
+[ "$(json_get '{document}' valid_key)" = 1 ]
+[ "$(json_get '{document}' hyphen-key)" = 2 ]
+[ "$(json_get '{document}' dotted.key)" = 3 ]
+""",
+            extra_env={"JSON_FORCE_AWK": "1"},
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_unicode_escapes_fail_closed_but_literal_backslash_u_and_utf8_work(self) -> None:
+        unicode_escape = self.work / "unicode-escape.json"
+        literal_escape = self.work / "literal-escape.json"
+        raw_utf8 = self.work / "raw-utf8.json"
+        unicode_escape.write_text(r'{"value":"\u0061"}' + "\n", encoding="utf-8")
+        literal_escape.write_text(r'{"value":"\\u0061"}' + "\n", encoding="utf-8")
+        raw_utf8.write_text('{"value":"雪"}\n', encoding="utf-8")
+        result = self.run_sh(
+            ["json"],
+            f"""
+if json_load '{unicode_escape}'; then exit 1; fi
+[ "$(json_get '{literal_escape}' value)" = '\\u0061' ]
+[ "$(json_get '{raw_utf8}' value)" = '雪' ]
+""",
+            extra_env={"JSON_FORCE_AWK": "1"},
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "Unicode escape decoding requires a structured JSON parser", result.stderr
+        )
+
+    def test_value_controls_and_backslashes_do_not_corrupt_neighbor_records(self) -> None:
+        document = self.work / "framed.json"
+        payload = {
+            "message": "first\tsecond\nthird\rfourth\b\f\\tail",
+            "after": "neighbor-survived",
+            "items": ["item\twith-tab", "plain"],
+            "lineItems": ["unsupported\nlist-item"],
+        }
+        document.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+        result = self.run_sh(
+            ["json"],
+            f"""
+message=$(json_get '{document}' message)
+expected=$(printf 'first\\tsecond\\nthird\\rfourth\\b\\f\\\\tail')
+[ "$message" = "$expected" ]
+[ "$(json_get '{document}' after)" = neighbor-survived ]
+items=$(json_list '{document}' items)
+expected_items=$(printf 'item\\twith-tab\\nplain')
+[ "$items" = "$expected_items" ]
+if json_list '{document}' lineItems >/dev/null 2>&1; then exit 1; fi
+""",
+            extra_env={"JSON_FORCE_AWK": "1"},
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_unsupported_keys_and_malformed_string_escapes_fail_closed(self) -> None:
+        bad_dir = self.work / "bad-keys"
+        bad_dir.mkdir()
+        cases = (
+            '{"bad\\tkey":1}',
+            '{"line\\nkey":1}',
+            '{"return\\rkey":1}',
+            '{"unicode\\u0009key":1}',
+            '{"value":"bad\\qescape"}',
+            '{"value":"bad\\u12xz"}',
+        )
+        for index, source in enumerate(cases):
+            (bad_dir / f"bad-{index}.json").write_text(source + "\n", encoding="utf-8")
+        result = self.run_sh(
+            ["json"],
+            f"""
+for document in '{bad_dir}'/*.json; do
+    if json_load "$document"; then
+        printf 'accepted unsupported JSON: %s\\n' "$document" >&2
+        exit 1
+    fi
+done
+""",
+            extra_env={"JSON_FORCE_AWK": "1"},
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_deeply_nested_input_fails_at_a_bounded_depth(self) -> None:
+        document = self.work / "deep.json"
+        document.write_text("[" * 80 + "0" + "]" * 80 + "\n", encoding="utf-8")
+        result = self.run_sh(
+            ["json"],
+            f"if json_load '{document}'; then exit 1; fi",
+            extra_env={"JSON_FORCE_AWK": "1"},
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+
 class NftLibTests(ShellLibHarness):
+    def test_ownership_requires_exact_or_delimited_prefix(self) -> None:
+        result = self.run_sh(
+            ["nft"],
+            """
+_nft_owned_name guard guard
+if _nft_owned_name guardian_data guard; then exit 1; fi
+_nft_owned_name guard-v6 guard
+_nft_owned_name guard_backup guard
+_nft_owned_name guard.v6 guard
+if _nft_owned_name guard- guard; then exit 2; fi
+_nft_owned_name guard-v6 guard-
+if _nft_comment_owned guardian guard; then exit 3; fi
+_nft_comment_owned guard:rule guard
+""",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_owned_set_delete_cannot_claim_prefix_collision(self) -> None:
+        state = json.loads(self.nft_state.read_text(encoding="utf-8"))
+        sets = state["tables"]["inet fw4"]["sets"]
+        sets["guardian_data"] = {"comment": "guardian-data"}
+        sets["guard-v6"] = {"comment": "guard-v6"}
+        self.nft_state.write_text(json.dumps(state), encoding="utf-8")
+        result = self.run_sh(
+            ["nft"],
+            """
+if nft_delete_owned_set inet fw4 guardian_data guard; then exit 1; fi
+nft_delete_owned_set inet fw4 guard-v6 guard
+""",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        after = json.loads(self.nft_state.read_text(encoding="utf-8"))
+        remaining = after["tables"]["inet fw4"]["sets"]
+        self.assertIn("guardian_data", remaining)
+        self.assertNotIn("guard-v6", remaining)
+
     def test_comment_handles_and_owned_delete(self) -> None:
         result = self.run_sh(
             ["nft"],
@@ -1018,9 +1246,9 @@ class FetchLibTests(ShellLibHarness):
         result = self.run_sh(
             ["file", "fetch"],
             f"""
-fetch_atomic http://example.invalid/ok "{dest}"
+fetch_atomic http://example.invalid/ok "{dest}" "" "" "" 0 allow_insecure=1
 cat "{dest}"
-if fetch_atomic http://example.invalid/fail "{dest}"; then echo fetched-fail; else echo preserved; fi
+if fetch_atomic http://example.invalid/fail "{dest}" "" "" "" 0 allow_insecure=1; then echo fetched-fail; else echo preserved; fi
 cat "{dest}"
 """,
         )
@@ -1039,13 +1267,330 @@ cat "{dest}"
             ["file", "fetch"],
             f"""
 reject() {{ return 1; }}
-if fetch_atomic http://example.invalid/ok "{dest}" reject; then echo replaced; else echo kept; fi
+if fetch_atomic http://example.invalid/ok "{dest}" reject "" "" 0 allow_insecure=1; then echo replaced; else echo kept; fi
 cat "{dest}"
 """,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("kept", result.stdout)
         self.assertEqual(dest.read_text(encoding="utf-8"), "good\n")
+
+    def test_invalid_atomic_timeout_does_not_start_client_or_replace_destination(self) -> None:
+        dest = self.work / "policy.txt"
+        dest.write_text("last-known-good\n", encoding="utf-8")
+        result = self.run_sh(
+            ["file", "fetch"],
+            f'if fetch_atomic "https://example.invalid/ok" "{dest}" "" 0; then exit 1; fi',
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(self.fetch_log.exists())
+        self.assertEqual(dest.read_text(encoding="utf-8"), "last-known-good\n")
+
+    def _fetch_audit_records(self) -> list[dict]:
+        if not self.fetch_audit.exists():
+            return []
+        return [json.loads(line) for line in self.fetch_audit.read_text(encoding="utf-8").splitlines()]
+
+    def test_https_is_default_and_curl_uses_private_config(self) -> None:
+        dest = self.work / "strict.txt"
+        url = "https://example.invalid/strict?token=fixture-secret"
+        self._write_fetch({url: {"body": "safe\n"}})
+        result = self.run_sh(["file", "fetch"], f'fetch_http "{url}" "{dest}"')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(dest.read_text(encoding="utf-8"), "safe\n")
+        audit = self._fetch_audit_records()[0]
+        self.assertEqual(audit["config_mode"], 0o600)
+        self.assertEqual(audit["config_uid"], os.getuid())
+        self.assertEqual(audit["config_values"]["url"], url)
+        self.assertNotIn(url, audit["argv"])
+        self.assertNotIn(url, self.fetch_log.read_text(encoding="utf-8"))
+        self.assertIn("--proto", audit["argv"])
+        self.assertIn("=https", audit["argv"])
+        self.assertIn("--proto-redir", audit["argv"])
+        self.assertIn("--max-filesize", audit["argv"])
+        self.assertIn("16777216", audit["argv"])
+        self.assertFalse(Path(audit["config_path"]).exists())
+
+    def test_strict_https_modes_disable_redirects(self) -> None:
+        generic = "https://example.invalid/generic"
+        direct = "https://example.invalid/direct"
+        proxied = "https://example.invalid/proxied"
+        self._write_fetch(
+            {
+                generic: {"body": "generic\n"},
+                direct: {"body": "direct\n"},
+                proxied: {"body": "proxied\n"},
+            }
+        )
+        result = self.run_sh(
+            ["file", "fetch"],
+            f"""
+fetch_http '{generic}' '{self.work / "strict-generic.txt"}'
+fetch_http_direct '{direct}' '{self.work / "strict-direct.txt"}'
+fetch_http_proxy '{proxied}' '{self.work / "strict-proxy.txt"}' 'http://proxy.example.invalid:8080'
+""",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        audits = self._fetch_audit_records()
+        self.assertEqual(len(audits), 3)
+        for audit in audits:
+            argv = audit["argv"]
+            max_redirs_index = argv.index("--max-redirs")
+            self.assertEqual(argv[max_redirs_index + 1], "0")
+            self.assertIn("--proto", argv)
+            self.assertIn("=https", argv)
+            self.assertIn("--proto-redir", argv)
+
+    def test_insecure_opt_out_is_named_and_keeps_the_default_size_limit(self) -> None:
+        dest = self.work / "insecure-opt-out.txt"
+        url = "http://example.invalid/legacy"
+        self._write_fetch({url: {"body": "legacy\n"}})
+        result = self.run_sh(
+            ["file", "fetch"],
+            f'fetch_http "{url}" "{dest}" "" "" "" allow_insecure=1',
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        audit = self._fetch_audit_records()[0]
+        self.assertNotIn("--proto", audit["argv"])
+        max_redirs_index = audit["argv"].index("--max-redirs")
+        self.assertEqual(audit["argv"][max_redirs_index + 1], "5")
+        self.assertIn("16777216", audit["argv"])
+        self.assertFalse(Path(audit["config_path"]).exists())
+
+    def test_http_and_legacy_zero_flag_fail_without_named_opt_out(self) -> None:
+        self._write_fetch({"http://example.invalid/plain": {"body": "opted-in\n"}})
+        result = self.run_sh(
+            ["file", "fetch"],
+            """
+if fetch_http http://example.invalid/plain out; then exit 1; fi
+if fetch_http http://example.invalid/plain out "" 0; then exit 2; fi
+if fetch_http http://example.invalid/plain out "" 0 "" allow_insecure=1; then exit 0; fi
+exit 3
+""",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(self._fetch_audit_records()), 1)
+
+    def test_proxy_auth_and_userinfo_are_hidden_in_config_on_success_and_failure(self) -> None:
+        dest = self.work / "proxy.txt"
+        url = "https://target-user:target-pass@example.invalid/data"
+        proxy = "http://proxy.example.invalid:8080"
+        auth = 'proxy-user:"quoted"\\path:proxy-pass'
+        self._write_fetch(
+            {
+                url: {"body": "proxied\n"},
+                "https://target-user:target-pass@example.invalid/fail": {"fail": True},
+            }
+        )
+        result = self.run_sh(
+            ["file", "fetch"],
+            f"""
+fetch_http_proxy '{url}' '{dest}' '{proxy}' '' '{auth}'
+if fetch_http_proxy 'https://target-user:target-pass@example.invalid/fail' '{dest}' '{proxy}' '' '{auth}'; then exit 1; fi
+""",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        audits = self._fetch_audit_records()
+        self.assertEqual(len(audits), 2)
+        for audit in audits:
+            self.assertEqual(audit["config_mode"], 0o600)
+            self.assertEqual(audit["config_uid"], os.getuid())
+            self.assertEqual(audit["config_values"]["url"].startswith("https://target-user:target-pass@"), True)
+            self.assertEqual(audit["config_values"]["proxy"], proxy)
+            self.assertEqual(audit["config_values"]["proxy-user"], auth)
+            self.assertNotIn(url, audit["argv"])
+            self.assertNotIn(proxy, audit["argv"])
+            self.assertNotIn(auth, audit["argv"])
+            self.assertNotIn("--proxy-user", audit["argv"])
+            self.assertFalse(Path(audit["config_path"]).exists())
+        self.assertTrue(dest.is_file())
+
+    def test_authenticated_proxy_url_is_supported_without_argv_credentials(self) -> None:
+        dest = self.work / "proxy-url.txt"
+        url = "https://target.example.invalid/data"
+        proxy = "http://url-user:url-pass@proxy.example.invalid:8080"
+        self._write_fetch({url: {"body": "proxied\n"}})
+        result = self.run_sh(
+            ["file", "fetch"],
+            f"fetch_http_proxy '{url}' '{dest}' '{proxy}'",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        audit = self._fetch_audit_records()[0]
+        self.assertEqual(audit["config_values"]["proxy"], proxy)
+        self.assertNotIn(proxy, audit["argv"])
+        self.assertFalse(Path(audit["config_path"]).exists())
+
+    def test_proxy_control_characters_are_rejected_before_curl(self) -> None:
+        result = self.run_sh(
+            ["file", "fetch"],
+            """
+auth=$(printf 'user:pass\\nheader: injected')
+if fetch_http_proxy https://example.invalid/data out http://proxy.invalid:8080 '' "$auth"; then exit 1; fi
+""",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(self.fetch_audit.exists())
+        self.assertFalse(self.fetch_log.exists())
+        self.assertNotIn("injected", result.stderr)
+        self.assertEqual(list(self.work.glob("shlib.*")), [])
+
+    def test_unknown_length_response_is_hard_capped_and_preserves_destination(self) -> None:
+        dest = self.work / "bounded.txt"
+        dest.write_text("last-known-good\n", encoding="utf-8")
+        url = "https://example.invalid/chunked"
+        self._write_fetch({url: {"body": "x" * 800, "unknown_size": True}})
+        result = self.run_sh(
+            ["file", "fetch"],
+            f"if fetch_http '{url}' '{dest}' '' 1 600; then exit 1; fi",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(dest.read_text(encoding="utf-8"), "last-known-good\n")
+        self.assertEqual(list(self.work.glob("shlib.*")), [])
+
+    def test_timeout_is_positive_and_clamped(self) -> None:
+        result = self.run_sh(
+            ["file", "fetch"],
+            """
+printf 'clamped=%s\\n' "$(_fetch_timeout_secs 999999999999999999999999)"
+if _fetch_timeout_secs 0 >/dev/null 2>&1; then exit 1; fi
+""",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("clamped=3600", result.stdout)
+
+    def test_wget_only_mode_fails_closed_for_https_and_caps_explicit_insecure_fetch(self) -> None:
+        tools_dir = self.work / "wget-only"
+        tools_dir.mkdir()
+        for name in ("wget", "python3", "mktemp", "dirname", "chmod", "tr", "wc", "rm", "mv", "env", "sed", "awk"):
+            if name == "wget":
+                source = self.bin / "wget"
+            else:
+                found = shutil.which(name)
+                self.assertIsNotNone(found, name)
+                source = Path(found)
+            (tools_dir / name).symlink_to(source)
+        url = "http://example.invalid/wget"
+        self._write_fetch({url: {"body": "wget-ok\n"}})
+        secure = self.run_sh(
+            ["file", "fetch"],
+            f'fetch_http "https://example.invalid/wget" "{self.work / "strict-wget.txt"}"',
+            extra_env={"PATH": str(tools_dir)},
+        )
+        self.assertNotEqual(secure.returncode, 0)
+        self.assertFalse(self.fetch_log.exists())
+        bounded = self.run_sh(
+            ["file", "fetch"],
+            f'fetch_http "{url}" "{self.work / "insecure-wget.txt"}" "" "" 512 allow_insecure=1',
+            extra_env={"PATH": str(tools_dir)},
+        )
+        self.assertEqual(bounded.returncode, 0, bounded.stderr)
+        self.assertIn("wget-ok", (self.work / "insecure-wget.txt").read_text(encoding="utf-8"))
+        credentialed = self.run_sh(
+            ["file", "fetch"],
+            f'if fetch_http "http://user:password@example.invalid/data" "{self.work / "credentialed-wget.txt"}" "" "" 512 allow_insecure=1; then exit 1; fi',
+            extra_env={"PATH": str(tools_dir)},
+        )
+        self.assertEqual(credentialed.returncode, 0, credentialed.stderr)
+        self.assertFalse((self.work / "credentialed-wget.txt").exists())
+        self.assertNotIn("user:password", self.fetch_log.read_text(encoding="utf-8"))
+        token_url = "http://example.invalid/wget?access_token=private-token"
+        self._write_fetch({token_url: {"body": "must-not-fetch"}})
+        token_query = self.run_sh(
+            ["file", "fetch"],
+            f'if fetch_http "{token_url}" "{self.work / "token-query.txt"}" "" "" 512 allow_insecure=1; then exit 1; fi',
+            extra_env={"PATH": str(tools_dir)},
+        )
+        self.assertEqual(token_query.returncode, 0, token_query.stderr)
+        self.assertEqual(self.fetch_log.read_text(encoding="utf-8"), "")
+        self.assertNotIn("private-token", token_query.stderr)
+        self.assertIn("credential-bearing URLs require curl", token_query.stderr)
+        self._write_fetch({"http://example.invalid/wget-chunked": {"body": "x" * 800, "unknown_size": True}})
+        capped = self.run_sh(
+            ["file", "fetch"],
+            f'if fetch_http "http://example.invalid/wget-chunked" "{self.work / "chunked-wget.txt"}" "" "" 600 allow_insecure=1; then exit 1; fi',
+            extra_env={"PATH": str(tools_dir)},
+        )
+        self.assertEqual(capped.returncode, 0, capped.stderr)
+        self.assertFalse((self.work / "chunked-wget.txt").exists())
+
+    @unittest.skipUnless(shutil.which("curl"), "real curl is required for the RLIMIT probe")
+    def test_real_curl_unknown_length_response_is_rlimit_capped_above_2k(self) -> None:
+        real_curl = shutil.which("curl")
+        if real_curl is None:
+            self.skipTest("real curl is required for the RLIMIT probe")
+        ulimit_check = subprocess.run(
+            ["/bin/sh", "-c", "ulimit -f 16"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if ulimit_check.returncode != 0:
+            self.skipTest("shell does not support the required RLIMIT_FSIZE cap")
+
+        class ChunkedHandler(BaseHTTPRequestHandler):
+            def do_GET(self) -> None:
+                self.send_response(200)
+                self.send_header("Transfer-Encoding", "chunked")
+                self.end_headers()
+                try:
+                    for _ in range(32):
+                        self.wfile.write(b"1000\r\n" + b"x" * 4096 + b"\r\n")
+                    self.wfile.write(b"0\r\n\r\n")
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
+
+            def log_message(self, _format: str, *args: object) -> None:
+                return
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), ChunkedHandler)
+        server.daemon_threads = True
+        server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+        server_thread.start()
+        try:
+            wrapper_dir = self.work / "real-curl-bin"
+            wrapper_dir.mkdir()
+            wrapper = wrapper_dir / "curl"
+            _write_exec(
+                wrapper,
+                f'''#!/usr/bin/env python3
+import pathlib
+import subprocess
+import sys
+
+real_curl = {real_curl!r}
+args = sys.argv[1:]
+output = args[args.index("-o") + 1]
+result = subprocess.run([real_curl, *args], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+try:
+    size = pathlib.Path(output).stat().st_size
+except OSError:
+    size = 0
+print(f"FETCH_PROBE_SIZE={{size}}")
+raise SystemExit(result.returncode)
+''',
+            )
+            dest = self.work / "real-curl-last-known-good.txt"
+            dest.write_text("last-known-good\n", encoding="utf-8")
+            url = f"http://127.0.0.1:{server.server_port}/chunked"
+            result = self.run_sh(
+                ["file", "fetch"],
+                f'if fetch_http "{url}" "{dest}" "" 0 8192 allow_insecure=1; then exit 1; fi',
+                extra_env={
+                    "PATH": f"{wrapper_dir}{os.pathsep}{self.bin}{os.pathsep}{os.environ.get('PATH', '/usr/bin:/bin')}"
+                },
+                timeout=10,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("FETCH_PROBE_SIZE=", result.stdout)
+            size = int(result.stdout.split("FETCH_PROBE_SIZE=", 1)[1].splitlines()[0])
+            self.assertGreater(size, 2048)
+            self.assertLessEqual(size, 8192)
+            self.assertEqual(dest.read_text(encoding="utf-8"), "last-known-good\n")
+            self.assertEqual(list(self.work.glob("shlib.*")), [])
+        finally:
+            server.shutdown()
+            server.server_close()
+            server_thread.join(timeout=2)
 
 
 class LockLibTests(ShellLibHarness):
