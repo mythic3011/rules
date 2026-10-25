@@ -1,6 +1,15 @@
 from __future__ import annotations
 
-from ..common import zh_hk
+from typing import get_args
+
+from ..common import (
+    https_url,
+    ini_comment_line,
+    ini_string,
+    nonnegative_integer,
+    positive_integer,
+    zh_hk,
+)
 from ..compiler import compile_subconverter_plan
 from ..models import (
     IniCandidate,
@@ -9,6 +18,7 @@ from ..models import (
     IniRulesSection,
     IniClustersSection,
     IniGroupsSection,
+    IniProxyGroupKind,
     IniSelectorsSection,
     IniSelectGroup,
     IniServiceSelector,
@@ -22,9 +32,9 @@ from ..settings import ENABLE_PROCESS_RULES, REPO_URL
 def ini_banner(title: str, subtitle: str | None = None) -> list[str]:
     """Section banner: rule line, title, optional subtitle, rule, then one blank."""
     bar = ";" + "=" * 58
-    banner = [bar, f"; {title}"]
+    banner = [bar, ini_comment_line(title)]
     if subtitle:
-        banner.append(f"; {subtitle}")
+        banner.append(ini_comment_line(subtitle))
     banner.append(bar)
     banner.append("")
     return banner
@@ -32,27 +42,43 @@ def ini_banner(title: str, subtitle: str | None = None) -> list[str]:
 
 def _render_ini_rule(rule: IniRule) -> str:
     if rule.kind == "remote-classical":
-        return f"ruleset={rule.target},clash-classic:{rule.url},{rule.interval}"
+        target = ini_string(rule.target, delimiters=",")
+        url = ini_string(https_url(rule.url or "", field="INI rule-provider URL"), delimiters=",")
+        interval = positive_integer(rule.interval, field="INI rule-provider interval")
+        return f"ruleset={target},clash-classic:{url},{interval}"
     if rule.kind == "remote-domain":
-        return f"ruleset={rule.target},clash-domain:{rule.url},{rule.interval}"
+        target = ini_string(rule.target, delimiters=",")
+        url = ini_string(https_url(rule.url or "", field="INI rule-provider URL"), delimiters=",")
+        interval = positive_integer(rule.interval, field="INI rule-provider interval")
+        return f"ruleset={target},clash-domain:{url},{interval}"
     if rule.kind == "geosite":
-        return f"ruleset={rule.target},[]GEOSITE,{rule.value}"
+        target = ini_string(rule.target, delimiters=",")
+        value = ini_string(rule.value or "", delimiters=",")
+        return f"ruleset={target},[]GEOSITE,{value}"
     if rule.kind == "geoip":
-        suffix = "," + ",".join(rule.options) if rule.options else ""
-        return f"ruleset={rule.target},[]GEOIP,{rule.value}{suffix}"
+        target = ini_string(rule.target, delimiters=",")
+        value = ini_string(rule.value or "", delimiters=",")
+        options = tuple(ini_string(option, delimiters=",") for option in rule.options)
+        suffix = "," + ",".join(options) if options else ""
+        return f"ruleset={target},[]GEOIP,{value}{suffix}"
     if rule.kind == "final":
-        return f"ruleset={rule.target},[]FINAL"
+        target = ini_string(rule.target, delimiters=",")
+        return f"ruleset={target},[]FINAL"
     raise RuntimeError(f"Unsupported INI rule kind: {rule.kind}")
 
 
 def _render_candidate(candidate: IniCandidate) -> str:
+    value = ini_string(candidate.value, delimiters="`")
     if candidate.kind == "group-ref":
-        return f"[]{candidate.value}"
-    return candidate.value
+        return f"[]{value}"
+    if candidate.kind == "node-filter":
+        return value
+    raise RuntimeError(f"Unsupported INI candidate kind: {candidate.kind}")
 
 
 def _render_select_group(group: IniSelectGroup) -> str:
-    return f"custom_proxy_group={group.name}`select`" + "`".join(
+    name = ini_string(group.name, delimiters="`")
+    return f"custom_proxy_group={name}`select`" + "`".join(
         _render_candidate(candidate) for candidate in group.candidates
     )
 
@@ -61,15 +87,18 @@ def _render_proxy_group(group: IniSelectGroup | IniProxyGroup) -> str:
     if isinstance(group, IniSelectGroup):
         return _render_select_group(group)
 
+    if group.kind not in get_args(IniProxyGroupKind):
+        raise RuntimeError(f"Unsupported INI proxy group kind: {group.kind}")
+    name = ini_string(group.name, delimiters="`")
     candidates = "`".join(_render_candidate(candidate) for candidate in group.candidates)
-    prefix = f"custom_proxy_group={group.name}`{group.kind}`"
+    prefix = f"custom_proxy_group={name}`{group.kind}`"
 
     if group.kind == "select":
         fields: list[str] = []
         if candidates:
             fields.append(candidates)
         if group.filter_pattern is not None:
-            fields.append(group.filter_pattern)
+            fields.append(ini_string(group.filter_pattern, delimiters="`"))
         return prefix + "`".join(fields)
 
     if group.kind == "url-test":
@@ -80,11 +109,18 @@ def _render_proxy_group(group: IniSelectGroup | IniProxyGroup) -> str:
             or group.tolerance is None
         ):
             raise RuntimeError("INI url-test group is missing filter/health-check metadata")
+        health_check_url = ini_string(
+            https_url(group.health_check_url, field="INI health-check URL"),
+            delimiters="`",
+        )
+        interval = positive_integer(group.interval, field="INI health-check interval")
+        tolerance = nonnegative_integer(group.tolerance, field="INI health-check tolerance")
+        filter_pattern = ini_string(group.filter_pattern, delimiters="`")
         return (
             prefix
             + (candidates + "`" if candidates else "")
-            + group.filter_pattern
-            + f"`{group.health_check_url}`{group.interval},,{group.tolerance}"
+            + filter_pattern
+            + f"`{health_check_url}`{interval},,{tolerance}"
         )
 
     if group.kind == "fallback":
@@ -94,17 +130,23 @@ def _render_proxy_group(group: IniSelectGroup | IniProxyGroup) -> str:
             or group.tolerance is None
         ):
             raise RuntimeError("INI fallback group is missing health-check metadata")
+        health_check_url = ini_string(
+            https_url(group.health_check_url, field="INI health-check URL"),
+            delimiters="`",
+        )
+        interval = positive_integer(group.interval, field="INI health-check interval")
+        tolerance = nonnegative_integer(group.tolerance, field="INI health-check tolerance")
         return (
             prefix
             + candidates
-            + f"`{group.health_check_url}`{group.interval},,{group.tolerance}"
+            + f"`{health_check_url}`{interval},,{tolerance}"
         )
 
     raise RuntimeError(f"Unsupported INI proxy group kind: {group.kind}")
 
 
 def _render_service_selector(selector: IniServiceSelector) -> list[str]:
-    return [*selector.comments, _render_select_group(selector.group)]
+    return [*(ini_comment_line(comment) for comment in selector.comments), _render_select_group(selector.group)]
 
 
 def _append_blank_separated(lines: list[str], items: list[str]) -> None:
@@ -126,9 +168,9 @@ def _emit_ini_section(
             lines.append("")
         if localized_copy and section.comments:
             sections = localized_copy["sections"]
-            lines.append(f"; {sections.get(section.role, 'Routing rules')}")
+            lines.append(ini_comment_line(sections.get(section.role, "Routing rules")))
         else:
-            lines.extend(section.comments)
+            lines.extend(ini_comment_line(comment) for comment in section.comments)
         lines.extend(_render_ini_rule(rule) for rule in section.rules)
         return
 
@@ -160,9 +202,9 @@ def _emit_ini_section(
             if index and section.blank_between_selectors:
                 lines.append("")
             if localized_copy and selector.comments:
-                lines.append(f"; {localized_copy['sections'].get(section.role, 'Service choices')}")
+                lines.append(ini_comment_line(localized_copy["sections"].get(section.role, "Service choices")))
             else:
-                lines.extend(selector.comments)
+                lines.extend(ini_comment_line(comment) for comment in selector.comments)
             lines.append(_render_select_group(selector.group))
         return
 
@@ -174,18 +216,18 @@ def _render_ini(plan: SubconverterPlan, language: str | None = None) -> str:
     if language is not None and localized_copy is None:
         raise ValueError(f"Unsupported profile language: {language}")
     if localized_copy:
-        lines = [*localized_copy["header"], "", "[custom]", ""]
+        lines = [*(ini_comment_line(line) for line in localized_copy["header"]), "", "[custom]", ""]
     else:
         lines = [
-        ";Custom_OpenClash_Rules",
-        f";{zh_hk('AI 专用订阅转换模板（YAML / INI 行为显式分离）')}",
-        f";{zh_hk('作者')}：{REPO_URL}",
-        f";{zh_hk('项目地址')}：{REPO_URL}",
-        ";基於 Custom_Clash_AI.yaml 的寬鬆版路由策略，但維持 subconverter [custom] 方言。",
-        ";YAML 使用 rule-providers；INI 只使用 ruleset= / custom_proxy_group=，不包含 YAML rule-providers 語法。",
-        ";Provider-level exclude-filter only applies to YAML output. INI relies on group regex filtering and explicit comments.",
-        ";Cloudflare generate_204 checks proxy reachability only. It does not validate SSH-to-VPS path quality.",
-        ";GENERATED by internal/python/generate_ai_profiles.py. Do not edit manually.",
+        ini_comment_line(";Custom_OpenClash_Rules"),
+        ini_comment_line(f";{zh_hk('AI 专用订阅转换模板（YAML / INI 行为显式分离）')}"),
+        ini_comment_line(f";{zh_hk('作者')}：{REPO_URL}"),
+        ini_comment_line(f";{zh_hk('项目地址')}：{REPO_URL}"),
+        ini_comment_line(";基於 Custom_Clash_AI.yaml 的寬鬆版路由策略，但維持 subconverter [custom] 方言。"),
+        ini_comment_line(";YAML 使用 rule-providers；INI 只使用 ruleset= / custom_proxy_group=，不包含 YAML rule-providers 語法。"),
+        ini_comment_line(";Provider-level exclude-filter only applies to YAML output. INI relies on group regex filtering and explicit comments."),
+        ini_comment_line(";Cloudflare generate_204 checks proxy reachability only. It does not validate SSH-to-VPS path quality."),
+        ini_comment_line(";GENERATED by internal/python/generate_ai_profiles.py. Do not edit manually."),
         "",
         "[custom]",
         "",
@@ -198,9 +240,9 @@ def _render_ini(plan: SubconverterPlan, language: str | None = None) -> str:
         _emit_ini_section(lines, section, localized_copy)
 
     if localized_copy:
-        lines.extend(["", "", *localized_copy["footer"]])
+        lines.extend(["", "", *(ini_comment_line(line) for line in localized_copy["footer"])])
     else:
-        lines.extend(["", "", ";下方参数请勿修改"])
+        lines.extend(["", "", ini_comment_line(";下方参数请勿修改")])
     lines.extend(["enable_rule_generator=true", "overwrite_original_rules=true"])
     return "\n".join(lines) + "\n"
 

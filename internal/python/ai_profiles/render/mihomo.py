@@ -1,7 +1,20 @@
 from __future__ import annotations
 
+from typing import get_args
+
 from ..catalog import load_catalog
-from ..common import indent, yaml_string, zh_hk
+from ..common import (
+    https_url,
+    indent,
+    positive_integer,
+    rule_field,
+    yaml_comment_line,
+    yaml_plain_key,
+    yaml_plain_string,
+    yaml_single_string,
+    yaml_string,
+    zh_hk,
+)
 from ..dns import render_dns_config
 from ..compiler import (
     compile_mihomo_profile,
@@ -12,7 +25,7 @@ from ..compiler import (
     service_auto_group_name,
     service_region_groups as compiled_service_region_groups,
 )
-from ..models import Catalog, MihomoProfilePlan, RoutingComment, RoutingRule, RuleProviderPlan
+from ..models import Catalog, MihomoProfilePlan, ProviderBehavior, RoutingComment, RoutingRule, RuleProviderPlan
 from ..plans.ini_mvp import (
     IniMvpPlan,
     account_protection_group_candidates,
@@ -48,7 +61,9 @@ def yaml_proxy_list(groups: list[str] | tuple[str, ...], indent_level: int = 4) 
 
 
 def _group_block(name: str, group_type: str, lines: list[str]) -> str:
-    return "\n".join([f'- name: "{name}"', f"  type: {group_type}", *lines])
+    safe_name = yaml_string(name)
+    safe_type = yaml_plain_string(group_type)
+    return "\n".join([f"- name: {safe_name}", f"  type: {safe_type}", *lines])
 
 
 def _render_proxy_groups(
@@ -73,7 +88,7 @@ def _render_proxy_groups(
         raise RuntimeError("Mihomo account-protected group does not match the INI MVP plan")
     protected_candidates = account_protection_group_candidates(account_plan)
     blocks = [
-        _group_block(catalog.group("manual"), "select", ["  proxies:", *yaml_proxy_list(plan.manual_group_proxies), f'  filter: "{catalog.ai_pool_filter}"', "  use:", "    - provider1"]),
+        _group_block(catalog.group("manual"), "select", ["  proxies:", *yaml_proxy_list(plan.manual_group_proxies), f"  filter: {yaml_single_string(catalog.ai_pool_filter)}", "  use:", "    - provider1"]),
         _group_block(catalog.group("auto"), "select", ["  proxies:", *yaml_proxy_list((catalog.group("reject"), *catalog.all_region_groups))]),
     ]
     for policy_group in plan.policy_groups:
@@ -96,9 +111,9 @@ def _render_proxy_groups(
         if service.auto_group != catalog.group("auto"):
             blocks.append(_group_block(service.auto_group, "select", ["  proxies:", *yaml_proxy_list((catalog.group("reject"), *service.region_groups))]))
     blocks.append(_group_block(catalog.group("reject"), "select", ["  proxies:", "    - REJECT"]))
-    blocks.append(_group_block(catalog.group("fallback"), "select", ["  proxies:", *(f'    - "{proxy}"' for proxy in plan.fallback_group_proxies)]))
+    blocks.append(_group_block(catalog.group("fallback"), "select", ["  proxies:", *(f"    - {yaml_string(proxy)}" for proxy in plan.fallback_group_proxies)]))
     for region in plan.primary_regions:
-        blocks.append(_group_block(region.group, "select", [f"  filter: '{region.filter_pattern}'", "  proxies:", "    - REJECT", "  use:", "    - provider1"]))
+        blocks.append(_group_block(region.group, "select", [f"  filter: {yaml_single_string(region.filter_pattern)}", "  proxies:", "    - REJECT", "  use:", "    - provider1"]))
     blocks.append(_group_block(plan.other_region_group, "select", [f"  filter: {yaml_string(catalog.ai_pool_filter)}", f"  exclude-filter: {yaml_string(catalog.known_region_exclude_pattern)}", "  proxies:", "    - REJECT", "  use:", "    - provider1"]))
     blocks.append(_group_block(catalog.group("direct"), "select", ["  proxies:", "    - DIRECT"]))
     return "\n".join(blocks).rstrip()
@@ -119,12 +134,13 @@ def _render_routing_rule(rule: RoutingRule) -> str:
         if rule.target is not None:
             fields.append(rule.target)
         fields.extend(rule.options)
-    return f'  - "{",".join(fields)}"'
+    encoded = ",".join(rule_field(field) for field in fields)
+    return f"  - {yaml_string(encoded)}"
 
 
 def _render_routing_entries(entries: tuple[RoutingComment | RoutingRule, ...]) -> str:
     return "\n".join(
-        entry.text if isinstance(entry, RoutingComment) else _render_routing_rule(entry)
+        yaml_comment_line(entry.text) if isinstance(entry, RoutingComment) else _render_routing_rule(entry)
         for entry in entries
     )
 
@@ -136,10 +152,34 @@ def render_yaml_rules(strict: bool, include_process_rules: bool) -> str:
 
 
 def _render_provider(provider: RuleProviderPlan) -> str:
-    return "\n".join([f"{provider.name}:", f"  behavior: {provider.behavior}", f"  interval: {provider.interval}", "  type: http", f'  url: "{provider.url}"', f"  format: {provider.format}"])
+    if provider.behavior not in get_args(ProviderBehavior):
+        raise ValueError("Mihomo rule-provider behavior is unsupported")
+    if provider.format != "yaml":
+        raise ValueError("Mihomo rule-provider format must be yaml")
+    name = yaml_plain_key(provider.name)
+    behavior = yaml_plain_string(provider.behavior)
+    interval = positive_integer(provider.interval, field="Mihomo rule-provider interval")
+    url = yaml_string(https_url(provider.url, field="Mihomo rule-provider URL"))
+    format_value = yaml_plain_string(provider.format)
+    return "\n".join(
+        [
+            f"{name}:",
+            f"  behavior: {behavior}",
+            f"  interval: {interval}",
+            "  type: http",
+            f"  url: {url}",
+            f"  format: {format_value}",
+        ]
+    )
 
 
 def _render_rule_provider_plans(providers: tuple[RuleProviderPlan, ...]) -> str:
+    names: set[str] = set()
+    for provider in providers:
+        name = yaml_plain_key(provider.name)
+        if name in names:
+            raise ValueError("Mihomo rule-provider names must be unique")
+        names.add(name)
     return "\n\n".join(_render_provider(provider) for provider in providers)
 
 
