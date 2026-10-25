@@ -1,0 +1,86 @@
+name: Auto generate adblock outputs
+
+on:
+  push:
+    paths:
+      - "internal/config/filtering/sources/adblock.yaml"
+      - "internal/config/filtering/categories.yaml"
+      - "internal/config/filtering/sources/custom/adblock.yaml"
+      - "internal/config/filtering/sources/tracking.yaml"
+      - "internal/config/filtering/sources/custom/tracking.yaml"
+      - "internal/config/filtering/sources/telemetry.yaml"
+      - "internal/config/filtering/sources/custom/telemetry.yaml"
+      - "internal/config/filtering/sources/malware.yaml"
+      - "internal/config/filtering/sources/custom/malware.yaml"
+      - "internal/config/filtering/seeds/adblock-lite.txt"
+      - "internal/config/filtering/seeds/tracking-lite.txt"
+      - "internal/config/filtering/seeds/telemetry-lite.txt"
+      - "internal/config/filtering/seeds/malware-lite.txt"
+      - "internal/config/filtering/domain-policies.yaml"
+      - "dns/local_allowlist.txt"
+      - "dns/local_blocklist.txt"
+      - "dns/local_tracking_allowlist.txt"
+      - "dns/local_tracking_blocklist.txt"
+      - "dns/local_telemetry_allowlist.txt"
+      - "dns/local_telemetry_blocklist.txt"
+      - "dns/local_malware_allowlist.txt"
+      - "dns/local_malware_blocklist.txt"
+      - "internal/python/generate_adblock_outputs.py"
+      - ".github/workflows/auto-generate-adblock.yml"
+  workflow_dispatch:
+  schedule:
+    - cron: "23 3 * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  generate-adblock:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.x"
+
+      - name: Generate adblock outputs
+        run: python3 internal/python/generate_adblock_outputs.py
+
+      - name: Publish workflow summary
+        run: |
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+
+          index = json.loads(Path("web/reports/index.json").read_text(encoding="utf-8"))
+          print("## Adblock Generation Summary")
+          print("")
+          print(f"- Generated at: `{index['generated_at']}`")
+          print(f"- Repo: `{index['repo']}`")
+          print("")
+          print("| Category | Sources | DNS domains | Clash domains | Report |")
+          print("| --- | ---: | ---: | ---: | --- |")
+          for item in index["categories"]:
+              print(
+                  f"| `{item['category']}` | {item['source_count']} | {item['final_domain_count']} | {item['clash_domain_count']} | `{item['report']}` |"
+              )
+          PY
+
+      - name: Commit generated changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add dns/adblock.dnsmasq.conf dns/adblock.hosts.txt dns/tracking.dnsmasq.conf dns/tracking.hosts.txt dns/telemetry.dnsmasq.conf dns/telemetry.hosts.txt dns/malware.dnsmasq.conf dns/malware.hosts.txt rule/Ads_Lite_Domain.yaml rule/Tracking_Lite_Domain.yaml rule/Telemetry_Lite_Domain.yaml rule/Malware_Lite_Domain.yaml web/reports/index.json web/reports/*.summary.json
+
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(adblock): auto generate outputs"
+            git push
+          else
+            echo "No generated changes."
+          fi

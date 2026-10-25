@@ -1,0 +1,56 @@
+#!/bin/sh
+# Install or update a cron job that refreshes generated adblock outputs on OpenWrt.
+
+set -eu
+
+RULES_BRANCH="${RULES_BRANCH:-main}"
+RULES_REPO="${RULES_REPO:-mythic3011/rules}"
+SCRIPT_URL="${SCRIPT_URL:-https://testingcf.jsdelivr.net/gh/${RULES_REPO}@refs/heads/${RULES_BRANCH}/setup/openclash/scripts/apply_adblock_dnsmasq.sh}"
+MANIFEST_URL="${MANIFEST_URL:-https://testingcf.jsdelivr.net/gh/${RULES_REPO}@refs/heads/${RULES_BRANCH}/setup/openclash/scripts/manifests/adblock.json}"
+CRON_SCHEDULE="${CRON_SCHEDULE:-17 */12 * * *}"
+INSTALL_PATH="${INSTALL_PATH:-/usr/bin/rules-apply-adblock}"
+AUTO_INSTALL_DEPS="${AUTO_INSTALL_DEPS:-1}"
+ALLOW_LEGACY_FALLBACK="${ALLOW_LEGACY_FALLBACK:-1}"
+ENABLE_HOSTS_MERGE="${ENABLE_HOSTS_MERGE:-0}"
+ENABLE_ADBLOCK="${ENABLE_ADBLOCK:-1}"
+ENABLE_TRACKING_BLOCK="${ENABLE_TRACKING_BLOCK:-0}"
+ENABLE_TELEMETRY_BLOCK="${ENABLE_TELEMETRY_BLOCK:-0}"
+ENABLE_MALWARE_BLOCK="${ENABLE_MALWARE_BLOCK:-0}"
+ENABLE_ADOBE_REMOTE="${ENABLE_ADOBE_REMOTE:-0}"
+HOSTS_TARGET_FILE="${HOSTS_TARGET_FILE:-/etc/dnsmasq.custom-blocks.hosts}"
+ADOBE_REMOTE_URL="${ADOBE_REMOTE_URL:-https://raw.githubusercontent.com/ethanaicode/Adobe-Block-Hosts-List/refs/heads/main/hosts}"
+
+log() {
+    echo "[rules-adblock-cron] $*"
+}
+
+install_script() {
+    TMP_FILE="$(mktemp)"
+    curl -fsSL --retry 5 --retry-delay 2 "$SCRIPT_URL" -o "$TMP_FILE"
+    chmod +x "$TMP_FILE"
+    mv "$TMP_FILE" "$INSTALL_PATH"
+}
+
+install_cron() {
+    TMP_CRON="$(mktemp)"
+    crontab -l 2>/dev/null | grep -v "$INSTALL_PATH" > "$TMP_CRON" || true
+    echo "${CRON_SCHEDULE} AUTO_INSTALL_DEPS=${AUTO_INSTALL_DEPS} ALLOW_LEGACY_FALLBACK=${ALLOW_LEGACY_FALLBACK} MANIFEST_URL=${MANIFEST_URL} ENABLE_ADBLOCK=${ENABLE_ADBLOCK} ENABLE_TRACKING_BLOCK=${ENABLE_TRACKING_BLOCK} ENABLE_TELEMETRY_BLOCK=${ENABLE_TELEMETRY_BLOCK} ENABLE_MALWARE_BLOCK=${ENABLE_MALWARE_BLOCK} ENABLE_HOSTS_MERGE=${ENABLE_HOSTS_MERGE} ENABLE_ADOBE_REMOTE=${ENABLE_ADOBE_REMOTE} HOSTS_TARGET_FILE=${HOSTS_TARGET_FILE} ADOBE_REMOTE_URL=${ADOBE_REMOTE_URL} RULES_BRANCH=${RULES_BRANCH} RULES_REPO=${RULES_REPO} ${INSTALL_PATH} >/tmp/rules-adblock-cron.log 2>&1" >> "$TMP_CRON"
+    crontab "$TMP_CRON"
+    rm -f "$TMP_CRON"
+}
+
+main() {
+    log "installing refresh script to $INSTALL_PATH"
+    install_script
+
+    log "running script once"
+    AUTO_INSTALL_DEPS="$AUTO_INSTALL_DEPS" ALLOW_LEGACY_FALLBACK="$ALLOW_LEGACY_FALLBACK" MANIFEST_URL="$MANIFEST_URL" ENABLE_ADBLOCK="$ENABLE_ADBLOCK" ENABLE_TRACKING_BLOCK="$ENABLE_TRACKING_BLOCK" ENABLE_TELEMETRY_BLOCK="$ENABLE_TELEMETRY_BLOCK" ENABLE_MALWARE_BLOCK="$ENABLE_MALWARE_BLOCK" ENABLE_HOSTS_MERGE="$ENABLE_HOSTS_MERGE" ENABLE_ADOBE_REMOTE="$ENABLE_ADOBE_REMOTE" HOSTS_TARGET_FILE="$HOSTS_TARGET_FILE" ADOBE_REMOTE_URL="$ADOBE_REMOTE_URL" RULES_BRANCH="$RULES_BRANCH" RULES_REPO="$RULES_REPO" "$INSTALL_PATH"
+
+    log "installing cron schedule: $CRON_SCHEDULE"
+    install_cron
+
+    /etc/init.d/cron restart
+    log "cron setup complete"
+}
+
+main "$@"

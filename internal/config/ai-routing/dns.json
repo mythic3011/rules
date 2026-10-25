@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "dnsProxyGroupKey": "dns",
+  "defaultResolverSet": "global-ai",
+  "nameserverResolverSet": "global-ai",
+  "bootstrapResolverSet": "bootstrap",
+  "directResolverSet": "cn-direct",
+  "listen": "0.0.0.0:7874",
+  "ipv6": false,
+  "enhancedMode": "fake-ip",
+  "fakeIpRange": "198.18.0.1/16",
+  "fakeIpFilter": [
+    "*.lan",
+    "localhost.ptlogin2.qq.com"
+  ],
+  "fakeIpFilterMode": "blacklist"
+}

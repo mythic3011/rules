@@ -1,0 +1,9 @@
+#!/bin/sh
+set -eu
+
+repo_root=$(git rev-parse --show-toplevel)
+cd "$repo_root"
+
+make generate
+
+printf '%s\n' 'Generated files refreshed; review and stage them explicitly.'

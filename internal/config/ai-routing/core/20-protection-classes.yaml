@@ -1,0 +1,30 @@
+protectionClasses:
+  direct-capable:
+    kind: direct-capable
+    directAllowed: true
+    dynamicRouteAllowed: true
+  proxy-required:
+    kind: proxy-required
+    directAllowed: false
+    dynamicRouteAllowed: true
+  stable-session:
+    kind: stable-session
+    directAllowed: false
+    dynamicRouteAllowed: false
+  account-protected:
+    kind: account-protected
+    directAllowed: false
+    dynamicRouteAllowed: false
+    activation: explicit-user-selection
+    initialRoute: reject
+    dnsMode: proxy-only
+    ipv6: proxy-or-reject
+    quic: proxy-or-reject
+    firewallKillSwitch: true
+    failMode: reject
+    resetOn:
+      - policy-version-change
+      - selected-node-missing
+      - exit-ip-change
+      - geo-mismatch
+      - node-revoked

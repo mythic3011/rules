@@ -1,0 +1,575 @@
+{
+  "schemaVersion": 1,
+  "policies": {
+    "google-ai-proxy": {
+      "group": "🤖 Google AI",
+      "regions": ["us", "sg", "jp", "tw", "kr"],
+      "directRelaxed": false,
+      "subconverter": {
+        "ruleCluster": "legacy-ai-merged"
+      }
+    },
+    "google-ai-tools": {
+      "group": "🤖 Google AI Tools",
+      "regions": ["us", "sg", "jp", "tw", "kr"],
+      "directRelaxed": true,
+      "subconverter": {
+        "ruleCluster": "legacy-ai-merged"
+      }
+    }
+  },
+  "services": [
+    {
+      "id": "chatgpt",
+      "providerKey": "AI_ChatGPT_Classical",
+      "group": "🤖 ChatGPT",
+      "file": "AI_ChatGPT_Classical.yaml",
+      "payload": [],
+      "regions": ["sg", "us", "jp", "tw", "kr"],
+      "directRelaxed": false,
+      "dnsPolicies": [
+        {
+          "order": 30,
+          "selector": "geosite:openai",
+          "resolverSet": "global-ai"
+        }
+      ],
+      "subconverter": {
+        "selector": {
+          "mode": "stables",
+          "emitWhenLegacyReplaced": true
+        }
+      },
+      "upstreamRules": [
+        {
+          "kind": "geosite",
+          "value": "openai"
+        }
+      ],
+      "projections": ["mihomo", "subconverter"]
+    },
+    {
+      "id": "copilot",
+      "providerKey": "AI_Copilot_Classical",
+      "group": "🧑‍💻 Copilot",
+      "file": "AI_Copilot_Classical.yaml",
+      "payload": [
+        "DOMAIN-SUFFIX,copilot.com",
+        "DOMAIN-SUFFIX,copilot.microsoft.com",
+        "DOMAIN-SUFFIX,copilot.cloud.microsoft"
+      ],
+      "regions": ["us", "sg", "jp", "tw", "kr"],
+      "directRelaxed": true,
+      "dnsPolicies": [],
+      "subconverter": {},
+      "upstreamRules": [
+        {
+          "kind": "geosite",
+          "value": "github-copilot"
+        }
+      ],
+      "projections": ["mihomo", "subconverter"]
+    },
+    {
+      "id": "claude",
+      "providerKey": "AI_Claude_Classical",
+      "group": "🔐 Claude Account Guard",
+      "file": "AI_Claude_Classical.yaml",
+      "payload": [
+        "DOMAIN-SUFFIX,anthropic.com",
+        "DOMAIN-SUFFIX,claude.ai",
+        "DOMAIN-SUFFIX,claude.com",
+        "DOMAIN-SUFFIX,clau.de",
+        "DOMAIN-SUFFIX,claudemcpclient.com",
+        "DOMAIN-SUFFIX,claudemcpcontent.com",
+        "DOMAIN-SUFFIX,claudeusercontent.com",
+        "DOMAIN-SUFFIX,sentry.io",
+        "DOMAIN-SUFFIX,statsigapi.net",
+        "DOMAIN-SUFFIX,intercom.io",
+        "DOMAIN-SUFFIX,intercomcdn.com",
+        "DOMAIN,servd-anthropic-website.b-cdn.net",
+        "DOMAIN,anthropic.com.cdn.cloudflare.net",
+        "DOMAIN,anthropic.auth0.com",
+        "DOMAIN,anthropic-com.ghost.io",
+        "DOMAIN,browser-intake-us5-datadoghq.com",
+        "DOMAIN,cdn.usefathom.com",
+        "DOMAIN-KEYWORD,datadog",
+        "DOMAIN-KEYWORD,sentry",
+        "DOMAIN-KEYWORD,sift",
+        "IP-CIDR,160.79.104.0/21",
+        "IP-CIDR6,2607:6bc0::/32"
+      ],
+      "regions": ["sg", "us", "jp", "tw", "kr"],
+      "directRelaxed": false,
+      "dnsPolicies": [
+        {
+          "order": 60,
+          "selector": "+.anthropic.com",
+          "resolverSet": "global-ai"
+        },
+        {
+          "order": 61,
+          "selector": "+.claude.ai",
+          "resolverSet": "global-ai"
+        }
+      ],
+      "subconverter": {},
+      "upstreamRules": [
+        {
+          "kind": "geosite",
+          "value": "anthropic"
+        },
+        {
+          "kind": "geosite",
+          "value": "category-ntp"
+        }
+      ],
+      "projections": ["mihomo", "subconverter"]
+    },
+    {
+      "id": "gemini",
+      "providerKey": "AI_Gemini_Classical",
+      "file": "AI_Gemini_Classical.yaml",
+      "policy": "google-ai-proxy",
+      "payload": [
+        "DOMAIN-SUFFIX,gemini.google",
+        "DOMAIN-SUFFIX,ai.google.dev",
+        "DOMAIN-SUFFIX,ai.studio",
+        "DOMAIN-SUFFIX,aistudio.google.com",
+        "DOMAIN-SUFFIX,gemini.gstatic.com",
+        "DOMAIN-SUFFIX,generativeai.google",
+        "DOMAIN-SUFFIX,makersuite.google.com",
+        "DOMAIN,gemini.google.com",
+        "DOMAIN,generativelanguage.googleapis.com",
+        "DOMAIN,geller-pa.googleapis.com",
+        "DOMAIN,proactivebackend-pa.googleapis.com",
+        "DOMAIN,robinfrontend-pa.googleapis.com"
+      ],
+      "dnsPolicies": [],
+      "upstreamRules": [],
+      "projections": ["mihomo", "subconverter"]
+    },
+    {
+      "id": "notebooklm",
+      "providerKey": "AI_NotebookLM_Classical",
+      "file": "AI_NotebookLM_Classical.yaml",
+      "policy": "google-ai-tools",
+      "payload": [
+        "DOMAIN-SUFFIX,notebook.google",
+        "DOMAIN-SUFFIX,notebook.google.com",
+        "DOMAIN-SUFFIX,notebooklm.google",
+        "DOMAIN-SUFFIX,notebooklm.google.com",
+        "DOMAIN-SUFFIX,notebooklm.cloud.google.com",
+        "DOMAIN,notebooklm-pa.googleapis.com",
+        "DOMAIN,notebooklm.googleapis.com"
+      ],
+      "dnsPolicies": [],
+      "upstreamRules": [],
+      "projections": ["mihomo", "subconverter"]
+    },
+    {
+      "id": "jules",
+      "providerKey": "AI_Jules_Classical",
+      "file": "AI_Jules_Classical.yaml",
+      "policy": "google-ai-tools",
+      "payload": ["DOMAIN,jules.google.com", "DOMAIN,jules.googleapis.com"],
+      "dnsPolicies": [
+        {
+          "order": 75,
+          "selector": "jules.google.com",
+          "resolverSet": "global-ai"
+        },
+        {
+          "order": 76,
+          "selector": "jules.googleapis.com",
+          "resolverSet": "global-ai"
+        }
+      ],
+      "upstreamRules": [],
+      "projections": ["mihomo", "subconverter"]
+    },
+    {
+      "id": "perplexity",
+      "providerKey": "AI_Perplexity_Classical",
+      "group": "🤖 Perplexity",
+      "file": "AI_Perplexity_Classical.yaml",
+      "payload": [],
+      "regions": ["sg", "us", "jp", "tw", "kr"],
+      "directRelaxed": true,
+      "dnsPolicies": [
+        {
+          "order": 70,
+          "selector": "+.perplexity.ai",
+          "resolverSet": "global-ai"
+        }
+      ],
+      "subconverter": {
+        "ruleCluster": "legacy-ai-merged"
+      },
+      "upstreamRules": [
+        {
+          "kind": "geosite",
+          "value": "perplexity"
+        }
+      ],
+      "projections": ["mihomo", "subconverter"]
+    },
+    {
+      "id": "grok",
+      "providerKey": "AI_Grok_Classical",
+      "group": "🤖 Grok",
+      "file": "AI_Grok_Classical.yaml",
+      "payload": [],
+      "regions": ["us", "sg", "jp", "tw", "kr"],
+      "directRelaxed": true,
+      "dnsPolicies": [
+        {
+          "order": 80,
+          "selector": "+.x.ai",
+          "resolverSet": "global-ai"
+        }
+      ],
+      "subconverter": {
+        "ruleCluster": "legacy-ai-merged"
+      },
+      "upstreamRules": [
+        {
+          "kind": "geosite",
+          "value": "xai"
+        }
+      ],
+      "projections": ["mihomo", "subconverter"]
+    },
+    {
+      "id": "poe",
+      "providerKey": "AI_Poe_Classical",
+      "group": "🤖 Poe",
+      "file": "AI_Poe_Classical.yaml",
+      "payload": [],
+      "regions": ["sg", "us", "jp", "tw", "kr"],
+      "directRelaxed": false,
+      "dnsPolicies": [
+        {
+          "order": 90,
+          "selector": "+.poe.com",
+          "resolverSet": "global-ai"
+        }
+      ],
+      "subconverter": {
+        "ruleCluster": "legacy-ai-merged"
+      },
+      "upstreamRules": [
+        {
+          "kind": "geosite",
+          "value": "poe"
+        }
+      ],
+      "projections": ["mihomo", "subconverter"]
+    },
+    {
+      "id": "openrouter",
+      "providerKey": "AI_OpenRouter_Classical",
+      "group": "🤖 OpenRouter",
+      "file": "AI_OpenRouter_Classical.yaml",
+      "payload": ["DOMAIN-SUFFIX,openrouter.ai"],
+      "regions": ["us", "sg", "jp", "tw", "kr"],
+      "directRelaxed": true,
+      "dnsPolicies": [
+        {
+          "order": 95,
+          "selector": "+.openrouter.ai",
+          "resolverSet": "global-ai"
+        }
+      ],
+      "subconverter": {
+        "ruleCluster": "legacy-ai-merged"
+      },
+      "upstreamRules": [],
+      "projections": ["mihomo", "subconverter"]
+    },
+    {
+      "id": "cursor",
+      "providerKey": "AI_Cursor_Classical",
+      "group": "🤖 Cursor",
+      "file": "AI_Cursor_Classical.yaml",
+      "payload": [
+        "DOMAIN-SUFFIX,cursor.sh",
+        "DOMAIN-SUFFIX,cursorapi.com",
+        "DOMAIN-SUFFIX,cursorvm.com"
+      ],
+      "regions": ["us", "sg", "jp", "tw", "kr"],
+      "directRelaxed": true,
+      "dnsPolicies": [
+        {
+          "order": 101,
+          "selector": "+.cursor.sh",
+          "resolverSet": "global-ai"
+        },
+        {
+          "order": 102,
+          "selector": "+.cursorapi.com",
+          "resolverSet": "global-ai"
+        },
+        {
+          "order": 103,
+          "selector": "+.cursorvm.com",
+          "resolverSet": "global-ai"
+        }
+      ],
+      "subconverter": {
+        "ruleCluster": "legacy-ai-merged"
+      },
+      "upstreamRules": [],
+      "projections": ["mihomo", "subconverter"]
+    },
+    {
+      "id": "huggingface",
+      "providerKey": "AI_HuggingFace_Classical",
+      "group": "🤗 Hugging Face",
+      "file": "AI_HuggingFace_Classical.yaml",
+      "payload": ["DOMAIN-SUFFIX,huggingface.co"],
+      "regions": ["us", "sg", "jp", "tw", "kr"],
+      "directRelaxed": true,
+      "dnsPolicies": [
+        {
+          "order": 110,
+          "selector": "+.huggingface.co",
+          "resolverSet": "global-ai"
+        }
+      ],
+      "subconverter": {
+        "ruleCluster": "legacy-ai-merged"
+      },
+      "upstreamRules": [],
+      "projections": ["mihomo", "subconverter"]
+    },
+    {
+      "id": "mirasim",
+      "providerKey": "AI_Mirasim_Classical",
+      "group": "🤖 Mirasim",
+      "file": "AI_Mirasim_Classical.yaml",
+      "payload": ["DOMAIN-SUFFIX,mirasim.ai"],
+      "regions": ["us", "sg", "jp", "tw", "kr"],
+      "directRelaxed": true,
+      "dnsPolicies": [
+        {
+          "order": 111,
+          "selector": "+.mirasim.ai",
+          "resolverSet": "global-ai"
+        }
+      ],
+      "subconverter": {
+        "ruleCluster": "legacy-ai-merged"
+      },
+      "upstreamRules": [],
+      "projections": ["mihomo", "subconverter"]
+    },
+    {
+      "id": "antigravity",
+      "providerKey": "AI_Antigravity_Classical",
+      "file": "AI_Antigravity_Classical.yaml",
+      "policy": "google-ai-tools",
+      "payload": [
+        "DOMAIN-SUFFIX,antigravity.google",
+        "DOMAIN-SUFFIX,antigravity-unleash.goog",
+        "DOMAIN-SUFFIX,daily-cloudcode-pa.googleapis.com",
+        "DOMAIN-SUFFIX,cloudcode-pa.googleapis.com"
+      ],
+      "dnsPolicies": [
+        {
+          "order": 120,
+          "selector": "+.antigravity.google",
+          "resolverSet": "global-ai"
+        }
+      ],
+      "upstreamRules": [],
+      "projections": ["mihomo", "subconverter"],
+      "family": "google-ai"
+    },
+    {
+      "id": "google-labs",
+      "providerKey": "AI_GoogleLabs_Classical",
+      "file": "AI_GoogleLabs_Classical.yaml",
+      "policy": "google-ai-tools",
+      "payload": ["DOMAIN-SUFFIX,labs.google"],
+      "dnsPolicies": [
+        {
+          "order": 121,
+          "selector": "+.labs.google",
+          "resolverSet": "global-ai"
+        }
+      ],
+      "upstreamRules": [],
+      "projections": ["mihomo", "subconverter"],
+      "family": "google-ai"
+    },
+    {
+      "id": "stitch",
+      "providerKey": "AI_Stitch_Classical",
+      "file": "AI_Stitch_Classical.yaml",
+      "policy": "google-ai-tools",
+      "payload": ["DOMAIN,stitch.withgoogle.com"],
+      "dnsPolicies": [
+        {
+          "order": 126,
+          "selector": "stitch.withgoogle.com",
+          "resolverSet": "global-ai"
+        }
+      ],
+      "upstreamRules": [],
+      "projections": ["mihomo", "subconverter"],
+      "family": "google-ai"
+    },
+    {
+      "id": "android-studio-ai",
+      "providerKey": "AI_AndroidStudioAI_Classical",
+      "file": "AI_AndroidStudioAI_Classical.yaml",
+      "policy": "google-ai-proxy",
+      "payload": [
+        "DOMAIN,cloudaicompanion.googleapis.com",
+        "DOMAIN,cloudcode-pa.googleapis.com"
+      ],
+      "dnsPolicies": [
+        {
+          "order": 122,
+          "selector": "cloudaicompanion.googleapis.com",
+          "resolverSet": "global-ai"
+        },
+        {
+          "order": 123,
+          "selector": "cloudcode-pa.googleapis.com",
+          "resolverSet": "global-ai"
+        }
+      ],
+      "upstreamRules": [],
+      "projections": ["mihomo", "subconverter"],
+      "family": "google-ai"
+    },
+    {
+      "id": "gemini-cloud",
+      "providerKey": "AI_GeminiCloud_Classical",
+      "file": "AI_GeminiCloud_Classical.yaml",
+      "policy": "google-ai-tools",
+      "payload": ["DOMAIN,geminicloudassist.googleapis.com"],
+      "dnsPolicies": [
+        {
+          "order": 124,
+          "selector": "geminicloudassist.googleapis.com",
+          "resolverSet": "global-ai"
+        }
+      ],
+      "upstreamRules": [],
+      "projections": ["mihomo", "subconverter"],
+      "family": "google-ai"
+    },
+    {
+      "id": "vertex-ai",
+      "providerKey": "AI_VertexAI_Classical",
+      "file": "AI_VertexAI_Classical.yaml",
+      "policy": "google-ai-proxy",
+      "payload": [
+        "DOMAIN,aiplatform.googleapis.com",
+        "DOMAIN-KEYWORD,-aiplatform.googleapis.com"
+      ],
+      "dnsPolicies": [
+        {
+          "order": 125,
+          "selector": "aiplatform.googleapis.com",
+          "resolverSet": "global-ai"
+        }
+      ],
+      "upstreamRules": [],
+      "projections": ["mihomo", "subconverter"],
+      "family": "google-ai"
+    },
+    {
+      "id": "flow-music",
+      "providerKey": "Flow_Music_Classical",
+      "group": "🎵 Flow Music",
+      "file": "Flow_Music_Classical.yaml",
+      "payload": ["DOMAIN,storage.googleapis.com"],
+      "regions": ["us", "sg", "jp", "tw", "kr"],
+      "directRelaxed": false,
+      "dnsPolicies": [],
+      "subconverter": {},
+      "upstreamRules": [],
+      "projections": ["mihomo", "subconverter"]
+    },
+    {
+      "id": "opencode",
+      "providerKey": "AI_OpenCode_Classical",
+      "group": "🤖 OpenCode",
+      "file": "AI_OpenCode_Classical.yaml",
+      "payload": ["DOMAIN-SUFFIX,opencode.ai"],
+      "regions": ["us", "sg", "jp", "tw", "kr"],
+      "directRelaxed": true,
+      "dnsPolicies": [
+        {
+          "order": 127,
+          "selector": "+.opencode.ai",
+          "resolverSet": "global-ai"
+        }
+      ],
+      "subconverter": {},
+      "upstreamRules": [],
+      "projections": ["mihomo", "subconverter"]
+    },
+    {
+      "id": "ai-other",
+      "providerKey": "AI_Other_Classical",
+      "group": "🤖 AI Other",
+      "file": "AI_Other_Classical.yaml",
+      "upstreamRules": [
+        {
+          "kind": "geosite",
+          "value": "google-deepmind"
+        },
+        {
+          "kind": "geosite",
+          "value": "category-ai-!cn"
+        }
+      ],
+      "payload": [],
+      "regions": ["us", "sg", "jp", "tw", "kr"],
+      "directRelaxed": true,
+      "dnsPolicies": [
+        {
+          "order": 130,
+          "selector": "geosite:google-deepmind",
+          "resolverSet": "global-ai"
+        },
+        {
+          "order": 131,
+          "selector": "geosite:category-ai-!cn",
+          "resolverSet": "global-ai"
+        }
+      ],
+      "subconverter": {},
+      "projections": ["mihomo"]
+    },
+    {
+      "id": "ai-cn-other",
+      "providerKey": "AI_CN_Other_Classical",
+      "group": "🤖 AI CN Other",
+      "file": "AI_CN_Other_Classical.yaml",
+      "upstreamRules": [
+        {
+          "kind": "geosite",
+          "value": "category-ai-cn"
+        }
+      ],
+      "payload": [],
+      "regions": ["sg", "tw", "jp", "us", "kr"],
+      "directRelaxed": true,
+      "dnsPolicies": [
+        {
+          "order": 132,
+          "selector": "geosite:category-ai-cn",
+          "resolverSet": "cn-direct"
+        }
+      ],
+      "subconverter": {},
+      "projections": ["mihomo"]
+    }
+  ]
+}

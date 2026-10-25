@@ -1,0 +1,323 @@
+#!/bin/sh
+# Read-only normalized environment model for openclash-guard.
+# Prefix: guard_env_
+set -eu
+
+_GUARD_OC_INSTALLED=0
+_GUARD_OC_ENABLED=0
+_GUARD_OC_RUNNING=0
+_GUARD_OC_HEALTHY=0
+_GUARD_DNS_BACKEND=none
+_GUARD_DNS_MSQ_ENABLED=0
+_GUARD_DNS_MSQ_RUNNING=0
+_GUARD_DNS_AGH_ENABLED=0
+_GUARD_DNS_AGH_RUNNING=0
+_GUARD_DNS_DOMAIN_SET=unavailable
+_GUARD_DNS_BYPASS_AVAILABLE=0
+_GUARD_DNS_BYPASS_DETECTED=0
+_GUARD_DNS_BYPASS_RULES=0
+_GUARD_DNS_BYPASS_PORT53_RULES=0
+_GUARD_DNS_BYPASS_DOT853_RULES=0
+_GUARD_DNS_HIJACK_BYPASS_RULES=0
+_GUARD_DNS_BYPASS_UNKNOWN_SOURCE_RULES=0
+_GUARD_DNS_BYPASS_UNKNOWN_DPORT_RULES=0
+_GUARD_DNS_BYPASS_CLIENTS=
+_GUARD_DNS_BYPASS_CLIENT_COUNT=0
+_GUARD_DNS_BYPASS_PORT53=0
+_GUARD_DNS_BYPASS_DOT853=0
+_GUARD_DNS_HIJACK_BYPASS=0
+_GUARD_NET_IPV6=0
+_GUARD_NET_DIRECT_REGION=
+_GUARD_PROXY_HEALTHY=0
+_GUARD_PROXY_REGION=
+_GUARD_GAME_CLIENTS=0
+_GUARD_GAME_CLIENT_ITEMS=
+_GUARD_GAME_BLANKET=0
+_GUARD_NFT_AVAILABLE=0
+_GUARD_DEPENDENCY_FAILURE=0
+
+_guard_env_dependency_failed() {
+    _guard_ed_service=${GUARD_SERVICE_ID:-}
+    _guard_ed_file=${GUARD_DEPENDENCY_STATUS_FILE:-}
+    [ -n "$_guard_ed_service" ] && [ -f "$_guard_ed_file" ] || return 1
+    _guard_ed_deps=$(json_keys "$_guard_ed_file" "services.$_guard_ed_service.dependencies" 2>/dev/null) || return 1
+    for _guard_ed_dep in $_guard_ed_deps
+    do
+        _guard_ed_required=$(json_get "$_guard_ed_file" "services.$_guard_ed_service.dependencies.$_guard_ed_dep.required" 2>/dev/null) || _guard_ed_required=true
+        [ "$_guard_ed_required" = true ] || continue
+        _guard_ed_healthy=$(json_get "$_guard_ed_file" "services.$_guard_ed_service.dependencies.$_guard_ed_dep.healthy" 2>/dev/null) || _guard_ed_healthy=unknown
+        _guard_ed_compatible=$(json_get "$_guard_ed_file" "services.$_guard_ed_service.dependencies.$_guard_ed_dep.routeCompatible" 2>/dev/null) || _guard_ed_compatible=true
+        if [ "$_guard_ed_healthy" = false ] || [ "$_guard_ed_compatible" = false ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+_guard_env_json_bool() {
+    if [ "$1" = 1 ]; then
+        printf 'true'
+    else
+        printf 'false'
+    fi
+}
+
+_guard_env_json_string() {
+    printf '%s' "$1" | awk '
+        BEGIN { ORS = "" }
+        {
+            gsub(/\\/, "\\\\")
+            gsub(/"/, "\\\"")
+            gsub(/\t/, "\\t")
+            print
+        }
+    '
+}
+
+_guard_env_oc_probe_healthy() {
+    case ${GUARD_OPENCLASH_HEALTHY:-} in
+        1|true|TRUE|yes|YES|on|ON)
+            return 0
+            ;;
+        0|false|FALSE|no|NO|off|OFF)
+            return 1
+            ;;
+    esac
+    _guard_env_pidf=${GUARD_OPENCLASH_PID_FILE:-/tmp/etc/openclash/clash.pid}
+    if [ -f "$_guard_env_pidf" ]; then
+        _guard_env_pid=$(cat "$_guard_env_pidf" 2>/dev/null) || _guard_env_pid=
+        case $_guard_env_pid in
+            ''|*[!0-9]*)
+                ;;
+            *)
+                if kill -0 "$_guard_env_pid" 2>/dev/null; then
+                    return 0
+                fi
+                ;;
+        esac
+    fi
+    for _guard_env_if in ${GUARD_OPENCLASH_TUN_IFACES:-utun Meta tun0 utun0}
+    do
+        if [ -e "/sys/class/net/$_guard_env_if" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+_guard_env_ipv6() {
+    case ${GUARD_IPV6:-} in
+        1|true|TRUE|yes|YES|on|ON)
+            printf '1\n'
+            return 0
+            ;;
+        0|false|FALSE|no|NO|off|OFF)
+            printf '0\n'
+            return 0
+            ;;
+    esac
+    if [ -s /proc/net/if_inet6 ]; then
+        printf '1\n'
+        return 0
+    fi
+    printf '0\n'
+}
+
+_guard_env_proxy_healthy() {
+    case ${GUARD_PROXY_HEALTHY:-} in
+        1|true|TRUE|yes|YES|on|ON)
+            printf '1\n'
+            return 0
+            ;;
+        0|false|FALSE|no|NO|off|OFF)
+            printf '0\n'
+            return 0
+            ;;
+    esac
+    if [ "$_GUARD_OC_HEALTHY" = 1 ]; then
+        printf '1\n'
+    else
+        printf '0\n'
+    fi
+}
+
+_guard_env_load_clients() {
+    _GUARD_GAME_CLIENTS=0
+    _GUARD_GAME_CLIENT_ITEMS=
+    # Preserve a redacted intent count for status and template suggestions.
+    # The actual client addresses stay out of diagnostics and never establish
+    # an effective routing set while udp.src_ip remains deferred.
+    if command -v guard_uci_overlay_get >/dev/null 2>&1; then
+        _guard_env_items=$(guard_uci_overlay_get udp.src_ip) || _guard_env_items=
+        for _guard_env_item in $_guard_env_items
+        do
+            [ -n "$_guard_env_item" ] || continue
+            _GUARD_GAME_CLIENTS=$((_GUARD_GAME_CLIENTS + 1))
+        done
+    fi
+}
+
+_guard_env_json_list() {
+    _guard_env_jl_items=${1:-}
+    printf '['
+    _guard_env_jl_first=1
+    for _guard_env_jl_item in $_guard_env_jl_items
+    do
+        [ -n "$_guard_env_jl_item" ] || continue
+        if [ "$_guard_env_jl_first" = 1 ]; then
+            _guard_env_jl_first=0
+        else
+            printf ','
+        fi
+        printf '"%s"' "$(_guard_env_json_string "$_guard_env_jl_item")"
+    done
+    printf ']'
+}
+
+_guard_env_json_items() {
+    _guard_env_json_list "$_GUARD_GAME_CLIENT_ITEMS"
+}
+
+guard_env_detect() {
+    _GUARD_OC_INSTALLED=0
+    _GUARD_OC_ENABLED=0
+    _GUARD_OC_RUNNING=0
+    _GUARD_OC_HEALTHY=0
+    if svc_exists openclash; then
+        _GUARD_OC_INSTALLED=1
+        if svc_enabled openclash; then
+            _GUARD_OC_ENABLED=1
+        fi
+        if svc_running openclash; then
+            _GUARD_OC_RUNNING=1
+        fi
+    fi
+    if [ "$_GUARD_OC_RUNNING" = 1 ] && _guard_env_oc_probe_healthy; then
+        _GUARD_OC_HEALTHY=1
+    fi
+    guard_dns_detect
+    _GUARD_NET_IPV6=$(_guard_env_ipv6)
+    if [ -n "${GUARD_DIRECT_REGION:-}" ]; then
+        _GUARD_NET_DIRECT_REGION=$GUARD_DIRECT_REGION
+    else
+        _GUARD_NET_DIRECT_REGION=$(guard_geo_cached_country direct 2>/dev/null) || _GUARD_NET_DIRECT_REGION=
+    fi
+    _GUARD_PROXY_HEALTHY=$(_guard_env_proxy_healthy)
+    if [ -n "${GUARD_PROXY_REGION:-}" ]; then
+        _GUARD_PROXY_REGION=$GUARD_PROXY_REGION
+    elif [ -n "${GUARD_GEO_ROUTE:-}" ]; then
+        _GUARD_PROXY_REGION=$(guard_geo_cached_country route "$GUARD_GEO_ROUTE" 2>/dev/null) || _GUARD_PROXY_REGION=
+    else
+        _GUARD_PROXY_REGION=
+    fi
+    _guard_env_load_clients
+    # udp.blanket_udp_bypass is absent from the canonical UCI contract and
+    # remains inert. The environment override is retained for diagnostic
+    # fixtures; it does not grant a firewall bypass.
+    _GUARD_GAME_BLANKET=0
+    case ${GUARD_GAMING_BLANKET:-} in
+        1|true|TRUE|yes|YES|on|ON)
+            _GUARD_GAME_BLANKET=1
+            ;;
+        0|false|FALSE|no|NO|off|OFF)
+            _GUARD_GAME_BLANKET=0
+            ;;
+    esac
+    _GUARD_NFT_AVAILABLE=0
+    if command -v nft >/dev/null 2>&1; then
+        _GUARD_NFT_AVAILABLE=1
+    fi
+    case ${GUARD_DEPENDENCY_FAILED:-} in
+        1|true|TRUE|yes|YES|on|ON) _GUARD_DEPENDENCY_FAILURE=1 ;;
+        *) _GUARD_DEPENDENCY_FAILURE=0 ;;
+    esac
+    if _guard_env_dependency_failed; then
+        _GUARD_DEPENDENCY_FAILURE=1
+    fi
+}
+
+guard_env_get() {
+    case ${1:-} in
+        openclash.installed) printf '%s\n' "$_GUARD_OC_INSTALLED" ;;
+        openclash.enabled) printf '%s\n' "$_GUARD_OC_ENABLED" ;;
+        openclash.running) printf '%s\n' "$_GUARD_OC_RUNNING" ;;
+        openclash.healthy) printf '%s\n' "$_GUARD_OC_HEALTHY" ;;
+        dns.backend) printf '%s\n' "$_GUARD_DNS_BACKEND" ;;
+        dns.dnsmasqEnabled) printf '%s\n' "$_GUARD_DNS_MSQ_ENABLED" ;;
+        dns.dnsmasqRunning) printf '%s\n' "$_GUARD_DNS_MSQ_RUNNING" ;;
+        dns.adguardhomeEnabled) printf '%s\n' "$_GUARD_DNS_AGH_ENABLED" ;;
+        dns.adguardhomeRunning) printf '%s\n' "$_GUARD_DNS_AGH_RUNNING" ;;
+        dns.domainSetBackend) printf '%s\n' "$_GUARD_DNS_DOMAIN_SET" ;;
+        dns.clientBypass.available) printf '%s\n' "$_GUARD_DNS_BYPASS_AVAILABLE" ;;
+        dns.clientBypass.scanAvailable) printf '%s\n' "$_GUARD_DNS_BYPASS_AVAILABLE" ;;
+        dns.clientBypass.detected) printf '%s\n' "$_GUARD_DNS_BYPASS_DETECTED" ;;
+        dns.clientBypass.rules) printf '%s\n' "$_GUARD_DNS_BYPASS_RULES" ;;
+        dns.clientBypass.port53Rules) printf '%s\n' "$_GUARD_DNS_BYPASS_PORT53_RULES" ;;
+        dns.clientBypass.dot853Rules) printf '%s\n' "$_GUARD_DNS_BYPASS_DOT853_RULES" ;;
+        dns.clientBypass.hijackBypassRules) printf '%s\n' "$_GUARD_DNS_HIJACK_BYPASS_RULES" ;;
+        dns.clientBypass.unknownSourceRules) printf '%s\n' "$_GUARD_DNS_BYPASS_UNKNOWN_SOURCE_RULES" ;;
+        dns.clientBypass.unknownDportRules) printf '%s\n' "$_GUARD_DNS_BYPASS_UNKNOWN_DPORT_RULES" ;;
+        dns.clientBypass.count) printf '%s\n' "$_GUARD_DNS_BYPASS_CLIENT_COUNT" ;;
+        dns.clientBypass.clients.count) printf '%s\n' "$_GUARD_DNS_BYPASS_CLIENT_COUNT" ;;
+        dns.clientBypass.clients) printf '%s\n' "$_GUARD_DNS_BYPASS_CLIENTS" ;;
+        dns.clientBypass.clients.items) printf '%s\n' "$_GUARD_DNS_BYPASS_CLIENTS" ;;
+        dns.clientBypass.port53) printf '%s\n' "$_GUARD_DNS_BYPASS_PORT53" ;;
+        dns.clientBypass.dot853) printf '%s\n' "$_GUARD_DNS_BYPASS_DOT853" ;;
+        dns.clientBypass.hijack53) printf '%s\n' "$_GUARD_DNS_HIJACK_BYPASS" ;;
+        network.ipv6) printf '%s\n' "$_GUARD_NET_IPV6" ;;
+        network.directRegion) printf '%s\n' "$_GUARD_NET_DIRECT_REGION" ;;
+        network.directRegionReason) printf '%s\n' "${_GUARD_PREFLIGHT_DIRECT_REASON:-}" ;;
+        proxy.healthy) printf '%s\n' "$_GUARD_PROXY_HEALTHY" ;;
+        proxy.region) printf '%s\n' "$_GUARD_PROXY_REGION" ;;
+        proxy.regionReason) printf '%s\n' "${_GUARD_PREFLIGHT_PROXY_REASON:-}" ;;
+        proxy.route) printf '%s\n' "${_GUARD_GEO_ROUTE:-}" ;;
+        gaming.clients.count) printf '%s\n' "$_GUARD_GAME_CLIENTS" ;;
+        gaming.clients.items) printf '%s\n' "$_GUARD_GAME_CLIENT_ITEMS" ;;
+        gaming.blanketUdpBypassDetected) printf '%s\n' "$_GUARD_GAME_BLANKET" ;;
+        nft.available) printf '%s\n' "$_GUARD_NFT_AVAILABLE" ;;
+        dependency.requiredFailure) printf '%s\n' "$_GUARD_DEPENDENCY_FAILURE" ;;
+        *)
+            printf '%s\n' "guard_env_get: unknown key: ${1:-}" >&2
+            return 2
+            ;;
+    esac
+}
+
+guard_env_json() {
+    printf '{'
+    printf '"dependency":{"requiredFailure":%s},' \
+        "$(_guard_env_json_bool "$_GUARD_DEPENDENCY_FAILURE")"
+    printf '"openclash":{"installed":%s,"enabled":%s,"running":%s,"healthy":%s},' \
+        "$(_guard_env_json_bool "$_GUARD_OC_INSTALLED")" \
+        "$(_guard_env_json_bool "$_GUARD_OC_ENABLED")" \
+        "$(_guard_env_json_bool "$_GUARD_OC_RUNNING")" \
+        "$(_guard_env_json_bool "$_GUARD_OC_HEALTHY")"
+    printf '"dns":{"backend":"%s","dnsmasqEnabled":%s,"dnsmasqRunning":%s,"adguardhomeEnabled":%s,"adguardhomeRunning":%s,"domainSetBackend":"%s","clientBypass":{"available":%s,"count":%s,"clients":%s,"port53":%s,"dot853":%s,"hijack53":%s}},' \
+        "$(_guard_env_json_string "$_GUARD_DNS_BACKEND")" \
+        "$(_guard_env_json_bool "$_GUARD_DNS_MSQ_ENABLED")" \
+        "$(_guard_env_json_bool "$_GUARD_DNS_MSQ_RUNNING")" \
+        "$(_guard_env_json_bool "$_GUARD_DNS_AGH_ENABLED")" \
+        "$(_guard_env_json_bool "$_GUARD_DNS_AGH_RUNNING")" \
+        "$(_guard_env_json_string "$_GUARD_DNS_DOMAIN_SET")" \
+        "$(_guard_env_json_bool "$_GUARD_DNS_BYPASS_AVAILABLE")" \
+        "$_GUARD_DNS_BYPASS_CLIENT_COUNT" \
+        "$(_guard_env_json_list "$_GUARD_DNS_BYPASS_CLIENTS")" \
+        "$(_guard_env_json_bool "$_GUARD_DNS_BYPASS_PORT53")" \
+        "$(_guard_env_json_bool "$_GUARD_DNS_BYPASS_DOT853")" \
+        "$(_guard_env_json_bool "$_GUARD_DNS_HIJACK_BYPASS")"
+    printf '"network":{"ipv6":%s,"directRegion":"%s","directRegionReason":"%s"},' \
+        "$(_guard_env_json_bool "$_GUARD_NET_IPV6")" \
+        "$(_guard_env_json_string "$_GUARD_NET_DIRECT_REGION")" \
+        "$(_guard_env_json_string "${_GUARD_PREFLIGHT_DIRECT_REASON:-}")"
+    printf '"proxy":{"healthy":%s,"region":"%s","regionReason":"%s","route":"%s"},' \
+        "$(_guard_env_json_bool "$_GUARD_PROXY_HEALTHY")" \
+        "$(_guard_env_json_string "$_GUARD_PROXY_REGION")" \
+        "$(_guard_env_json_string "${_GUARD_PREFLIGHT_PROXY_REASON:-}")" \
+        "$(_guard_env_json_string "${_GUARD_GEO_ROUTE:-}")"
+    printf '"gaming":{"clients":{"count":%s,"items":%s},"blanketUdpBypassDetected":%s},' \
+        "$_GUARD_GAME_CLIENTS" \
+        "$(_guard_env_json_items)" \
+        "$(_guard_env_json_bool "$_GUARD_GAME_BLANKET")"
+    printf '"nft":{"available":%s}' "$(_guard_env_json_bool "$_GUARD_NFT_AVAILABLE")"
+    printf '}\n'
+}

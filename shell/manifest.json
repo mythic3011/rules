@@ -1,0 +1,373 @@
+{
+  "schemaVersion": 1,
+  "generatedRoot": "dist",
+  "contract": {
+    "schemaVersion": 1,
+    "markers": {
+      "moduleBegin": "# BEGIN MODULE: {name}",
+      "moduleEnd": "# END MODULE: {name}"
+    },
+    "patterns": {
+      "name": "^[A-Za-z_][A-Za-z0-9_-]*$",
+      "setOptions": "^set -(?:eu|euo pipefail)\\s*(?:#.*)?$",
+      "mainDispatch": "^main\\s+\\\"\\$@\\\"\\s*(?:#.*)?$",
+      "function": "^(?:function\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(?:\\(\\s*\\))?|([A-Za-z_][A-Za-z0-9_]*)\\s*\\(\\s*\\))\\s*\\{?\\s*$"
+    },
+    "sideEffectChecks": [
+      {
+        "label": "nft add",
+        "pattern": "\\bnft\\s+add\\b"
+      },
+      {
+        "label": "uci set",
+        "pattern": "\\buci\\s+set\\b"
+      },
+      {
+        "label": "/etc/init.d/",
+        "pattern": "/etc/init\\.d/"
+      },
+      {
+        "label": "rm ",
+        "pattern": "(?:^|[\\s;|&])rm\\s+"
+      },
+      {
+        "label": "curl ",
+        "pattern": "\\bcurl\\s+"
+      }
+    ],
+    "allowedKeys": {
+      "root": [
+        "schemaVersion",
+        "generatedRoot",
+        "contract",
+        "modules",
+        "apps"
+      ],
+      "module": [
+        "path",
+        "depends",
+        "before",
+        "after"
+      ],
+      "app": [
+        "entry",
+        "depends",
+        "output",
+        "manifest",
+        "checksum"
+      ]
+    }
+  },
+  "modules": {
+    "cli": {
+      "path": "shell/lib/cli.sh",
+      "depends": []
+    },
+    "env": {
+      "path": "shell/lib/env.sh",
+      "depends": []
+    },
+    "file": {
+      "path": "shell/lib/file.sh",
+      "depends": []
+    },
+    "fetch": {
+      "path": "shell/lib/fetch.sh",
+      "depends": [
+        "file"
+      ]
+    },
+    "lock": {
+      "path": "shell/lib/lock.sh",
+      "depends": []
+    },
+    "nft": {
+      "path": "shell/lib/nft.sh",
+      "depends": []
+    },
+    "service": {
+      "path": "shell/lib/service.sh",
+      "depends": []
+    },
+    "uci": {
+      "path": "shell/lib/uci.sh",
+      "depends": []
+    },
+    "guard-uci-overlay": {
+      "path": "shell/apps/openclash-guard/uci-overlay.sh",
+      "depends": [
+        "uci"
+      ]
+    },
+    "guard-uci-overlay-resolve": {
+      "path": "shell/apps/openclash-guard/uci-overlay-resolve.sh",
+      "depends": [
+        "json",
+        "guard-uci-overlay"
+      ]
+    },
+    "json": {
+      "path": "shell/lib/json.sh",
+      "depends": []
+    },
+    "distribution": {
+      "path": "shell/lib/distribution.sh",
+      "depends": [
+        "file",
+        "fetch",
+        "json"
+      ]
+    },
+    "guard-resolver-sync-data": {
+      "path": "internal/generated/ai-routing/openclash-guard-resolver-sync-data.sh",
+      "depends": []
+    },
+    "guard-resolver-sync": {
+      "path": "shell/apps/openclash-guard/resolver-sync.sh",
+      "depends": [
+        "json",
+        "nft",
+        "file",
+        "guard-resolver-sync-data"
+      ]
+    },
+    "guard-dns": {
+      "path": "shell/apps/openclash-guard/dns.sh",
+      "depends": [
+        "service",
+        "env",
+        "guard-resolver-sync"
+      ]
+    },
+    "guard-geo": {
+      "path": "shell/apps/openclash-guard/geo.sh",
+      "depends": [
+        "json",
+        "fetch",
+        "file",
+        "cli"
+      ]
+    },
+    "guard-environment": {
+      "path": "shell/apps/openclash-guard/environment.sh",
+      "depends": [
+        "json",
+        "env",
+        "service",
+        "uci",
+        "nft",
+        "guard-dns",
+        "guard-geo",
+        "guard-uci-overlay"
+      ]
+    },
+    "guard-policy": {
+      "path": "shell/apps/openclash-guard/policy.sh",
+      "depends": [
+        "json",
+        "env",
+        "file"
+      ]
+    },
+    "guard-killswitch": {
+      "path": "shell/apps/openclash-guard/killswitch.sh",
+      "depends": [
+        "json",
+        "nft",
+        "file",
+        "guard-uci-overlay",
+        "guard-resolver-sync"
+      ]
+    },
+    "guard-dataplane": {
+      "path": "shell/apps/openclash-guard/dataplane.sh",
+      "depends": [
+        "nft"
+      ],
+      "after": [
+        "guard-killswitch"
+      ]
+    },
+    "guard-gaming": {
+      "path": "shell/apps/openclash-guard/gaming.sh",
+      "depends": [
+        "json",
+        "guard-uci-overlay",
+        "guard-policy",
+        "guard-dataplane"
+      ],
+      "after": [
+        "guard-killswitch"
+      ]
+    },
+    "guard-migration": {
+      "path": "shell/apps/openclash-guard/migration.sh",
+      "depends": [
+        "nft",
+        "file"
+      ]
+    },
+    "guard-template": {
+      "path": "shell/apps/openclash-guard/template.sh",
+      "depends": [
+        "json",
+        "cli",
+        "uci",
+        "file",
+        "guard-environment",
+        "guard-policy"
+      ]
+    },
+    "guard-overlay": {
+      "path": "shell/apps/openclash-guard/overlay.sh",
+      "depends": [
+        "cli",
+        "file"
+      ]
+    },
+    "guard-rules": {
+      "path": "shell/apps/openclash-guard/rules.sh",
+      "depends": [
+        "cli",
+        "file",
+        "fetch",
+        "guard-overlay",
+        "guard-resolver-sync"
+      ]
+    },
+    "guard-install": {
+      "path": "shell/apps/openclash-guard/install.sh",
+      "depends": [
+        "cli",
+        "file",
+        "fetch",
+        "distribution",
+        "uci",
+        "guard-environment",
+        "guard-template",
+        "guard-geo",
+        "guard-overlay",
+        "guard-rules"
+      ]
+    },
+    "guard-menu": {
+      "path": "shell/apps/openclash-guard/menu.sh",
+      "depends": [
+        "cli",
+        "guard-environment",
+        "guard-policy",
+        "guard-install",
+        "guard-template",
+        "guard-geo",
+        "guard-preflight"
+      ]
+    },
+    "guard-main": {
+      "path": "shell/apps/openclash-guard/main.sh",
+      "depends": [
+        "cli",
+        "lock",
+        "fetch",
+        "file",
+        "guard-environment",
+        "guard-uci-overlay",
+        "guard-uci-overlay-resolve",
+        "guard-policy",
+        "guard-dns",
+        "guard-killswitch",
+        "guard-dataplane",
+        "guard-gaming",
+        "guard-migration",
+        "guard-geo",
+        "guard-template",
+        "guard-install",
+        "guard-health",
+        "guard-overlay",
+        "guard-rules",
+        "guard-preflight",
+        "guard-menu"
+      ]
+    },
+    "guard-preflight": {
+      "path": "shell/apps/openclash-guard/preflight.sh",
+      "depends": [
+        "cli",
+        "file",
+        "fetch",
+        "distribution",
+        "guard-environment",
+        "guard-geo",
+        "guard-policy",
+        "guard-uci-overlay",
+        "guard-template",
+        "guard-install"
+      ]
+    },
+    "guard-health": {
+      "path": "shell/apps/openclash-guard/health.sh",
+      "depends": [
+        "json",
+        "nft",
+        "guard-environment",
+        "guard-policy",
+        "guard-dataplane",
+        "guard-gaming",
+        "guard-install",
+        "guard-tunnel-health"
+      ],
+      "after": [
+        "guard-install"
+      ]
+    },
+    "guard-tunnel-health": {
+      "path": "shell/apps/openclash-guard/tunnel-health.sh",
+      "depends": [
+        "nft",
+        "guard-environment",
+        "guard-policy",
+        "guard-killswitch"
+      ],
+      "after": [
+        "guard-killswitch"
+      ]
+    }
+  },
+  "apps": {
+    "openclash-guard": {
+      "entry": "shell/apps/openclash-guard/main.sh",
+      "depends": [
+        "cli",
+        "env",
+        "file",
+        "fetch",
+        "lock",
+        "nft",
+        "service",
+        "uci",
+        "json",
+        "distribution",
+        "guard-uci-overlay",
+        "guard-uci-overlay-resolve",
+        "guard-resolver-sync-data",
+        "guard-resolver-sync",
+        "guard-environment",
+        "guard-policy",
+        "guard-dns",
+        "guard-killswitch",
+        "guard-dataplane",
+        "guard-gaming",
+        "guard-migration",
+        "guard-geo",
+        "guard-template",
+        "guard-install",
+        "guard-overlay",
+        "guard-rules",
+        "guard-preflight",
+        "guard-menu"
+      ],
+      "output": "dist/openclash-guard.sh",
+      "manifest": "dist/manifest.json",
+      "checksum": "dist/openclash-guard.sha256"
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "1",
+  "activeMode": "hk",
+  "accounts": {
+    "claude": {
+      "selectedNode": "REJECT",
+      "verifiedPolicyVersion": null,
+      "verifiedNode": null,
+      "resetReason": "none"
+    }
+  }
+}

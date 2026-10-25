@@ -1,0 +1,43 @@
+# openclash-guard-resolver-sync-rules/v1
+# Curated first-party/core selectors only. Shared third-party infrastructure is
+# intentionally excluded because DNS-to-IP enforcement broadens host scope.
+source vpsdance VPSDance/ai-proxy-rules d07cac190c33e7914ba7adaf7e7c14298fba7024
+selector chatgpt suffix ai.com
+selector chatgpt suffix chat.com
+selector chatgpt suffix chatgpt.com
+selector chatgpt suffix chatgpt.livekit.cloud
+selector chatgpt suffix crixet.com
+selector chatgpt suffix oaistatic.com
+selector chatgpt suffix oaiusercontent.com
+selector chatgpt suffix openai.com
+selector chatgpt suffix openaiapi-site.azureedge.net
+selector chatgpt suffix openaicom.imgix.net
+selector chatgpt suffix sora.com
+selector claude suffix anthropic.com
+selector claude suffix anthropic.com.cn
+selector claude suffix antspace.dev
+selector claude suffix clau.de
+selector claude suffix claude.ai
+selector claude suffix claude.app
+selector claude suffix claude.com
+selector claude suffix claude.new
+selector claude suffix claude.site
+selector claude suffix claudemcpclient.com
+selector claude suffix claudemcpcontent.com
+selector claude suffix claudepages.dev
+selector claude suffix claudestudio.com
+selector claude suffix claudeusercontent.com
+selector claude suffix modelcontextprotocol.com
+selector claude suffix modelcontextprotocol.io
+selector claude suffix modelcontextprotocol.net
+selector claude suffix modelcontextprotocol.org
+selector poe suffix poe.com
+selector poe suffix poecdn.net
+selector windsurf suffix codeium.com
+selector windsurf suffix codeiumdata.com
+selector windsurf suffix windsurf.build
+selector windsurf suffix windsurf.com
+selector huggingface suffix hf.co
+selector huggingface suffix hf.space
+selector huggingface suffix huggingface.co
+exclude flow-music path-scope-expansion

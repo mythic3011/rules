@@ -1,0 +1,213 @@
+{
+  "schemaVersion": 1,
+  "doctor": {
+    "paths": [
+      "catalog.json",
+      "cfg",
+      "rule",
+      "dns",
+      "apps/profile-service",
+      "internal/config",
+      "internal/python",
+      "tests",
+      "tools",
+      "shell",
+      "mise.toml",
+      "pnpm-workspace.yaml"
+    ],
+    "tools": [
+      "mise",
+      "python3",
+      "node",
+      "pnpm",
+      "uv"
+    ]
+  },
+  "compilePaths": [
+    "internal/python",
+    "tests",
+    "tools"
+  ],
+  "pipelines": {
+    "check": [
+      {
+        "argv": [
+          "{python}",
+          "tools/shbundle.py",
+          "check"
+        ]
+      },
+      {
+        "argv": [
+          "{python}",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_*.py"
+        ]
+      },
+      {
+        "kind": "node-test-glob",
+        "glob": "apps/profile-service/test/*.test.mjs",
+        "requiredWhich": "node",
+        "missingMessage": "node is required for the profile-service contract suite"
+      }
+    ],
+    "checkNode": [
+      {
+        "argv": [
+          "pnpm",
+          "run",
+          "routing:validate"
+        ]
+      },
+      {
+        "argv": [
+          "pnpm",
+          "run",
+          "typecheck"
+        ]
+      },
+      {
+        "argv": [
+          "pnpm",
+          "run",
+          "test:routing"
+        ]
+      },
+      {
+        "argv": [
+          "pnpm",
+          "run",
+          "routing:check"
+        ]
+      }
+    ],
+    "generate": [
+      {
+        "when": {
+          "which": "pnpm",
+          "exists": "node_modules/.bin/tsx"
+        },
+        "otherwise": "skip",
+        "skipMessage": "note: Node dependencies are not installed; checked-in routing inputs will be used",
+        "steps": [
+          {
+            "argv": [
+              "pnpm",
+              "run",
+              "routing",
+              "generate-inputs"
+            ]
+          }
+        ]
+      },
+      {
+        "argv": [
+          "{python}",
+          "internal/python/generate_distribution_bootstrap.py"
+        ]
+      },
+      {
+        "argv": [
+          "{python}",
+          "internal/python/generate_service_intake_form.py"
+        ]
+      },
+      {
+        "argv": [
+          "{python}",
+          "internal/python/generate_ai_profiles.py"
+        ]
+      },
+      {
+        "argv": [
+          "{python}",
+          "internal/python/generate_openclash_guard_runtime.py"
+        ]
+      },
+      {
+        "argv": [
+          "{python}",
+          "internal/python/generate_openclash_guard_resolver_sync_data.py"
+        ]
+      },
+      {
+        "argv": [
+          "{python}",
+          "tools/shbundle.py",
+          "check"
+        ]
+      },
+      {
+        "argv": [
+          "{python}",
+          "tools/shbundle.py",
+          "build",
+          "--all"
+        ]
+      },
+      {
+        "argv": [
+          "{python}",
+          "internal/python/generate_openclash_guard_release.py"
+        ]
+      },
+      {
+        "when": {
+          "which": "pnpm",
+          "exists": "node_modules/.bin/tsx"
+        },
+        "otherwise": "skip",
+        "skipMessage": "note: Node dependencies are not installed; TypeScript-owned generated artifacts were skipped",
+        "steps": [
+          {
+            "argv": [
+              "pnpm",
+              "run",
+              "routing:generate"
+            ]
+          }
+        ]
+      },
+      {
+        "argv": [
+          "{python}",
+          "internal/python/generate_profile_service_runtime.py"
+        ]
+      }
+    ],
+    "refresh": [
+      {
+        "argv": [
+          "{python}",
+          "internal/python/generate_ai_profiles.py",
+          "--refresh-upstream-sources"
+        ]
+      },
+      {
+        "argv": [
+          "{python}",
+          "internal/python/generate_ai_profiles.py",
+          "--refresh-upstream-hosts"
+        ]
+      },
+      {
+        "argv": [
+          "{python}",
+          "internal/python/generate_adblock_outputs.py"
+        ]
+      },
+      {
+        "argv": [
+          "{python}",
+          "internal/python/rulesctl.py",
+          "generate"
+        ]
+      }
+    ]
+  }
+}

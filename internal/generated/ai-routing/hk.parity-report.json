@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "shadow": true,
+  "productionAuthority": "cfg/yaml/Custom_Clash_AI.yaml",
+  "profile": "hk",
+  "observedDeltaIds": [
+    "dns",
+    "proxy-groups",
+    "rule-providers",
+    "rules"
+  ],
+  "allowlistedDeltaIds": [
+    "dns",
+    "proxy-groups",
+    "rule-providers",
+    "rules"
+  ],
+  "preserved": {
+    "staticTopLevel": true,
+    "proxyProviders": true,
+    "nonAiGroups": true,
+    "nonAiRules": true,
+    "nonAiProviders": true,
+    "terminalMatch": true,
+    "dnsExistingPolicies": true
+  }
+}

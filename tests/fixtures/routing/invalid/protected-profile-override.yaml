@@ -1,0 +1,53 @@
+schemaVersion: 1
+policyVersion: "1"
+routeTargets:
+  direct: { kind: direct, group: DIRECT }
+  reject: { kind: reject, group: REJECT }
+  us-auto: { kind: region-auto, group: "US Auto", region: us, dynamic: true }
+  claude-us-pinned:
+    kind: pinned-egress
+    group: "Claude Pinned"
+    approvedNodes: [US-Claude-01]
+    emptyFallback: REJECT
+    dynamic: false
+protectionClasses:
+  account-protected:
+    kind: account-protected
+    directAllowed: false
+    dynamicRouteAllowed: false
+    activation: explicit-user-selection
+    initialRoute: reject
+    dnsMode: proxy-only
+    ipv6: proxy-or-reject
+    quic: proxy-or-reject
+    firewallKillSwitch: true
+    failMode: reject
+    resetOn: [policy-version-change]
+services:
+  claude:
+    displayName: Claude
+    protectionClass: account-protected
+    defaultRoute: reject
+    allowedRoutes: [reject, claude-us-pinned]
+    selector:
+      kind: explicit-node
+      visibleGroup: Claude
+      initialRoute: reject
+      allowedRouteRefs: [reject, claude-us-pinned]
+    upstream: { source: legacy-generator, provider: claude }
+    endpoints: {}
+accessProfiles:
+  hk:
+    displayName: HK
+    defaultRoute: direct
+    serviceOverrides: { claude: us-auto }
+    endpointOverrides: {}
+dns:
+  defaultProfile: default
+  profiles:
+    default:
+      respectRules: false
+      defaultNameserver: [{ kind: udp, host: 1.1.1.1 }]
+      proxyServerNameserver: []
+      nameserver: [{ kind: udp, host: 1.1.1.1 }]
+      servicePolicies: {}

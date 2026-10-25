@@ -1,0 +1,22 @@
+schemaVersion: 1
+policyVersion: "1"
+routeTargets:
+  reject: { kind: reject, group: REJECT }
+  claude-us-pinned:
+    kind: pinned-egress
+    group: "Claude Pinned"
+    approvedNodes: []
+    emptyFallback: REJECT
+    dynamic: false
+protectionClasses: {}
+services: {}
+accessProfiles: {}
+dns:
+  defaultProfile: default
+  profiles:
+    default:
+      respectRules: false
+      defaultNameserver: [{ kind: udp, host: 1.1.1.1 }]
+      proxyServerNameserver: []
+      nameserver: [{ kind: udp, host: 1.1.1.1 }]
+      servicePolicies: {}

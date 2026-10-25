@@ -1,0 +1,1651 @@
+from __future__ import annotations
+
+import importlib.util
+import hashlib
+import json
+import copy
+import os
+import pty
+import re
+import select
+import stat
+import subprocess
+import sys
+import tempfile
+import time
+import unittest
+from pathlib import Path
+from typing import Any, Mapping
+
+from ai_profiles.distribution import load_distribution
+from ai_profiles.settings import AI_DISTRIBUTION_PATH
+
+ROOT = Path(__file__).resolve().parents[1]
+SHBUNDLE_PATH = ROOT / "tools" / "shbundle.py"
+DISTRIBUTION = load_distribution(AI_DISTRIBUTION_PATH)
+BUNDLE = ROOT / DISTRIBUTION.artifact("guard-bundle").path
+LIB_JSON = ROOT / "shell" / "lib" / "json.sh"
+APP_DIR = ROOT / "shell" / "apps" / "openclash-guard"
+FIXTURE_DIR = ROOT / "tests" / "fixtures" / "synthetic" / "openclash-guard"
+POLICY = FIXTURE_DIR / "policy.json"
+POLICY_INVALID = FIXTURE_DIR / "policy-invalid.json"
+RUNTIME_POLICY = ROOT / "cfg" / "runtime" / "openclash-guard.json"
+RUNTIME_TEMPLATES = ROOT / "cfg" / "runtime" / "openclash-guard-templates.json"
+
+SPEC = importlib.util.spec_from_file_location("shbundle", SHBUNDLE_PATH)
+if SPEC is None or SPEC.loader is None:
+    raise RuntimeError(f"Unable to load module from {SHBUNDLE_PATH}")
+shbundle = importlib.util.module_from_spec(SPEC)
+sys.modules.setdefault("shbundle", shbundle)
+SPEC.loader.exec_module(shbundle)
+
+FAKE_UCI = r'''#!/usr/bin/env python3
+import json
+import os
+import sys
+from pathlib import Path
+
+STATE_PATH = Path(os.environ["UCI_FAKE_STATE"])
+
+
+def load():
+    if not STATE_PATH.is_file():
+        return {"committed": {}, "pending": {}}
+    return json.loads(STATE_PATH.read_text(encoding="utf-8"))
+
+
+def save(state):
+    STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    STATE_PATH.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+
+
+def package_of(option):
+    return option.split(".", 1)[0]
+
+
+def lookup(state, option):
+    if option in state["pending"]:
+        return True, state["pending"][option]
+    if option in state["committed"]:
+        return True, state["committed"][option]
+    return False, None
+
+
+def render(value, delim):
+    if isinstance(value, list):
+        return delim.join(value)
+    return str(value)
+
+
+def main(argv):
+    delim = " "
+    quiet = False
+    args = list(argv)
+    while args:
+        if args[0] == "-q":
+            quiet = True
+            args.pop(0)
+            continue
+        if args[0] == "-d":
+            delim = args[1]
+            args = args[2:]
+            continue
+        break
+    if not args:
+        print("uci: no command", file=sys.stderr)
+        return 1
+    cmd = args[0]
+    rest = args[1:]
+    state = load()
+    if cmd in {"get", "show"} and os.environ.get("UCI_FAKE_LOG"):
+        with Path(os.environ["UCI_FAKE_LOG"]).open("a", encoding="utf-8") as log_file:
+            log_file.write(" ".join(args) + "\n")
+    if cmd == "show":
+        package = rest[0] if rest else ""
+        values = dict(state["committed"])
+        values.update(state["pending"])
+        entries = []
+        for option in sorted(values):
+            if package and package_of(option) != package:
+                continue
+            value = values[option]
+            if isinstance(value, list):
+                entries.extend(f"{option}[{index}]='{item}'" for index, item in enumerate(value))
+            else:
+                entries.append(f"{option}='{value}'")
+        if not entries:
+            if not quiet:
+                print("uci: Entry not found", file=sys.stderr)
+            return 1
+        print("\n".join(entries))
+        return 0
+    if cmd == "get":
+        if not rest:
+            print("uci: missing option", file=sys.stderr)
+            return 1
+        found, value = lookup(state, rest[0])
+        if not found:
+            if not quiet:
+                print("uci: Entry not found", file=sys.stderr)
+            return 1
+        print(render(value, delim))
+        return 0
+    if cmd == "set":
+        if not rest or "=" not in rest[0]:
+            print("uci: invalid set", file=sys.stderr)
+            return 1
+        option, value = rest[0].split("=", 1)
+        state["pending"][option] = value
+        save(state)
+        return 0
+    if cmd == "add_list":
+        if not rest or "=" not in rest[0]:
+            print("uci: invalid add_list", file=sys.stderr)
+            return 1
+        option, value = rest[0].split("=", 1)
+        found, current = lookup(state, option)
+        items = list(current) if found and isinstance(current, list) else ([] if not found else [current])
+        items.append(value)
+        state["pending"][option] = items
+        save(state)
+        return 0
+    if cmd == "delete":
+        if not rest:
+            print("uci: missing option", file=sys.stderr)
+            return 1
+        option = rest[0]
+        found = option in state["pending"] or option in state["committed"]
+        state["pending"].pop(option, None)
+        state["committed"].pop(option, None)
+        save(state)
+        return 0 if found else 1
+    if cmd == "changes":
+        pkg = rest[0] if rest else ""
+        for option, value in state["pending"].items():
+            if pkg and package_of(option) != pkg:
+                continue
+            print(f"{option}='{render(value, ' ')}'")
+        return 0
+    if cmd == "commit":
+        pkg = rest[0] if rest else ""
+        keep = {}
+        for option, value in state["pending"].items():
+            if pkg and package_of(option) != pkg:
+                keep[option] = value
+                continue
+            state["committed"][option] = value
+        state["pending"] = keep
+        save(state)
+        return 0
+    print(f"uci: unknown command {cmd}", file=sys.stderr)
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
+'''
+
+FAKE_NFT = r'''#!/usr/bin/env python3
+import copy
+import json
+import os
+import re
+import sys
+from pathlib import Path
+
+STATE_PATH = Path(os.environ["NFT_FAKE_STATE"])
+
+
+def load():
+    if not STATE_PATH.is_file():
+        return {"tables": {}, "batches": [], "next_handle": 1}
+    return json.loads(STATE_PATH.read_text(encoding="utf-8"))
+
+
+def save(state):
+    STATE_PATH.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+
+
+def table_key(family, name):
+    return f"{family} {name}"
+
+
+def get_table(state, family, name):
+    return state["tables"].get(table_key(family, name))
+
+
+def ensure_table(state, family, name):
+    key = table_key(family, name)
+    tbl = state["tables"].get(key)
+    if tbl is None:
+        tbl = {"chains": {}, "sets": {}, "elements": {}}
+        state["tables"][key] = tbl
+    return tbl
+
+
+def format_rule(rule, with_handle):
+    comment = rule.get("comment", "")
+    text = rule.get("text", "counter")
+    line = f"\t\t{text}"
+    if comment:
+        line += f' comment "{comment}"'
+    if with_handle:
+        line += f" # handle {rule['handle']}"
+    return line
+
+
+def emit_table(table, family, name, with_handle, out):
+    out.append(f"table {family} {name} {{")
+    for chain, rules in table.get("chains", {}).items():
+        out.append(f"\tchain {chain} {{")
+        for rule in rules:
+            out.append(format_rule(rule, with_handle))
+        out.append("\t}")
+    for set_name, spec in table.get("sets", {}).items():
+        comment = spec.get("comment", "")
+        extra = f' comment "{comment}"' if comment else ""
+        out.append(f"\tset {set_name} {{")
+        out.append(f"\t\ttype {spec.get('type', 'ipv4_addr')}{extra}")
+        out.append("\t}")
+    out.append("}")
+
+
+def comment_of(text):
+    match = re.search(r'comment\s+"([^"]*)"', text)
+    return match.group(1) if match else ""
+
+
+def apply_line(state, line):
+    line = line.strip()
+    if not line or line.startswith("#"):
+        return 0
+    if line.startswith("flush table "):
+        parts = line.split()
+        key = table_key(parts[2], parts[3])
+        if key not in state["tables"]:
+            print("Error: No such file or directory", file=sys.stderr)
+            return 1
+        state["tables"][key] = {"chains": {}, "sets": {}, "elements": {}}
+        return 0
+    if line.startswith("add table "):
+        parts = line.split()
+        family, name = parts[2], parts[3]
+        key = table_key(family, name)
+        if key in state["tables"]:
+            print("Error: File exists", file=sys.stderr)
+            return 1
+        ensure_table(state, family, name)
+        return 0
+    if line.startswith("delete table "):
+        parts = line.split()
+        family, name = parts[2], parts[3]
+        key = table_key(family, name)
+        if key not in state["tables"]:
+            print("Error: No such file or directory", file=sys.stderr)
+            return 1
+        del state["tables"][key]
+        return 0
+    if line.startswith("add chain "):
+        match = re.match(r"add chain (\S+) (\S+) (\S+)\s*(?:\{(.*)\})?\s*$", line)
+        if not match:
+            print(f"nft: bad add chain: {line}", file=sys.stderr)
+            return 1
+        family, table, chain = match.group(1), match.group(2), match.group(3)
+        tbl = get_table(state, family, table)
+        if tbl is None:
+            print("Error: No such file or directory", file=sys.stderr)
+            return 1
+        tbl.setdefault("chains", {})[chain] = []
+        return 0
+    if line.startswith("delete chain "):
+        parts = line.split()
+        family, table, chain = parts[2], parts[3], parts[4]
+        tbl = get_table(state, family, table)
+        if tbl is None or chain not in tbl.get("chains", {}):
+            print("Error: No such file or directory", file=sys.stderr)
+            return 1
+        del tbl["chains"][chain]
+        return 0
+    if line.startswith("add set "):
+        match = re.match(r"add set (\S+) (\S+) (\S+)\s*\{(.*)\}\s*$", line)
+        if not match:
+            print(f"nft: bad add set: {line}", file=sys.stderr)
+            return 1
+        family, table, name, spec = match.group(1), match.group(2), match.group(3), match.group(4)
+        tbl = get_table(state, family, table)
+        if tbl is None:
+            print("Error: No such file or directory", file=sys.stderr)
+            return 1
+        type_m = re.search(r"type\s+(\S+);", spec)
+        comment = comment_of(spec)
+        tbl.setdefault("sets", {})[name] = {
+            "type": type_m.group(1) if type_m else "ipv4_addr",
+            "comment": comment,
+        }
+        tbl.setdefault("elements", {})[name] = []
+        return 0
+    if line.startswith("add element "):
+        match = re.match(r"add element (\S+) (\S+) (\S+)\s*\{(.*)\}\s*$", line)
+        if not match:
+            print(f"nft: bad add element: {line}", file=sys.stderr)
+            return 1
+        family, table, name, body = match.group(1), match.group(2), match.group(3), match.group(4)
+        tbl = get_table(state, family, table)
+        if tbl is None or name not in tbl.get("sets", {}):
+            print("Error: No such file or directory", file=sys.stderr)
+            return 1
+        items = [item.strip() for item in body.split(",") if item.strip()]
+        tbl.setdefault("elements", {}).setdefault(name, []).extend(items)
+        return 0
+    if line.startswith("add rule "):
+        match = re.match(r"add rule (\S+) (\S+) (\S+)\s+(.*)$", line)
+        if not match:
+            print(f"nft: bad add rule: {line}", file=sys.stderr)
+            return 1
+        family, table, chain, rest = match.group(1), match.group(2), match.group(3), match.group(4)
+        tbl = get_table(state, family, table)
+        if tbl is None or chain not in tbl.get("chains", {}):
+            print("Error: No such file or directory", file=sys.stderr)
+            return 1
+        comment = comment_of(rest)
+        text = re.sub(r'\s*comment\s+"[^"]*"\s*$', "", rest).strip()
+        handle = int(state.get("next_handle", 1))
+        state["next_handle"] = handle + 1
+        tbl["chains"][chain].append({"handle": handle, "text": text, "comment": comment})
+        return 0
+    if line.startswith("delete rule ") and "handle" in line:
+        parts = line.split()
+        family, table, chain = parts[2], parts[3], parts[4]
+        handle = int(parts[parts.index("handle") + 1])
+        tbl = get_table(state, family, table)
+        if tbl is None or chain not in tbl.get("chains", {}):
+            print("Error: No such file or directory", file=sys.stderr)
+            return 1
+        rules = tbl["chains"][chain]
+        kept = [rule for rule in rules if int(rule["handle"]) != handle]
+        if len(kept) == len(rules):
+            print("Error: No such file or directory", file=sys.stderr)
+            return 1
+        tbl["chains"][chain] = kept
+        return 0
+    if line.startswith("delete set "):
+        parts = line.split()
+        family, table, name = parts[2], parts[3], parts[4]
+        tbl = get_table(state, family, table)
+        if tbl is None or name not in tbl.get("sets", {}):
+            print("Error: No such file or directory", file=sys.stderr)
+            return 1
+        del tbl["sets"][name]
+        tbl.get("elements", {}).pop(name, None)
+        return 0
+    print(f"nft: unsupported batch line: {line}", file=sys.stderr)
+    return 1
+
+
+def main(argv):
+    with_handle = False
+    args = list(argv)
+    file_path = None
+    filtered = []
+    i = 0
+    while i < len(args):
+        if args[i] == "-a":
+            with_handle = True
+            i += 1
+            continue
+        if args[i] == "-f":
+            file_path = args[i + 1]
+            i += 2
+            continue
+        filtered.append(args[i])
+        i += 1
+    state = load()
+    if file_path is not None:
+        raw = sys.stdin.read() if file_path == "-" else Path(file_path).read_text(encoding="utf-8")
+        lines = [line for line in raw.splitlines() if line.strip() and not line.strip().startswith("#")]
+        state.setdefault("batches", []).append(lines)
+        if os.environ.get("NFT_FAKE_FAIL_BATCH") == "1":
+            print("nft: injected transaction failure", file=sys.stderr)
+            return 1
+        staged = copy.deepcopy(state)
+        rc = 0
+        for line in raw.splitlines():
+            line_rc = apply_line(staged, line)
+            if line_rc != 0:
+                rc = line_rc
+                break
+        if rc == 0:
+            state = staged
+        save(state)
+        return rc
+    if not filtered:
+        print("nft: missing command", file=sys.stderr)
+        return 1
+    cmd = filtered[0]
+    rest = filtered[1:]
+    if cmd == "list" and rest[:1] == ["tables"]:
+        for key in state["tables"]:
+            print(f"table {key}")
+        return 0
+    if cmd == "list" and rest:
+        kind = rest[0]
+        if kind == "table" and len(rest) >= 3:
+            family, name = rest[1], rest[2]
+            tbl = get_table(state, family, name)
+            if tbl is None:
+                print("Error: No such file or directory", file=sys.stderr)
+                return 1
+            lines = []
+            emit_table(tbl, family, name, with_handle, lines)
+            print("\n".join(lines))
+            return 0
+        if kind == "chain" and len(rest) >= 4:
+            family, name, chain = rest[1], rest[2], rest[3]
+            tbl = get_table(state, family, name)
+            if tbl is None or chain not in tbl.get("chains", {}):
+                print("Error: No such file or directory", file=sys.stderr)
+                return 1
+            print(f"table {family} {name} {{")
+            print(f"\tchain {chain} {{")
+            for rule in tbl["chains"][chain]:
+                print(format_rule(rule, with_handle))
+            print("\t}")
+            print("}")
+            return 0
+        if kind == "set" and len(rest) >= 4:
+            family, name, set_name = rest[1], rest[2], rest[3]
+            tbl = get_table(state, family, name)
+            if tbl is None or set_name not in tbl.get("sets", {}):
+                print("Error: No such file or directory", file=sys.stderr)
+                return 1
+            print(f"table {family} {name} {{")
+            print(f"\tset {set_name} {{")
+            print(f"\t\ttype {tbl['sets'][set_name].get('type', 'ipv4_addr')}")
+            print("\t}")
+            print("}")
+            return 0
+    if cmd == "delete":
+        rc = apply_line(state, " ".join([cmd] + rest))
+        save(state)
+        return rc
+    print(f"nft: unsupported: {' '.join(argv)}", file=sys.stderr)
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
+'''
+
+FAKE_INITD = r'''#!/bin/sh
+set -eu
+name=$(basename "$0")
+state=${SVC_FAKE_STATE:?}
+cmd=${1:-}
+mkdir -p "$state"
+case $cmd in
+    enabled)
+        [ -f "$state/$name.enabled" ]
+        ;;
+    status)
+        if [ -f "$state/$name.running" ]; then
+            printf '%s\n' "running"
+            exit 0
+        fi
+        printf '%s\n' "inactive"
+        exit 1
+        ;;
+    running)
+        [ -f "$state/$name.running" ]
+        ;;
+    restart)
+        printf '%s\n' "restart" >> "$state/$name.log"
+        ;;
+    enable)
+        printf '%s\n' "enable" >> "$state/$name.log"
+        : > "$state/$name.enabled"
+        ;;
+    start)
+        printf '%s\n' "start" >> "$state/$name.log"
+        : > "$state/$name.running"
+        ;;
+    *)
+        printf '%s\n' "usage: $name enabled|status|running|restart|enable|start" >&2
+        exit 1
+        ;;
+esac
+'''
+
+FAKE_CURL = r'''#!/usr/bin/env python3
+import json
+import os
+import shlex
+import sys
+from pathlib import Path
+
+MAP_PATH = Path(os.environ["FETCH_FAKE_MAP"])
+LOG_PATH = Path(os.environ["FETCH_FAKE_LOG"])
+
+
+def main(argv):
+    output = None
+    url = None
+    config_path = None
+    max_filesize = None
+    safe_args = ["curl"]
+    args = list(argv)
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg == "--config" and i + 1 < len(args):
+            config_path = args[i + 1]
+            safe_args.extend((arg, "<private-config>"))
+            i += 2
+            continue
+        if arg in ("-o", "--output"):
+            if i + 1 < len(args):
+                safe_args.extend((arg, "<output-file>"))
+            output = args[i + 1]
+            i += 2
+            continue
+        if arg == "--max-filesize" and i + 1 < len(args):
+            max_filesize = int(args[i + 1])
+            safe_args.extend((arg, args[i + 1]))
+            i += 2
+            continue
+        if arg in (
+            "--connect-timeout",
+            "--max-time",
+            "--max-redirs",
+            "--proto",
+            "--proto-redir",
+            "-m",
+        ):
+            if i + 1 < len(args):
+                safe_args.extend((arg, args[i + 1]))
+            i += 2
+            continue
+        if arg in ("--proxy", "--proxy-user", "--noproxy") and i + 1 < len(args):
+            value = args[i + 1]
+            marker = "<configured>" if value else "<empty>"
+            safe_args.extend((arg, marker))
+            i += 2
+            continue
+        if arg.startswith("-"):
+            if arg in ("-q", "-fLSs", "-f", "-L", "-s", "-S"):
+                safe_args.append(arg)
+            i += 1
+            continue
+        url = arg
+        i += 1
+
+    config = {}
+    if config_path is not None:
+        try:
+            config_text = Path(config_path).read_text(encoding="utf-8")
+            for line in config_text.splitlines():
+                key, separator, raw_value = line.partition("=")
+                if not separator:
+                    continue
+                values = shlex.split(raw_value.strip(), comments=False, posix=True)
+                config[key.strip()] = values[0] if values else ""
+        except (OSError, ValueError):
+            print("curl: invalid private config", file=sys.stderr)
+            return 2
+        url = config.get("url", url)
+
+    LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with LOG_PATH.open("a", encoding="utf-8") as handle:
+        handle.write(" ".join(safe_args))
+        if config.get("proxy"):
+            handle.write(" proxy-configured")
+        if config.get("proxy-user"):
+            handle.write(" proxy-auth-configured")
+        handle.write("\n")
+
+    mapping = json.loads(MAP_PATH.read_text(encoding="utf-8")) if MAP_PATH.is_file() else {}
+    spec = mapping.get(url or "")
+    if spec is None or spec.get("fail"):
+        print("curl: failed to fetch", file=sys.stderr)
+        return 22
+    body = spec.get("body", "ok\n")
+    body_bytes = body.encode("utf-8")
+    if max_filesize is not None and not spec.get("unknown_size") and len(body_bytes) > max_filesize:
+        return 63
+    if output is None:
+        sys.stdout.write(body)
+        return 0
+    try:
+        Path(output).write_bytes(body_bytes)
+    except OSError:
+        return 63
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
+'''
+
+FAKE_USIGN = r'''#!/bin/sh
+case "${1:-}" in
+    -V) exit 0 ;;
+    -F) printf '%s\n' '0123456789abcdef0123456789abcdef' ; exit 0 ;;
+    *) exit 2 ;;
+esac
+'''
+
+
+def _write_exec(path: Path, content: str) -> None:
+    path.write_text(content, encoding="utf-8")
+    path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+
+def _service_logs(svc_state: Path, name: str) -> list[str]:
+    log = svc_state / f"{name}.log"
+    if not log.is_file():
+        return []
+    return [line for line in log.read_text(encoding="utf-8").splitlines() if line]
+
+
+class JsonHelperTests(unittest.TestCase):
+    def test_get_keys_list_on_synthetic_policy(self) -> None:
+        script = f"""
+set -eu
+. "{LIB_JSON}"
+json_get "{POLICY}" schemaVersion
+json_get "{POLICY}" nft.table
+json_get "{POLICY}" services.svc-proxy-only.protectionClass
+json_keys "{POLICY}" services
+json_list "{POLICY}" gaming.protectedUdpPorts
+json_list "{POLICY}" gaming.tcpPorts
+if json_has "{POLICY}" protectionClasses.stable-session; then echo has-class; fi
+"""
+        result = subprocess.run(
+            ["/bin/sh", "-c", script],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+            env={**os.environ, "JSON_FORCE_AWK": "1", "LC_ALL": "C"},
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        lines = result.stdout.splitlines()
+        self.assertEqual(lines[0], "1")
+        self.assertEqual(lines[1], "openclash_guard")
+        self.assertEqual(lines[2], "stable-session")
+        self.assertIn("svc-proxy-only", lines)
+        self.assertIn("443", lines)
+        self.assertIn("has-class", lines)
+
+    def test_invalid_json_fails_load(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            path = Path(raw) / "bad.json"
+            path.write_text("{not json", encoding="utf-8")
+            script = f"""
+set -eu
+. "{LIB_JSON}"
+if json_load "{path}"; then echo loaded; else echo rejected; fi
+"""
+            result = subprocess.run(
+                ["/bin/sh", "-c", script],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+                env={**os.environ, "JSON_FORCE_AWK": "1", "LC_ALL": "C"},
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("rejected", result.stdout)
+
+
+class GuardAppTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        loaded = shbundle.load_manifest(ROOT / "shell" / "manifest.json")
+        shbundle.build_app(loaded, "openclash-guard")
+        if not BUNDLE.is_file():
+            raise RuntimeError(f"missing bundle {BUNDLE}")
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.base = Path(self._tmp.name)
+        self.bin = self.base / "bin"
+        self.initd = self.base / "init.d"
+        self.svc_state = self.base / "svc-state"
+        self.work = self.base / "work"
+        for path in (self.bin, self.initd, self.svc_state, self.work):
+            path.mkdir()
+        self.uci_state = self.base / "uci-state.json"
+        self.uci_log = self.work / "uci.log"
+        self.nft_state = self.base / "nft-state.json"
+        self.fetch_map = self.base / "fetch-map.json"
+        self.fetch_log = self.base / "fetch.log"
+        self.lock_path = self.work / "openclash-guard.lock"
+        self.stale_dir = self.work / "dnsmasq.d"
+        self.stale_dir.mkdir()
+        _write_exec(self.bin / "uci", FAKE_UCI)
+        _write_exec(self.bin / "nft", FAKE_NFT)
+        _write_exec(self.bin / "curl", FAKE_CURL)
+        _write_exec(self.bin / "usign", FAKE_USIGN)
+        self.trusted_release_key = self.base / "trusted-release-key.pub"
+        self.trusted_release_key.write_text("test release public key\n", encoding="utf-8")
+        self._write_uci({})
+        self._write_nft()
+        self.fetch_map.write_text("{}\n", encoding="utf-8")
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _write_uci(self, committed: dict[str, Any], pending: dict | None = None) -> None:
+        self.uci_state.write_text(
+            json.dumps({"committed": committed, "pending": pending or {}}, indent=2)
+            + "\n",
+            encoding="utf-8",
+        )
+
+    def _write_nft(self, tables: dict | None = None) -> None:
+        self.nft_state.write_text(
+            json.dumps(
+                {"tables": tables or {}, "batches": [], "next_handle": 1},
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+    def _write_distribution_state(
+        self,
+        path: Path,
+        source: str = "github-raw",
+        policy_url: str = "https://example.invalid/policy.json",
+        templates_url: str = "https://example.invalid/templates.json",
+    ) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            "selectedSource={source}\npolicyURL={policy}\ntemplatesURL={templates}\nlastRefresh=2026-01-01T00:00:00Z\n".format(
+                source=source,
+                policy=policy_url,
+                templates=templates_url,
+            ),
+            encoding="utf-8",
+        )
+
+    def _observability_extra(self, **overrides: str) -> dict[str, str]:
+        state = self.work / "distribution-state"
+        extra = {
+            "GUARD_POLICY_FILE": str(POLICY),
+            "GUARD_TEMPLATES_FILE": str(RUNTIME_TEMPLATES),
+            "GUARD_DISTRIBUTION_STATE_FILE": str(state),
+            "GUARD_OPENCLASH_HEALTHY": "1",
+            "GUARD_PROXY_HEALTHY": "1",
+        }
+        extra.update(overrides)
+        return extra
+
+    def _default_uci(self, **overrides: Any) -> dict[str, Any]:
+        data: dict[str, Any] = {
+            "openclash_guard.main.enabled": "1",
+            "openclash_guard.main.mode": "auto",
+            "openclash_guard.main.kill_switch": "1",
+            "openclash_guard.main.dns_kill_switch": "0",
+            "openclash_guard.udp.enabled": "1",
+            "openclash_guard.udp.src_ip": ["10.0.0.11"],
+        }
+        data.update(overrides)
+        return data
+
+    def _install_service(self, name: str, *, enabled: bool = False, running: bool = False) -> None:
+        _write_exec(self.initd / name, FAKE_INITD)
+        if enabled:
+            (self.svc_state / f"{name}.enabled").write_text("", encoding="utf-8")
+        if running:
+            (self.svc_state / f"{name}.running").write_text("", encoding="utf-8")
+
+    def env(self, extra: Mapping[str, str] | None = None) -> dict[str, str]:
+        env = {
+            "PATH": f"{self.bin}{os.pathsep}{os.environ.get('PATH', '/usr/bin:/bin')}",
+            "HOME": str(self.base),
+            "TMPDIR": str(self.work),
+            "LC_ALL": "C",
+            "LANG": "C",
+            "JSON_FORCE_AWK": "1",
+            "SVC_INITD_DIR": str(self.initd),
+            "SVC_FAKE_STATE": str(self.svc_state),
+            "UCI_FAKE_STATE": str(self.uci_state),
+            "UCI_FAKE_LOG": str(self.uci_log),
+            "NFT_FAKE_STATE": str(self.nft_state),
+            "FETCH_FAKE_MAP": str(self.fetch_map),
+            "FETCH_FAKE_LOG": str(self.fetch_log),
+            "GUARD_TRUSTED_RELEASE_KEY": str(self.trusted_release_key),
+            "GUARD_POLICY_FILE": str(POLICY),
+            "GUARD_LOCK_PATH": str(self.lock_path),
+            "GUARD_STALE_CONF_DIRS": str(self.stale_dir),
+            "GUARD_IPV6": "0",
+            "GUARD_DIRECT_REGION": "zz",
+            "GUARD_PROXY_REGION": "aa",
+            "NO_COLOR": "1",
+        }
+        if extra:
+            env.update(extra)
+        return env
+
+    def run_guard(self, *args: str, extra: Mapping[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["/bin/sh", str(BUNDLE), *args],
+            capture_output=True,
+            text=True,
+            env=self.env(extra),
+            timeout=10,
+            cwd=str(self.work),
+            check=False,
+        )
+
+    def run_guard_tty(
+        self,
+        input_text: str,
+        *args: str,
+        extra: Mapping[str, str] | None = None,
+        script_stdin: bool = False,
+    ) -> subprocess.CompletedProcess[str]:
+        source_read = source_write = -1
+        if script_stdin:
+            source_read, source_write = os.pipe()
+        command = ["/bin/sh", "-s", "--", *args] if script_stdin else ["/bin/sh", str(BUNDLE), *args]
+        pid, master = pty.fork()
+        if pid == 0:
+            if script_stdin:
+                os.close(source_write)
+                os.dup2(source_read, 0)
+                os.close(source_read)
+            os.chdir(self.work)
+            os.execve("/bin/sh", command, self.env(extra))
+        os.set_blocking(master, False)
+        if script_stdin:
+            os.close(source_read)
+            os.write(source_write, BUNDLE.read_bytes())
+            os.close(source_write)
+        chunks: list[bytes] = []
+        deadline = time.monotonic() + 12
+        input_sent = False
+        while time.monotonic() < deadline:
+            ready, _, _ = select.select([master], [], [], 0.1)
+            if ready:
+                try:
+                    chunk = os.read(master, 65536)
+                    if chunk:
+                        chunks.append(chunk)
+                except OSError:
+                    pass
+            output = b"".join(chunks)
+            if not input_sent and b"Select an action" in output:
+                os.write(master, input_text.encode("utf-8"))
+                input_sent = True
+            waited, status = os.waitpid(pid, os.WNOHANG)
+            if waited == pid:
+                return subprocess.CompletedProcess(
+                    args=command,
+                    returncode=os.waitstatus_to_exitcode(status),
+                    stdout=output.decode("utf-8", errors="replace"),
+                    stderr="",
+                )
+        os.kill(pid, 9)
+        os.waitpid(pid, 0)
+        self.fail("interactive guard command timed out")
+
+    def load_nft_state(self) -> dict[str, Any]:
+        return json.loads(self.nft_state.read_text(encoding="utf-8"))
+
+    def guard_table(self) -> dict[str, Any] | None:
+        return self.load_nft_state()["tables"].get("inet openclash_guard")
+
+    def distribution_url(self, source_id: str, path: str) -> str:
+        source = DISTRIBUTION.channel_by_type(source_id)
+        base = source.base_url.format(
+            repository=DISTRIBUTION.repository, version=DISTRIBUTION.default_ref
+        )
+        return f"{base}/{path}"
+
+    def artifact_path(self, role: str) -> str:
+        return DISTRIBUTION.artifact(role).path
+
+    def signed_release_body(
+        self,
+        *,
+        policy_body: str | None = None,
+        templates_body: str | None = None,
+    ) -> str:
+        policy_body = policy_body if policy_body is not None else RUNTIME_POLICY.read_text(encoding="utf-8")
+        templates_body = templates_body if templates_body is not None else RUNTIME_TEMPLATES.read_text(encoding="utf-8")
+        bootstrap = ROOT / self.artifact_path("bootstrap-installer")
+        payload = {
+            "schemaVersion": 1,
+            "sequence": 1,
+            "revision": "test-release",
+            "artifacts": {
+                "guardBundle": {
+                    "path": self.artifact_path("guard-bundle"),
+                    "sha256": hashlib.sha256(BUNDLE.read_bytes()).hexdigest(),
+                },
+                "bootstrapInstaller": {
+                    "path": self.artifact_path("bootstrap-installer"),
+                    "sha256": hashlib.sha256(bootstrap.read_bytes()).hexdigest(),
+                },
+                "runtimePolicy": {
+                    "path": self.artifact_path("runtime-policy"),
+                    "sha256": hashlib.sha256(policy_body.encode()).hexdigest(),
+                },
+                "runtimeTemplates": {
+                    "path": self.artifact_path("runtime-templates"),
+                    "sha256": hashlib.sha256(templates_body.encode()).hexdigest(),
+                },
+            },
+        }
+        return json.dumps(payload, sort_keys=True) + "\n"
+
+    def add_signed_release_fetches(
+        self,
+        mapping: dict[str, dict[str, str]],
+        *,
+        policy_body: str | None = None,
+        templates_body: str | None = None,
+    ) -> dict[str, dict[str, str]]:
+        mapping[self.distribution_url("github-raw", DISTRIBUTION.release_metadata_path)] = {
+            "body": self.signed_release_body(policy_body=policy_body, templates_body=templates_body)
+        }
+        mapping[self.distribution_url("github-raw", DISTRIBUTION.release_signature_path)] = {
+            "body": "test detached signature\n"
+        }
+        return mapping
+
+    def published_guard_fetch_map(self) -> dict[str, dict[str, str]]:
+        result: dict[str, dict[str, str]] = {}
+        for artifact in DISTRIBUTION.artifacts:
+            path = ROOT / artifact.path
+            if path.is_file():
+                result[self.distribution_url("github-raw", artifact.path)] = {
+                    "body": path.read_text(encoding="utf-8")
+                }
+        return self.add_signed_release_fetches(result)
+
+    def rule_comments(self, chain: str = "forward") -> list[str]:
+        table = self.guard_table()
+        if not table:
+            return []
+        return [rule.get("comment", "") for rule in table.get("chains", {}).get(chain, [])]
+
+    def rule_texts(self, chain: str = "forward") -> list[str]:
+        table = self.guard_table()
+        if not table:
+            return []
+        return [rule.get("text", "") for rule in table.get("chains", {}).get(chain, [])]
+
+    def test_bundle_builds_single_shebang_and_main(self) -> None:
+        text = BUNDLE.read_text(encoding="utf-8")
+        self.assertTrue(text.startswith("#!/bin/sh\n"))
+        self.assertEqual(text.count("#!/bin/sh"), 1)
+        self.assertEqual(sum(1 for line in text.splitlines() if line.strip() == 'main "$@"'), 1)
+        syntax = subprocess.run(
+            ["sh", "-n", str(BUNDLE)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(syntax.returncode, 0, syntax.stderr)
+        loaded = shbundle.load_manifest(ROOT / "shell" / "manifest.json")
+        order, entry, included = shbundle.topological_order(loaded, "openclash-guard")
+        self.assertEqual(entry, "guard-main")
+        self.assertIn("json", included)
+        self.assertIn("guard-uci-overlay", included)
+        self.assertIn("guard-uci-overlay-resolve", included)
+        self.assertLess(order.index("guard-killswitch"), order.index("guard-gaming"))
+        self.assertEqual(order[-1], "guard-main")
+
+    def test_generated_runtime_policy_pair_is_accepted_by_bundle(self) -> None:
+        result = self.run_guard(
+            "status",
+            "--json",
+            extra={
+                "GUARD_POLICY_FILE": str(RUNTIME_POLICY),
+                "GUARD_TEMPLATES_FILE": str(RUNTIME_TEMPLATES),
+            },
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("invalid failMode", result.stderr)
+        self.assertEqual(json.loads(result.stdout)["state"], "degraded")
+
+    def test_status_reports_degradation_reason_and_components(self) -> None:
+        self._install_service("adguardhome", enabled=True, running=True)
+        self._install_service("openclash", enabled=True, running=True)
+        self._write_uci(self._default_uci())
+        extra = {"GUARD_OPENCLASH_HEALTHY": "1", "GUARD_PROXY_HEALTHY": "1"}
+
+        result = self.run_guard("status", "--json", extra=extra)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["state"], "degraded")
+        self.assertEqual(payload["enforcement"], "reject")
+        self.assertEqual(payload["stateReason"], "domain-set-backend-unavailable")
+        self.assertEqual(payload["degradedComponents"], ["dns.domainSetBackend"])
+
+        readable = self.run_guard("status", extra=extra)
+        self.assertEqual(readable.returncode, 0, readable.stderr)
+        self.assertIn("state.reason: domain-set-backend-unavailable", readable.stdout)
+        self.assertIn("state.degradedComponents: dns.domainSetBackend", readable.stdout)
+
+    def test_status_degradation_details_follow_current_health(self) -> None:
+        self._install_service("dnsmasq", enabled=True, running=True)
+        self._install_service("openclash", enabled=True, running=True)
+        self._write_uci(self._default_uci())
+
+        healthy = self.run_guard(
+            "status", "--json", extra={"GUARD_OPENCLASH_HEALTHY": "1"}
+        )
+        self.assertEqual(healthy.returncode, 0, healthy.stderr)
+        healthy_payload = json.loads(healthy.stdout)
+        self.assertEqual(healthy_payload["state"], "ok")
+        self.assertEqual(healthy_payload["enforcement"], "allow-proxy")
+        self.assertEqual(healthy_payload["stateReason"], "")
+        self.assertEqual(healthy_payload["degradedComponents"], [])
+
+        openclash_only = self.run_guard(
+            "status",
+            "--json",
+            extra={"GUARD_OPENCLASH_HEALTHY": "0", "GUARD_PROXY_HEALTHY": "0"},
+        )
+        self.assertEqual(openclash_only.returncode, 0, openclash_only.stderr)
+        openclash_payload = json.loads(openclash_only.stdout)
+        self.assertEqual(openclash_payload["state"], "degraded")
+        self.assertEqual(openclash_payload["enforcement"], "reject")
+        self.assertEqual(openclash_payload["stateReason"], "openclash-unhealthy")
+        self.assertEqual(openclash_payload["degradedComponents"], ["openclash.healthy"])
+
+        self._install_service("adguardhome", enabled=True, running=True)
+        combined = self.run_guard(
+            "status",
+            "--json",
+            extra={"GUARD_OPENCLASH_HEALTHY": "0", "GUARD_PROXY_HEALTHY": "0"},
+        )
+        self.assertEqual(combined.returncode, 0, combined.stderr)
+        combined_payload = json.loads(combined.stdout)
+        self.assertEqual(combined_payload["state"], "degraded")
+        self.assertEqual(combined_payload["enforcement"], "reject")
+        self.assertEqual(combined_payload["stateReason"], "multiple-degraded-components")
+        self.assertEqual(
+            combined_payload["degradedComponents"],
+            ["dns.domainSetBackend", "openclash.healthy"],
+        )
+
+        disabled_uci = self._default_uci()
+        disabled_uci["openclash_guard.main.enabled"] = "0"
+        self._write_uci(disabled_uci)
+        disabled = self.run_guard(
+            "status",
+            "--json",
+            extra={"GUARD_OPENCLASH_HEALTHY": "0", "GUARD_PROXY_HEALTHY": "0"},
+        )
+        self.assertEqual(disabled.returncode, 0, disabled.stderr)
+        disabled_payload = json.loads(disabled.stdout)
+        self.assertEqual(disabled_payload["state"], "disabled")
+        self.assertEqual(disabled_payload["enforcement"], "disabled")
+        self.assertEqual(disabled_payload["stateReason"], "guard-disabled")
+        self.assertEqual(disabled_payload["degradedComponents"], [])
+
+    def test_status_uninitialized_policy_clears_degradation_details(self) -> None:
+        missing_policy = self.work / "missing-policy.json"
+        result = self.run_guard(
+            "status",
+            "--json",
+            extra={"GUARD_POLICY_FILE": str(missing_policy)},
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["state"], "uninitialized")
+        self.assertEqual(payload["enforcement"], "unavailable")
+        self.assertEqual(payload["stateReason"], "runtime-policy-unavailable")
+        self.assertEqual(payload["degradedComponents"], [])
+
+    def test_menu_empty_rules_list_is_explicit(self) -> None:
+        prefix = self.base / "prefix"
+        rules_dir = self.base / "rules"
+        distribution_state = prefix / "etc/openclash-guard/distribution-state"
+        common = {
+            "GUARD_PREFIX": str(prefix),
+            "GUARD_RULES_DIR": str(rules_dir),
+            "GUARD_POLICY_FILE": str(POLICY),
+            "GUARD_TEMPLATES_FILE": str(RUNTIME_TEMPLATES),
+            "GUARD_TEMPLATES_SOURCE": str(RUNTIME_TEMPLATES),
+            "GUARD_DISTRIBUTION_STATE_FILE": str(distribution_state),
+            "GUARD_OPENCLASH_HEALTHY": "1",
+            "GUARD_PROXY_HEALTHY": "1",
+        }
+        self._install_service("openclash", enabled=True, running=True)
+        self._write_uci(self._default_uci())
+        install = self.run_guard(
+            "install", "--yes", "--mode", "auto", "--no-refresh", extra=common
+        )
+        self.assertEqual(install.returncode, 0, install.stderr + install.stdout)
+
+        result = self.run_guard_tty("7\n0\n", extra=common)
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("No staged custom rules.", result.stdout)
+        status = self.run_guard("status", extra=common)
+        self.assertEqual(status.returncode, 0, status.stderr + status.stdout)
+        self.assertIn("rules.activation: staged", status.stdout)
+        self.assertNotIn("No staged custom rules.", status.stdout)
+        self.assertIn("enforcement: reject", status.stdout)
+
+    def test_status_keeps_local_runtime_and_github_raw_provenance_distinct(self) -> None:
+        self._install_service("openclash", enabled=True, running=True)
+        self._write_uci(self._default_uci())
+        extra = self._observability_extra()
+        self._write_distribution_state(Path(extra["GUARD_DISTRIBUTION_STATE_FILE"]))
+
+        readable = self.run_guard("status", extra=extra)
+        self.assertEqual(readable.returncode, 0, readable.stderr + readable.stdout)
+        self.assertIn("runtime.source: local", readable.stdout)
+        self.assertIn("distribution.selectedSource: github-raw", readable.stdout)
+        self.assertNotEqual("local", "github-raw")
+
+        payload = json.loads(self.run_guard("status", "--json", extra=extra).stdout)
+        self.assertEqual(payload["runtime"]["source"], "local")
+        self.assertEqual(payload["distribution"]["selectedSource"], "github-raw")
+        self.assertEqual(payload["rules"]["activation"], "staged")
+        self.assertEqual(payload["firewall"]["table"], "absent")
+        self.assertEqual(payload["enforcement"], "reject")
+        self.assertEqual(payload["stateReason"], "domain-set-backend-unavailable")
+        self.assertEqual(payload["degradedComponents"], ["dns.domainSetBackend"])
+
+    def test_status_provenance_falls_back_to_none_without_state(self) -> None:
+        self._install_service("openclash", enabled=True, running=True)
+        self._write_uci(self._default_uci())
+        extra = self._observability_extra()
+        missing = Path(extra["GUARD_DISTRIBUTION_STATE_FILE"])
+        if missing.exists():
+            missing.unlink()
+
+        readable = self.run_guard("status", extra=extra)
+        self.assertEqual(readable.returncode, 0, readable.stderr + readable.stdout)
+        self.assertIn("runtime.source: local", readable.stdout)
+        self.assertIn("distribution.selectedSource: none", readable.stdout)
+
+        payload = json.loads(self.run_guard("status", "--json", extra=extra).stdout)
+        self.assertEqual(payload["runtime"]["source"], "local")
+        self.assertEqual(payload["distribution"]["selectedSource"], "none")
+
+    def test_menu_labels_runtime_source_and_distribution_provenance(self) -> None:
+        self._install_service("openclash", enabled=True, running=True)
+        self._write_uci(self._default_uci())
+        extra = self._observability_extra()
+        self._write_distribution_state(Path(extra["GUARD_DISTRIBUTION_STATE_FILE"]))
+
+        menu = self.run_guard_tty("0\n", extra=extra)
+        self.assertEqual(menu.returncode, 0, menu.stdout)
+        self.assertIn("Runtime source: local", menu.stdout)
+        self.assertIn("Distribution provenance: github-raw", menu.stdout)
+        self.assertNotIn("Distribution source:", menu.stdout)
+
+    def test_firewall_table_and_overlay_activation_are_independent_of_enforcement(self) -> None:
+        self._install_service("adguardhome", enabled=True, running=True)
+        self._install_service("openclash", enabled=True, running=True)
+        self._write_uci(self._default_uci())
+        extra = self._observability_extra()
+        self._write_distribution_state(Path(extra["GUARD_DISTRIBUTION_STATE_FILE"]))
+        hook = self.work / "openclash_custom_overwrite.sh"
+        extra["GUARD_OPENCLASH_CUSTOM_OVERWRITE"] = str(hook)
+
+        before = json.loads(self.run_guard("status", "--json", extra=extra).stdout)
+        self.assertEqual(before["enforcement"], "reject")
+        self.assertEqual(before["firewall"]["table"], "absent")
+        self.assertEqual(before["rules"]["activation"], "staged")
+        self.assertEqual(before["stateReason"], "domain-set-backend-unavailable")
+        self.assertEqual(before["degradedComponents"], ["dns.domainSetBackend"])
+
+        applied = self.run_guard("apply", extra=extra)
+        self.assertEqual(applied.returncode, 0, applied.stderr + applied.stdout)
+        after_apply = json.loads(self.run_guard("status", "--json", extra=extra).stdout)
+        self.assertEqual(after_apply["enforcement"], "reject")
+        self.assertEqual(after_apply["firewall"]["table"], "active")
+        self.assertEqual(after_apply["rules"]["activation"], "staged")
+        self.assertEqual(after_apply["runtime"]["source"], "local")
+        self.assertEqual(after_apply["distribution"]["selectedSource"], "github-raw")
+
+        readable = self.run_guard("status", extra=extra)
+        self.assertIn("firewall.table: active", readable.stdout)
+        self.assertIn("rules.activation: staged", readable.stdout)
+        self.assertIn("enforcement: reject", readable.stdout)
+
+        health = self.run_guard("health-check", extra=extra)
+        self.assertIn("rules.activation: staged", health.stdout)
+
+        hook.write_text(
+            "# BEGIN openclash-guard rules\n# END openclash-guard rules\n",
+            encoding="utf-8",
+        )
+        after_overlay = json.loads(self.run_guard("status", "--json", extra=extra).stdout)
+        self.assertEqual(after_overlay["rules"]["activation"], "active")
+        self.assertEqual(after_overlay["firewall"]["table"], "active")
+        self.assertEqual(after_overlay["enforcement"], "reject")
+        health_active = self.run_guard("health-check", extra=extra)
+        self.assertIn("rules.activation: active", health_active.stdout)
+        self.assertEqual(
+            json.loads(self.run_guard("health-check", "--json", extra=extra).stdout)["rules"]["activation"],
+            after_overlay["rules"]["activation"],
+        )
+
+    def test_no_args_without_controlling_tty_has_headless_guidance(self) -> None:
+        result = self.run_guard()
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("no controlling terminal", result.stderr)
+        self.assertIn("pass a subcommand", result.stderr)
+
+    def test_no_args_with_controlling_tty_opens_menu(self) -> None:
+        result = self.run_guard_tty("0\n")
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("OpenClash Guard", result.stdout)
+        self.assertIn("Setup", result.stdout)
+        self.assertIn("Select an action", result.stdout)
+
+    def test_piped_script_reads_menu_input_from_controlling_tty(self) -> None:
+        result = self.run_guard_tty("0\n", script_stdin=True)
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("OpenClash Guard", result.stdout)
+        self.assertIn("Select an action", result.stdout)
+
+    def test_piped_menu_setup_fetches_verified_self_and_policy(self) -> None:
+        self._install_service("openclash", enabled=True, running=True)
+        self._write_uci({})
+        prefix = self.base / "pipe-prefix"
+        destination = prefix / "etc/openclash-guard/openclash-guard.json"
+        source_state = prefix / "etc/openclash-guard/distribution-state"
+        mapping = self.published_guard_fetch_map()
+        mapping[self.distribution_url("github-raw", self.artifact_path("runtime-policy"))] = {
+            "body": POLICY.read_text(encoding="utf-8")
+        }
+        self.add_signed_release_fetches(mapping, policy_body=POLICY.read_text(encoding="utf-8"))
+        self.fetch_map.write_text(json.dumps(mapping) + "\n", encoding="utf-8")
+        result = self.run_guard_tty(
+            "1\ny\nn\n0\n",
+            extra={
+                "GUARD_PREFIX": str(prefix),
+                "GUARD_POLICY_FILE": str(destination),
+                "GUARD_DISTRIBUTION_STATE_FILE": str(source_state),
+                "GUARD_OPENCLASH_HEALTHY": "1",
+            },
+            script_stdin=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout)
+        installed = prefix / "usr/bin/openclash-guard"
+        self.assertEqual(installed.read_bytes(), BUNDLE.read_bytes())
+        self.assertTrue(destination.is_file())
+        self.assertIn("setup complete", result.stdout)
+
+    def test_menu_status_uses_cli_status_semantics(self) -> None:
+        self._install_service("openclash", enabled=True, running=True)
+        self._write_uci(self._default_uci())
+        extra = {"GUARD_OPENCLASH_HEALTHY": "1", "GUARD_PROXY_HEALTHY": "1"}
+        cli = self.run_guard("status", extra=extra)
+        menu = self.run_guard_tty("3\n0\n", extra=extra)
+        self.assertEqual(cli.returncode, 0, cli.stderr + cli.stdout)
+        self.assertEqual(menu.returncode, 0, menu.stdout)
+        for line in cli.stdout.splitlines():
+            if ":" not in line:
+                continue
+            self.assertIn(line, cli.stdout)
+            self.assertIn(line, menu.stdout)
+
+    def test_menu_refresh_uses_cli_refresh_semantics(self) -> None:
+        self._install_service("openclash", enabled=True, running=True)
+        self._write_uci(self._default_uci())
+        policy_dir = self.work / "menu-refresh"
+        policy_dir.mkdir()
+        destination = policy_dir / "openclash-guard.json"
+        destination.write_text(POLICY.read_text(encoding="utf-8"), encoding="utf-8")
+        raw_url = self.distribution_url("github-raw", self.artifact_path("runtime-policy"))
+        templates_url = self.distribution_url("github-raw", "cfg/runtime/openclash-guard-templates.json")
+        self.fetch_map.write_text(
+            json.dumps({
+                raw_url: {"body": POLICY.read_text(encoding="utf-8")},
+                templates_url: {"body": (ROOT / "cfg/runtime/openclash-guard-templates.json").read_text(encoding="utf-8")},
+            }) + "\n",
+            encoding="utf-8",
+        )
+        result = self.run_guard_tty(
+            "2\ny\n0\n",
+            extra={"GUARD_POLICY_FILE": str(destination), "GUARD_OPENCLASH_HEALTHY": "1"},
+        )
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertTrue(destination.is_file())
+        self.assertIn("reconciled table", result.stdout)
+
+    def test_menu_setup_initializes_fresh_filesystem(self) -> None:
+        self._install_service("openclash", enabled=True, running=True)
+        self._write_uci({})
+        prefix = self.base / "prefix"
+        destination = prefix / "etc/openclash-guard/openclash-guard.json"
+        source_state = prefix / "etc/openclash-guard/distribution-state"
+        raw_url = self.distribution_url("github-raw", self.artifact_path("runtime-policy"))
+        templates_url = self.distribution_url("github-raw", "cfg/runtime/openclash-guard-templates.json")
+        mapping = self.published_guard_fetch_map()
+        mapping[raw_url] = {"body": POLICY.read_text(encoding="utf-8")}
+        mapping[templates_url] = {"body": (ROOT / "cfg/runtime/openclash-guard-templates.json").read_text(encoding="utf-8")}
+        self.add_signed_release_fetches(mapping, policy_body=POLICY.read_text(encoding="utf-8"))
+        self.fetch_map.write_text(json.dumps(mapping) + "\n", encoding="utf-8")
+        result = self.run_guard_tty(
+            "1\ny\nn\n0\n",
+            extra={
+                "GUARD_PREFIX": str(prefix),
+                "GUARD_POLICY_FILE": str(destination),
+                "GUARD_DISTRIBUTION_STATE_FILE": str(source_state),
+                "GUARD_OPENCLASH_HEALTHY": "1",
+            },
+        )
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertTrue((prefix / "usr/bin/openclash-guard").is_file())
+        self.assertTrue(destination.is_file())
+        self.assertTrue(source_state.is_file())
+        self.assertIn("setup complete", result.stdout)
+
+    def test_menu_remove_still_requires_confirmation(self) -> None:
+        self._install_service("openclash", enabled=True, running=True)
+        self._write_uci(self._default_uci())
+        applied = self.run_guard("reconcile", extra={"GUARD_OPENCLASH_HEALTHY": "1"})
+        self.assertEqual(applied.returncode, 0, applied.stderr + applied.stdout)
+        before = self.load_nft_state()["tables"]
+        result = self.run_guard_tty("5\nn\n0\n")
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertEqual(self.load_nft_state()["tables"], before)
+        self.assertIn("aborted", result.stdout)
+
+    def test_menu_is_only_a_command_dispatch_frontend(self) -> None:
+        menu_source = (APP_DIR / "menu.sh").read_text(encoding="utf-8")
+        for operation in ("install", "refresh", "reconcile", "status", "doctor", "remove"):
+            self.assertIn(operation, menu_source)
+        self.assertNotIn("guard_cmd_", menu_source)
+        self.assertIn('_guard_dispatch "$@"', menu_source)
+        for implementation in ("nft ", "uci ", "fetch_http", "curl ", "wget "):
+            self.assertNotIn(implementation, menu_source)
+
+    def test_sources_never_mutate_dnsmasq_lifecycle(self) -> None:
+        for path in APP_DIR.glob("*.sh"):
+            text = path.read_text(encoding="utf-8")
+            self.assertIsNone(re.search(r"\bsvc_restart\b", text), path.name)
+            self.assertIsNone(re.search(r"\bsvc_enable\b", text), path.name)
+            self.assertNotIn("/etc/init.d/dnsmasq", text, path.name)
+
+    def test_agh_active_does_not_restart_dnsmasq(self) -> None:
+        self._install_service("adguardhome", enabled=True, running=True)
+        self._install_service("dnsmasq", enabled=False, running=False)
+        self._install_service("openclash", enabled=True, running=True)
+        self._write_uci(self._default_uci())
+        result = self.run_guard(
+            "apply",
+            extra={"GUARD_OPENCLASH_HEALTHY": "1", "GUARD_PROXY_HEALTHY": "1"},
+        )
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertEqual(_service_logs(self.svc_state, "dnsmasq"), [])
+        status = self.run_guard(
+            "status",
+            "--json",
+            extra={"GUARD_OPENCLASH_HEALTHY": "1", "GUARD_PROXY_HEALTHY": "1"},
+        )
+        self.assertEqual(status.returncode, 0, status.stderr)
+        payload = json.loads(status.stdout)
+        self.assertEqual(payload["dns"]["backend"], "adguardhome")
+        self.assertFalse(payload["dns"]["dnsmasqEnabled"])
+        self.assertFalse(payload["dns"]["dnsmasqRunning"])
+        self.assertEqual(payload["dns"]["domainSetBackend"], "unavailable")
+        self.assertEqual(payload["enforcement"], "reject")
+        self.assertEqual(payload["state"], "degraded")
+
+    def test_gaming_udp_443_is_not_bypassed(self) -> None:
+        self._install_service("adguardhome", enabled=True, running=True)
+        self._install_service("dnsmasq")
+        self._install_service("openclash", enabled=True, running=True)
+        self._write_uci(self._default_uci())
+        apply = self.run_guard(
+            "apply",
+            extra={"GUARD_OPENCLASH_HEALTHY": "1", "GUARD_PROXY_HEALTHY": "1"},
+        )
+        self.assertEqual(apply.returncode, 0, apply.stderr + apply.stdout)
+        texts = "\n".join(self.rule_texts())
+        self.assertNotIn("meta l4proto udp", texts)
+        self.assertNotRegex(texts, r"ip saddr @gaming_src meta l4proto udp")
+        comments = self.rule_comments()
+        self.assertTrue(any(c.endswith("protected-udp") for c in comments))
+        self.assertFalse(any("game-udp" in c and "443" in t for c, t in zip(comments, self.rule_texts())))
+        decision = self.run_guard(
+            "eval",
+            "--json",
+            "--service",
+            "svc-proxy-only",
+            "--proto",
+            "udp",
+            "--dport",
+            "443",
+            "--src",
+            "10.0.0.11",
+            "--dest",
+            "203.0.113.10",
+            extra={"GUARD_OPENCLASH_HEALTHY": "1", "GUARD_PROXY_HEALTHY": "1"},
+        )
+        self.assertEqual(decision.returncode, 0, decision.stderr)
+        payload = json.loads(decision.stdout)
+        self.assertIn(payload["verdict"], {"reject", "reject-direct"})
+        self.assertNotEqual(payload["verdict"], "allow-direct")
+
+    def test_configured_udp_direct_intent_is_deferred_and_inert(self) -> None:
+        self._install_service("dnsmasq", enabled=True, running=True)
+        self._install_service("openclash", enabled=True, running=True)
+        self._write_uci(self._default_uci())
+        apply = self.run_guard(
+            "apply",
+            extra={"GUARD_OPENCLASH_HEALTHY": "1", "GUARD_PROXY_HEALTHY": "1"},
+        )
+        self.assertEqual(apply.returncode, 0, apply.stderr + apply.stdout)
+        uci_reads = self.uci_log.read_text(encoding="utf-8").splitlines()
+        self.assertEqual(sum("show openclash_guard" in line for line in uci_reads), 3, uci_reads)
+        table = self.guard_table()
+        self.assertIsNotNone(table)
+        self.assertNotIn("gaming_src", table["sets"])
+        self.assertFalse(any("game-udp" in comment for comment in self.rule_comments()))
+        self.assertTrue(any(comment.endswith("protected-udp") for comment in self.rule_comments()))
+
+        decision = self.run_guard(
+            "eval",
+            "--json",
+            "--service",
+            "svc-direct-ok",
+            "--proto",
+            "udp",
+            "--dport",
+            "3074",
+            "--src",
+            "10.0.0.11",
+            "--dest",
+            "203.0.113.10",
+            extra={"GUARD_OPENCLASH_HEALTHY": "1", "GUARD_PROXY_HEALTHY": "1"},
+        )
+        self.assertEqual(decision.returncode, 0, decision.stderr)
+        self.assertEqual(json.loads(decision.stdout)["verdict"], "allow-proxy")
+
+    def test_openclash_stopped_kill_switch_rejects(self) -> None:
+        self._install_service("dnsmasq", enabled=True, running=True)
+        self._install_service("openclash", enabled=True, running=False)
+        self._write_uci(self._default_uci())
+        result = self.run_guard(
+            "apply",
+            extra={"GUARD_OPENCLASH_HEALTHY": "0", "GUARD_PROXY_HEALTHY": "0"},
+        )
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        comments = self.rule_comments()
+        self.assertTrue(any(c.endswith("kill-switch") for c in comments), comments)
+        texts = self.rule_texts()
+        self.assertTrue(any(text.strip() == "reject" for text in texts), texts)
+        self.assertFalse(any("accept remaining" in text for text in texts))
+        decision = self.run_guard(
+            "eval",
+            "--json",
+            "--service",
+            "svc-proxy-only",
+            "--proto",
+            "tcp",
+            "--dport",
+            "443",
+            "--src",
+            "10.0.0.11",
+            extra={"GUARD_OPENCLASH_HEALTHY": "0", "GUARD_PROXY_HEALTHY": "0"},
+        )
+        self.assertEqual(decision.returncode, 0, decision.stderr)
+        self.assertEqual(json.loads(decision.stdout)["verdict"], "reject")
+
+    def test_reconcile_twice_does_not_duplicate_nft_objects(self) -> None:
+        self._install_service("adguardhome", enabled=True, running=True)
+        self._install_service("openclash", enabled=True, running=True)
+        self._write_uci(self._default_uci())
+        extra = {"GUARD_OPENCLASH_HEALTHY": "1", "GUARD_PROXY_HEALTHY": "1"}
+        first = self.run_guard("reconcile", extra=extra)
+        self.assertEqual(first.returncode, 0, first.stderr + first.stdout)
+        second = self.run_guard("reconcile", extra=extra)
+        self.assertEqual(second.returncode, 0, second.stderr + second.stdout)
+        state = self.load_nft_state()
+        self.assertGreaterEqual(len(state["batches"]), 2)
+        table = self.guard_table()
+        assert table is not None
+        comments = [rule["comment"] for rule in table["chains"]["forward"]]
+        self.assertEqual(len(comments), len(set(comments)), comments)
+        self.assertEqual(list(state["tables"]), ["inet openclash_guard"])
+
+    def test_failed_reconcile_preserves_existing_firewall_transaction(self) -> None:
+        self._install_service("openclash", enabled=True, running=True)
+        self._write_uci(self._default_uci())
+        extra = {"GUARD_OPENCLASH_HEALTHY": "1", "GUARD_PROXY_HEALTHY": "1"}
+        first = self.run_guard("reconcile", extra=extra)
+        self.assertEqual(first.returncode, 0, first.stderr + first.stdout)
+        before = self.load_nft_state()
+        failed = self.run_guard("reconcile", extra={**extra, "NFT_FAKE_FAIL_BATCH": "1"})
+        self.assertNotEqual(failed.returncode, 0)
+        self.assertEqual(self.load_nft_state()["tables"], before["tables"])
+
+    def test_json_remove_still_requires_yes(self) -> None:
+        self._install_service("openclash", enabled=True, running=True)
+        self._write_uci(self._default_uci())
+        applied = self.run_guard("reconcile", extra={"GUARD_OPENCLASH_HEALTHY": "1"})
+        self.assertEqual(applied.returncode, 0, applied.stderr + applied.stdout)
+        before = self.load_nft_state()
+        refused = self.run_guard("--json", "remove")
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertEqual(self.load_nft_state()["tables"], before["tables"])
+
+    def test_refresh_auto_bootstraps_without_existing_policy(self) -> None:
+        self._install_service("openclash", enabled=True, running=True)
+        self._write_uci(self._default_uci())
+        policy_dir = self.work / "fresh-policy"
+        policy_dir.mkdir()
+        destination = policy_dir / "openclash-guard.json"
+        raw_url = self.distribution_url("github-raw", self.artifact_path("runtime-policy"))
+        templates_url = self.distribution_url("github-raw", "cfg/runtime/openclash-guard-templates.json")
+        mapping = {
+            raw_url: {"body": POLICY.read_text(encoding="utf-8")},
+            templates_url: {"body": (ROOT / "cfg/runtime/openclash-guard-templates.json").read_text(encoding="utf-8")},
+        }
+        self.add_signed_release_fetches(mapping, policy_body=POLICY.read_text(encoding="utf-8"))
+        self.fetch_map.write_text(json.dumps(mapping) + "\n", encoding="utf-8")
+        result = self.run_guard(
+            "refresh",
+            "--source",
+            "auto",
+            extra={"GUARD_POLICY_FILE": str(destination)},
+        )
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertTrue(destination.is_file())
+        self.assertIsNone(self.guard_table())
+
+    def test_status_and_doctor_json_emit_normalized_env(self) -> None:
+        self._install_service("adguardhome", enabled=True, running=True)
+        self._install_service("dnsmasq")
+        self._install_service("openclash", enabled=True, running=True)
+        self._write_uci(self._default_uci())
+        extra = {"GUARD_OPENCLASH_HEALTHY": "1", "GUARD_PROXY_HEALTHY": "1"}
+        for cmd in ("status", "doctor"):
+            result = self.run_guard(cmd, "--json", extra=extra)
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            payload = json.loads(result.stdout)
+            self.assertIn("openclash", payload)
+            self.assertEqual(
+                set(payload["openclash"]),
+                {"installed", "enabled", "running", "healthy"},
+            )
+            self.assertEqual(
+                set(payload["dns"]),
+                {
+                    "backend",
+                    "dnsmasqEnabled",
+                    "dnsmasqRunning",
+                    "adguardhomeEnabled",
+                    "adguardhomeRunning",
+                    "domainSetBackend",
+                    "clientBypass",
+                },
+            )
+            self.assertEqual(
+                set(payload["network"]),
+                {"ipv6", "directRegion", "directRegionReason"},
+            )
+            self.assertEqual(
+                set(payload["proxy"]),
+                {"healthy", "region", "regionReason", "route"},
+            )
+            self.assertEqual(payload["gaming"]["clients"]["count"], 1)
+            self.assertEqual(payload["gaming"]["clients"]["items"], [])
+            self.assertNotIn("10.0.0.11", result.stdout)
+            self.assertTrue(payload["nft"]["available"])
+            self.assertTrue(payload["openclash"]["installed"])
+            self.assertTrue(payload["openclash"]["running"])
+            self.assertTrue(payload["openclash"]["healthy"])
+            self.assertEqual(payload["network"]["directRegion"], "zz")
+            self.assertEqual(payload["proxy"]["region"], "aa")
+            self.assertFalse(payload["network"]["ipv6"])
+
+    def test_invalid_policy_does_not_mutate_nft(self) -> None:
+        self._install_service("openclash", enabled=True, running=True)
+        self._write_uci(self._default_uci())
+        before = self.load_nft_state()
+        result = self.run_guard(
+            "apply",
+            extra={
+                "GUARD_POLICY_FILE": str(POLICY_INVALID),
+                "GUARD_OPENCLASH_HEALTHY": "1",
+            },
+        )
+        self.assertNotEqual(result.returncode, 0)
+        after = self.load_nft_state()
+        self.assertEqual(after["tables"], before["tables"])
+        self.assertEqual(after["batches"], before["batches"])
+
+    def test_openclash_health_is_not_only_initd_status(self) -> None:
+        self._install_service("openclash", enabled=True, running=True)
+        self._write_uci(self._default_uci())
+        result = self.run_guard("status", "--json")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertTrue(payload["openclash"]["running"])
+        self.assertFalse(payload["openclash"]["healthy"])
+
+    def test_apply_does_not_persist_detected_facts_to_uci(self) -> None:
+        self._install_service("adguardhome", enabled=True, running=True)
+        self._install_service("openclash", enabled=True, running=True)
+        self._write_uci(self._default_uci())
+        result = self.run_guard(
+            "apply",
+            extra={"GUARD_OPENCLASH_HEALTHY": "1", "GUARD_PROXY_HEALTHY": "1"},
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        uci = json.loads(self.uci_state.read_text(encoding="utf-8"))
+        keys = set(uci["committed"]) | set(uci["pending"])
+        self.assertNotIn("openclash_guard.main.running", keys)
+        self.assertNotIn("openclash_guard.detected.backend", keys)
+        self.assertEqual(uci["committed"]["openclash_guard.main.enabled"], "1")
+        self.assertEqual(uci["pending"], {})
+
+
+if __name__ == "__main__":
+    unittest.main()

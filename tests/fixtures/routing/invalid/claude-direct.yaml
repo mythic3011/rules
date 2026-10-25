@@ -1,0 +1,41 @@
+schemaVersion: 1
+policyVersion: "1"
+routeTargets:
+  direct: { kind: direct, group: DIRECT }
+  reject: { kind: reject, group: REJECT }
+protectionClasses:
+  account-protected:
+    kind: account-protected
+    directAllowed: false
+    dynamicRouteAllowed: false
+    activation: explicit-user-selection
+    initialRoute: reject
+    dnsMode: proxy-only
+    ipv6: proxy-or-reject
+    quic: proxy-or-reject
+    firewallKillSwitch: true
+    failMode: reject
+    resetOn: [policy-version-change]
+services:
+  claude:
+    displayName: Claude
+    protectionClass: account-protected
+    defaultRoute: direct
+    allowedRoutes: [direct, reject]
+    selector:
+      kind: explicit-node
+      visibleGroup: Claude
+      initialRoute: reject
+      allowedRouteRefs: [direct, reject]
+    upstream: { source: legacy-generator, provider: claude }
+    endpoints: {}
+accessProfiles: {}
+dns:
+  defaultProfile: default
+  profiles:
+    default:
+      respectRules: false
+      defaultNameserver: [{ kind: udp, host: 1.1.1.1 }]
+      proxyServerNameserver: []
+      nameserver: [{ kind: udp, host: 1.1.1.1 }]
+      servicePolicies: {}

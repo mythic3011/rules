@@ -1,0 +1,11188 @@
+#!/bin/sh
+set -eu
+
+# GENERATED FILE — DO NOT EDIT
+# App: openclash-guard
+# Manifest: shell/manifest.json
+
+# BEGIN MODULE: cli
+# POSIX CLI helpers for TTY, color, and confirmation.
+# Prefix: cli_
+set -eu
+
+cli_is_tty() {
+    [ -t 1 ]
+}
+
+cli_tty_path() {
+    printf '%s\n' "${CLI_TTY_PATH:-/dev/tty}"
+}
+
+cli_has_controlling_tty() {
+    _cli_ht_path=$(cli_tty_path)
+    if (exec 9<>"$_cli_ht_path") 2>/dev/null; then
+        return 0
+    fi
+    [ -t 0 ]
+}
+
+cli_read_tty() {
+    _cli_rt_path=$(cli_tty_path)
+    if (exec 9<>"$_cli_rt_path") 2>/dev/null; then
+        IFS= read -r _cli_rt_value < "$_cli_rt_path" || return 1
+    else
+        IFS= read -r _cli_rt_value || return 1
+    fi
+    printf '%s\n' "$_cli_rt_value"
+}
+
+cli_color_enabled() {
+    [ -z "${NO_COLOR:-}" ] && [ -t 1 ]
+}
+
+_cli_color_on_fd() {
+    [ -z "${NO_COLOR:-}" ] && [ -t "$1" ]
+}
+
+cli_set_assume_yes() {
+    case ${1:-1} in
+        0|false|FALSE|False|no|NO|off|OFF|n|N)
+            _CLI_ASSUME_YES=0
+            ;;
+        *)
+            _CLI_ASSUME_YES=1
+            ;;
+    esac
+}
+
+_cli_assume_yes() {
+    if [ -n "${_CLI_ASSUME_YES:-}" ]; then
+        [ "$_CLI_ASSUME_YES" = "1" ]
+        return $?
+    fi
+    case ${CLI_ASSUME_YES:-0} in
+        1|true|TRUE|True|yes|YES|on|ON|y|Y)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+cli_info() {
+    if _cli_color_on_fd 1; then
+        printf '\033[36minfo:\033[0m %s\n' "$*"
+    else
+        printf 'info: %s\n' "$*"
+    fi
+}
+
+cli_warn() {
+    if _cli_color_on_fd 2; then
+        printf '\033[33mwarn:\033[0m %s\n' "$*" >&2
+    else
+        printf 'warn: %s\n' "$*" >&2
+    fi
+}
+
+cli_error() {
+    if _cli_color_on_fd 2; then
+        printf '\033[31merror:\033[0m %s\n' "$*" >&2
+    else
+        printf 'error: %s\n' "$*" >&2
+    fi
+}
+
+cli_success() {
+    if _cli_color_on_fd 1; then
+        printf '\033[32mok:\033[0m %s\n' "$*"
+    else
+        printf 'ok: %s\n' "$*"
+    fi
+}
+
+cli_section() {
+    if _cli_color_on_fd 1; then
+        printf '\033[1m== %s ==\033[0m\n' "$*"
+    else
+        printf '== %s ==\n' "$*"
+    fi
+}
+
+cli_kv() {
+    _cli_kv_key=$1
+    shift
+    printf '%s: %s\n' "$_cli_kv_key" "$*"
+}
+
+cli_step() {
+    printf '[%s/%s] %s\n' "$1" "$2" "$3"
+}
+
+cli_table() {
+    awk -F '\t' '
+        {
+            n = NF
+            if (n > nf) {
+                nf = n
+            }
+            for (i = 1; i <= n; i++) {
+                cell[NR, i] = $i
+                l = length($i)
+                if (l > w[i]) {
+                    w[i] = l
+                }
+            }
+            rows = NR
+        }
+        END {
+            for (r = 1; r <= rows; r++) {
+                for (i = 1; i <= nf; i++) {
+                    printf "%-*s", w[i], cell[r, i]
+                    if (i < nf) {
+                        printf "  "
+                    }
+                }
+                printf "\n"
+            }
+        }
+    '
+}
+
+cli_confirm() {
+    if _cli_assume_yes; then
+        return 0
+    fi
+    if ! cli_has_controlling_tty; then
+        return 1
+    fi
+    printf '%s [y/N] ' "${1:-Continue?}" >&2
+    _cli_confirm_ans=$(cli_read_tty) || return 1
+    case $_cli_confirm_ans in
+        y|Y|yes|YES|Yes)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+cli_die() {
+    _cli_die_code=1
+    _cli_die_msg=$*
+    case ${2:-} in
+        [0-9]|[1-9][0-9]|[1-9][0-9][0-9])
+            _cli_die_msg=$1
+            _cli_die_code=$2
+            ;;
+    esac
+    [ -n "$_cli_die_msg" ] || _cli_die_msg="aborted"
+    cli_error "$_cli_die_msg"
+    exit "$_cli_die_code"
+}
+# END MODULE: cli
+
+# BEGIN MODULE: env
+# Generic environment helpers (bool/int/default). Not service detection.
+# Prefix: env_
+set -eu
+
+_env_valid_name() {
+    case $1 in
+        ''|*[!A-Za-z0-9_]*|[0-9]*)
+            printf '%s\n' "env: invalid variable name: $1" >&2
+            return 2
+            ;;
+    esac
+}
+
+env_is_set() {
+    _env_valid_name "$1" || return $?
+    eval "[ \"\${$1+set}\" = set ]"
+}
+
+env_get() {
+    _env_get_name=$1
+    _env_valid_name "$_env_get_name" || return $?
+    if eval "[ \"\${$_env_get_name+set}\" = set ]"; then
+        eval "printf '%s\\n' \"\${$_env_get_name}\""
+        return 0
+    fi
+    if [ "$#" -ge 2 ]; then
+        printf '%s\n' "$2"
+        return 0
+    fi
+    return 1
+}
+
+env_default() {
+    _env_def_name=$1
+    _env_def_default=$2
+    _env_valid_name "$_env_def_name" || return $?
+    eval "_env_def_val=\${$_env_def_name:-}"
+    if [ -n "$_env_def_val" ]; then
+        printf '%s\n' "$_env_def_val"
+    else
+        printf '%s\n' "$_env_def_default"
+    fi
+}
+
+_env_parse_bool() {
+    case $1 in
+        1|true|TRUE|True|yes|YES|Yes|on|ON|On|y|Y)
+            printf '1\n'
+            ;;
+        0|false|FALSE|False|no|NO|No|off|OFF|Off|n|N|'')
+            printf '0\n'
+            ;;
+        *)
+            printf '%s\n' "env: invalid bool: $1" >&2
+            return 1
+            ;;
+    esac
+}
+
+env_bool() {
+    _env_bool_name=$1
+    _env_valid_name "$_env_bool_name" || return $?
+    if eval "[ \"\${$_env_bool_name+set}\" = set ]"; then
+        eval "_env_bool_raw=\${$_env_bool_name}"
+        _env_parse_bool "$_env_bool_raw"
+        return $?
+    fi
+    if [ "$#" -ge 2 ]; then
+        _env_parse_bool "$2"
+        return $?
+    fi
+    return 1
+}
+
+_env_is_int() {
+    case $1 in
+        ''|'-'|'+')
+            return 1
+            ;;
+        [+-]*)
+            _env_int_rest=$(printf '%s' "$1" | cut -c2-)
+            case $_env_int_rest in
+                ''|*[!0-9]*)
+                    return 1
+                    ;;
+            esac
+            ;;
+        *[!0-9]*)
+            return 1
+            ;;
+    esac
+    return 0
+}
+
+env_int() {
+    _env_int_name=$1
+    _env_valid_name "$_env_int_name" || return $?
+    if eval "[ \"\${$_env_int_name+set}\" = set ]"; then
+        eval "_env_int_raw=\${$_env_int_name}"
+        if ! _env_is_int "$_env_int_raw"; then
+            printf '%s\n' "env: invalid int: $_env_int_raw" >&2
+            return 1
+        fi
+        printf '%s\n' "$_env_int_raw"
+        return 0
+    fi
+    if [ "$#" -ge 2 ]; then
+        if ! _env_is_int "$2"; then
+            printf '%s\n' "env: invalid int: $2" >&2
+            return 1
+        fi
+        printf '%s\n' "$2"
+        return 0
+    fi
+    return 1
+}
+# END MODULE: env
+
+# BEGIN MODULE: file
+# File helpers: temp files, checksums, atomic replace.
+# Prefix: file_
+set -eu
+
+file_mktemp() {
+    _file_mk_dir=${1:-${TMPDIR:-/tmp}}
+    if [ ! -d "$_file_mk_dir" ]; then
+        printf '%s\n' "file_mktemp: not a directory: $_file_mk_dir" >&2
+        return 1
+    fi
+    if command -v mktemp >/dev/null 2>&1; then
+        mktemp "$_file_mk_dir/shlib.XXXXXX"
+        return $?
+    fi
+    _file_mk_i=0
+    while [ "$_file_mk_i" -lt 100 ]
+    do
+        _file_mk_path="$_file_mk_dir/shlib.$$.$_file_mk_i"
+        if (umask 077; set -C; : > "$_file_mk_path") 2>/dev/null; then
+            printf '%s\n' "$_file_mk_path"
+            return 0
+        fi
+        _file_mk_i=$((_file_mk_i + 1))
+    done
+    printf '%s\n' "file_mktemp: unable to create temp file" >&2
+    return 1
+}
+
+file_sha256() {
+    if [ -z "${1:-}" ] || [ ! -f "$1" ]; then
+        printf '%s\n' "file_sha256: not a file: ${1:-}" >&2
+        return 1
+    fi
+    _file_sha_path=$1
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$_file_sha_path" | awk '{print $1}'
+        return $?
+    fi
+    if command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$_file_sha_path" | awk '{print $1}'
+        return $?
+    fi
+    if command -v openssl >/dev/null 2>&1; then
+        openssl dgst -sha256 "$_file_sha_path" | awk '{print $NF}'
+        return $?
+    fi
+    printf '%s\n' "file_sha256: no sha256 tool found" >&2
+    return 127
+}
+
+file_atomic_replace() {
+    _file_ar_target=${1:-}
+    _file_ar_source=${2:-}
+    if [ -z "$_file_ar_target" ] || [ -z "$_file_ar_source" ]; then
+        printf '%s\n' "file_atomic_replace: usage: file_atomic_replace TARGET SOURCE" >&2
+        return 2
+    fi
+    if [ ! -f "$_file_ar_source" ]; then
+        printf '%s\n' "file_atomic_replace: source not a file: $_file_ar_source" >&2
+        return 1
+    fi
+    _file_ar_dir=$(dirname "$_file_ar_target")
+    if [ ! -d "$_file_ar_dir" ]; then
+        printf '%s\n' "file_atomic_replace: destination directory missing: $_file_ar_dir" >&2
+        return 1
+    fi
+    _file_ar_tmp=$(file_mktemp "$_file_ar_dir") || return 1
+    if ! cp "$_file_ar_source" "$_file_ar_tmp"; then
+        rm -f "$_file_ar_tmp"
+        return 1
+    fi
+    if ! mv -f "$_file_ar_tmp" "$_file_ar_target"; then
+        rm -f "$_file_ar_tmp"
+        return 1
+    fi
+}
+# END MODULE: file
+
+# BEGIN MODULE: fetch
+# HTTP fetch with bounded temp downloads and atomic publication.
+# Failed or oversized fetches leave the last-known-good destination untouched.
+# Prefix: fetch_
+set -eu
+
+_FETCH_TIMEOUT_DEFAULT=30
+_FETCH_TIMEOUT_MAX=3600
+_FETCH_MAX_BYTES_DEFAULT=16777216
+_FETCH_MAX_BYTES_MAX=67108864
+
+_fetch_timeout_secs() {
+    _fetch_to=${1:-${FETCH_TIMEOUT:-$_FETCH_TIMEOUT_DEFAULT}}
+    case $_fetch_to in
+        ''|*[!0-9]*)
+            printf '%s\n' "fetch: invalid timeout" >&2
+            return 2
+            ;;
+    esac
+    while [ "${_fetch_to#0}" != "$_fetch_to" ]; do
+        _fetch_to=${_fetch_to#0}
+    done
+    [ -n "$_fetch_to" ] || _fetch_to=0
+    if [ "${#_fetch_to}" -gt 4 ] || [ "$_fetch_to" -gt "$_FETCH_TIMEOUT_MAX" ] 2>/dev/null; then
+        _fetch_to=$_FETCH_TIMEOUT_MAX
+        printf 'fetch: timeout capped at %s seconds\n' "$_FETCH_TIMEOUT_MAX" >&2
+    fi
+    if [ "$_fetch_to" -eq 0 ] 2>/dev/null; then
+        printf '%s\n' "fetch: timeout must be greater than zero" >&2
+        return 2
+    fi
+    printf '%s\n' "$_fetch_to"
+}
+
+_fetch_max_bytes() {
+    _fetch_mb=${1:-$_FETCH_MAX_BYTES_DEFAULT}
+    case $_fetch_mb in
+        ''|*[!0-9]*)
+            printf '%s\n' "fetch: response-size limit must be a positive integer" >&2
+            return 2
+            ;;
+    esac
+    while [ "${_fetch_mb#0}" != "$_fetch_mb" ]; do
+        _fetch_mb=${_fetch_mb#0}
+    done
+    [ -n "$_fetch_mb" ] || _fetch_mb=0
+    if [ "$_fetch_mb" -eq 0 ] 2>/dev/null || \
+       [ "${#_fetch_mb}" -gt 8 ] || \
+       [ "$_fetch_mb" -gt "$_FETCH_MAX_BYTES_MAX" ] 2>/dev/null; then
+        printf 'fetch: response-size limit must be between 1 and %s bytes\n' "$_FETCH_MAX_BYTES_MAX" >&2
+        return 2
+    fi
+    printf '%s\n' "$_fetch_mb"
+}
+
+_fetch_validate_http_options() {
+    _fetch_vo_https=${1:-}
+    _fetch_vo_max=$(_fetch_max_bytes "${2:-}") || return $?
+    _fetch_vo_allow=${3:-}
+    case $_fetch_vo_allow in
+        '') ;;
+        allow_insecure=1) ;;
+        *)
+            printf '%s\n' "fetch: insecure opt-out must be exactly allow_insecure=1" >&2
+            return 2
+            ;;
+    esac
+    case $_fetch_vo_https in
+        ''|1)
+            if [ "$_fetch_vo_allow" = allow_insecure=1 ]; then
+                if [ "$_fetch_vo_https" = 1 ]; then
+                    printf '%s\n' "fetch: HTTPS-only mode conflicts with allow_insecure=1" >&2
+                    return 2
+                fi
+                _FETCH_HTTP_HTTPS_ONLY=0
+            else
+                _FETCH_HTTP_HTTPS_ONLY=1
+            fi
+            ;;
+        0)
+            if [ "$_fetch_vo_allow" != allow_insecure=1 ]; then
+                printf '%s\n' "fetch: pass allow_insecure=1 to opt out of HTTPS-only mode" >&2
+                return 2
+            fi
+            _FETCH_HTTP_HTTPS_ONLY=0
+            ;;
+        *)
+            printf '%s\n' "fetch: HTTPS-only mode must be 0 or 1" >&2
+            return 2
+            ;;
+    esac
+    _FETCH_HTTP_MAX_BYTES=$_fetch_vo_max
+}
+
+_fetch_validate_url() {
+    _fetch_vu_url=${1:-}
+    _fetch_vu_https=${2:-1}
+    case $_fetch_vu_https:$_fetch_vu_url in
+        1:https://*) return 0 ;;
+        0:https://*|0:http://*) return 0 ;;
+        1:*)
+            printf '%s\n' "fetch: secure fetch requires an HTTPS URL" >&2
+            return 2
+            ;;
+        *)
+            printf '%s\n' "fetch: URL must use HTTP or HTTPS" >&2
+            return 2
+            ;;
+    esac
+}
+
+_fetch_run_capped() {
+    _fetch_rc_bytes=$1
+    shift
+    _fetch_rc_blocks=$(((_fetch_rc_bytes + 511) / 512))
+    (
+        if ! ulimit -f "$_fetch_rc_blocks" 2>/dev/null; then
+            printf '%s\n' "fetch: unable to enforce response-size limit" >&2
+            exit 125
+        fi
+        "$@"
+    )
+}
+
+_fetch_file_size() {
+    _fetch_fs_path=$1
+    _fetch_fs_size=$(LC_ALL=C wc -c < "$_fetch_fs_path" | tr -d '[:space:]') || return 1
+    case $_fetch_fs_size in
+        ''|*[!0-9]*) return 1 ;;
+    esac
+    while [ "${_fetch_fs_size#0}" != "$_fetch_fs_size" ]; do
+        _fetch_fs_size=${_fetch_fs_size#0}
+    done
+    [ -n "$_fetch_fs_size" ] || _fetch_fs_size=0
+    printf '%s\n' "$_fetch_fs_size"
+}
+
+_fetch_check_file_size() {
+    _fetch_cf_path=$1
+    _fetch_cf_max=$2
+    _fetch_cf_size=$(_fetch_file_size "$_fetch_cf_path") || {
+        printf '%s\n' "fetch: unable to verify downloaded response size" >&2
+        return 1
+    }
+    if [ "${#_fetch_cf_size}" -gt "${#_fetch_cf_max}" ] || \
+       { [ "${#_fetch_cf_size}" -eq "${#_fetch_cf_max}" ] && [ "$_fetch_cf_size" -gt "$_fetch_cf_max" ]; }; then
+        printf '%s\n' "fetch: response exceeded its byte limit" >&2
+        return 1
+    fi
+}
+
+_fetch_curl_config_escape() {
+    _fetch_ce_value=${1:-}
+    _fetch_ce_clean=$(printf '%s' "$_fetch_ce_value" | LC_ALL=C tr -d '\001-\037\177') || return 1
+    if [ "$_fetch_ce_clean" != "$_fetch_ce_value" ]; then
+        printf '%s\n' "fetch: curl config values cannot contain control characters" >&2
+        return 2
+    fi
+    printf '%s' "$_fetch_ce_value" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
+}
+
+_fetch_curl_config_write() {
+    _fetch_cw_path=$1
+    _fetch_cw_url=$2
+    _fetch_cw_proxy=${3:-}
+    _fetch_cw_auth=${4:-}
+    _fetch_cw_url_q=$(_fetch_curl_config_escape "$_fetch_cw_url") || return $?
+    _fetch_cw_proxy_q=
+    _fetch_cw_auth_q=
+    if [ -n "$_fetch_cw_proxy" ]; then
+        _fetch_cw_proxy_q=$(_fetch_curl_config_escape "$_fetch_cw_proxy") || return $?
+    fi
+    if [ -n "$_fetch_cw_auth" ]; then
+        _fetch_cw_auth_q=$(_fetch_curl_config_escape "$_fetch_cw_auth") || return $?
+    fi
+    if ! printf 'url = "%s"\n' "$_fetch_cw_url_q" > "$_fetch_cw_path"; then
+        return 1
+    fi
+    if [ -n "$_fetch_cw_proxy" ] && ! printf 'proxy = "%s"\n' "$_fetch_cw_proxy_q" >> "$_fetch_cw_path"; then
+        return 1
+    fi
+    if [ -n "$_fetch_cw_auth" ] && ! printf 'proxy-user = "%s"\n' "$_fetch_cw_auth_q" >> "$_fetch_cw_path"; then
+        return 1
+    fi
+}
+
+_fetch_http_curl() (
+    _fetch_c_url=$1
+    _fetch_c_out=$2
+    _fetch_c_timeout=$3
+    _fetch_c_https_only=$4
+    _fetch_c_max_bytes=$5
+    _fetch_c_mode=$6
+    _fetch_c_proxy=${7:-}
+    _fetch_c_auth=${8:-}
+    _fetch_c_config=
+    trap '[ -z "$_fetch_c_config" ] || rm -f "$_fetch_c_config"' 0
+    trap 'exit 129' HUP
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+
+    _fetch_validate_url "$_fetch_c_url" "$_fetch_c_https_only" || return $?
+    if [ -n "$_fetch_c_proxy" ] && [ -n "$_fetch_c_auth" ]; then
+        _fetch_c_authority=${_fetch_c_proxy#*://}
+        _fetch_c_authority=${_fetch_c_authority%%[/?#]*}
+        case $_fetch_c_authority in
+            *@*)
+                printf '%s\n' "fetch: provide proxy credentials either in the proxy URL or AUTH, not both" >&2
+                return 2
+                ;;
+        esac
+    fi
+    _fetch_c_config=$(umask 077; file_mktemp "${TMPDIR:-/tmp}") || {
+        printf '%s\n' "fetch: unable to create private curl config" >&2
+        return 1
+    }
+    if [ ! -f "$_fetch_c_config" ] || [ -L "$_fetch_c_config" ] || ! chmod 600 "$_fetch_c_config"; then
+        printf '%s\n' "fetch: unable to secure private curl config" >&2
+        return 1
+    fi
+    _fetch_curl_config_write "$_fetch_c_config" "$_fetch_c_url" "$_fetch_c_proxy" "$_fetch_c_auth" || return $?
+
+    case $_fetch_c_mode in
+        generic) ;;
+        direct)
+            _fetch_c_direct=1
+            ;;
+        proxy)
+            _fetch_c_direct=0
+            ;;
+        *)
+            printf '%s\n' "fetch: unknown HTTP mode" >&2
+            return 2
+            ;;
+    esac
+    if [ "${_fetch_c_direct:-0}" = 1 ]; then
+        if [ "$_fetch_c_https_only" = 1 ]; then
+            _fetch_run_capped "$_fetch_c_max_bytes" curl -q -fLSs --config "$_fetch_c_config" \
+                --noproxy '*' --proxy '' --max-redirs 0 --proto '=https' --proto-redir '=https' \
+                --max-filesize "$_fetch_c_max_bytes" --connect-timeout "$_fetch_c_timeout" \
+                --max-time "$_fetch_c_timeout" -o "$_fetch_c_out" 2>/dev/null
+        else
+            _fetch_run_capped "$_fetch_c_max_bytes" curl -q -fLSs --config "$_fetch_c_config" \
+                --noproxy '*' --proxy '' --max-redirs 5 --max-filesize "$_fetch_c_max_bytes" \
+                --connect-timeout "$_fetch_c_timeout" --max-time "$_fetch_c_timeout" \
+                -o "$_fetch_c_out" 2>/dev/null
+        fi
+    elif [ "$_fetch_c_https_only" = 1 ]; then
+        _fetch_run_capped "$_fetch_c_max_bytes" curl -q -fLSs --config "$_fetch_c_config" \
+            --max-redirs 0 --proto '=https' --proto-redir '=https' --max-filesize "$_fetch_c_max_bytes" \
+            --connect-timeout "$_fetch_c_timeout" --max-time "$_fetch_c_timeout" \
+            -o "$_fetch_c_out" 2>/dev/null
+    else
+        _fetch_run_capped "$_fetch_c_max_bytes" curl -q -fLSs --config "$_fetch_c_config" \
+            --max-redirs 5 --max-filesize "$_fetch_c_max_bytes" \
+            --connect-timeout "$_fetch_c_timeout" --max-time "$_fetch_c_timeout" \
+            -o "$_fetch_c_out" 2>/dev/null
+    fi
+)
+
+_fetch_http_wget() {
+    _fetch_w_url=$1
+    _fetch_w_out=$2
+    _fetch_w_timeout=$3
+    _fetch_w_https_only=$4
+    _fetch_w_max_bytes=$5
+    _fetch_w_mode=$6
+    if [ "$_fetch_w_https_only" = 1 ]; then
+        printf '%s\n' "fetch: HTTPS-only fetch requires curl to constrain redirect protocols" >&2
+        return 127
+    fi
+    _fetch_w_authority=${_fetch_w_url#*://}
+    _fetch_w_authority=${_fetch_w_authority%%[/?#]*}
+    case $_fetch_w_authority in
+        *@*)
+            printf '%s\n' "fetch: credential-bearing URLs require curl" >&2
+            return 127
+            ;;
+    esac
+    case $_fetch_w_url in
+        *\?*)
+            printf '%s\n' "fetch: credential-bearing URLs require curl" >&2
+            return 127
+            ;;
+    esac
+    case $_fetch_w_mode in
+        direct)
+            _fetch_run_capped "$_fetch_w_max_bytes" env http_proxy= https_proxy= HTTP_PROXY= HTTPS_PROXY= ALL_PROXY= all_proxy= \
+                wget -q -O "$_fetch_w_out" -T "$_fetch_w_timeout" "$_fetch_w_url" 2>/dev/null
+            ;;
+        generic)
+            _fetch_run_capped "$_fetch_w_max_bytes" wget -q -O "$_fetch_w_out" -T "$_fetch_w_timeout" "$_fetch_w_url" 2>/dev/null
+            ;;
+        *)
+            printf '%s\n' "fetch: authenticated proxy requests require curl" >&2
+            return 127
+            ;;
+    esac
+}
+
+_fetch_http_with_mode() {
+    _fetch_hm_mode=$1
+    _fetch_hm_url=$2
+    _fetch_hm_out=$3
+    _fetch_hm_timeout=$4
+    _fetch_hm_https=${5:-1}
+    _fetch_hm_max=${6:-$_FETCH_MAX_BYTES_DEFAULT}
+    _fetch_hm_proxy=${7:-}
+    _fetch_hm_auth=${8:-}
+    _fetch_validate_url "$_fetch_hm_url" "$_fetch_hm_https" || return $?
+    case $_fetch_hm_mode in
+        generic|direct|proxy) ;;
+        *) printf '%s\n' "fetch: unknown HTTP mode" >&2; return 2 ;;
+    esac
+    if command -v curl >/dev/null 2>&1; then
+        _fetch_http_curl "$_fetch_hm_url" "$_fetch_hm_out" "$_fetch_hm_timeout" \
+            "$_fetch_hm_https" "$_fetch_hm_max" "$_fetch_hm_mode" "$_fetch_hm_proxy" "$_fetch_hm_auth"
+    elif [ "$_fetch_hm_mode" = proxy ]; then
+        printf '%s\n' "fetch: proxy fetch requires curl" >&2
+        return 127
+    elif command -v wget >/dev/null 2>&1; then
+        _fetch_http_wget "$_fetch_hm_url" "$_fetch_hm_out" "$_fetch_hm_timeout" \
+            "$_fetch_hm_https" "$_fetch_hm_max" "$_fetch_hm_mode"
+    else
+        printf '%s\n' "fetch: curl or wget is required" >&2
+        return 127
+    fi
+}
+
+_fetch_http_download() {
+    _fetch_hd_mode=$1
+    _fetch_hd_url=$2
+    _fetch_hd_out=$3
+    _fetch_hd_timeout=$4
+    _fetch_hd_https=$5
+    _fetch_hd_max=$6
+    _fetch_hd_proxy=${7:-}
+    _fetch_hd_auth=${8:-}
+    _fetch_hd_dir=$(dirname "$_fetch_hd_out")
+    _fetch_hd_tmp=$(file_mktemp "$_fetch_hd_dir") || return 1
+    _fetch_hd_rc=0
+    _fetch_http_with_mode "$_fetch_hd_mode" "$_fetch_hd_url" "$_fetch_hd_tmp" \
+        "$_fetch_hd_timeout" "$_fetch_hd_https" "$_fetch_hd_max" \
+        "$_fetch_hd_proxy" "$_fetch_hd_auth" || _fetch_hd_rc=$?
+    if [ "$_fetch_hd_rc" -ne 0 ]; then
+        rm -f "$_fetch_hd_tmp"
+        printf '%s\n' "fetch: download failed" >&2
+        return "$_fetch_hd_rc"
+    fi
+    if [ ! -s "$_fetch_hd_tmp" ] || ! _fetch_check_file_size "$_fetch_hd_tmp" "$_fetch_hd_max"; then
+        rm -f "$_fetch_hd_tmp"
+        printf '%s\n' "fetch: empty or oversized response rejected" >&2
+        return 1
+    fi
+    if ! mv -f "$_fetch_hd_tmp" "$_fetch_hd_out"; then
+        rm -f "$_fetch_hd_tmp"
+        printf '%s\n' "fetch: unable to publish response" >&2
+        return 1
+    fi
+}
+
+fetch_http_direct() {
+    _fetch_direct_url=${1:-}
+    _fetch_direct_out=${2:-}
+    [ -n "$_fetch_direct_url" ] && [ -n "$_fetch_direct_out" ] || {
+        printf '%s\n' "fetch_http_direct: usage: fetch_http_direct URL OUTPUT [TIMEOUT [MAX_BYTES [ALLOW_INSECURE]]]" >&2
+        return 2
+    }
+    _fetch_direct_timeout=$(_fetch_timeout_secs "${3:-}") || return $?
+    _fetch_direct_max=$(_fetch_max_bytes "${4:-}") || return $?
+    _fetch_direct_allow=${5:-}
+    _fetch_validate_http_options '' "$_fetch_direct_max" "$_fetch_direct_allow" || return $?
+    _fetch_validate_url "$_fetch_direct_url" "$_FETCH_HTTP_HTTPS_ONLY" || return $?
+    _fetch_http_download direct "$_fetch_direct_url" "$_fetch_direct_out" "$_fetch_direct_timeout" \
+        "$_FETCH_HTTP_HTTPS_ONLY" "$_FETCH_HTTP_MAX_BYTES"
+}
+
+fetch_http_proxy() {
+    _fetch_proxy_url=${1:-}
+    _fetch_proxy_out=${2:-}
+    _fetch_proxy_endpoint=${3:-}
+    [ -n "$_fetch_proxy_url" ] && [ -n "$_fetch_proxy_out" ] && [ -n "$_fetch_proxy_endpoint" ] || {
+        printf '%s\n' "fetch_http_proxy: usage: fetch_http_proxy URL OUTPUT PROXY [TIMEOUT [AUTH [MAX_BYTES [ALLOW_INSECURE]]]]" >&2
+        return 2
+    }
+    _fetch_proxy_timeout=$(_fetch_timeout_secs "${4:-}") || return $?
+    _fetch_proxy_auth=${5:-}
+    _fetch_proxy_max=$(_fetch_max_bytes "${6:-}") || return $?
+    _fetch_proxy_allow=${7:-}
+    _fetch_validate_http_options '' "$_fetch_proxy_max" "$_fetch_proxy_allow" || return $?
+    _fetch_validate_url "$_fetch_proxy_url" "$_FETCH_HTTP_HTTPS_ONLY" || return $?
+    _fetch_http_download proxy "$_fetch_proxy_url" "$_fetch_proxy_out" "$_fetch_proxy_timeout" \
+        "$_FETCH_HTTP_HTTPS_ONLY" "$_FETCH_HTTP_MAX_BYTES" "$_fetch_proxy_endpoint" "$_fetch_proxy_auth"
+}
+
+fetch_http() {
+    _fetch_http_url=${1:-}
+    _fetch_http_out=${2:-}
+    if [ -z "$_fetch_http_url" ] || [ -z "$_fetch_http_out" ]; then
+        printf '%s\n' "fetch_http: usage: fetch_http URL OUTPUT [TIMEOUT [HTTPS_ONLY [MAX_BYTES [ALLOW_INSECURE]]]]" >&2
+        return 2
+    fi
+    _fetch_http_timeout=$(_fetch_timeout_secs "${3:-}") || return $?
+    if [ "$#" -ge 4 ]; then
+        _fetch_http_https=${4:-}
+    else
+        _fetch_http_https=
+    fi
+    _fetch_http_max=$(_fetch_max_bytes "${5:-}") || return $?
+    _fetch_http_allow=${6:-}
+    _fetch_validate_http_options "$_fetch_http_https" "$_fetch_http_max" "$_fetch_http_allow" || return $?
+    _fetch_validate_url "$_fetch_http_url" "$_FETCH_HTTP_HTTPS_ONLY" || return $?
+    _fetch_http_download generic "$_fetch_http_url" "$_fetch_http_out" "$_fetch_http_timeout" \
+        "$_FETCH_HTTP_HTTPS_ONLY" "$_FETCH_HTTP_MAX_BYTES"
+}
+
+fetch_to_temp() {
+    _fetch_tt_url=${1:-}
+    if [ -z "$_fetch_tt_url" ]; then
+        printf '%s\n' "fetch_to_temp: missing URL" >&2
+        return 2
+    fi
+    _fetch_tt_timeout=$(_fetch_timeout_secs "${2:-}") || return $?
+    _fetch_tt_max=$(_fetch_max_bytes "${3:-}") || return $?
+    _fetch_tt_allow=${4:-}
+    _fetch_validate_http_options '' "$_fetch_tt_max" "$_fetch_tt_allow" || return $?
+    _fetch_tt_tmp=$(file_mktemp) || return 1
+    if _fetch_http_download generic "$_fetch_tt_url" "$_fetch_tt_tmp" "$_fetch_tt_timeout" \
+        "$_FETCH_HTTP_HTTPS_ONLY" "$_FETCH_HTTP_MAX_BYTES"; then
+        printf '%s\n' "$_fetch_tt_tmp"
+        return 0
+    fi
+    rm -f "$_fetch_tt_tmp"
+    return 1
+}
+
+fetch_atomic() {
+    _fetch_at_url=${1:-}
+    _fetch_at_dest=${2:-}
+    _fetch_at_validator=${3:-}
+    if [ -z "$_fetch_at_url" ] || [ -z "$_fetch_at_dest" ]; then
+        printf '%s\n' "fetch_atomic: usage: fetch_atomic URL DEST [VALIDATOR [TIMEOUT [MAX_BYTES [HTTPS_ONLY [ALLOW_INSECURE]]]]]" >&2
+        return 2
+    fi
+    _fetch_at_dir=$(dirname "$_fetch_at_dest")
+    if [ ! -d "$_fetch_at_dir" ]; then
+        printf '%s\n' "fetch_atomic: destination directory missing" >&2
+        return 1
+    fi
+    _fetch_at_timeout=${4:-}
+    _fetch_at_timeout=$(_fetch_timeout_secs "$_fetch_at_timeout") || return $?
+    _fetch_at_max=$(_fetch_max_bytes "${5:-}") || return $?
+    _fetch_at_https=${6:-}
+    _fetch_at_allow=${7:-}
+    _fetch_validate_http_options "$_fetch_at_https" "$_fetch_at_max" "$_fetch_at_allow" || return $?
+    _fetch_at_tmp=$(file_mktemp "$_fetch_at_dir") || return 1
+    if ! _fetch_http_download generic "$_fetch_at_url" "$_fetch_at_tmp" \
+        "$_fetch_at_timeout" "$_FETCH_HTTP_HTTPS_ONLY" "$_FETCH_HTTP_MAX_BYTES"; then
+        rm -f "$_fetch_at_tmp"
+        return 1
+    fi
+    if [ -n "$_fetch_at_validator" ]; then
+        if ! "$_fetch_at_validator" "$_fetch_at_tmp"; then
+            rm -f "$_fetch_at_tmp"
+            printf '%s\n' "fetch_atomic: validation failed" >&2
+            return 1
+        fi
+    fi
+    if ! file_atomic_replace "$_fetch_at_dest" "$_fetch_at_tmp"; then
+        rm -f "$_fetch_at_tmp"
+        return 1
+    fi
+    rm -f "$_fetch_at_tmp"
+}
+# END MODULE: fetch
+
+# BEGIN MODULE: guard-overlay
+# Guard-owned OpenClash custom-overwrite integration for staged rule providers.
+# Prefix: guard_overlay_
+set -eu
+
+_GUARD_OVERLAY_BEGIN="# BEGIN openclash-guard rules"
+_GUARD_OVERLAY_END="# END openclash-guard rules"
+_GUARD_OVERLAY_RUNTIME_BIN=${GUARD_OVERLAY_RUNTIME_BIN:-/usr/bin/openclash-guard}
+
+guard_overlay_provider_specs() {
+    printf '%s\n' \
+        "Custom_Direct_Domain domain Custom_Direct_Domain.yaml" \
+        "Custom_Direct_Classical_IP classical Custom_Direct_Classical_IP.yaml" \
+        "Custom_Proxy_Domain domain Custom_Proxy_Domain.yaml" \
+        "Custom_Proxy_Classical_IP classical Custom_Proxy_Classical_IP.yaml"
+}
+
+_guard_overlay_hook_path() {
+    if [ -n "${GUARD_OPENCLASH_CUSTOM_OVERWRITE:-}" ]; then
+        printf '%s\n' "$GUARD_OPENCLASH_CUSTOM_OVERWRITE"
+        return 0
+    fi
+    printf '%s/etc/openclash/custom/openclash_custom_overwrite.sh\n' "${GUARD_PREFIX:-}"
+}
+
+_guard_overlay_backup_path() {
+    if [ -n "${GUARD_OVERLAY_BACKUP_FILE:-}" ]; then
+        printf '%s\n' "$GUARD_OVERLAY_BACKUP_FILE"
+        return 0
+    fi
+    printf '%s/etc/openclash-guard/backups/openclash_custom_overwrite.sh\n' "${GUARD_PREFIX:-}"
+}
+
+_guard_overlay_provider_root() {
+    if [ -n "${GUARD_RULES_DIR:-}" ]; then
+        printf '%s/providers\n' "${GUARD_RULES_DIR%/}"
+        return 0
+    fi
+    printf '%s/etc/openclash-guard/rules/providers\n' "${GUARD_PREFIX:-}"
+}
+
+_guard_overlay_marker_count() {
+    _guard_omc_file=$1
+    _guard_omc_marker=$2
+    awk -v marker="$_guard_omc_marker" '$0 == marker { count++ } END { print count + 0 }' "$_guard_omc_file"
+}
+
+_guard_overlay_validate_hook() {
+    _guard_ovh_file=$1
+    if [ ! -f "$_guard_ovh_file" ] || [ -L "$_guard_ovh_file" ]; then
+        cli_error "OpenClash custom-overwrite hook is missing or not a regular file: $_guard_ovh_file"
+        return 1
+    fi
+    if ! /bin/sh -n "$_guard_ovh_file"; then
+        cli_error "OpenClash custom-overwrite hook has invalid shell syntax: $_guard_ovh_file"
+        return 1
+    fi
+    if ! grep -E '^[[:space:]]*CONFIG_FILE=.*\$1' "$_guard_ovh_file" >/dev/null 2>&1; then
+        cli_error "OpenClash custom-overwrite hook does not expose CONFIG_FILE from its first argument"
+        return 1
+    fi
+    _guard_ovh_begin=$(_guard_overlay_marker_count "$_guard_ovh_file" "$_GUARD_OVERLAY_BEGIN") || return 1
+    _guard_ovh_end=$(_guard_overlay_marker_count "$_guard_ovh_file" "$_GUARD_OVERLAY_END") || return 1
+    if { [ "$_guard_ovh_begin" -ne 0 ] || [ "$_guard_ovh_end" -ne 0 ]; } && \
+       { [ "$_guard_ovh_begin" -ne 1 ] || [ "$_guard_ovh_end" -ne 1 ]; }; then
+        cli_error "OpenClash custom-overwrite hook has unexpected Guard marker shape"
+        return 1
+    fi
+    _guard_ovh_exits=$(awk '/^[[:space:]]*exit[[:space:]]+0[[:space:]]*$/ { count++ } END { print count + 0 }' "$_guard_ovh_file") || return 1
+    if [ "$_guard_ovh_exits" -ne 1 ]; then
+        cli_error "OpenClash custom-overwrite hook must contain exactly one terminal 'exit 0'"
+        return 1
+    fi
+}
+
+_guard_overlay_strip_block() {
+    _guard_osb_source=$1
+    _guard_osb_dest=$2
+    awk -v begin="$_GUARD_OVERLAY_BEGIN" -v end="$_GUARD_OVERLAY_END" '
+        $0 == begin {
+            if (inside) exit 2
+            inside = 1
+            next
+        }
+        $0 == end {
+            if (!inside) exit 2
+            inside = 0
+            next
+        }
+        !inside { print }
+        END { if (inside) exit 2 }
+    ' "$_guard_osb_source" > "$_guard_osb_dest"
+}
+
+_guard_overlay_write_block() {
+    _guard_owb_dest=$1
+    cat > "$_guard_owb_dest" <<EOF
+$_GUARD_OVERLAY_BEGIN
+if [ ! -x "$_GUARD_OVERLAY_RUNTIME_BIN" ]; then
+    printf '%s\n' "openclash-guard: rules overlay runtime is missing" >&2
+    exit 1
+fi
+"$_GUARD_OVERLAY_RUNTIME_BIN" rules apply-overlay "\${CONFIG_FILE:-}" || exit \$?
+$_GUARD_OVERLAY_END
+EOF
+}
+
+_guard_overlay_insert_block() {
+    _guard_oib_source=$1
+    _guard_oib_block=$2
+    _guard_oib_dest=$3
+    awk -v block="$_guard_oib_block" '
+        BEGIN {
+            rendered = ""
+            while ((getline line < block) > 0) rendered = rendered line ORS
+            close(block)
+        }
+        /^[[:space:]]*exit[[:space:]]+0[[:space:]]*$/ && !inserted {
+            printf "%s", rendered
+            inserted = 1
+        }
+        { print }
+        END { if (!inserted) exit 3 }
+    ' "$_guard_oib_source" > "$_guard_oib_dest"
+}
+
+guard_overlay_is_active() {
+    _guard_oia_hook=$(_guard_overlay_hook_path)
+    [ -f "$_guard_oia_hook" ] || return 1
+    [ "$(_guard_overlay_marker_count "$_guard_oia_hook" "$_GUARD_OVERLAY_BEGIN")" -eq 1 ] && \
+        [ "$(_guard_overlay_marker_count "$_guard_oia_hook" "$_GUARD_OVERLAY_END")" -eq 1 ]
+}
+
+# Overlay hook lifecycle: staged (markers absent) or active (marked block present).
+# This is not custom-rule data and not the Guard nft table.
+guard_overlay_activation() {
+    if guard_overlay_is_active; then
+        printf '%s\n' "active"
+    else
+        printf '%s\n' "staged"
+    fi
+}
+
+guard_overlay_activate() {
+    _guard_oa_yes=0
+    while [ "$#" -gt 0 ]; do
+        case $1 in
+            --yes|-y) _guard_oa_yes=1; shift ;;
+            *) cli_error "unknown rules activate option: $1"; return 2 ;;
+        esac
+    done
+    [ "$_guard_oa_yes" -eq 1 ] && cli_set_assume_yes 1
+    _guard_oa_hook=$(_guard_overlay_hook_path)
+    _guard_overlay_validate_hook "$_guard_oa_hook" || return $?
+    if ! cli_confirm "Install the marked OpenClash Guard rule-provider overlay?"; then
+        cli_error "refusing to activate staged rules without confirmation (pass --yes)"
+        return 1
+    fi
+    _guard_oa_dir=$(dirname "$_guard_oa_hook")
+    _guard_oa_stripped=$(file_mktemp "$_guard_oa_dir") || return 1
+    _guard_oa_block=$(file_mktemp "$_guard_oa_dir") || {
+        rm -f "$_guard_oa_stripped"
+        return 1
+    }
+    _guard_oa_candidate=$(file_mktemp "$_guard_oa_dir") || {
+        rm -f "$_guard_oa_stripped" "$_guard_oa_block"
+        return 1
+    }
+    if ! _guard_overlay_strip_block "$_guard_oa_hook" "$_guard_oa_stripped" || \
+       ! _guard_overlay_write_block "$_guard_oa_block" || \
+       ! _guard_overlay_insert_block "$_guard_oa_stripped" "$_guard_oa_block" "$_guard_oa_candidate" || \
+       ! /bin/sh -n "$_guard_oa_candidate" || \
+       [ "$(_guard_overlay_marker_count "$_guard_oa_candidate" "$_GUARD_OVERLAY_BEGIN")" -ne 1 ] || \
+       [ "$(_guard_overlay_marker_count "$_guard_oa_candidate" "$_GUARD_OVERLAY_END")" -ne 1 ]; then
+        rm -f "$_guard_oa_stripped" "$_guard_oa_block" "$_guard_oa_candidate"
+        cli_error "unable to construct a valid OpenClash custom-overwrite hook; keeping last-good"
+        return 1
+    fi
+    _guard_oa_backup=$(_guard_overlay_backup_path)
+    if [ ! -e "$_guard_oa_backup" ]; then
+        mkdir -p "$(dirname "$_guard_oa_backup")"
+        if ! cp -p "$_guard_oa_hook" "$_guard_oa_backup"; then
+            rm -f "$_guard_oa_stripped" "$_guard_oa_block" "$_guard_oa_candidate"
+            cli_error "unable to back up OpenClash custom-overwrite hook"
+            return 1
+        fi
+    fi
+    if ! cmp -s "$_guard_oa_hook" "$_guard_oa_candidate"; then
+        if ! file_atomic_replace "$_guard_oa_hook" "$_guard_oa_candidate"; then
+            rm -f "$_guard_oa_stripped" "$_guard_oa_block" "$_guard_oa_candidate"
+            cli_error "unable to publish OpenClash custom-overwrite hook; keeping last-good"
+            return 1
+        fi
+    fi
+    rm -f "$_guard_oa_stripped" "$_guard_oa_block" "$_guard_oa_candidate"
+    cli_success "rule-provider overlay activated; restart OpenClash to apply it"
+}
+
+guard_overlay_deactivate() {
+    _guard_od_yes=0
+    while [ "$#" -gt 0 ]; do
+        case $1 in
+            --yes|-y) _guard_od_yes=1; shift ;;
+            *) cli_error "unknown rules deactivate option: $1"; return 2 ;;
+        esac
+    done
+    [ "$_guard_od_yes" -eq 1 ] && cli_set_assume_yes 1
+    _guard_od_hook=$(_guard_overlay_hook_path)
+    if [ ! -f "$_guard_od_hook" ]; then
+        cli_info "rule-provider overlay is not installed"
+        return 0
+    fi
+    _guard_overlay_validate_hook "$_guard_od_hook" || return $?
+    if ! guard_overlay_is_active; then
+        cli_info "rule-provider overlay is not installed"
+        return 0
+    fi
+    if ! cli_confirm "Remove only the marked OpenClash Guard rule-provider overlay?"; then
+        cli_error "refusing to deactivate rules without confirmation (pass --yes)"
+        return 1
+    fi
+    _guard_od_candidate=$(file_mktemp "$(dirname "$_guard_od_hook")") || return 1
+    if ! _guard_overlay_strip_block "$_guard_od_hook" "$_guard_od_candidate" || \
+       ! /bin/sh -n "$_guard_od_candidate"; then
+        rm -f "$_guard_od_candidate"
+        cli_error "unable to remove the marked overlay safely; keeping last-good"
+        return 1
+    fi
+    if ! file_atomic_replace "$_guard_od_hook" "$_guard_od_candidate"; then
+        rm -f "$_guard_od_candidate"
+        cli_error "unable to publish OpenClash custom-overwrite hook; keeping last-good"
+        return 1
+    fi
+    rm -f "$_guard_od_candidate"
+    _guard_od_backup=$(_guard_overlay_backup_path)
+    rm -f "$_guard_od_backup"
+    cli_success "removed only the marked rule-provider overlay; staged rule data was preserved"
+}
+
+_guard_overlay_validate_providers() {
+    _guard_ovp_root=$1
+    while IFS=' ' read -r _guard_ovp_name _guard_ovp_behavior _guard_ovp_file; do
+        [ -n "$_guard_ovp_name" ] || continue
+        _guard_ovp_path="$_guard_ovp_root/$_guard_ovp_file"
+        if [ ! -s "$_guard_ovp_path" ] || ! awk 'NR == 1 { ok = ($0 == "payload:") } END { exit(ok ? 0 : 1) }' "$_guard_ovp_path"; then
+            cli_error "staged provider is missing or invalid: $_guard_ovp_path"
+            return 1
+        fi
+    done <<EOF
+$(guard_overlay_provider_specs)
+EOF
+}
+
+guard_overlay_apply_config() {
+    _guard_oac_config=${1:-}
+    if [ -z "$_guard_oac_config" ] || [ ! -f "$_guard_oac_config" ] || [ -L "$_guard_oac_config" ]; then
+        cli_error "rules apply-overlay requires a regular active config file"
+        return 2
+    fi
+    if ! command -v ruby >/dev/null 2>&1; then
+        cli_error "OpenClash Ruby runtime is required for structured provider replacement"
+        return 127
+    fi
+    _guard_oac_root=$(_guard_overlay_provider_root)
+    _guard_overlay_validate_providers "$_guard_oac_root" || return $?
+    _guard_oac_tmp=$(file_mktemp "$(dirname "$_guard_oac_config")") || return 1
+    set -- "$_guard_oac_config" "$_guard_oac_tmp" "$_guard_oac_root"
+    while IFS=' ' read -r _guard_oac_name _guard_oac_behavior _guard_oac_file; do
+        [ -n "$_guard_oac_name" ] || continue
+        set -- "$@" "$_guard_oac_name" "$_guard_oac_behavior" "$_guard_oac_file"
+    done <<EOF
+$(guard_overlay_provider_specs)
+EOF
+    if ! ruby -ryaml -e '
+def safe_yaml(text)
+  YAML.safe_load(text, permitted_classes: [], permitted_symbols: [], aliases: true)
+rescue ArgumentError
+  YAML.safe_load(text, [], [], true)
+end
+args = ARGV.dup
+source, output, root = args.shift(3)
+abort("invalid provider specification") unless args.length == 12
+doc = safe_yaml(File.binread(source))
+abort("active config root must be a mapping") unless doc.is_a?(Hash)
+providers = doc["rule-providers"]
+abort("active config rule-providers must be a mapping") unless providers.is_a?(Hash)
+specs = {}
+args.each_slice(3) { |name, behavior, filename| specs[name] = [behavior, filename] }
+missing = specs.keys.reject { |key| providers.key?(key) }
+abort("reserved providers missing: #{missing.join(",")}") unless missing.empty?
+specs.each do |key, (behavior, filename)|
+  providers[key] = {
+    "type" => "file",
+    "behavior" => behavior,
+    "format" => "yaml",
+    "path" => File.join(root, filename)
+  }
+end
+rendered = YAML.dump(doc)
+check = safe_yaml(rendered)
+abort("rendered config root must be a mapping") unless check.is_a?(Hash)
+out_providers = check["rule-providers"]
+abort("rendered providers missing") unless out_providers.is_a?(Hash)
+specs.each do |key, (behavior, filename)|
+  expected = {"type"=>"file", "behavior"=>behavior, "format"=>"yaml", "path"=>File.join(root, filename)}
+  abort("rendered provider mismatch: #{key}") unless out_providers[key] == expected
+end
+File.binwrite(output, rendered)
+' "$@"; then
+        rm -f "$_guard_oac_tmp"
+        cli_error "active config lacks the expected four provider slots; leaving it untouched"
+        return 1
+    fi
+    if ! file_atomic_replace "$_guard_oac_config" "$_guard_oac_tmp"; then
+        rm -f "$_guard_oac_tmp"
+        cli_error "unable to publish validated active config; keeping last-good"
+        return 1
+    fi
+    rm -f "$_guard_oac_tmp"
+}
+# END MODULE: guard-overlay
+
+# BEGIN MODULE: guard-resolver-sync-data
+# GENERATED FILE. Edit internal/config/openclash-guard/resolver-sync.rules instead.
+# Prefix: _GUARD_RESOLVER_SYNC_DATA_
+set -eu
+
+_GUARD_RESOLVER_SYNC_DATA_SOURCE_ID='vpsdance'
+_GUARD_RESOLVER_SYNC_DATA_SOURCE_REPO='VPSDance/ai-proxy-rules'
+_GUARD_RESOLVER_SYNC_DATA_SOURCE_REVISION='d07cac190c33e7914ba7adaf7e7c14298fba7024'
+_GUARD_RESOLVER_SYNC_DATA_SELECTORS='chatgpt suffix ai.com
+chatgpt suffix chat.com
+chatgpt suffix chatgpt.com
+chatgpt suffix chatgpt.livekit.cloud
+chatgpt suffix crixet.com
+chatgpt suffix oaistatic.com
+chatgpt suffix oaiusercontent.com
+chatgpt suffix openai.com
+chatgpt suffix openaiapi-site.azureedge.net
+chatgpt suffix openaicom.imgix.net
+chatgpt suffix sora.com
+claude suffix anthropic.com
+claude suffix anthropic.com.cn
+claude suffix antspace.dev
+claude suffix clau.de
+claude suffix claude.ai
+claude suffix claude.app
+claude suffix claude.com
+claude suffix claude.new
+claude suffix claude.site
+claude suffix claudemcpclient.com
+claude suffix claudemcpcontent.com
+claude suffix claudepages.dev
+claude suffix claudestudio.com
+claude suffix claudeusercontent.com
+claude suffix modelcontextprotocol.com
+claude suffix modelcontextprotocol.io
+claude suffix modelcontextprotocol.net
+claude suffix modelcontextprotocol.org
+poe suffix poe.com
+poe suffix poecdn.net
+windsurf suffix codeium.com
+windsurf suffix codeiumdata.com
+windsurf suffix windsurf.build
+windsurf suffix windsurf.com
+huggingface suffix hf.co
+huggingface suffix hf.space
+huggingface suffix huggingface.co'
+_GUARD_RESOLVER_SYNC_DATA_EXCLUSIONS='flow-music path-scope-expansion'
+# END MODULE: guard-resolver-sync-data
+
+# BEGIN MODULE: json
+# Restricted JSON get/keys/list. Prefers jsonfilter; POSIX awk fallback.
+# Prefix: json_
+set -eu
+
+_JSON_MAX_DEPTH=64
+
+_json_normalize_path() {
+    printf '%s\n' "$1" | sed -e 's/^\$\.//' -e 's/^@\.//' -e 's/^\.//' -e 's/\[\([0-9][0-9]*\)\]/.\1/g'
+}
+
+_json_require_file() {
+    if [ -z "${1:-}" ] || [ ! -f "$1" ]; then
+        printf '%s\n' "json: not a file: ${1:-}" >&2
+        return 1
+    fi
+}
+
+_json_path_simple() {
+    case $1 in
+        ''|*[!A-Za-z0-9._]*)
+            return 1
+            ;;
+        .*)
+            return 1
+            ;;
+    esac
+    return 0
+}
+
+_json_flatten_awk() {
+    awk -v max_depth="$_JSON_MAX_DEPTH" '
+        {
+            src = src $0 "\n"
+        }
+        function peek() {
+            return substr(src, pos, 1)
+        }
+        function skip(    c) {
+            while (pos <= n) {
+                c = substr(src, pos, 1)
+                if (c == " " || c == "\t" || c == "\n" || c == "\r") {
+                    pos++
+                } else {
+                    break
+                }
+            }
+        }
+        function fail(msg) {
+            printf "json: %s\n", msg > "/dev/stderr"
+            bad = 1
+            exit 2
+        }
+        function escape_frame(value,    i, c, out) {
+            out = ""
+            for (i = 1; i <= length(value); i++) {
+                c = substr(value, i, 1)
+                if (c == "\\") {
+                    out = out "\\\\"
+                } else if (c == "\t") {
+                    out = out "\\t"
+                } else if (c == "\n") {
+                    out = out "\\n"
+                } else if (c == "\r") {
+                    out = out "\\r"
+                } else if (c == "\b") {
+                    out = out "\\b"
+                } else if (c == "\f") {
+                    out = out "\\f"
+                } else {
+                    out = out c
+                }
+            }
+            return out
+        }
+        function emit(path, val) {
+            if (path == "") {
+                return
+            }
+            print path "\t" escape_frame(val)
+        }
+        function parse_string(    c, out, hex) {
+            if (peek() != "\"") {
+                fail("expected string")
+            }
+            pos++
+            out = ""
+            while (pos <= n) {
+                c = substr(src, pos, 1)
+                pos++
+                if (c == "\"") {
+                    return out
+                }
+                if (c == "\\") {
+                    if (pos > n) {
+                        fail("unterminated string")
+                    }
+                    c = substr(src, pos, 1)
+                    pos++
+                    if (c == "n") {
+                        out = out "\n"
+                    } else if (c == "t") {
+                        out = out "\t"
+                    } else if (c == "r") {
+                        out = out "\r"
+                    } else if (c == "b") {
+                        out = out "\b"
+                    } else if (c == "f") {
+                        out = out "\f"
+                    } else if (c == "u") {
+                        hex = substr(src, pos, 4)
+                        if (length(hex) != 4 || hex ~ /[^0-9A-Fa-f]/) {
+                            fail("invalid unicode escape")
+                        }
+                        fail("Unicode escape decoding requires a structured JSON parser")
+                    } else if (c == "\"" || c == "\\" || c == "/") {
+                        out = out c
+                    } else {
+                        fail("invalid string escape")
+                    }
+                    continue
+                }
+                if (c ~ /[[:cntrl:]]/) {
+                    fail("unescaped control character in string")
+                }
+                out = out c
+            }
+            fail("unterminated string")
+        }
+        function parse_literal(    c, start, raw) {
+            start = pos
+            while (pos <= n) {
+                c = substr(src, pos, 1)
+                if (c ~ /[0-9A-Za-z.+-]/) {
+                    pos++
+                } else {
+                    break
+                }
+            }
+            raw = substr(src, start, pos - start)
+            if (raw == "") {
+                fail("expected value")
+            }
+            if (raw == "true" || raw == "false" || raw == "null") {
+                return raw
+            }
+            if (raw !~ /^-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?$/) {
+                fail("invalid JSON literal")
+            }
+            return raw
+        }
+        function enter_container() {
+            depth++
+            if (depth > max_depth) {
+                fail("JSON nesting exceeds supported depth")
+            }
+        }
+        function parse_object(prefix,    key, child, c, nkeys) {
+            if (peek() != "{") {
+                fail("expected object")
+            }
+            enter_container()
+            pos++
+            skip()
+            nkeys = 0
+            if (peek() == "}") {
+                pos++
+                if (prefix != "") {
+                    emit(prefix, "{}")
+                }
+                depth--
+                return
+            }
+            while (pos <= n) {
+                skip()
+                key = parse_string()
+                if (key ~ /[[:cntrl:]]/) {
+                    fail("object key contains unsupported control characters")
+                }
+                skip()
+                if (peek() != ":") {
+                    fail("expected colon")
+                }
+                pos++
+                skip()
+                if (prefix == "") {
+                    child = key
+                } else {
+                    child = prefix "." key
+                }
+                parse_value(child)
+                nkeys++
+                skip()
+                c = peek()
+                if (c == ",") {
+                    pos++
+                    continue
+                }
+                if (c == "}") {
+                    pos++
+                    depth--
+                    return
+                }
+                fail("expected comma or }")
+            }
+            fail("unterminated object")
+        }
+        function parse_array(prefix,    i, child, c) {
+            if (peek() != "[") {
+                fail("expected array")
+            }
+            enter_container()
+            pos++
+            skip()
+            i = 0
+            if (peek() == "]") {
+                pos++
+                if (prefix != "") {
+                    emit(prefix, "[]")
+                }
+                depth--
+                return
+            }
+            while (pos <= n) {
+                skip()
+                child = prefix "." i
+                parse_value(child)
+                i++
+                skip()
+                c = peek()
+                if (c == ",") {
+                    pos++
+                    continue
+                }
+                if (c == "]") {
+                    pos++
+                    depth--
+                    return
+                }
+                fail("expected comma or ]")
+            }
+            fail("unterminated array")
+        }
+        function parse_value(prefix,    c) {
+            skip()
+            c = peek()
+            if (c == "{") {
+                parse_object(prefix)
+                return
+            }
+            if (c == "[") {
+                parse_array(prefix)
+                return
+            }
+            if (c == "\"") {
+                emit(prefix, parse_string())
+                return
+            }
+            emit(prefix, parse_literal())
+        }
+        END {
+            n = length(src)
+            pos = 1
+            bad = 0
+            depth = 0
+            skip()
+            if (pos > n) {
+                fail("empty JSON")
+            }
+            parse_value("")
+            skip()
+            if (pos <= n && peek() != "") {
+                fail("trailing JSON content")
+            }
+        }
+    ' "$1"
+}
+
+_JSON_FLAT_PATH=
+_JSON_FLAT_DATA=
+
+json_load() {
+    _json_require_file "${1:-}" || return $?
+    if [ "$1" = "$_JSON_FLAT_PATH" ] && [ -n "$_JSON_FLAT_DATA" ]; then
+        return 0
+    fi
+    _JSON_FLAT_PATH=
+    _JSON_FLAT_DATA=
+    _JSON_FLAT_DATA=$(_json_flatten_awk "$1") || {
+        _JSON_FLAT_DATA=
+        return 1
+    }
+    _JSON_FLAT_PATH=$1
+}
+
+_json_flat() {
+    json_load "$1" || return $?
+    printf '%s\n' "$_JSON_FLAT_DATA"
+}
+
+json_get() {
+    _json_jg_file=${1:-}
+    _json_jg_path=${2:-}
+    _json_require_file "$_json_jg_file" || return $?
+    if [ -z "$_json_jg_path" ]; then
+        printf '%s\n' "json_get: missing path" >&2
+        return 2
+    fi
+    _json_jg_path=$(_json_normalize_path "$_json_jg_path")
+    if [ -z "${JSON_FORCE_AWK:-}" ] && command -v jsonfilter >/dev/null 2>&1 && _json_path_simple "$_json_jg_path"; then
+        _json_jg_out=$(jsonfilter -i "$_json_jg_file" -e "@.$_json_jg_path" 2>/dev/null) || _json_jg_out=
+        if [ -n "$_json_jg_out" ]; then
+            printf '%s\n' "$_json_jg_out"
+            return 0
+        fi
+    fi
+    _json_flat "$_json_jg_file" | awk -F '\t' -v q="$_json_jg_path" '
+        function fail() {
+            printf "%s\n", "json: invalid flattened value escape" > "/dev/stderr"
+            exit 2
+        }
+        function decode(value,    i, c, escape_char, out) {
+            out = ""
+            for (i = 1; i <= length(value); i++) {
+                c = substr(value, i, 1)
+                if (c != "\\") {
+                    out = out c
+                    continue
+                }
+                i++
+                if (i > length(value)) fail()
+                escape_char = substr(value, i, 1)
+                if (escape_char == "\\") out = out "\\"
+                else if (escape_char == "t") out = out "\t"
+                else if (escape_char == "n") out = out "\n"
+                else if (escape_char == "r") out = out "\r"
+                else if (escape_char == "b") out = out "\b"
+                else if (escape_char == "f") out = out "\f"
+                else fail()
+            }
+            return out
+        }
+        $1 == q {
+            print decode(substr($0, index($0, "\t") + 1))
+            found = 1
+            exit 0
+        }
+        END {
+            if (!found) {
+                exit 1
+            }
+        }
+    '
+}
+
+json_has() {
+    _json_jh_file=${1:-}
+    _json_jh_path=${2:-}
+    _json_require_file "$_json_jh_file" || return $?
+    if [ -z "$_json_jh_path" ]; then
+        return 2
+    fi
+    _json_jh_path=$(_json_normalize_path "$_json_jh_path")
+    _json_flat "$_json_jh_file" | awk -F '\t' -v q="$_json_jh_path" '
+        $1 == q { found = 1; exit 0 }
+        index($1, q ".") == 1 { found = 1; exit 0 }
+        END { if (!found) exit 1 }
+    '
+}
+
+json_keys() {
+    _json_jk_file=${1:-}
+    _json_jk_path=${2:-}
+    _json_require_file "$_json_jk_file" || return $?
+    _json_jk_path=$(_json_normalize_path "$_json_jk_path")
+    _json_flat "$_json_jk_file" | awk -F '\t' -v p="$_json_jk_path" '
+        {
+            key = $1
+            if (p == "") {
+                rest = key
+            } else if (key == p) {
+                next
+            } else if (index(key, p ".") == 1) {
+                rest = substr(key, length(p) + 2)
+            } else {
+                next
+            }
+            split(rest, parts, ".")
+            child = parts[1]
+            if (child == "" || seen[child]++) {
+                next
+            }
+            print child
+        }
+    '
+}
+
+json_list() {
+    _json_jl_file=${1:-}
+    _json_jl_path=${2:-}
+    _json_require_file "$_json_jl_file" || return $?
+    if [ -z "$_json_jl_path" ]; then
+        printf '%s\n' "json_list: missing path" >&2
+        return 2
+    fi
+    _json_jl_path=$(_json_normalize_path "$_json_jl_path")
+    _json_flat "$_json_jl_file" | awk -F '\t' -v p="$_json_jl_path" '
+        function fail() {
+            printf "%s\n", "json: invalid flattened value escape" > "/dev/stderr"
+            exit 2
+        }
+        function decode(value,    i, c, escape_char, out) {
+            out = ""
+            for (i = 1; i <= length(value); i++) {
+                c = substr(value, i, 1)
+                if (c != "\\") {
+                    out = out c
+                    continue
+                }
+                i++
+                if (i > length(value)) fail()
+                escape_char = substr(value, i, 1)
+                if (escape_char == "\\") out = out "\\"
+                else if (escape_char == "t") out = out "\t"
+                else if (escape_char == "n") out = out "\n"
+                else if (escape_char == "r") out = out "\r"
+                else if (escape_char == "b") out = out "\b"
+                else if (escape_char == "f") out = out "\f"
+                else fail()
+            }
+            return out
+        }
+        $1 == p && $2 == "[]" { empty = 1; next }
+        {
+            prefix = p "."
+            if (index($1, prefix) != 1) {
+                next
+            }
+            rest = substr($1, length(prefix) + 1)
+            if (rest ~ /^[0-9]+$/) {
+                val = substr($0, index($0, "\t") + 1)
+                items[rest + 0] = val
+                if (rest + 0 > max) {
+                    max = rest + 0
+                }
+                found = 1
+            }
+        }
+        END {
+            if (empty && !found) {
+                exit 0
+            }
+            if (!found) {
+                exit 1
+            }
+            for (i = 0; i <= max; i++) {
+                if (i in items) {
+                    value = decode(items[i])
+                    if (index(value, "\n") > 0) {
+                        printf "%s\n", "json: json_list cannot frame values containing newlines" > "/dev/stderr"
+                        exit 2
+                    }
+                    print value
+                }
+            }
+        }
+    '
+}
+# END MODULE: json
+
+# BEGIN MODULE: distribution
+# Generated distribution catalog plus authenticated release metadata helpers.
+# Prefix: guard_distribution_
+set -eu
+
+# BEGIN GENERATED DISTRIBUTION CATALOG
+_GUARD_DISTRIBUTION_RAW_BASE="https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main"
+_GUARD_DISTRIBUTION_CDN_BASE="https://cdn.jsdelivr.net/gh/mythic3011/rules@main"
+_GUARD_DISTRIBUTION_ARTIFACT="dist/openclash-guard.sh"
+_GUARD_DISTRIBUTION_MANIFEST="dist/manifest.json"
+_GUARD_DISTRIBUTION_CHECKSUM="dist/openclash-guard.sha256"
+_GUARD_DISTRIBUTION_BOOTSTRAP="setup/openclash/install.sh"
+_GUARD_DISTRIBUTION_POLICY="cfg/runtime/openclash-guard.json"
+_GUARD_DISTRIBUTION_TEMPLATES="cfg/runtime/openclash-guard-templates.json"
+_GUARD_DISTRIBUTION_RELEASE="dist/openclash-guard.release.json"
+_GUARD_DISTRIBUTION_RELEASE_SIG="dist/openclash-guard.release.json.sig"
+_GUARD_DISTRIBUTION_TRUSTED_KEY="/etc/openclash-guard/trusted-release-key.pub"
+_GUARD_DISTRIBUTION_RELEASE_STATE="/etc/openclash-guard/release-state"
+# END GENERATED DISTRIBUTION CATALOG
+
+_GUARD_RELEASE_SOURCE=
+_GUARD_RELEASE_METADATA_URL=
+_GUARD_RELEASE_SIGNATURE_URL=
+_GUARD_RELEASE_SIGNATURE_STATE=unverified
+_GUARD_RELEASE_KEY_FINGERPRINT=
+_GUARD_RELEASE_SEQUENCE=
+_GUARD_RELEASE_REVISION=
+_GUARD_RELEASE_BUNDLE_SHA256=
+_GUARD_RELEASE_BOOTSTRAP_SHA256=
+_GUARD_RELEASE_POLICY_SHA256=
+_GUARD_RELEASE_TEMPLATES_SHA256=
+
+_guard_distribution_base() {
+    _guard_ds_source=${1:-}
+    _guard_ds_override=${2:-}
+    if [ -n "$_guard_ds_override" ]; then
+        case $_guard_ds_override in
+            https://*) ;;
+            *) return 2 ;;
+        esac
+        printf '%s\n' "${_guard_ds_override%/}"
+        return 0
+    fi
+    case $_guard_ds_source in
+        github-raw|raw) printf '%s\n' "$_GUARD_DISTRIBUTION_RAW_BASE" ;;
+        jsdelivr|cdn) printf '%s\n' "$_GUARD_DISTRIBUTION_CDN_BASE" ;;
+        *) return 1 ;;
+    esac
+}
+
+_guard_distribution_url() {
+    _guard_du_base=$(_guard_distribution_base "${1:-}" "${3:-}") || return $?
+    printf '%s/%s\n' "$_guard_du_base" "${2#/}"
+}
+
+_guard_distribution_policy_url() {
+    _guard_distribution_url "${1:-}" "$_GUARD_DISTRIBUTION_POLICY" "${2:-}"
+}
+
+_guard_distribution_templates_url() {
+    _guard_distribution_url "${1:-}" "$_GUARD_DISTRIBUTION_TEMPLATES" "${2:-}"
+}
+
+_guard_distribution_release_url() {
+    _guard_distribution_url "${1:-}" "$_GUARD_DISTRIBUTION_RELEASE" "${2:-}"
+}
+
+_guard_distribution_release_sig_url() {
+    _guard_distribution_url "${1:-}" "$_GUARD_DISTRIBUTION_RELEASE_SIG" "${2:-}"
+}
+
+_guard_distribution_trusted_key() {
+    if [ -n "${GUARD_TRUSTED_RELEASE_KEY:-}" ]; then
+        printf '%s\n' "$GUARD_TRUSTED_RELEASE_KEY"
+    else
+        printf '%s%s\n' "${GUARD_PREFIX:-}" "$_GUARD_DISTRIBUTION_TRUSTED_KEY"
+    fi
+}
+
+_guard_distribution_reset_release() {
+    _GUARD_RELEASE_SOURCE=
+    _GUARD_RELEASE_METADATA_URL=
+    _GUARD_RELEASE_SIGNATURE_URL=
+    _GUARD_RELEASE_SIGNATURE_STATE=unverified
+    _GUARD_RELEASE_KEY_FINGERPRINT=
+    _GUARD_RELEASE_SEQUENCE=
+    _GUARD_RELEASE_REVISION=
+    _GUARD_RELEASE_BUNDLE_SHA256=
+    _GUARD_RELEASE_BOOTSTRAP_SHA256=
+    _GUARD_RELEASE_POLICY_SHA256=
+    _GUARD_RELEASE_TEMPLATES_SHA256=
+}
+
+_guard_distribution_valid_sha256() {
+    _guard_dvs_value=$(printf '%s' "${1:-}" | tr 'A-F' 'a-f')
+    [ "${#_guard_dvs_value}" -eq 64 ] || return 1
+    case $_guard_dvs_value in
+        *[!0-9a-f]*) return 1 ;;
+    esac
+    printf '%s\n' "$_guard_dvs_value"
+}
+
+_guard_distribution_valid_sequence() {
+    case ${1:-} in
+        ''|0|*[!0-9]*) return 1 ;;
+    esac
+    [ "$1" -le 2147483647 ] 2>/dev/null || return 1
+    printf '%s\n' "$1"
+}
+
+_guard_distribution_valid_revision() {
+    _guard_dvr_value=${1:-}
+    [ -n "$_guard_dvr_value" ] || return 1
+    [ "${#_guard_dvr_value}" -le 128 ] || return 1
+    case $_guard_dvr_value in
+        *[!A-Za-z0-9._:-]*) return 1 ;;
+    esac
+    printf '%s\n' "$_guard_dvr_value"
+}
+
+
+_GUARD_RELEASE_STATE=unrecorded
+_GUARD_RELEASE_STATE_REASON=
+
+_guard_distribution_release_state_path() {
+    if [ -n "${GUARD_RELEASE_STATE_FILE:-}" ]; then
+        printf '%s\n' "$GUARD_RELEASE_STATE_FILE"
+        return 0
+    fi
+    if [ -n "${GUARD_PREFIX:-}" ]; then
+        printf '%s%s\n' "$GUARD_PREFIX" "$_GUARD_DISTRIBUTION_RELEASE_STATE"
+        return 0
+    fi
+    case ${GUARD_POLICY_FILE:-} in
+        ''|/etc/openclash-guard/openclash-guard.json) ;;
+        *)
+            printf '%s/release-state\n' "$(dirname "$GUARD_POLICY_FILE")"
+            return 0
+            ;;
+    esac
+    printf '%s\n' "$_GUARD_DISTRIBUTION_RELEASE_STATE"
+}
+
+_guard_distribution_state_get() {
+    _guard_dsg_file=$1
+    _guard_dsg_key=$2
+    [ -f "$_guard_dsg_file" ] || return 1
+    sed -n "s/^${_guard_dsg_key}=//p" "$_guard_dsg_file" | head -n 1
+}
+
+guard_distribution_check_release_state() {
+    _GUARD_RELEASE_STATE=first-use
+    _GUARD_RELEASE_STATE_REASON=
+    _guard_dcs_remote_sequence=$(_guard_distribution_valid_sequence "${_GUARD_RELEASE_SEQUENCE:-}" 2>/dev/null) || {
+        _GUARD_RELEASE_STATE=invalid-release
+        _GUARD_RELEASE_STATE_REASON=invalid-remote-sequence
+        return 1
+    }
+    _guard_dcs_remote_revision=$(_guard_distribution_valid_revision "${_GUARD_RELEASE_REVISION:-}" 2>/dev/null) || {
+        _GUARD_RELEASE_STATE=invalid-release
+        _GUARD_RELEASE_STATE_REASON=invalid-remote-revision
+        return 1
+    }
+    [ -n "${_GUARD_RELEASE_KEY_FINGERPRINT:-}" ] || {
+        _GUARD_RELEASE_STATE=invalid-release
+        _GUARD_RELEASE_STATE_REASON=missing-key-fingerprint
+        return 1
+    }
+    _guard_dcs_file=$(_guard_distribution_release_state_path)
+    [ -f "$_guard_dcs_file" ] || return 0
+    _guard_dcs_schema=$(_guard_distribution_state_get "$_guard_dcs_file" schemaVersion 2>/dev/null) || _guard_dcs_schema=
+    [ "$_guard_dcs_schema" = 1 ] || {
+        _GUARD_RELEASE_STATE=invalid-state
+        _GUARD_RELEASE_STATE_REASON=invalid-local-state-schema
+        return 1
+    }
+    _guard_dcs_sequence=$(_guard_distribution_state_get "$_guard_dcs_file" highestSequence 2>/dev/null) || _guard_dcs_sequence=
+    _guard_dcs_sequence=$(_guard_distribution_valid_sequence "$_guard_dcs_sequence" 2>/dev/null) || {
+        _GUARD_RELEASE_STATE=invalid-state
+        _GUARD_RELEASE_STATE_REASON=invalid-local-sequence
+        return 1
+    }
+    if [ "$_guard_dcs_remote_sequence" -lt "$_guard_dcs_sequence" ]; then
+        _GUARD_RELEASE_STATE=rollback-rejected
+        _GUARD_RELEASE_STATE_REASON="release-sequence-${_guard_dcs_remote_sequence}-below-${_guard_dcs_sequence}"
+        return 1
+    fi
+    if [ "$_guard_dcs_remote_sequence" -gt "$_guard_dcs_sequence" ]; then
+        _GUARD_RELEASE_STATE=advance
+        return 0
+    fi
+
+    _guard_dcs_revision=$(_guard_distribution_state_get "$_guard_dcs_file" highestRevision 2>/dev/null) || _guard_dcs_revision=
+    _guard_dcs_fingerprint=$(_guard_distribution_state_get "$_guard_dcs_file" signerFingerprint 2>/dev/null) || _guard_dcs_fingerprint=
+    _guard_dcs_bundle=$(_guard_distribution_state_get "$_guard_dcs_file" remoteBundleSha256 2>/dev/null) || _guard_dcs_bundle=
+    _guard_dcs_bootstrap=$(_guard_distribution_state_get "$_guard_dcs_file" remoteBootstrapSha256 2>/dev/null) || _guard_dcs_bootstrap=
+    _guard_dcs_policy=$(_guard_distribution_state_get "$_guard_dcs_file" remotePolicySha256 2>/dev/null) || _guard_dcs_policy=
+    _guard_dcs_templates=$(_guard_distribution_state_get "$_guard_dcs_file" remoteTemplatesSha256 2>/dev/null) || _guard_dcs_templates=
+    if [ "$_guard_dcs_revision" != "$_guard_dcs_remote_revision" ] || \
+       [ "$_guard_dcs_fingerprint" != "$_GUARD_RELEASE_KEY_FINGERPRINT" ] || \
+       [ "$_guard_dcs_bundle" != "$_GUARD_RELEASE_BUNDLE_SHA256" ] || \
+       [ "$_guard_dcs_bootstrap" != "$_GUARD_RELEASE_BOOTSTRAP_SHA256" ] || \
+       [ "$_guard_dcs_policy" != "$_GUARD_RELEASE_POLICY_SHA256" ] || \
+       [ "$_guard_dcs_templates" != "$_GUARD_RELEASE_TEMPLATES_SHA256" ]; then
+        _GUARD_RELEASE_STATE=equivocation-rejected
+        _GUARD_RELEASE_STATE_REASON=same-sequence-different-signed-content
+        return 1
+    fi
+    _GUARD_RELEASE_STATE=current
+    return 0
+}
+
+guard_distribution_record_release_state() {
+    _guard_drs_bundle=${1:-}
+    _guard_drs_policy=${2:-}
+    _guard_drs_templates=${3:-}
+    [ "${_GUARD_RELEASE_SIGNATURE_STATE:-}" = verified ] || return 2
+    guard_distribution_check_release_state || return $?
+    [ -s "$_guard_drs_policy" ] && [ -s "$_guard_drs_templates" ] || return 1
+    _guard_drs_bundle_sha=
+    if [ -s "$_guard_drs_bundle" ]; then
+        _guard_drs_bundle_sha=$(file_sha256 "$_guard_drs_bundle" 2>/dev/null) || return 1
+        _guard_drs_bundle_sha=$(_guard_distribution_valid_sha256 "$_guard_drs_bundle_sha") || return 1
+    fi
+    _guard_drs_policy_sha=$(file_sha256 "$_guard_drs_policy" 2>/dev/null) || return 1
+    _guard_drs_templates_sha=$(file_sha256 "$_guard_drs_templates" 2>/dev/null) || return 1
+    _guard_drs_policy_sha=$(_guard_distribution_valid_sha256 "$_guard_drs_policy_sha") || return 1
+    _guard_drs_templates_sha=$(_guard_distribution_valid_sha256 "$_guard_drs_templates_sha") || return 1
+    _guard_drs_file=$(_guard_distribution_release_state_path)
+    _guard_drs_dir=$(dirname "$_guard_drs_file")
+    mkdir -p "$_guard_drs_dir" || return 1
+    _guard_drs_tmp=$(file_mktemp "$_guard_drs_dir") || return 1
+    {
+        printf 'schemaVersion=1\n'
+        printf 'highestSequence=%s\n' "$_GUARD_RELEASE_SEQUENCE"
+        printf 'highestRevision=%s\n' "$_GUARD_RELEASE_REVISION"
+        printf 'signerFingerprint=%s\n' "$_GUARD_RELEASE_KEY_FINGERPRINT"
+        printf 'remoteBundleSha256=%s\n' "$_GUARD_RELEASE_BUNDLE_SHA256"
+        printf 'remoteBootstrapSha256=%s\n' "$_GUARD_RELEASE_BOOTSTRAP_SHA256"
+        printf 'remotePolicySha256=%s\n' "$_GUARD_RELEASE_POLICY_SHA256"
+        printf 'remoteTemplatesSha256=%s\n' "$_GUARD_RELEASE_TEMPLATES_SHA256"
+        printf 'installedBundleSha256=%s\n' "$_guard_drs_bundle_sha"
+        printf 'installedPolicySha256=%s\n' "$_guard_drs_policy_sha"
+        printf 'installedTemplatesSha256=%s\n' "$_guard_drs_templates_sha"
+    } > "$_guard_drs_tmp"
+    chmod 0600 "$_guard_drs_tmp" || { rm -f "$_guard_drs_tmp"; return 1; }
+    file_atomic_replace "$_guard_drs_file" "$_guard_drs_tmp" || { rm -f "$_guard_drs_tmp"; return 1; }
+    chmod 0600 "$_guard_drs_file" || return 1
+    rm -f "$_guard_drs_tmp"
+    _GUARD_RELEASE_STATE=recorded
+    return 0
+}
+
+guard_distribution_trusted_key_fingerprint() {
+    _guard_dkf_key=$(_guard_distribution_trusted_key)
+    [ -s "$_guard_dkf_key" ] || return 1
+    command -v usign >/dev/null 2>&1 || return 127
+    usign -F -p "$_guard_dkf_key" 2>/dev/null | head -n 1
+}
+
+guard_distribution_verify_release() {
+    _guard_dvr_metadata=${1:-}
+    _guard_dvr_signature=${2:-}
+    [ -s "$_guard_dvr_metadata" ] && [ -s "$_guard_dvr_signature" ] || return 2
+    command -v usign >/dev/null 2>&1 || return 127
+    _guard_dvr_key=$(_guard_distribution_trusted_key)
+    [ -s "$_guard_dvr_key" ] || return 126
+    usign -V -q -m "$_guard_dvr_metadata" -p "$_guard_dvr_key" -x "$_guard_dvr_signature" >/dev/null 2>&1
+}
+
+guard_distribution_load_release() {
+    _guard_dlr_file=${1:-}
+    [ -s "$_guard_dlr_file" ] || return 2
+    json_load "$_guard_dlr_file" >/dev/null 2>&1 || return 1
+
+    _guard_dlr_schema=$(json_get "$_guard_dlr_file" schemaVersion 2>/dev/null) || return 1
+    [ "$_guard_dlr_schema" = 1 ] || return 1
+    _guard_dlr_sequence=$(json_get "$_guard_dlr_file" sequence 2>/dev/null) || return 1
+    _guard_dlr_sequence=$(_guard_distribution_valid_sequence "$_guard_dlr_sequence") || return 1
+    _guard_dlr_revision=$(json_get "$_guard_dlr_file" revision 2>/dev/null) || return 1
+    _guard_dlr_revision=$(_guard_distribution_valid_revision "$_guard_dlr_revision") || return 1
+
+    _guard_dlr_bundle_path=$(json_get "$_guard_dlr_file" artifacts.guardBundle.path 2>/dev/null) || return 1
+    _guard_dlr_bootstrap_path=$(json_get "$_guard_dlr_file" artifacts.bootstrapInstaller.path 2>/dev/null) || return 1
+    _guard_dlr_policy_path=$(json_get "$_guard_dlr_file" artifacts.runtimePolicy.path 2>/dev/null) || return 1
+    _guard_dlr_templates_path=$(json_get "$_guard_dlr_file" artifacts.runtimeTemplates.path 2>/dev/null) || return 1
+    [ "$_guard_dlr_bundle_path" = "$_GUARD_DISTRIBUTION_ARTIFACT" ] || return 1
+    [ "$_guard_dlr_bootstrap_path" = "$_GUARD_DISTRIBUTION_BOOTSTRAP" ] || return 1
+    [ "$_guard_dlr_policy_path" = "$_GUARD_DISTRIBUTION_POLICY" ] || return 1
+    [ "$_guard_dlr_templates_path" = "$_GUARD_DISTRIBUTION_TEMPLATES" ] || return 1
+
+    _guard_dlr_bundle_sha=$(json_get "$_guard_dlr_file" artifacts.guardBundle.sha256 2>/dev/null) || return 1
+    _guard_dlr_bootstrap_sha=$(json_get "$_guard_dlr_file" artifacts.bootstrapInstaller.sha256 2>/dev/null) || return 1
+    _guard_dlr_policy_sha=$(json_get "$_guard_dlr_file" artifacts.runtimePolicy.sha256 2>/dev/null) || return 1
+    _guard_dlr_templates_sha=$(json_get "$_guard_dlr_file" artifacts.runtimeTemplates.sha256 2>/dev/null) || return 1
+    _guard_dlr_bundle_sha=$(_guard_distribution_valid_sha256 "$_guard_dlr_bundle_sha") || return 1
+    _guard_dlr_bootstrap_sha=$(_guard_distribution_valid_sha256 "$_guard_dlr_bootstrap_sha") || return 1
+    _guard_dlr_policy_sha=$(_guard_distribution_valid_sha256 "$_guard_dlr_policy_sha") || return 1
+    _guard_dlr_templates_sha=$(_guard_distribution_valid_sha256 "$_guard_dlr_templates_sha") || return 1
+
+    _GUARD_RELEASE_SEQUENCE=$_guard_dlr_sequence
+    _GUARD_RELEASE_REVISION=$_guard_dlr_revision
+    _GUARD_RELEASE_BUNDLE_SHA256=$_guard_dlr_bundle_sha
+    _GUARD_RELEASE_BOOTSTRAP_SHA256=$_guard_dlr_bootstrap_sha
+    _GUARD_RELEASE_POLICY_SHA256=$_guard_dlr_policy_sha
+    _GUARD_RELEASE_TEMPLATES_SHA256=$_guard_dlr_templates_sha
+}
+
+guard_distribution_fetch_release() {
+    _guard_dfr_source=${1:-auto}
+    _guard_dfr_base=${2:-}
+    case $_guard_dfr_source in
+        auto) _guard_dfr_sources='github-raw jsdelivr' ;;
+        github-raw|raw|jsdelivr|cdn) _guard_dfr_sources=$_guard_dfr_source ;;
+        *) return 2 ;;
+    esac
+    _guard_distribution_reset_release
+    _GUARD_RELEASE_STATE=unrecorded
+    _GUARD_RELEASE_STATE_REASON=
+    for _guard_dfr_item in $_guard_dfr_sources
+    do
+        _guard_dfr_metadata=$(file_mktemp) || return 1
+        _guard_dfr_signature=$(file_mktemp) || { rm -f "$_guard_dfr_metadata"; return 1; }
+        _guard_dfr_metadata_url=$(_guard_distribution_release_url "$_guard_dfr_item" "$_guard_dfr_base") || {
+            rm -f "$_guard_dfr_metadata" "$_guard_dfr_signature"
+            continue
+        }
+        _guard_dfr_signature_url=$(_guard_distribution_release_sig_url "$_guard_dfr_item" "$_guard_dfr_base") || {
+            rm -f "$_guard_dfr_metadata" "$_guard_dfr_signature"
+            continue
+        }
+        _guard_dfr_ok=1
+        fetch_http "$_guard_dfr_metadata_url" "$_guard_dfr_metadata" "" 1 65536 || _guard_dfr_ok=0
+        [ "$_guard_dfr_ok" = 1 ] && fetch_http "$_guard_dfr_signature_url" "$_guard_dfr_signature" "" 1 16384 || _guard_dfr_ok=0
+        [ "$_guard_dfr_ok" = 1 ] && guard_distribution_verify_release "$_guard_dfr_metadata" "$_guard_dfr_signature" || _guard_dfr_ok=0
+        if [ "$_guard_dfr_ok" = 1 ]; then
+            _GUARD_RELEASE_SIGNATURE_STATE=verified
+            _GUARD_RELEASE_KEY_FINGERPRINT=$(guard_distribution_trusted_key_fingerprint 2>/dev/null) || _GUARD_RELEASE_KEY_FINGERPRINT=
+            if [ -n "$_GUARD_RELEASE_KEY_FINGERPRINT" ] &&                guard_distribution_load_release "$_guard_dfr_metadata" &&                guard_distribution_check_release_state; then
+                _GUARD_RELEASE_SOURCE=$_guard_dfr_item
+                _GUARD_RELEASE_METADATA_URL=$_guard_dfr_metadata_url
+                _GUARD_RELEASE_SIGNATURE_URL=$_guard_dfr_signature_url
+                rm -f "$_guard_dfr_metadata" "$_guard_dfr_signature"
+                return 0
+            fi
+        fi
+        rm -f "$_guard_dfr_metadata" "$_guard_dfr_signature"
+        _guard_distribution_reset_release
+    done
+    return 1
+}
+
+guard_distribution_verify_hash() {
+    _guard_dvh_file=${1:-}
+    _guard_dvh_expected=${2:-}
+    _guard_dvh_expected=$(_guard_distribution_valid_sha256 "$_guard_dvh_expected") || return 2
+    [ -s "$_guard_dvh_file" ] || return 1
+    _guard_dvh_actual=$(file_sha256 "$_guard_dvh_file" 2>/dev/null) || return 1
+    _guard_dvh_actual=$(printf '%s' "$_guard_dvh_actual" | tr 'A-F' 'a-f')
+    [ "$_guard_dvh_actual" = "$_guard_dvh_expected" ]
+}
+
+guard_distribution_validate_bundle() {
+    _guard_dv_file=${1:-}
+    [ -s "$_guard_dv_file" ] || return 1
+    _guard_dv_shebang=$(printf '%s%s' '#!' '/bin/sh')
+    [ "$(sed -n '1p' "$_guard_dv_file")" = "$_guard_dv_shebang" ] || return 1
+    [ "$(awk -v expected="$_guard_dv_shebang" '$0 == expected { count++ } END { print count + 0 }' "$_guard_dv_file")" -eq 1 ] || return 1
+    [ "$(grep -c '^main "\$@"$' "$_guard_dv_file")" -eq 1 ] || return 1
+    grep -q '^# GENERATED FILE' "$_guard_dv_file" || return 1
+    /bin/sh -n "$_guard_dv_file"
+}
+
+guard_distribution_fetch_bundle() {
+    _guard_df_dest=${1:-}
+    _guard_df_source=${2:-auto}
+    _guard_df_base=${3:-}
+    [ -n "$_guard_df_dest" ] || return 2
+    case $_guard_df_source in
+        auto) _guard_df_sources="github-raw jsdelivr" ;;
+        github-raw|raw|jsdelivr|cdn) _guard_df_sources=$_guard_df_source ;;
+        *) return 2 ;;
+    esac
+    mkdir -p "$(dirname "$_guard_df_dest")"
+    for _guard_df_item in $_guard_df_sources
+    do
+        if ! guard_distribution_fetch_release "$_guard_df_item" "$_guard_df_base"; then
+            continue
+        fi
+        _guard_df_artifact=$(file_mktemp) || return 1
+        _guard_df_artifact_url=$(_guard_distribution_url "$_guard_df_item" "$_GUARD_DISTRIBUTION_ARTIFACT" "$_guard_df_base") || {
+            rm -f "$_guard_df_artifact"
+            continue
+        }
+        if fetch_http "$_guard_df_artifact_url" "$_guard_df_artifact" "" 1 8388608 && \
+           guard_distribution_verify_hash "$_guard_df_artifact" "$_GUARD_RELEASE_BUNDLE_SHA256" && \
+           guard_distribution_validate_bundle "$_guard_df_artifact" && \
+           file_atomic_replace "$_guard_df_dest" "$_guard_df_artifact"; then
+            chmod 0755 "$_guard_df_dest"
+            rm -f "$_guard_df_artifact"
+            return 0
+        fi
+        rm -f "$_guard_df_artifact"
+    done
+    return 1
+}
+# END MODULE: distribution
+
+# BEGIN MODULE: guard-geo
+# Geo provider lookup with timeout, fallback, cache, and last-known-good.
+# Prefix: guard_geo_
+# Never mutates nft. Malformed responses are skipped.
+set -eu
+
+_GUARD_GEO_PROXY_URL=
+_GUARD_GEO_PROXY_AUTH=
+_GUARD_GEO_ROUTE=
+_GUARD_GEO_ROUTE_REASON=
+
+_guard_geo_json_string() {
+    printf '%s' "$1" | awk '
+        BEGIN { ORS = "" }
+        {
+            gsub(/\\/, "\\\\")
+            gsub(/"/, "\\\"")
+            gsub(/\t/, "\\t")
+            print
+        }
+    '
+}
+
+_guard_geo_state_dir() {
+    if [ -n "${GUARD_GEO_CACHE_DIR:-}" ]; then
+        printf '%s\n' "$GUARD_GEO_CACHE_DIR"
+        return 0
+    fi
+    printf '%s\n' "${GUARD_STATE_DIR:-/etc/openclash-guard}/geo"
+}
+
+_guard_geo_cache_path() {
+    _guard_geo_kind=${1:-}
+    _guard_geo_route=${2:-}
+    _guard_geo_dir=$(_guard_geo_state_dir)
+    case $_guard_geo_kind in
+        direct)
+            printf '%s/direct.json\n' "$_guard_geo_dir"
+            ;;
+        route)
+            _guard_geo_safe=$(printf '%s' "$_guard_geo_route" | tr -c 'A-Za-z0-9_-' '_')
+            if [ -z "$_guard_geo_safe" ] || [ "$_guard_geo_safe" = "_" ]; then
+                printf '%s\n' "guard_geo: invalid route id" >&2
+                return 2
+            fi
+            printf '%s/route-%s.json\n' "$_guard_geo_dir" "$_guard_geo_safe"
+            ;;
+        *)
+            printf '%s\n' "guard_geo: unknown cache kind: ${_guard_geo_kind:-}" >&2
+            return 2
+            ;;
+    esac
+}
+
+_guard_geo_policy_file() {
+    if [ -n "${_GUARD_PREFLIGHT_POLICY_FILE:-}" ] && [ -f "$_GUARD_PREFLIGHT_POLICY_FILE" ]; then
+        printf '%s\n' "$_GUARD_PREFLIGHT_POLICY_FILE"
+        return 0
+    fi
+    if [ -n "${_GUARD_POLICY_FILE:-}" ] && [ -f "$_GUARD_POLICY_FILE" ]; then
+        printf '%s\n' "$_GUARD_POLICY_FILE"
+        return 0
+    fi
+    _guard_policy_default_path
+}
+
+_guard_geo_valid_port() {
+    _guard_geo_vp=${1:-}
+    _guard_geo_is_int "$_guard_geo_vp" || return 1
+    [ "$_guard_geo_vp" -ge 1 ] && [ "$_guard_geo_vp" -le 65535 ]
+}
+
+guard_geo_discover_proxy_route() {
+    _GUARD_GEO_PROXY_URL=
+    _GUARD_GEO_PROXY_AUTH=
+    _GUARD_GEO_ROUTE=
+    _GUARD_GEO_ROUTE_REASON=
+    if [ -n "${GUARD_OPENCLASH_PROXY_URL:-}" ]; then
+        case $GUARD_OPENCLASH_PROXY_URL in
+            http://*|https://*|socks5://*|socks5h://*)
+                _GUARD_GEO_PROXY_URL=$GUARD_OPENCLASH_PROXY_URL
+                _GUARD_GEO_ROUTE=${GUARD_GEO_ROUTE:-openclash-override}
+                _GUARD_GEO_PROXY_AUTH=${GUARD_OPENCLASH_PROXY_AUTH:-}
+                return 0
+                ;;
+            *)
+                _GUARD_GEO_ROUTE_REASON="GUARD_OPENCLASH_PROXY_URL is not a supported proxy URL"
+                return 1
+                ;;
+        esac
+    fi
+    if ! command -v uci >/dev/null 2>&1; then
+        _GUARD_GEO_ROUTE_REASON="OpenClash proxy listener cannot be discovered because uci is unavailable"
+        return 1
+    fi
+    _guard_geo_port=$(uci_get_default openclash.config.mixed_port "" 2>/dev/null) || _guard_geo_port=
+    _guard_geo_kind=mixed
+    if ! _guard_geo_valid_port "$_guard_geo_port"; then
+        _guard_geo_port=$(uci_get_default openclash.config.http_port "" 2>/dev/null) || _guard_geo_port=
+        _guard_geo_kind=http
+    fi
+    if ! _guard_geo_valid_port "$_guard_geo_port"; then
+        _GUARD_GEO_ROUTE_REASON="OpenClash has no valid mixed_port or http_port in UCI"
+        return 1
+    fi
+    _GUARD_GEO_PROXY_URL="http://127.0.0.1:${_guard_geo_port}"
+    _GUARD_GEO_ROUTE="openclash-${_guard_geo_kind}-${_guard_geo_port}"
+    _guard_geo_auth_enabled=$(uci_get_default 'openclash.@authentication[0].enabled' 0 2>/dev/null) || _guard_geo_auth_enabled=0
+    if [ "$_guard_geo_auth_enabled" = 1 ]; then
+        _guard_geo_auth_user=$(uci_get_default 'openclash.@authentication[0].username' "" 2>/dev/null) || _guard_geo_auth_user=
+        _guard_geo_auth_pass=$(uci_get_default 'openclash.@authentication[0].password' "" 2>/dev/null) || _guard_geo_auth_pass=
+        if [ -z "$_guard_geo_auth_user" ] || [ -z "$_guard_geo_auth_pass" ]; then
+            _GUARD_GEO_ROUTE_REASON="OpenClash proxy authentication is enabled but credentials are incomplete"
+            _GUARD_GEO_PROXY_URL=
+            _GUARD_GEO_ROUTE=
+            return 1
+        fi
+        _GUARD_GEO_PROXY_AUTH="${_guard_geo_auth_user}:${_guard_geo_auth_pass}"
+    fi
+}
+
+_guard_geo_now() {
+    date +%s
+}
+
+_guard_geo_is_int() {
+    case ${1:-} in
+        ''|*[!0-9]*)
+            return 1
+            ;;
+        *)
+            return 0
+            ;;
+    esac
+}
+
+_guard_geo_print() {
+    _guard_geo_p_ip=$1
+    _guard_geo_p_cc=$2
+    _guard_geo_p_asn=$3
+    _guard_geo_p_prov=$4
+    printf '{"ip":"%s","country":"%s"' \
+        "$(_guard_geo_json_string "$_guard_geo_p_ip")" \
+        "$(_guard_geo_json_string "$_guard_geo_p_cc")"
+    if _guard_geo_is_int "$_guard_geo_p_asn"; then
+        printf ',"asn":%s' "$_guard_geo_p_asn"
+    fi
+    printf ',"provider":"%s"}\n' "$(_guard_geo_json_string "$_guard_geo_p_prov")"
+}
+
+_guard_geo_cache_write() {
+    _guard_geo_cw_path=$1
+    _guard_geo_cw_ip=$2
+    _guard_geo_cw_cc=$3
+    _guard_geo_cw_asn=$4
+    _guard_geo_cw_prov=$5
+    _guard_geo_cw_ttl=$6
+    _guard_geo_cw_dir=$(dirname "$_guard_geo_cw_path")
+    mkdir -p "$_guard_geo_cw_dir"
+    _guard_geo_cw_tmp=$(file_mktemp "$_guard_geo_cw_dir") || return 1
+    _guard_geo_cw_now=$(_guard_geo_now)
+    {
+        printf '{"ip":"%s","country":"%s"' \
+            "$(_guard_geo_json_string "$_guard_geo_cw_ip")" \
+            "$(_guard_geo_json_string "$_guard_geo_cw_cc")"
+        if _guard_geo_is_int "$_guard_geo_cw_asn"; then
+            printf ',"asn":%s' "$_guard_geo_cw_asn"
+        fi
+        printf ',"provider":"%s","fetchedAt":%s,"ttlSeconds":%s}\n' \
+            "$(_guard_geo_json_string "$_guard_geo_cw_prov")" \
+            "$_guard_geo_cw_now" \
+            "$_guard_geo_cw_ttl"
+    } > "$_guard_geo_cw_tmp"
+    if ! file_atomic_replace "$_guard_geo_cw_path" "$_guard_geo_cw_tmp"; then
+        rm -f "$_guard_geo_cw_tmp"
+        return 1
+    fi
+    rm -f "$_guard_geo_cw_tmp"
+}
+
+_guard_geo_cache_fresh() {
+    _guard_geo_cf_file=$1
+    if [ ! -f "$_guard_geo_cf_file" ]; then
+        return 1
+    fi
+    _guard_geo_cf_fetched=$(json_get "$_guard_geo_cf_file" fetchedAt 2>/dev/null) || return 1
+    _guard_geo_cf_ttl=$(json_get "$_guard_geo_cf_file" ttlSeconds 2>/dev/null) || _guard_geo_cf_ttl=300
+    if ! _guard_geo_is_int "$_guard_geo_cf_fetched" || ! _guard_geo_is_int "$_guard_geo_cf_ttl"; then
+        return 1
+    fi
+    _guard_geo_cf_now=$(_guard_geo_now)
+    _guard_geo_cf_age=$((_guard_geo_cf_now - _guard_geo_cf_fetched))
+    [ "$_guard_geo_cf_age" -ge 0 ] && [ "$_guard_geo_cf_age" -le "$_guard_geo_cf_ttl" ]
+}
+
+_guard_geo_emit_file() {
+    _guard_geo_ef=$1
+    _guard_geo_ef_ip=$(json_get "$_guard_geo_ef" ip 2>/dev/null) || _guard_geo_ef_ip=
+    _guard_geo_ef_cc=$(json_get "$_guard_geo_ef" country 2>/dev/null) || _guard_geo_ef_cc=
+    _guard_geo_ef_asn=$(json_get "$_guard_geo_ef" asn 2>/dev/null) || _guard_geo_ef_asn=
+    _guard_geo_ef_prov=$(json_get "$_guard_geo_ef" provider 2>/dev/null) || _guard_geo_ef_prov=
+    if [ -z "$_guard_geo_ef_cc" ]; then
+        return 1
+    fi
+    _guard_geo_print "$_guard_geo_ef_ip" "$_guard_geo_ef_cc" "$_guard_geo_ef_asn" "$_guard_geo_ef_prov"
+}
+
+guard_geo_cached_country() {
+    _guard_geo_cc_path=$(_guard_geo_cache_path "${1:-direct}" "${2:-}") || return $?
+    if [ ! -f "$_guard_geo_cc_path" ]; then
+        return 1
+    fi
+    json_get "$_guard_geo_cc_path" country
+}
+
+_guard_geo_normalize_country() {
+    printf '%s' "$1" | tr 'A-Z' 'a-z' | tr -cd 'a-z'
+}
+
+_guard_geo_normalize_asn() {
+    _guard_geo_na=$1
+    case $_guard_geo_na in
+        [Aa][Ss][0-9]*)
+            _guard_geo_na=${_guard_geo_na#*[Ss]}
+            ;;
+    esac
+    if _guard_geo_is_int "$_guard_geo_na"; then
+        printf '%s\n' "$_guard_geo_na"
+        return 0
+    fi
+    printf '\n'
+}
+
+guard_geo_lookup() {
+    _guard_geo_kind=${1:-direct}
+    _guard_geo_route=${2:-}
+    _guard_geo_cache=$(_guard_geo_cache_path "$_guard_geo_kind" "$_guard_geo_route") || return $?
+    if _guard_geo_cache_fresh "$_guard_geo_cache"; then
+        _guard_geo_emit_file "$_guard_geo_cache"
+        return $?
+    fi
+    _guard_geo_pf=$(_guard_geo_policy_file)
+    if [ ! -f "$_guard_geo_pf" ]; then
+        if [ -f "$_guard_geo_cache" ]; then
+            _guard_geo_emit_file "$_guard_geo_cache"
+            return $?
+        fi
+        printf '%s\n' "guard_geo: policy file missing" >&2
+        return 1
+    fi
+    _guard_geo_i=0
+    _guard_geo_ok=0
+    while json_has "$_guard_geo_pf" "geoProviders.${_guard_geo_i}"
+    do
+        _guard_geo_id=$(json_get "$_guard_geo_pf" "geoProviders.${_guard_geo_i}.id") || _guard_geo_id=
+        _guard_geo_url=$(json_get "$_guard_geo_pf" "geoProviders.${_guard_geo_i}.url") || _guard_geo_url=
+        _guard_geo_to=$(json_get "$_guard_geo_pf" "geoProviders.${_guard_geo_i}.timeoutSeconds") || _guard_geo_to=3
+        _guard_geo_ttl=$(json_get "$_guard_geo_pf" "geoProviders.${_guard_geo_i}.cacheTtlSeconds") || _guard_geo_ttl=300
+        _guard_geo_ipf=$(json_get "$_guard_geo_pf" "geoProviders.${_guard_geo_i}.fields.ip") || _guard_geo_ipf=ip
+        _guard_geo_ccf=$(json_get "$_guard_geo_pf" "geoProviders.${_guard_geo_i}.fields.country") || _guard_geo_ccf=country
+        _guard_geo_asnf=$(json_get "$_guard_geo_pf" "geoProviders.${_guard_geo_i}.fields.asn") || _guard_geo_asnf=
+        _guard_geo_i=$((_guard_geo_i + 1))
+        if [ -z "$_guard_geo_url" ]; then
+            continue
+        fi
+        if ! _guard_geo_is_int "$_guard_geo_to"; then
+            _guard_geo_to=3
+        fi
+        _guard_geo_tmp=$(file_mktemp) || return 1
+        _guard_geo_fetch_rc=0
+        case $_guard_geo_kind in
+            direct)
+                fetch_http_direct "$_guard_geo_url" "$_guard_geo_tmp" "$_guard_geo_to" || _guard_geo_fetch_rc=$?
+                ;;
+            route)
+                if [ -z "${_GUARD_GEO_PROXY_URL:-}" ]; then
+                    printf '%s\n' "guard_geo: proxy route is not available" >&2
+                    rm -f "$_guard_geo_tmp"
+                    return 1
+                fi
+                fetch_http_proxy "$_guard_geo_url" "$_guard_geo_tmp" "$_GUARD_GEO_PROXY_URL" "$_guard_geo_to" "${_GUARD_GEO_PROXY_AUTH:-}" || _guard_geo_fetch_rc=$?
+                ;;
+        esac
+        if [ "$_guard_geo_fetch_rc" -ne 0 ]; then
+            rm -f "$_guard_geo_tmp"
+            continue
+        fi
+        if ! json_load "$_guard_geo_tmp"; then
+            rm -f "$_guard_geo_tmp"
+            continue
+        fi
+        _guard_geo_ip=$(json_get "$_guard_geo_tmp" "$_guard_geo_ipf" 2>/dev/null) || _guard_geo_ip=
+        _guard_geo_cc_raw=$(json_get "$_guard_geo_tmp" "$_guard_geo_ccf" 2>/dev/null) || _guard_geo_cc_raw=
+        _guard_geo_cc=$(_guard_geo_normalize_country "$_guard_geo_cc_raw")
+        _guard_geo_asn=
+        if [ -n "$_guard_geo_asnf" ]; then
+            _guard_geo_asn_raw=$(json_get "$_guard_geo_tmp" "$_guard_geo_asnf" 2>/dev/null) || _guard_geo_asn_raw=
+            _guard_geo_asn=$(_guard_geo_normalize_asn "$_guard_geo_asn_raw")
+        fi
+        rm -f "$_guard_geo_tmp"
+        if [ -z "$_guard_geo_cc" ] || [ "${#_guard_geo_cc}" -ne 2 ]; then
+            continue
+        fi
+        _guard_geo_cache_write "$_guard_geo_cache" "$_guard_geo_ip" "$_guard_geo_cc" "$_guard_geo_asn" "$_guard_geo_id" "$_guard_geo_ttl" || true
+        _guard_geo_print "$_guard_geo_ip" "$_guard_geo_cc" "$_guard_geo_asn" "$_guard_geo_id"
+        _guard_geo_ok=1
+        break
+    done
+    if [ "$_guard_geo_ok" = 1 ]; then
+        return 0
+    fi
+    if [ -f "$_guard_geo_cache" ]; then
+        cli_warn "geo lookup failed; using last-known-good cache" 2>/dev/null || true
+        _guard_geo_emit_file "$_guard_geo_cache"
+        return $?
+    fi
+    printf '%s\n' "guard_geo: all providers failed" >&2
+    return 1
+}
+
+guard_geo_detect_direct() {
+    guard_geo_lookup direct
+}
+
+guard_geo_detect_route() {
+    if [ -z "${1:-}" ]; then
+        printf '%s\n' "guard_geo_detect_route: missing route" >&2
+        return 2
+    fi
+    guard_geo_lookup route "$1"
+}
+# END MODULE: guard-geo
+
+# BEGIN MODULE: guard-policy
+# Load/validate runtime policy JSON and decide path verdicts.
+# Prefix: guard_policy_
+set -eu
+
+_GUARD_POLICY_FILE=
+_GUARD_NFT_FAMILY=inet
+_GUARD_NFT_TABLE=openclash_guard
+_GUARD_NFT_PREFIX=openclash-guard
+_GUARD_POLICY_REVISION=
+_GUARD_POLICY_STATE=disabled
+_GUARD_POLICY_ENFORCEMENT=reject
+_GUARD_POLICY_GLOBAL_FAILCLOSED=0
+_GUARD_POLICY_STATE_REASON=
+_GUARD_POLICY_DEGRADED_COMPONENTS=
+
+_guard_policy_default_path() {
+    if [ -n "${GUARD_POLICY_FILE:-}" ]; then
+        printf '%s\n' "$GUARD_POLICY_FILE"
+        return 0
+    fi
+    printf '%s\n' "/etc/openclash-guard/openclash-guard.json"
+}
+
+_guard_policy_is_bool() {
+    case $1 in
+        true|false)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+_guard_policy_class_field() {
+    _guard_pc_svc=$1
+    _guard_pc_field=$2
+    _guard_pc_class=$(json_get "$_GUARD_POLICY_FILE" "services.${_guard_pc_svc}.protectionClass") || return 1
+    json_get "$_GUARD_POLICY_FILE" "protectionClasses.${_guard_pc_class}.${_guard_pc_field}"
+}
+
+guard_policy_validate_file() {
+    _guard_pv_file=${1:-}
+    if [ -z "$_guard_pv_file" ] || [ ! -f "$_guard_pv_file" ]; then
+        printf '%s\n' "guard_policy: missing policy file: ${_guard_pv_file:-}" >&2
+        return 1
+    fi
+    if ! json_load "$_guard_pv_file"; then
+        printf '%s\n' "guard_policy: invalid JSON: $_guard_pv_file" >&2
+        return 1
+    fi
+    _guard_pv_ver=$(json_get "$_guard_pv_file" schemaVersion) || _guard_pv_ver=
+    if [ "$_guard_pv_ver" != 1 ]; then
+        printf '%s\n' "guard_policy: unsupported schemaVersion: ${_guard_pv_ver:-missing}" >&2
+        return 1
+    fi
+    for _guard_pv_key in nft.family nft.table nft.commentPrefix
+    do
+        _guard_pv_val=$(json_get "$_guard_pv_file" "$_guard_pv_key") || _guard_pv_val=
+        if [ -z "$_guard_pv_val" ]; then
+            printf '%s\n' "guard_policy: missing $_guard_pv_key" >&2
+            return 1
+        fi
+    done
+    if ! json_has "$_guard_pv_file" protectionClasses; then
+        printf '%s\n' "guard_policy: missing protectionClasses" >&2
+        return 1
+    fi
+    if ! json_has "$_guard_pv_file" services; then
+        printf '%s\n' "guard_policy: missing services" >&2
+        return 1
+    fi
+    _guard_pv_classes=$(json_keys "$_guard_pv_file" protectionClasses)
+    for _guard_pv_class in $_guard_pv_classes
+    do
+        [ -n "$_guard_pv_class" ] || continue
+        _guard_pv_da=$(json_get "$_guard_pv_file" "protectionClasses.${_guard_pv_class}.directAllowed") || _guard_pv_da=
+        _guard_pv_dr=$(json_get "$_guard_pv_file" "protectionClasses.${_guard_pv_class}.directRequiresSupportedRegion" 2>/dev/null) || _guard_pv_dr=false
+        _guard_pv_fm=$(json_get "$_guard_pv_file" "protectionClasses.${_guard_pv_class}.failMode") || _guard_pv_fm=
+        _guard_pv_quic=$(json_get "$_guard_pv_file" "protectionClasses.${_guard_pv_class}.quic") || _guard_pv_quic=
+        _guard_pv_ks=$(json_get "$_guard_pv_file" "protectionClasses.${_guard_pv_class}.firewallKillSwitch") || _guard_pv_ks=
+        if ! _guard_policy_is_bool "$_guard_pv_da"; then
+            printf '%s\n' "guard_policy: invalid directAllowed on $_guard_pv_class" >&2
+            return 1
+        fi
+        if ! _guard_policy_is_bool "$_guard_pv_dr"; then
+            printf '%s\n' "guard_policy: invalid directRequiresSupportedRegion on $_guard_pv_class" >&2
+            return 1
+        fi
+        case $_guard_pv_fm in
+            reject|allow)
+                ;;
+            *)
+                printf '%s\n' "guard_policy: invalid failMode on $_guard_pv_class" >&2
+                return 1
+                ;;
+        esac
+        case $_guard_pv_quic in
+            proxy-or-reject|reject|allow)
+                ;;
+            *)
+                printf '%s\n' "guard_policy: invalid quic on $_guard_pv_class" >&2
+                return 1
+                ;;
+        esac
+        if ! _guard_policy_is_bool "$_guard_pv_ks"; then
+            printf '%s\n' "guard_policy: invalid firewallKillSwitch on $_guard_pv_class" >&2
+            return 1
+        fi
+    done
+    _guard_pv_svcs=$(json_keys "$_guard_pv_file" services)
+    for _guard_pv_svc in $_guard_pv_svcs
+    do
+        [ -n "$_guard_pv_svc" ] || continue
+        _guard_pv_cls=$(json_get "$_guard_pv_file" "services.${_guard_pv_svc}.protectionClass") || _guard_pv_cls=
+        if [ -z "$_guard_pv_cls" ]; then
+            printf '%s\n' "guard_policy: service $_guard_pv_svc missing protectionClass" >&2
+            return 1
+        fi
+        if ! json_has "$_guard_pv_file" "protectionClasses.${_guard_pv_cls}"; then
+            printf '%s\n' "guard_policy: service $_guard_pv_svc references unknown class $_guard_pv_cls" >&2
+            return 1
+        fi
+    done
+    if ! json_has "$_guard_pv_file" gaming; then
+        printf '%s\n' "guard_policy: missing gaming" >&2
+        return 1
+    fi
+    return 0
+}
+
+guard_policy_load() {
+    _guard_pl_path=${1:-$(_guard_policy_default_path)}
+    guard_policy_validate_file "$_guard_pl_path" || return $?
+    _GUARD_POLICY_FILE=$_guard_pl_path
+    _GUARD_NFT_FAMILY=$(json_get "$_GUARD_POLICY_FILE" nft.family)
+    _GUARD_NFT_TABLE=$(json_get "$_GUARD_POLICY_FILE" nft.table)
+    _GUARD_NFT_PREFIX=$(json_get "$_GUARD_POLICY_FILE" nft.commentPrefix)
+    _GUARD_POLICY_REVISION=$(json_get "$_GUARD_POLICY_FILE" revision 2>/dev/null) || _GUARD_POLICY_REVISION=
+}
+
+# Guard nft table lifecycle: active | absent | unavailable.
+# Distinct from policy enforcement and from overlay rules.activation.
+guard_firewall_table_state() {
+    if ! command -v nft >/dev/null 2>&1; then
+        printf '%s\n' "unavailable"
+        return 0
+    fi
+    if nft_table_exists "${_GUARD_NFT_FAMILY:-inet}" "${_GUARD_NFT_TABLE:-openclash_guard}"; then
+        printf '%s\n' "active"
+        return 0
+    fi
+    printf '%s\n' "absent"
+}
+
+guard_policy_needs_failclosed() {
+    _guard_nf_svcs=$(json_keys "$_GUARD_POLICY_FILE" services) || _guard_nf_svcs=
+    for _guard_nf_svc in $_guard_nf_svcs
+    do
+        [ -n "$_guard_nf_svc" ] || continue
+        _guard_nf_ks=$(_guard_policy_class_field "$_guard_nf_svc" firewallKillSwitch) || _guard_nf_ks=false
+        _guard_nf_da=$(_guard_policy_class_field "$_guard_nf_svc" directAllowed) || _guard_nf_da=true
+        if [ "$_guard_nf_ks" = true ] || [ "$_guard_nf_da" = false ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+_guard_policy_add_degraded_component() {
+    _guard_padc_component=$1
+    case " $_GUARD_POLICY_DEGRADED_COMPONENTS " in
+        *" $_guard_padc_component "*) return 0 ;;
+    esac
+    if [ -n "$_GUARD_POLICY_DEGRADED_COMPONENTS" ]; then
+        _GUARD_POLICY_DEGRADED_COMPONENTS="$_GUARD_POLICY_DEGRADED_COMPONENTS $_guard_padc_component"
+    else
+        _GUARD_POLICY_DEGRADED_COMPONENTS=$_guard_padc_component
+    fi
+}
+
+_guard_policy_mark_degraded() {
+    _guard_pmd_reason=$1
+    _guard_pmd_component=$2
+    _GUARD_POLICY_STATE=degraded
+    if [ -z "$_GUARD_POLICY_STATE_REASON" ]; then
+        _GUARD_POLICY_STATE_REASON=$_guard_pmd_reason
+    elif [ "$_GUARD_POLICY_STATE_REASON" != "$_guard_pmd_reason" ]; then
+        _GUARD_POLICY_STATE_REASON=multiple-degraded-components
+    fi
+    _guard_policy_add_degraded_component "$_guard_pmd_component"
+}
+
+guard_policy_refresh_state() {
+    _GUARD_POLICY_STATE=ok
+    _GUARD_POLICY_ENFORCEMENT=allow-proxy
+    _GUARD_POLICY_GLOBAL_FAILCLOSED=0
+    _GUARD_POLICY_STATE_REASON=
+    _GUARD_POLICY_DEGRADED_COMPONENTS=
+    if [ "${_GUARD_UCI_ENABLED:-1}" = 0 ]; then
+        _GUARD_POLICY_STATE=disabled
+        _GUARD_POLICY_ENFORCEMENT=disabled
+        _GUARD_POLICY_STATE_REASON=guard-disabled
+        return 0
+    fi
+    _guard_ps_failclosed=0
+    if guard_policy_needs_failclosed; then
+        _guard_ps_failclosed=1
+    fi
+    if [ "$_guard_ps_failclosed" = 1 ] && [ "$_GUARD_DNS_DOMAIN_SET" = unavailable ]; then
+        # Keep service policy fail-closed, but do not convert a resolver backend
+        # capability gap into a LAN-wide forwarding outage while OpenClash is healthy.
+        _GUARD_POLICY_ENFORCEMENT=reject
+        _guard_policy_mark_degraded domain-set-backend-unavailable dns.domainSetBackend
+    fi
+    if [ "$_GUARD_OC_HEALTHY" != 1 ]; then
+        if [ "${_GUARD_UCI_KILL_SWITCH:-1}" = 1 ]; then
+            _GUARD_POLICY_GLOBAL_FAILCLOSED=1
+        fi
+        if [ "${_GUARD_UCI_KILL_SWITCH:-1}" = 1 ] || [ "$_guard_ps_failclosed" = 1 ]; then
+            _GUARD_POLICY_ENFORCEMENT=reject
+            _guard_policy_mark_degraded openclash-unhealthy openclash.healthy
+        fi
+    fi
+}
+
+guard_policy_port_in_list() {
+    _guard_pil_port=$1
+    _guard_pil_path=$2
+    _guard_pil_items=$(json_list "$_GUARD_POLICY_FILE" "$_guard_pil_path" 2>/dev/null) || _guard_pil_items=
+    for _guard_pil_item in $_guard_pil_items
+    do
+        if [ "$_guard_pil_item" = "$_guard_pil_port" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+guard_policy_region_allowed() {
+    _guard_pra_svc=$1
+    _guard_pra_region=$2
+    if [ -z "$_guard_pra_region" ]; then
+        return 1
+    fi
+    _guard_pra_items=$(json_list "$_GUARD_POLICY_FILE" "services.${_guard_pra_svc}.allowedRegions" 2>/dev/null) || _guard_pra_items=
+    for _guard_pra_item in $_guard_pra_items
+    do
+        if [ "$_guard_pra_item" = "$_guard_pra_region" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Verdict: allow-proxy | reject-direct | reject | allow-direct
+# UDP/443 and other protected UDP ports are never classified as gaming.
+guard_policy_eval() {
+    _guard_pe_svc=${1:-}
+    _guard_pe_proto=${2:-}
+    _guard_pe_dport=${3:-}
+    _guard_pe_src=${4:-}
+    _guard_pe_dest=${5:-}
+    _guard_pe_sport=${6:-}
+    _guard_pe_gaming=0
+    if [ -n "$_guard_pe_dport" ] && guard_policy_port_in_list "$_guard_pe_dport" gaming.protectedUdpPorts; then
+        _guard_pe_gaming=0
+    elif guard_game_flow_eligible "$_guard_pe_proto" "$_guard_pe_sport" "$_guard_pe_dport" "$_guard_pe_src" "$_guard_pe_dest"; then
+        _guard_pe_gaming=1
+    fi
+    if [ "$_GUARD_POLICY_ENFORCEMENT" = reject ] || [ "$_GUARD_OC_HEALTHY" != 1 ]; then
+        if [ -n "$_guard_pe_svc" ]; then
+            _guard_pe_ks=$(_guard_policy_class_field "$_guard_pe_svc" firewallKillSwitch 2>/dev/null) || _guard_pe_ks=false
+            if [ "$_guard_pe_ks" = true ] || [ "${_GUARD_UCI_KILL_SWITCH:-1}" = 1 ]; then
+                printf '%s\n' "reject"
+                return 0
+            fi
+        else
+            printf '%s\n' "reject"
+            return 0
+        fi
+    fi
+    if [ -n "$_guard_pe_svc" ]; then
+        _guard_pe_da=$(_guard_policy_class_field "$_guard_pe_svc" directAllowed) || _guard_pe_da=false
+        _guard_pe_fm=$(_guard_policy_class_field "$_guard_pe_svc" failMode) || _guard_pe_fm=reject
+        if [ "$_guard_pe_da" = false ]; then
+            if [ "$_GUARD_PROXY_HEALTHY" = 1 ] && guard_policy_region_allowed "$_guard_pe_svc" "$_GUARD_PROXY_REGION"; then
+                printf '%s\n' "reject-direct"
+                return 0
+            fi
+            printf '%s\n' "reject"
+            return 0
+        fi
+        _guard_pe_direct_required=$(_guard_policy_class_field "$_guard_pe_svc" directRequiresSupportedRegion 2>/dev/null) || _guard_pe_direct_required=false
+        if [ "$_guard_pe_direct_required" = true ]; then
+            if guard_policy_region_allowed "$_guard_pe_svc" "$_GUARD_NET_DIRECT_REGION"; then
+                printf '%s\n' "allow-direct"
+                return 0
+            fi
+            if [ "$_GUARD_PROXY_HEALTHY" = 1 ] && guard_policy_region_allowed "$_guard_pe_svc" "$_GUARD_PROXY_REGION"; then
+                printf '%s\n' "allow-proxy"
+                return 0
+            fi
+            printf '%s\n' "reject"
+            return 0
+        fi
+        if [ "$_guard_pe_gaming" = 1 ]; then
+            printf '%s\n' "allow-direct"
+            return 0
+        fi
+        if [ "$_GUARD_PROXY_HEALTHY" = 1 ] && guard_policy_region_allowed "$_guard_pe_svc" "$_GUARD_PROXY_REGION"; then
+            printf '%s\n' "allow-proxy"
+            return 0
+        fi
+        printf '%s\n' "$_guard_pe_fm"
+        return 0
+    fi
+    if [ "$_guard_pe_gaming" = 1 ]; then
+        printf '%s\n' "allow-direct"
+        return 0
+    fi
+    printf '%s\n' "allow-proxy"
+}
+
+guard_policy_json_extra() {
+    printf '"state":"%s","enforcement":"%s","policyRevision":"%s","stateReason":"%s","degradedComponents":[' \
+        "$(_guard_env_json_string "$_GUARD_POLICY_STATE")" \
+        "$(_guard_env_json_string "$_GUARD_POLICY_ENFORCEMENT")" \
+        "$(_guard_env_json_string "$_GUARD_POLICY_REVISION")" \
+        "$(_guard_env_json_string "$_GUARD_POLICY_STATE_REASON")"
+    _guard_pje_first=1
+    for _guard_pje_component in $_GUARD_POLICY_DEGRADED_COMPONENTS
+    do
+        [ "$_guard_pje_first" = 1 ] || printf ','
+        _guard_pje_first=0
+        printf '"%s"' "$(_guard_env_json_string "$_guard_pje_component")"
+    done
+    printf ']'
+}
+# END MODULE: guard-policy
+
+# BEGIN MODULE: lock
+# Directory lock with timeout. mkdir is the atomic primitive (no flock).
+# Prefix: lock_
+set -eu
+
+_lock_refuse_path() {
+    case $1 in
+        ''|/|.|..|/tmp|/var|/var/lock|/etc|/usr|/home|/root)
+            printf '%s\n' "lock: refused path: ${1:-<empty>}" >&2
+            return 2
+            ;;
+    esac
+}
+
+_lock_timeout_secs() {
+    _lock_to=${1:-30}
+    case $_lock_to in
+        ''|*[!0-9]*)
+            printf '%s\n' "lock: invalid timeout: $_lock_to" >&2
+            return 2
+            ;;
+    esac
+    printf '%s\n' "$_lock_to"
+}
+
+_lock_try_steal() {
+    _lock_st_path=$1
+    [ -d "$_lock_st_path" ] || return 1
+    if [ ! -f "$_lock_st_path/pid" ]; then
+        rmdir "$_lock_st_path" 2>/dev/null && return 0
+        return 1
+    fi
+    _lock_st_pid=$(cat "$_lock_st_path/pid" 2>/dev/null) || _lock_st_pid=
+    case $_lock_st_pid in
+        ''|*[!0-9]*)
+            rm -f "$_lock_st_path/pid"
+            rmdir "$_lock_st_path" 2>/dev/null && return 0
+            return 1
+            ;;
+    esac
+    if kill -0 "$_lock_st_pid" 2>/dev/null; then
+        return 1
+    fi
+    rm -f "$_lock_st_path/pid"
+    rmdir "$_lock_st_path" 2>/dev/null && return 0
+    return 1
+}
+
+_lock_claim() {
+    _lock_cl_path=$1
+    if mkdir "$_lock_cl_path" 2>/dev/null; then
+        printf '%s\n' "$$" > "$_lock_cl_path/pid" || {
+            rmdir "$_lock_cl_path" 2>/dev/null || true
+            return 1
+        }
+        return 0
+    fi
+    return 1
+}
+
+lock_acquire() {
+    _lock_aq_path=${1:-}
+    _lock_refuse_path "$_lock_aq_path" || return $?
+    _lock_aq_timeout=$(_lock_timeout_secs "${2:-30}") || return $?
+    _lock_aq_elapsed=0
+    while :
+    do
+        if _lock_claim "$_lock_aq_path"; then
+            return 0
+        fi
+        _lock_try_steal "$_lock_aq_path" || true
+        if _lock_claim "$_lock_aq_path"; then
+            return 0
+        fi
+        if [ "$_lock_aq_elapsed" -ge "$_lock_aq_timeout" ]; then
+            printf '%s\n' "lock_acquire: timeout waiting for $_lock_aq_path" >&2
+            return 1
+        fi
+        sleep 1
+        _lock_aq_elapsed=$((_lock_aq_elapsed + 1))
+    done
+}
+
+lock_release() {
+    _lock_rl_path=${1:-}
+    _lock_refuse_path "$_lock_rl_path" || return $?
+    if [ ! -d "$_lock_rl_path" ]; then
+        return 0
+    fi
+    _lock_rl_pid=
+    if [ -f "$_lock_rl_path/pid" ]; then
+        _lock_rl_pid=$(cat "$_lock_rl_path/pid" 2>/dev/null) || _lock_rl_pid=
+    fi
+    if [ -n "$_lock_rl_pid" ] && [ "$_lock_rl_pid" != "$$" ]; then
+        printf '%s\n' "lock_release: lock owned by pid $_lock_rl_pid" >&2
+        return 1
+    fi
+    rm -f "$_lock_rl_path/pid"
+    rmdir "$_lock_rl_path" 2>/dev/null || true
+}
+
+lock_is_held() {
+    _lock_ih_path=${1:-}
+    _lock_refuse_path "$_lock_ih_path" || return $?
+    [ -d "$_lock_ih_path" ] || return 1
+    [ -f "$_lock_ih_path/pid" ] || return 1
+    _lock_ih_pid=$(cat "$_lock_ih_path/pid" 2>/dev/null) || return 1
+    case $_lock_ih_pid in
+        ''|*[!0-9]*)
+            return 1
+            ;;
+    esac
+    kill -0 "$_lock_ih_pid" 2>/dev/null
+}
+# END MODULE: lock
+
+# BEGIN MODULE: nft
+# nftables helpers that only touch objects owned by a caller-supplied prefix.
+# Prefix: nft_
+set -eu
+
+_nft_require() {
+    if ! command -v nft >/dev/null 2>&1; then
+        printf '%s\n' "nft: command not found" >&2
+        return 127
+    fi
+}
+
+_nft_require_prefix() {
+    if [ -z "${1:-}" ]; then
+        printf '%s\n' "nft: refusing empty ownership prefix" >&2
+        return 2
+    fi
+}
+
+_nft_owned_name() {
+    _nft_on_name=${1:-}
+    _nft_on_prefix=${2:-}
+    [ -n "$_nft_on_prefix" ] || return 1
+    [ "$_nft_on_name" = "$_nft_on_prefix" ] && return 0
+    case $_nft_on_prefix in
+        *[-_.:])
+            case $_nft_on_name in
+                "$_nft_on_prefix"?*) return 0 ;;
+            esac
+            ;;
+        *)
+            case $_nft_on_name in
+                "$_nft_on_prefix"-*|"$_nft_on_prefix"_*|"$_nft_on_prefix".*|"$_nft_on_prefix":*)
+                    _nft_on_suffix=${_nft_on_name#"$_nft_on_prefix"}
+                    _nft_on_suffix=${_nft_on_suffix#?}
+                    [ -n "$_nft_on_suffix" ] && return 0
+                    ;;
+            esac
+            ;;
+    esac
+    return 1
+}
+
+_nft_parse_comment_handles() {
+    awk '
+        {
+            comment = ""
+            handle = ""
+            if (match($0, /comment "[^"]*"/)) {
+                comment = substr($0, RSTART + 9, RLENGTH - 10)
+            }
+            if (match($0, /# handle [0-9]+/)) {
+                handle = substr($0, RSTART + 9)
+                gsub(/[^0-9].*/, "", handle)
+            } else if (match($0, /handle [0-9]+/)) {
+                handle = substr($0, RSTART + 7)
+                gsub(/[^0-9].*/, "", handle)
+            }
+            if (comment != "" && handle != "") {
+                print handle "\t" comment
+            }
+        }
+    '
+}
+
+_nft_comment_owned() {
+    _nft_owned_name "${1:-}" "${2:-}"
+}
+
+nft_table_exists() {
+    _nft_require || return $?
+    nft list table "$1" "$2" >/dev/null 2>&1
+}
+
+nft_chain_exists() {
+    _nft_require || return $?
+    nft list chain "$1" "$2" "$3" >/dev/null 2>&1
+}
+
+nft_set_exists() {
+    _nft_require || return $?
+    nft list set "$1" "$2" "$3" >/dev/null 2>&1
+}
+
+nft_rule_handles_by_comment() {
+    _nft_require || return $?
+    _nft_require_prefix "${4:-}" || return $?
+    _nft_rh_family=$1
+    _nft_rh_table=$2
+    _nft_rh_chain=$3
+    _nft_rh_prefix=$4
+    nft -a list chain "$_nft_rh_family" "$_nft_rh_table" "$_nft_rh_chain" 2>/dev/null |
+        _nft_parse_comment_handles |
+        while IFS="$(printf '\t')" read -r _nft_rh_handle _nft_rh_comment
+        do
+            [ -n "$_nft_rh_handle" ] || continue
+            if _nft_comment_owned "$_nft_rh_comment" "$_nft_rh_prefix"; then
+                printf '%s\n' "$_nft_rh_handle"
+            fi
+        done
+}
+
+nft_delete_rules_by_comment() {
+    _nft_require || return $?
+    _nft_require_prefix "${4:-}" || return $?
+    _nft_dr_family=$1
+    _nft_dr_table=$2
+    _nft_dr_chain=$3
+    _nft_dr_prefix=$4
+    _nft_dr_handles=$(nft_rule_handles_by_comment "$_nft_dr_family" "$_nft_dr_table" "$_nft_dr_chain" "$_nft_dr_prefix") || return $?
+    [ -n "$_nft_dr_handles" ] || return 0
+    _nft_dr_rev=
+    for _nft_dr_handle in $_nft_dr_handles
+    do
+        _nft_dr_rev="$_nft_dr_handle $_nft_dr_rev"
+    done
+    for _nft_dr_handle in $_nft_dr_rev
+    do
+        [ -n "$_nft_dr_handle" ] || continue
+        nft delete rule "$_nft_dr_family" "$_nft_dr_table" "$_nft_dr_chain" handle "$_nft_dr_handle" || return $?
+    done
+}
+
+nft_delete_owned_set() {
+    _nft_require || return $?
+    _nft_require_prefix "${4:-}" || return $?
+    _nft_ds_family=$1
+    _nft_ds_table=$2
+    _nft_ds_set=$3
+    _nft_ds_prefix=$4
+    if ! _nft_owned_name "$_nft_ds_set" "$_nft_ds_prefix"; then
+        printf '%s\n' "nft: refusing to delete unowned set: $_nft_ds_set" >&2
+        return 2
+    fi
+    if ! nft_set_exists "$_nft_ds_family" "$_nft_ds_table" "$_nft_ds_set"; then
+        return 0
+    fi
+    nft delete set "$_nft_ds_family" "$_nft_ds_table" "$_nft_ds_set"
+}
+
+nft_apply_batch() {
+    _nft_require || return $?
+    _nft_ab_file=${1:-}
+    if [ -z "$_nft_ab_file" ]; then
+        printf '%s\n' "nft_apply_batch: missing batch file" >&2
+        return 2
+    fi
+    if [ "$_nft_ab_file" = "-" ]; then
+        nft -f -
+        return $?
+    fi
+    if [ ! -f "$_nft_ab_file" ]; then
+        printf '%s\n' "nft_apply_batch: not a file: $_nft_ab_file" >&2
+        return 1
+    fi
+    nft -f "$_nft_ab_file"
+}
+
+nft_dump_owned_state() {
+    _nft_require || return $?
+    _nft_require_prefix "${3:-}" || return $?
+    _nft_do_family=$1
+    _nft_do_table=$2
+    _nft_do_prefix=$3
+    nft -a list table "$_nft_do_family" "$_nft_do_table" 2>/dev/null |
+        _nft_parse_comment_handles |
+        while IFS="$(printf '\t')" read -r _nft_do_handle _nft_do_comment
+        do
+            [ -n "$_nft_do_handle" ] || continue
+            if _nft_comment_owned "$_nft_do_comment" "$_nft_do_prefix"; then
+                printf 'rule\t%s\t%s\n' "$_nft_do_handle" "$_nft_do_comment"
+            fi
+        done
+    nft -a list table "$_nft_do_family" "$_nft_do_table" 2>/dev/null |
+        awk '
+            $1 == "set" {
+                name = $2
+                gsub(/\{/, "", name)
+                print name
+            }
+        ' |
+        while IFS= read -r _nft_do_set
+        do
+            [ -n "$_nft_do_set" ] || continue
+            if _nft_owned_name "$_nft_do_set" "$_nft_do_prefix"; then
+                printf 'set\t%s\n' "$_nft_do_set"
+            fi
+        done
+}
+# END MODULE: nft
+
+# BEGIN MODULE: guard-migration
+# Remove stale project-owned nft/dnsmasq artifacts from apply_ai_failclosed.sh.
+# Prefix: guard_migrate_
+set -eu
+
+_GUARD_STALE_COMMENT=rules-ai-failclosed
+_GUARD_STALE_CHAIN=rules_ai_failclosed
+_GUARD_STALE_SET_PREFIX=rules_ai
+_GUARD_STALE_CONF=rules-ai-failclosed.conf
+_GUARD_STALE_PROVIDERS="chatgpt copilot claude gemini notebooklm perplexity grok poe"
+
+_guard_migrate_conf_dirs() {
+    if [ -n "${GUARD_STALE_CONF_DIRS:-}" ]; then
+        printf '%s\n' $GUARD_STALE_CONF_DIRS
+        return 0
+    fi
+    printf '%s\n' /tmp/dnsmasq.d /etc/dnsmasq.d
+    if [ -d /tmp ]; then
+        for _guard_md_dir in /tmp/dnsmasq.*.d
+        do
+            if [ -d "$_guard_md_dir" ]; then
+                printf '%s\n' "$_guard_md_dir"
+            fi
+        done
+    fi
+}
+
+guard_migrate_dnsmasq_conf() {
+    _guard_mdc_dirs=$(_guard_migrate_conf_dirs)
+    for _guard_mdc_dir in $_guard_mdc_dirs
+    do
+        [ -n "$_guard_mdc_dir" ] || continue
+        _guard_mdc_file="$_guard_mdc_dir/$_GUARD_STALE_CONF"
+        if [ -f "$_guard_mdc_file" ]; then
+            rm -f "$_guard_mdc_file"
+        fi
+    done
+    # Never restart/enable dnsmasq after cleanup.
+}
+
+guard_migrate_nft() {
+    if [ "$_GUARD_NFT_AVAILABLE" != 1 ]; then
+        return 0
+    fi
+    if nft_chain_exists inet fw4 forward 2>/dev/null; then
+        nft_delete_rules_by_comment inet fw4 forward "$_GUARD_STALE_COMMENT" 2>/dev/null || true
+    fi
+    if nft_chain_exists inet fw4 "$_GUARD_STALE_CHAIN" 2>/dev/null; then
+        nft delete chain inet fw4 "$_GUARD_STALE_CHAIN" 2>/dev/null || true
+    fi
+    for _guard_mn_prov in $_GUARD_STALE_PROVIDERS
+    do
+        nft_delete_owned_set inet fw4 "${_GUARD_STALE_SET_PREFIX}_${_guard_mn_prov}_v4" "$_GUARD_STALE_SET_PREFIX" 2>/dev/null || true
+        nft_delete_owned_set inet fw4 "${_GUARD_STALE_SET_PREFIX}_${_guard_mn_prov}_v6" "$_GUARD_STALE_SET_PREFIX" 2>/dev/null || true
+    done
+}
+
+guard_migrate_stale() {
+    guard_migrate_nft
+    guard_migrate_dnsmasq_conf
+}
+# END MODULE: guard-migration
+
+# BEGIN MODULE: guard-resolver-sync
+# AdGuard Home resolver-sync producer plus read-only capability verification.
+# Prefix: guard_resolver_sync_
+set -eu
+
+_GUARD_RESOLVER_SYNC_BACKEND=adguardhome-resolver-sync
+_GUARD_RESOLVER_SYNC_HELPER=openclash-guard-resolver-sync
+_GUARD_RESOLVER_SYNC_FAMILY=inet
+_GUARD_RESOLVER_SYNC_TABLE=openclash_guard
+_GUARD_RESOLVER_SYNC_CHAIN=forward
+_GUARD_RESOLVER_SYNC_V4_SET=resolver_sync_v4
+_GUARD_RESOLVER_SYNC_V6_SET=resolver_sync_v6
+_GUARD_RESOLVER_SYNC_V4_SET_COMMENT=openclash-guard:resolver-sync-v4-set
+_GUARD_RESOLVER_SYNC_V6_SET_COMMENT=openclash-guard:resolver-sync-v6-set
+_GUARD_RESOLVER_SYNC_V4_RULE_COMMENT=openclash-guard:resolver-sync-v4
+_GUARD_RESOLVER_SYNC_V6_RULE_COMMENT=openclash-guard:resolver-sync-v6
+_GUARD_RESOLVER_SYNC_INTERVAL_DEFAULT=30
+_GUARD_RESOLVER_SYNC_MAX_TTL_DEFAULT=300
+_GUARD_RESOLVER_SYNC_MAX_QUERYLOG_BYTES_DEFAULT=4194304
+_GUARD_RESOLVER_SYNC_QUERYLOG_LIMIT_DEFAULT=1000
+
+_guard_resolver_sync_state_path() {
+    if [ -n "${GUARD_RESOLVER_SYNC_STATE_FILE:-}" ]; then
+        printf '%s\n' "$GUARD_RESOLVER_SYNC_STATE_FILE"
+    else
+        printf '%s/var/run/openclash-guard/resolver-sync.json\n' "${GUARD_PREFIX:-}"
+    fi
+}
+
+_guard_resolver_sync_cache_path() {
+    if [ -n "${GUARD_RESOLVER_SYNC_CACHE_FILE:-}" ]; then
+        printf '%s\n' "$GUARD_RESOLVER_SYNC_CACHE_FILE"
+    else
+        printf '%s/var/lib/openclash-guard/resolver-sync.cache\n' "${GUARD_PREFIX:-}"
+    fi
+}
+
+_guard_resolver_sync_cursor_path() {
+    if [ -n "${GUARD_RESOLVER_SYNC_CURSOR_FILE:-}" ]; then
+        printf '%s\n' "$GUARD_RESOLVER_SYNC_CURSOR_FILE"
+    else
+        printf '%s/var/lib/openclash-guard/resolver-sync.cursor\n' "${GUARD_PREFIX:-}"
+    fi
+}
+
+_guard_resolver_sync_uint() {
+    case ${1:-} in
+        ''|*[!0-9]*) return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
+_guard_resolver_sync_valid_iface() {
+    case ${1:-} in
+        ''|*[!A-Za-z0-9_.:@-]*) return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
+_guard_resolver_sync_valid_ipv4() {
+    printf '%s\n' "${1:-}" | awk -F. '
+        NF != 4 { exit 1 }
+        {
+            for (i = 1; i <= 4; i++) {
+                if ($i !~ /^[0-9]+$/) exit 1
+                if (length($i) > 1 && substr($i, 1, 1) == "0") exit 1
+                if (($i + 0) > 255) exit 1
+            }
+        }
+    '
+}
+
+_guard_resolver_sync_valid_ipv6() {
+    printf '%s\n' "${1:-}" | awk '
+        function hextet(x) { return length(x) >= 1 && length(x) <= 4 && x ~ /^[0-9A-Fa-f]+$/ }
+        {
+            value = $0
+            if (value == "" || value ~ /[^0-9A-Fa-f:]/) exit 1
+            doubles = gsub(/::/, "::", value)
+            if (doubles > 1) exit 1
+            compressed = index(value, "::") > 0
+            fields = split(value, part, ":")
+            used = 0
+            for (i = 1; i <= fields; i++) {
+                if (part[i] == "") continue
+                if (!hextet(part[i])) exit 1
+                used++
+            }
+            if (compressed) {
+                if (used >= 8) exit 1
+            } else if (used != 8) {
+                exit 1
+            }
+        }
+    '
+}
+
+_guard_resolver_sync_direct_iface() {
+    _guard_rs_di_iface=${GUARD_DIRECT_WAN_IFACE:-}
+    if [ -z "$_guard_rs_di_iface" ] && command -v ubus >/dev/null 2>&1 && command -v jsonfilter >/dev/null 2>&1; then
+        _guard_rs_di_status=$(ubus call network.interface.wan status 2>/dev/null) || _guard_rs_di_status=
+        if [ -n "$_guard_rs_di_status" ]; then
+            _guard_rs_di_iface=$(jsonfilter -s "$_guard_rs_di_status" -e '@.l3_device' 2>/dev/null) || _guard_rs_di_iface=
+        fi
+    fi
+    if [ -z "$_guard_rs_di_iface" ] && command -v uci >/dev/null 2>&1; then
+        _guard_rs_di_iface=$(uci -q get network.wan.device 2>/dev/null) || _guard_rs_di_iface=
+        if [ -z "$_guard_rs_di_iface" ]; then
+            _guard_rs_di_iface=$(uci -q get network.wan.ifname 2>/dev/null) || _guard_rs_di_iface=
+            set -- $_guard_rs_di_iface
+            _guard_rs_di_iface=${1:-}
+        fi
+    fi
+    if [ -z "$_guard_rs_di_iface" ] && command -v ip >/dev/null 2>&1; then
+        _guard_rs_di_iface=$(ip -4 route show default 2>/dev/null | awk '
+            $1 == "default" {
+                for (i = 1; i <= NF; i++) {
+                    if ($i == "dev" && (i + 1) <= NF) { print $(i + 1); exit }
+                }
+            }
+        ') || _guard_rs_di_iface=
+    fi
+    _guard_resolver_sync_valid_iface "$_guard_rs_di_iface" || return 1
+    printf '%s\n' "$_guard_rs_di_iface"
+}
+
+_guard_resolver_sync_interval() {
+    _guard_rs_i=${GUARD_RESOLVER_SYNC_INTERVAL:-$_GUARD_RESOLVER_SYNC_INTERVAL_DEFAULT}
+    _guard_resolver_sync_uint "$_guard_rs_i" || return 1
+    [ "$_guard_rs_i" -ge 5 ] 2>/dev/null || return 1
+    [ "$_guard_rs_i" -le 300 ] 2>/dev/null || return 1
+    printf '%s\n' "$_guard_rs_i"
+}
+
+_guard_resolver_sync_max_ttl() {
+    _guard_rs_mt=${GUARD_RESOLVER_SYNC_MAX_TTL:-$_GUARD_RESOLVER_SYNC_MAX_TTL_DEFAULT}
+    _guard_resolver_sync_uint "$_guard_rs_mt" || return 1
+    [ "$_guard_rs_mt" -ge 1 ] 2>/dev/null || return 1
+    [ "$_guard_rs_mt" -le 3600 ] 2>/dev/null || return 1
+    printf '%s\n' "$_guard_rs_mt"
+}
+
+_guard_resolver_sync_domain_match() {
+    _guard_rs_dm_query=$(printf '%s' "${1:-}" | tr 'A-Z' 'a-z')
+    _guard_rs_dm_query=${_guard_rs_dm_query%.}
+    [ -n "$_guard_rs_dm_query" ] || return 1
+    while IFS=' ' read -r _guard_rs_dm_service _guard_rs_dm_mode _guard_rs_dm_value _guard_rs_dm_extra; do
+        [ -n "${_guard_rs_dm_service:-}" ] || continue
+        [ -z "${_guard_rs_dm_extra:-}" ] || return 1
+        case $_guard_rs_dm_mode in
+            exact)
+                [ "$_guard_rs_dm_query" = "$_guard_rs_dm_value" ] && return 0
+                ;;
+            suffix)
+                case $_guard_rs_dm_query in
+                    "$_guard_rs_dm_value"|*."$_guard_rs_dm_value") return 0 ;;
+                esac
+                ;;
+            *) return 1 ;;
+        esac
+    done <<EOF
+${_GUARD_RESOLVER_SYNC_DATA_SELECTORS:-}
+EOF
+    return 1
+}
+
+_guard_resolver_sync_api_base() {
+    _guard_rs_ab=${GUARD_AGH_API_BASE:-http://127.0.0.1:3000}
+    case $_guard_rs_ab in
+        http://127.0.0.1:*|http://localhost:*|http://\[::1\]:*|https://127.0.0.1:*|https://localhost:*|https://\[::1\]:*) ;;
+        *) return 1 ;;
+    esac
+    printf '%s\n' "${_guard_rs_ab%/}"
+}
+
+_guard_resolver_sync_fetch_api() {
+    _guard_rs_fa_path=$1
+    _guard_rs_fa_out=$2
+    _guard_rs_fa_max=$3
+    command -v curl >/dev/null 2>&1 || return 127
+    _guard_rs_fa_base=$(_guard_resolver_sync_api_base) || return 2
+    _guard_rs_fa_url="$_guard_rs_fa_base$_guard_rs_fa_path"
+    set -- -fSs --max-redirs 0 --noproxy '*' --proxy '' --connect-timeout 3 --max-time 10
+    if [ -n "${GUARD_AGH_NETRC_FILE:-}" ]; then
+        [ -f "$GUARD_AGH_NETRC_FILE" ] && [ ! -L "$GUARD_AGH_NETRC_FILE" ] || return 1
+        set -- "$@" --netrc-file "$GUARD_AGH_NETRC_FILE"
+    fi
+    curl "$@" -o "$_guard_rs_fa_out" "$_guard_rs_fa_url" || return 1
+    _guard_rs_fa_size=$(wc -c < "$_guard_rs_fa_out" | tr -d '[:space:]')
+    _guard_resolver_sync_uint "$_guard_rs_fa_size" || return 1
+    [ "$_guard_rs_fa_size" -gt 0 ] 2>/dev/null || return 1
+    [ "$_guard_rs_fa_size" -le "$_guard_rs_fa_max" ] 2>/dev/null
+}
+
+_guard_resolver_sync_querylog_enabled() {
+    _guard_rs_qe_out=$1
+    _guard_resolver_sync_fetch_api /control/querylog/config "$_guard_rs_qe_out" 65536 || return $?
+    _guard_rs_qe_enabled=$(json_get "$_guard_rs_qe_out" enabled 2>/dev/null) || return 1
+    [ "$_guard_rs_qe_enabled" = true ]
+}
+
+_guard_resolver_sync_fetch_querylog() {
+    _guard_rs_fq_out=$1
+    _guard_rs_fq_limit=${GUARD_RESOLVER_SYNC_QUERYLOG_LIMIT:-$_GUARD_RESOLVER_SYNC_QUERYLOG_LIMIT_DEFAULT}
+    _guard_resolver_sync_uint "$_guard_rs_fq_limit" || return 1
+    [ "$_guard_rs_fq_limit" -ge 1 ] 2>/dev/null || return 1
+    [ "$_guard_rs_fq_limit" -le 5000 ] 2>/dev/null || return 1
+    _guard_rs_fq_max=${GUARD_RESOLVER_SYNC_MAX_QUERYLOG_BYTES:-$_GUARD_RESOLVER_SYNC_MAX_QUERYLOG_BYTES_DEFAULT}
+    _guard_resolver_sync_uint "$_guard_rs_fq_max" || return 1
+    [ "$_guard_rs_fq_max" -ge 1024 ] 2>/dev/null || return 1
+    [ "$_guard_rs_fq_max" -le 16777216 ] 2>/dev/null || return 1
+    _guard_resolver_sync_fetch_api "/control/querylog?limit=$_guard_rs_fq_limit" "$_guard_rs_fq_out" "$_guard_rs_fq_max"
+}
+
+_guard_resolver_sync_extract_entries() {
+    _guard_rs_ee_input=$1
+    _guard_rs_ee_output=$2
+    command -v jsonfilter >/dev/null 2>&1 || return 127
+    _guard_rs_ee_type=$(jsonfilter -i "$_guard_rs_ee_input" -t '@.data' 2>/dev/null) || return 1
+    [ "$_guard_rs_ee_type" = array ] || return 1
+    : > "$_guard_rs_ee_output"
+    jsonfilter -i "$_guard_rs_ee_input" -e '@.data[*]' > "$_guard_rs_ee_output" 2>/dev/null || true
+}
+
+_guard_resolver_sync_hash_line() {
+    _guard_rs_hl_tmp=$(file_mktemp) || return 1
+    printf '%s' "$1" > "$_guard_rs_hl_tmp" || { rm -f "$_guard_rs_hl_tmp"; return 1; }
+    _guard_rs_hl_hash=$(file_sha256 "$_guard_rs_hl_tmp" 2>/dev/null) || { rm -f "$_guard_rs_hl_tmp"; return 1; }
+    rm -f "$_guard_rs_hl_tmp"
+    printf '%s\n' "$_guard_rs_hl_hash"
+}
+
+_GUARD_RESOLVER_SYNC_CURSOR_HASH=
+_GUARD_RESOLVER_SYNC_CURSOR_EPOCH=
+
+_guard_resolver_sync_cursor_read() {
+    _GUARD_RESOLVER_SYNC_CURSOR_HASH=
+    _GUARD_RESOLVER_SYNC_CURSOR_EPOCH=
+    _guard_rs_cr_file=$(_guard_resolver_sync_cursor_path)
+    [ -f "$_guard_rs_cr_file" ] && [ ! -L "$_guard_rs_cr_file" ] || return 1
+    IFS=' ' read -r _guard_rs_cr_hash _guard_rs_cr_epoch _guard_rs_cr_extra < "$_guard_rs_cr_file" || return 1
+    [ -z "${_guard_rs_cr_extra:-}" ] || return 1
+    if [ "$_guard_rs_cr_hash" != EMPTY ]; then
+        [ "${#_guard_rs_cr_hash}" -eq 64 ] || return 1
+        case $_guard_rs_cr_hash in *[!0-9a-f]*) return 1 ;; esac
+    fi
+    _guard_resolver_sync_uint "$_guard_rs_cr_epoch" || return 1
+    _GUARD_RESOLVER_SYNC_CURSOR_HASH=$_guard_rs_cr_hash
+    _GUARD_RESOLVER_SYNC_CURSOR_EPOCH=$_guard_rs_cr_epoch
+}
+
+_guard_resolver_sync_select_new() {
+    _guard_rs_sn_entries=$1
+    _guard_rs_sn_output=$2
+    _guard_rs_sn_next=$3
+    _guard_rs_sn_now=$4
+    : > "$_guard_rs_sn_output"
+    _guard_rs_sn_old_hash=${_GUARD_RESOLVER_SYNC_CURSOR_HASH:-}
+    _guard_rs_sn_first=
+    _guard_rs_sn_found=0
+    _guard_rs_sn_count=0
+    while IFS= read -r _guard_rs_sn_entry; do
+        [ -n "$_guard_rs_sn_entry" ] || continue
+        _guard_rs_sn_hash=$(_guard_resolver_sync_hash_line "$_guard_rs_sn_entry") || return 1
+        _guard_rs_sn_count=$((_guard_rs_sn_count + 1))
+        [ -n "$_guard_rs_sn_first" ] || _guard_rs_sn_first=$_guard_rs_sn_hash
+        if [ -n "$_guard_rs_sn_old_hash" ] && [ "$_guard_rs_sn_old_hash" != EMPTY ] && [ "$_guard_rs_sn_hash" = "$_guard_rs_sn_old_hash" ]; then
+            _guard_rs_sn_found=1
+            break
+        fi
+        printf '%s\n' "$_guard_rs_sn_entry" >> "$_guard_rs_sn_output"
+    done < "$_guard_rs_sn_entries"
+
+    if [ "$_guard_rs_sn_count" -eq 0 ]; then
+        _guard_rs_sn_next_hash=EMPTY
+    else
+        _guard_rs_sn_next_hash=$_guard_rs_sn_first
+    fi
+    printf '%s %s\n' "$_guard_rs_sn_next_hash" "$_guard_rs_sn_now" > "$_guard_rs_sn_next"
+
+    if [ -z "$_guard_rs_sn_old_hash" ]; then
+        : > "$_guard_rs_sn_output"
+        return 10
+    fi
+    if [ "$_guard_rs_sn_old_hash" = EMPTY ]; then
+        return 0
+    fi
+    if [ "$_guard_rs_sn_count" -eq 0 ] || [ "$_guard_rs_sn_found" -ne 1 ]; then
+        : > "$_guard_rs_sn_output"
+        return 10
+    fi
+    return 0
+}
+
+_guard_resolver_sync_answers() {
+    _guard_rs_a_entry=$1
+    _guard_rs_a_now=$2
+    _guard_rs_a_elapsed=$3
+    _guard_rs_a_output=$4
+    _guard_rs_a_tmp=$5
+    _guard_rs_a_query=$(jsonfilter -s "$_guard_rs_a_entry" -e '@.question.name' 2>/dev/null) || _guard_rs_a_query=
+    [ -n "$_guard_rs_a_query" ] || _guard_rs_a_query=$(jsonfilter -s "$_guard_rs_a_entry" -e '@.question.host' 2>/dev/null) || _guard_rs_a_query=
+    [ -n "$_guard_rs_a_query" ] && _guard_resolver_sync_domain_match "$_guard_rs_a_query" || return 0
+
+    _guard_rs_a_max=$(_guard_resolver_sync_max_ttl) || return 1
+    : > "$_guard_rs_a_tmp"
+    jsonfilter -s "$_guard_rs_a_entry" -e '@.answer[*]' > "$_guard_rs_a_tmp" 2>/dev/null || true
+    while IFS= read -r _guard_rs_a_answer; do
+        [ -n "$_guard_rs_a_answer" ] || continue
+        _guard_rs_a_type=$(jsonfilter -s "$_guard_rs_a_answer" -e '@.type' 2>/dev/null) || continue
+        _guard_rs_a_value=$(jsonfilter -s "$_guard_rs_a_answer" -e '@.value' 2>/dev/null) || continue
+        _guard_rs_a_ttl=$(jsonfilter -s "$_guard_rs_a_answer" -e '@.ttl' 2>/dev/null) || continue
+        _guard_resolver_sync_uint "$_guard_rs_a_ttl" || continue
+        [ "$_guard_rs_a_ttl" -le "$_guard_rs_a_max" ] 2>/dev/null || _guard_rs_a_ttl=$_guard_rs_a_max
+        if [ "$_guard_rs_a_ttl" -le "$_guard_rs_a_elapsed" ] 2>/dev/null; then
+            continue
+        fi
+        _guard_rs_a_effective=$((_guard_rs_a_ttl - _guard_rs_a_elapsed))
+        _guard_rs_a_expiry=$((_guard_rs_a_now + _guard_rs_a_effective))
+        case $_guard_rs_a_type in
+            A)
+                _guard_resolver_sync_valid_ipv4 "$_guard_rs_a_value" || continue
+                printf '4 %s %s\n' "$_guard_rs_a_value" "$_guard_rs_a_expiry" >> "$_guard_rs_a_output"
+                ;;
+            AAAA)
+                _guard_resolver_sync_valid_ipv6 "$_guard_rs_a_value" || continue
+                printf '6 %s %s\n' "$_guard_rs_a_value" "$_guard_rs_a_expiry" >> "$_guard_rs_a_output"
+                ;;
+        esac
+    done < "$_guard_rs_a_tmp"
+}
+
+_guard_resolver_sync_merge_cache() {
+    _guard_rs_mc_add=$1
+    _guard_rs_mc_now=$2
+    _guard_rs_mc_output=$3
+    _guard_rs_mc_old=$(_guard_resolver_sync_cache_path)
+    _guard_rs_mc_input=$(file_mktemp) || return 1
+    _guard_rs_mc_unsorted=$(file_mktemp) || { rm -f "$_guard_rs_mc_input"; return 1; }
+    : > "$_guard_rs_mc_input"
+    if [ -f "$_guard_rs_mc_old" ]; then
+        [ ! -L "$_guard_rs_mc_old" ] || { rm -f "$_guard_rs_mc_input" "$_guard_rs_mc_unsorted"; return 1; }
+        cat "$_guard_rs_mc_old" >> "$_guard_rs_mc_input" || { rm -f "$_guard_rs_mc_input" "$_guard_rs_mc_unsorted"; return 1; }
+    fi
+    [ ! -f "$_guard_rs_mc_add" ] || cat "$_guard_rs_mc_add" >> "$_guard_rs_mc_input" || { rm -f "$_guard_rs_mc_input" "$_guard_rs_mc_unsorted"; return 1; }
+    awk -v now="$_guard_rs_mc_now" '
+        NF == 0 { next }
+        NF != 3 || ($1 != 4 && $1 != 6) || $3 !~ /^[0-9]+$/ { bad = 1; next }
+        $3 > now {
+            key = $1 " " $2
+            if (!(key in expiry) || $3 > expiry[key]) expiry[key] = $3
+        }
+        END {
+            if (bad) exit 2
+            for (key in expiry) print key " " expiry[key]
+        }
+    ' "$_guard_rs_mc_input" > "$_guard_rs_mc_unsorted" || {
+        rm -f "$_guard_rs_mc_input" "$_guard_rs_mc_unsorted"
+        return 1
+    }
+    LC_ALL=C sort "$_guard_rs_mc_unsorted" > "$_guard_rs_mc_output" || {
+        rm -f "$_guard_rs_mc_input" "$_guard_rs_mc_unsorted"
+        return 1
+    }
+    rm -f "$_guard_rs_mc_input" "$_guard_rs_mc_unsorted"
+}
+
+_guard_resolver_sync_apply_cache() {
+    _guard_rs_ac_cache=$1
+    _guard_rs_ac_now=$2
+    _guard_rs_ac_batch=$3
+    : > "$_guard_rs_ac_batch"
+    printf 'flush set %s %s %s\n' "$_GUARD_RESOLVER_SYNC_FAMILY" "$_GUARD_RESOLVER_SYNC_TABLE" "$_GUARD_RESOLVER_SYNC_V4_SET" >> "$_guard_rs_ac_batch"
+    printf 'flush set %s %s %s\n' "$_GUARD_RESOLVER_SYNC_FAMILY" "$_GUARD_RESOLVER_SYNC_TABLE" "$_GUARD_RESOLVER_SYNC_V6_SET" >> "$_guard_rs_ac_batch"
+    while IFS=' ' read -r _guard_rs_ac_family _guard_rs_ac_ip _guard_rs_ac_expiry _guard_rs_ac_extra; do
+        [ -z "${_guard_rs_ac_extra:-}" ] || return 1
+        [ -n "${_guard_rs_ac_family:-}" ] || continue
+        _guard_resolver_sync_uint "$_guard_rs_ac_expiry" || return 1
+        [ "$_guard_rs_ac_expiry" -gt "$_guard_rs_ac_now" ] 2>/dev/null || continue
+        _guard_rs_ac_timeout=$((_guard_rs_ac_expiry - _guard_rs_ac_now))
+        case $_guard_rs_ac_family in
+            4)
+                _guard_resolver_sync_valid_ipv4 "$_guard_rs_ac_ip" || return 1
+                _guard_rs_ac_set=$_GUARD_RESOLVER_SYNC_V4_SET
+                ;;
+            6)
+                _guard_resolver_sync_valid_ipv6 "$_guard_rs_ac_ip" || return 1
+                _guard_rs_ac_set=$_GUARD_RESOLVER_SYNC_V6_SET
+                ;;
+            *) return 1 ;;
+        esac
+        printf 'add element %s %s %s { %s timeout %ss }\n' \
+            "$_GUARD_RESOLVER_SYNC_FAMILY" "$_GUARD_RESOLVER_SYNC_TABLE" "$_guard_rs_ac_set" \
+            "$_guard_rs_ac_ip" "$_guard_rs_ac_timeout" >> "$_guard_rs_ac_batch"
+    done < "$_guard_rs_ac_cache"
+    nft_apply_batch "$_guard_rs_ac_batch"
+}
+
+_guard_resolver_sync_publish_file() {
+    _guard_rs_pf_src=$1
+    _guard_rs_pf_dest=$2
+    _guard_rs_pf_dir=$(dirname "$_guard_rs_pf_dest")
+    mkdir -p "$_guard_rs_pf_dir" || return 1
+    _guard_rs_pf_tmp=$(file_mktemp "$_guard_rs_pf_dir") || return 1
+    cat "$_guard_rs_pf_src" > "$_guard_rs_pf_tmp" || { rm -f "$_guard_rs_pf_tmp"; return 1; }
+    chmod 0600 "$_guard_rs_pf_tmp" || { rm -f "$_guard_rs_pf_tmp"; return 1; }
+    file_atomic_replace "$_guard_rs_pf_dest" "$_guard_rs_pf_tmp" || { rm -f "$_guard_rs_pf_tmp"; return 1; }
+    chmod 0600 "$_guard_rs_pf_dest" || return 1
+    rm -f "$_guard_rs_pf_tmp"
+}
+
+_guard_resolver_sync_state_write() {
+    _guard_rs_sw_status=$1
+    _guard_rs_sw_reason=$2
+    _guard_rs_sw_iface=${3:-}
+    _guard_rs_sw_now=${4:-$(date +%s)}
+    _guard_resolver_sync_uint "$_guard_rs_sw_now" || return 1
+    if [ -n "$_guard_rs_sw_iface" ]; then
+        _guard_resolver_sync_valid_iface "$_guard_rs_sw_iface" || return 1
+    fi
+    case $_guard_rs_sw_status in ready|warming|degraded) ;; *) return 1 ;; esac
+    case $_guard_rs_sw_reason in *[!A-Za-z0-9._:-]*) return 1 ;; esac
+    _guard_rs_sw_dest=$(_guard_resolver_sync_state_path)
+    _guard_rs_sw_dir=$(dirname "$_guard_rs_sw_dest")
+    mkdir -p "$_guard_rs_sw_dir" || return 1
+    _guard_rs_sw_tmp=$(file_mktemp "$_guard_rs_sw_dir") || return 1
+    printf '{"schemaVersion":1,"helper":"%s","backend":"%s","status":"%s","pid":%s,"updatedAtEpoch":%s,"reason":"%s","sourceRevision":"%s","nft":{"family":"%s","table":"%s","chain":"%s","ipv4Set":"%s","ipv6Set":"%s","directInterface":"%s"}}\n' \
+        "$_GUARD_RESOLVER_SYNC_HELPER" "$_GUARD_RESOLVER_SYNC_BACKEND" "$_guard_rs_sw_status" "$$" \
+        "$_guard_rs_sw_now" "$_guard_rs_sw_reason" "${_GUARD_RESOLVER_SYNC_DATA_SOURCE_REVISION:-unknown}" \
+        "$_GUARD_RESOLVER_SYNC_FAMILY" "$_GUARD_RESOLVER_SYNC_TABLE" "$_GUARD_RESOLVER_SYNC_CHAIN" \
+        "$_GUARD_RESOLVER_SYNC_V4_SET" "$_GUARD_RESOLVER_SYNC_V6_SET" "$_guard_rs_sw_iface" > "$_guard_rs_sw_tmp"
+    chmod 0600 "$_guard_rs_sw_tmp" || { rm -f "$_guard_rs_sw_tmp"; return 1; }
+    file_atomic_replace "$_guard_rs_sw_dest" "$_guard_rs_sw_tmp" || { rm -f "$_guard_rs_sw_tmp"; return 1; }
+    chmod 0600 "$_guard_rs_sw_dest" || return 1
+    rm -f "$_guard_rs_sw_tmp"
+}
+
+_guard_resolver_sync_fail() {
+    _guard_rs_f_reason=$1
+    _guard_rs_f_iface=${2:-}
+    _guard_resolver_sync_state_write degraded "$_guard_rs_f_reason" "$_guard_rs_f_iface" "$(date +%s)" || rm -f "$(_guard_resolver_sync_state_path)"
+    return 1
+}
+guard_resolver_sync_stop() {
+    _guard_rs_stop_state=$(_guard_resolver_sync_state_path)
+    [ -f "$_guard_rs_stop_state" ] && [ ! -L "$_guard_rs_stop_state" ] || {
+        rm -f "$_guard_rs_stop_state"
+        return 0
+    }
+    _guard_rs_stop_revision=$(json_get "$_guard_rs_stop_state" sourceRevision 2>/dev/null) || _guard_rs_stop_revision=
+    if [ -z "${_GUARD_RESOLVER_SYNC_DATA_SOURCE_REVISION:-}" ] || \
+       [ "$_guard_rs_stop_revision" != "$_GUARD_RESOLVER_SYNC_DATA_SOURCE_REVISION" ]; then
+        rm -f "$_guard_rs_stop_state"
+        return 0
+    fi
+    _guard_rs_stop_iface=$(json_get "$_guard_rs_stop_state" nft.directInterface 2>/dev/null) || _guard_rs_stop_iface=
+    if [ -n "$_guard_rs_stop_iface" ] && ! _guard_resolver_sync_valid_iface "$_guard_rs_stop_iface"; then
+        _guard_rs_stop_iface=
+    fi
+    _guard_resolver_sync_state_write degraded stopped "$_guard_rs_stop_iface" "$(date +%s)" || {
+        rm -f "$_guard_rs_stop_state"
+        return 1
+    }
+}
+
+guard_resolver_sync_cycle() {
+    if command -v guard_dns_backend >/dev/null 2>&1; then
+        _guard_rs_c_backend=$(guard_dns_backend 2>/dev/null) || _guard_rs_c_backend=none
+        if [ "$_guard_rs_c_backend" != adguardhome ]; then
+            guard_resolver_sync_stop
+            return 0
+        fi
+    fi
+    [ -n "${_GUARD_RESOLVER_SYNC_DATA_SELECTORS:-}" ] || { _guard_resolver_sync_fail selectors-unavailable; return 1; }
+    command -v jsonfilter >/dev/null 2>&1 || { _guard_resolver_sync_fail jsonfilter-unavailable; return 1; }
+    command -v nft >/dev/null 2>&1 || { _guard_resolver_sync_fail nft-unavailable; return 1; }
+    _guard_rs_c_iface=$(_guard_resolver_sync_direct_iface 2>/dev/null) || { _guard_resolver_sync_fail direct-interface-unavailable; return 1; }
+    _guard_rs_c_now=${GUARD_RESOLVER_SYNC_NOW_EPOCH:-$(date +%s)}
+    _guard_resolver_sync_uint "$_guard_rs_c_now" || { _guard_resolver_sync_fail clock-invalid "$_guard_rs_c_iface"; return 1; }
+
+    _guard_rs_c_work=$(file_mktemp) || { _guard_resolver_sync_fail temp-unavailable "$_guard_rs_c_iface"; return 1; }
+    rm -f "$_guard_rs_c_work"
+    mkdir -p "$_guard_rs_c_work" || { _guard_resolver_sync_fail temp-unavailable "$_guard_rs_c_iface"; return 1; }
+    _guard_rs_c_cfg="$_guard_rs_c_work/config.json"
+    _guard_rs_c_querylog="$_guard_rs_c_work/querylog.json"
+    _guard_rs_c_entries="$_guard_rs_c_work/entries"
+    _guard_rs_c_new="$_guard_rs_c_work/new"
+    _guard_rs_c_next="$_guard_rs_c_work/next"
+    _guard_rs_c_records="$_guard_rs_c_work/records"
+    _guard_rs_c_answers="$_guard_rs_c_work/answers"
+    _guard_rs_c_cache="$_guard_rs_c_work/cache"
+    _guard_rs_c_batch="$_guard_rs_c_work/update.nft"
+    : > "$_guard_rs_c_records"
+
+    if ! _guard_resolver_sync_querylog_enabled "$_guard_rs_c_cfg"; then
+        rm -rf "$_guard_rs_c_work"
+        _guard_resolver_sync_fail querylog-disabled-or-unavailable "$_guard_rs_c_iface"
+        return 1
+    fi
+    if ! _guard_resolver_sync_fetch_querylog "$_guard_rs_c_querylog" || \
+       ! _guard_resolver_sync_extract_entries "$_guard_rs_c_querylog" "$_guard_rs_c_entries"; then
+        rm -rf "$_guard_rs_c_work"
+        _guard_resolver_sync_fail querylog-unavailable "$_guard_rs_c_iface"
+        return 1
+    fi
+
+    _guard_rs_c_have_cursor=0
+    if _guard_resolver_sync_cursor_read; then
+        _guard_rs_c_have_cursor=1
+    fi
+    _guard_rs_c_elapsed=0
+    if [ "$_guard_rs_c_have_cursor" = 1 ]; then
+        [ "$_GUARD_RESOLVER_SYNC_CURSOR_EPOCH" -le "$_guard_rs_c_now" ] 2>/dev/null || {
+            rm -rf "$_guard_rs_c_work"
+            _guard_resolver_sync_fail cursor-future "$_guard_rs_c_iface"
+            return 1
+        }
+        _guard_rs_c_elapsed=$((_guard_rs_c_now - _GUARD_RESOLVER_SYNC_CURSOR_EPOCH))
+    fi
+
+    _guard_rs_c_select_rc=0
+    _guard_resolver_sync_select_new "$_guard_rs_c_entries" "$_guard_rs_c_new" "$_guard_rs_c_next" "$_guard_rs_c_now" || _guard_rs_c_select_rc=$?
+    if [ "$_guard_rs_c_select_rc" -ne 0 ] && [ "$_guard_rs_c_select_rc" -ne 10 ]; then
+        rm -rf "$_guard_rs_c_work"
+        _guard_resolver_sync_fail cursor-invalid "$_guard_rs_c_iface"
+        return 1
+    fi
+
+    if [ "$_guard_rs_c_select_rc" -eq 0 ]; then
+        while IFS= read -r _guard_rs_c_entry; do
+            [ -n "$_guard_rs_c_entry" ] || continue
+            if ! _guard_resolver_sync_answers "$_guard_rs_c_entry" "$_guard_rs_c_now" "$_guard_rs_c_elapsed" "$_guard_rs_c_records" "$_guard_rs_c_answers"; then
+                rm -rf "$_guard_rs_c_work"
+                _guard_resolver_sync_fail querylog-parse-failed "$_guard_rs_c_iface"
+                return 1
+            fi
+        done < "$_guard_rs_c_new"
+    fi
+
+    if ! _guard_resolver_sync_merge_cache "$_guard_rs_c_records" "$_guard_rs_c_now" "$_guard_rs_c_cache"; then
+        rm -rf "$_guard_rs_c_work"
+        _guard_resolver_sync_fail cache-invalid "$_guard_rs_c_iface"
+        return 1
+    fi
+
+    if ! _guard_resolver_sync_set_ready "$_GUARD_RESOLVER_SYNC_V4_SET" ipv4_addr "$_GUARD_RESOLVER_SYNC_V4_SET_COMMENT" || \
+       ! _guard_resolver_sync_set_ready "$_GUARD_RESOLVER_SYNC_V6_SET" ipv6_addr "$_GUARD_RESOLVER_SYNC_V6_SET_COMMENT" || \
+       ! _guard_resolver_sync_consumer_ready "$_guard_rs_c_iface"; then
+        rm -rf "$_guard_rs_c_work"
+        _guard_resolver_sync_fail nft-consumer-unavailable "$_guard_rs_c_iface"
+        return 1
+    fi
+    if ! _guard_resolver_sync_apply_cache "$_guard_rs_c_cache" "$_guard_rs_c_now" "$_guard_rs_c_batch"; then
+        rm -rf "$_guard_rs_c_work"
+        _guard_resolver_sync_fail nft-update-failed "$_guard_rs_c_iface"
+        return 1
+    fi
+    if ! _guard_resolver_sync_publish_file "$_guard_rs_c_cache" "$(_guard_resolver_sync_cache_path)" || \
+       ! _guard_resolver_sync_publish_file "$_guard_rs_c_next" "$(_guard_resolver_sync_cursor_path)"; then
+        rm -rf "$_guard_rs_c_work"
+        _guard_resolver_sync_fail state-publish-failed "$_guard_rs_c_iface"
+        return 1
+    fi
+    rm -rf "$_guard_rs_c_work"
+
+    if [ "$_guard_rs_c_select_rc" -eq 10 ]; then
+        _guard_resolver_sync_state_write warming cursor-baseline "$_guard_rs_c_iface" "$_guard_rs_c_now"
+        return 0
+    fi
+    _guard_resolver_sync_state_write ready ok "$_guard_rs_c_iface" "$_guard_rs_c_now"
+}
+
+_guard_resolver_sync_expect() {
+    _guard_rs_e_file=$1
+    _guard_rs_e_path=$2
+    _guard_rs_e_expected=$3
+    _guard_rs_e_actual=$(json_get "$_guard_rs_e_file" "$_guard_rs_e_path" 2>/dev/null) || return 1
+    [ "$_guard_rs_e_actual" = "$_guard_rs_e_expected" ]
+}
+
+_guard_resolver_sync_contract_valid() {
+    _guard_rs_cv_file=$1
+    _guard_rs_cv_direct=$2
+    [ -f "$_guard_rs_cv_file" ] || return 1
+    [ ! -L "$_guard_rs_cv_file" ] || return 1
+
+    _guard_resolver_sync_expect "$_guard_rs_cv_file" schemaVersion 1 || return 1
+    _guard_resolver_sync_expect "$_guard_rs_cv_file" helper "$_GUARD_RESOLVER_SYNC_HELPER" || return 1
+    _guard_resolver_sync_expect "$_guard_rs_cv_file" backend "$_GUARD_RESOLVER_SYNC_BACKEND" || return 1
+    _guard_resolver_sync_expect "$_guard_rs_cv_file" status ready || return 1
+    _guard_resolver_sync_expect "$_guard_rs_cv_file" nft.family "$_GUARD_RESOLVER_SYNC_FAMILY" || return 1
+    _guard_resolver_sync_expect "$_guard_rs_cv_file" nft.table "$_GUARD_RESOLVER_SYNC_TABLE" || return 1
+    _guard_resolver_sync_expect "$_guard_rs_cv_file" nft.chain "$_GUARD_RESOLVER_SYNC_CHAIN" || return 1
+    _guard_resolver_sync_expect "$_guard_rs_cv_file" nft.ipv4Set "$_GUARD_RESOLVER_SYNC_V4_SET" || return 1
+    _guard_resolver_sync_expect "$_guard_rs_cv_file" nft.ipv6Set "$_GUARD_RESOLVER_SYNC_V6_SET" || return 1
+    _guard_resolver_sync_expect "$_guard_rs_cv_file" nft.directInterface "$_guard_rs_cv_direct" || return 1
+    if [ -n "${_GUARD_RESOLVER_SYNC_DATA_SOURCE_REVISION:-}" ]; then
+        _guard_resolver_sync_expect "$_guard_rs_cv_file" sourceRevision "$_GUARD_RESOLVER_SYNC_DATA_SOURCE_REVISION" || return 1
+    fi
+    return 0
+}
+
+_guard_resolver_sync_process_alive() {
+    _guard_rs_pa_file=$1
+    _guard_rs_pa_pid=$(json_get "$_guard_rs_pa_file" pid 2>/dev/null) || return 1
+    _guard_resolver_sync_uint "$_guard_rs_pa_pid" || return 1
+    [ "$_guard_rs_pa_pid" -gt 1 ] 2>/dev/null || return 1
+    kill -0 "$_guard_rs_pa_pid" 2>/dev/null
+}
+
+_guard_resolver_sync_fresh() {
+    _guard_rs_f_file=$1
+    _guard_rs_f_updated=$(json_get "$_guard_rs_f_file" updatedAtEpoch 2>/dev/null) || return 1
+    _guard_resolver_sync_uint "$_guard_rs_f_updated" || return 1
+
+    _guard_rs_f_max=${GUARD_RESOLVER_SYNC_MAX_AGE:-120}
+    _guard_resolver_sync_uint "$_guard_rs_f_max" || return 1
+    [ "$_guard_rs_f_max" -ge 1 ] 2>/dev/null || return 1
+    [ "$_guard_rs_f_max" -le 3600 ] 2>/dev/null || return 1
+
+    if [ -n "${GUARD_RESOLVER_SYNC_NOW_EPOCH:-}" ]; then
+        _guard_rs_f_now=$GUARD_RESOLVER_SYNC_NOW_EPOCH
+    else
+        _guard_rs_f_now=$(date +%s 2>/dev/null) || return 1
+    fi
+    _guard_resolver_sync_uint "$_guard_rs_f_now" || return 1
+    [ "$_guard_rs_f_updated" -le "$_guard_rs_f_now" ] 2>/dev/null || return 1
+    _guard_rs_f_age=$((_guard_rs_f_now - _guard_rs_f_updated))
+    [ "$_guard_rs_f_age" -le "$_guard_rs_f_max" ]
+}
+
+_guard_resolver_sync_set_ready() {
+    _guard_rs_sr_set=$1
+    _guard_rs_sr_type=$2
+    _guard_rs_sr_comment=$3
+    _guard_rs_sr_listing=$(nft list set \
+        "$_GUARD_RESOLVER_SYNC_FAMILY" \
+        "$_GUARD_RESOLVER_SYNC_TABLE" \
+        "$_guard_rs_sr_set" 2>/dev/null) || return 1
+    printf '%s\n' "$_guard_rs_sr_listing" | awk \
+        -v want_type="$_guard_rs_sr_type" \
+        -v want_comment="$_guard_rs_sr_comment" '
+        $1 == "type" && $2 == want_type { have_type = 1 }
+        $1 == "flags" && index($0, "timeout") { have_timeout = 1 }
+        index($0, "comment \"" want_comment "\"") { have_comment = 1 }
+        END { exit !(have_type && have_timeout && have_comment) }
+    '
+}
+
+_guard_resolver_sync_consumer_ready() {
+    _guard_rs_cr_direct=$1
+    _guard_rs_cr_listing=$(nft -a list chain \
+        "$_GUARD_RESOLVER_SYNC_FAMILY" \
+        "$_GUARD_RESOLVER_SYNC_TABLE" \
+        "$_GUARD_RESOLVER_SYNC_CHAIN" 2>/dev/null) || return 1
+
+    printf '%s\n' "$_guard_rs_cr_listing" | awk \
+        -v direct_iface="$_guard_rs_cr_direct" \
+        -v set_name="$_GUARD_RESOLVER_SYNC_V4_SET" \
+        -v comment="$_GUARD_RESOLVER_SYNC_V4_RULE_COMMENT" '
+        function has_iface(wanted,    i) {
+            for (i = 1; i + 1 <= NF; i++) {
+                if ($i == "comment" || $i == "#") break
+                if ($i == "oifname" && $(i + 1) == "\"" wanted "\"") return 1
+            }
+            return 0
+        }
+        function has_set_token(address_family, wanted,    i, token) {
+            for (i = 1; i + 2 <= NF; i++) {
+                if ($i == "comment" || $i == "#") break
+                if ($i != address_family || $(i + 1) != "daddr") continue
+                token = $(i + 2)
+                if (token == "@" wanted) return 1
+            }
+            return 0
+        }
+        function has_reject_verdict(    i) {
+            for (i = 1; i <= NF; i++) {
+                if ($i == "comment" || $i == "#") break
+                if ($i == "reject") return 1
+            }
+            return 0
+        }
+        function has_owner_comment(wanted,    i) {
+            for (i = 1; i + 1 <= NF; i++) {
+                if ($i == "#") break
+                if ($i == "comment" && $(i + 1) == "\"" wanted "\"") return 1
+            }
+            return 0
+        }
+        has_iface(direct_iface) && has_set_token("ip", set_name) &&
+        has_reject_verdict() && has_owner_comment(comment) { found = 1 }
+        END { exit !found }
+    ' || return 1
+
+    printf '%s\n' "$_guard_rs_cr_listing" | awk \
+        -v direct_iface="$_guard_rs_cr_direct" \
+        -v set_name="$_GUARD_RESOLVER_SYNC_V6_SET" \
+        -v comment="$_GUARD_RESOLVER_SYNC_V6_RULE_COMMENT" '
+        function has_iface(wanted,    i) {
+            for (i = 1; i + 1 <= NF; i++) {
+                if ($i == "comment" || $i == "#") break
+                if ($i == "oifname" && $(i + 1) == "\"" wanted "\"") return 1
+            }
+            return 0
+        }
+        function has_set_token(address_family, wanted,    i, token) {
+            for (i = 1; i + 2 <= NF; i++) {
+                if ($i == "comment" || $i == "#") break
+                if ($i != address_family || $(i + 1) != "daddr") continue
+                token = $(i + 2)
+                if (token == "@" wanted) return 1
+            }
+            return 0
+        }
+        function has_reject_verdict(    i) {
+            for (i = 1; i <= NF; i++) {
+                if ($i == "comment" || $i == "#") break
+                if ($i == "reject") return 1
+            }
+            return 0
+        }
+        function has_owner_comment(wanted,    i) {
+            for (i = 1; i + 1 <= NF; i++) {
+                if ($i == "#") break
+                if ($i == "comment" && $(i + 1) == "\"" wanted "\"") return 1
+            }
+            return 0
+        }
+        has_iface(direct_iface) && has_set_token("ip6", set_name) &&
+        has_reject_verdict() && has_owner_comment(comment) { found = 1 }
+        END { exit !found }
+    '
+}
+
+guard_resolver_sync_ready() {
+    _guard_rs_r_file=$(_guard_resolver_sync_state_path)
+    command -v nft >/dev/null 2>&1 || return 1
+    _guard_rs_r_direct=$(_guard_resolver_sync_direct_iface 2>/dev/null) || return 1
+    _guard_resolver_sync_contract_valid "$_guard_rs_r_file" "$_guard_rs_r_direct" || return 1
+    _guard_resolver_sync_process_alive "$_guard_rs_r_file" || return 1
+    _guard_resolver_sync_fresh "$_guard_rs_r_file" || return 1
+    _guard_resolver_sync_set_ready \
+        "$_GUARD_RESOLVER_SYNC_V4_SET" ipv4_addr "$_GUARD_RESOLVER_SYNC_V4_SET_COMMENT" || return 1
+    _guard_resolver_sync_set_ready \
+        "$_GUARD_RESOLVER_SYNC_V6_SET" ipv6_addr "$_GUARD_RESOLVER_SYNC_V6_SET_COMMENT" || return 1
+    _guard_resolver_sync_consumer_ready "$_guard_rs_r_direct" || return 1
+    return 0
+}
+
+guard_resolver_sync_backend() {
+    if guard_resolver_sync_ready; then
+        printf '%s\n' "$_GUARD_RESOLVER_SYNC_BACKEND"
+    else
+        printf '%s\n' unavailable
+    fi
+}
+# END MODULE: guard-resolver-sync
+
+# BEGIN MODULE: guard-rules
+# Guard-owned local and remote custom-rule staging.
+# Prefix: guard_rules_
+set -eu
+
+# A fetched rule file is data.  It is parsed as matcher records below and is
+# never sourced, eval'ed, or interpolated into a shell command.
+_GUARD_RULES_MAX_REMOTE_BYTES=262144
+_GUARD_RULES_SYNC_INTERVAL_DEFAULT=10800
+
+guard_rules_dir() {
+    if [ -n "${GUARD_RULES_DIR:-}" ]; then
+        printf '%s\n' "$GUARD_RULES_DIR"
+    else
+        printf '%s/etc/openclash-guard/rules\n' "${GUARD_PREFIX:-}"
+    fi
+}
+
+guard_rules_config() {
+    if [ -n "${GUARD_RULES_CONFIG:-}" ]; then
+        printf '%s\n' "$GUARD_RULES_CONFIG"
+    else
+        printf '%s/sources.tsv\n' "$(guard_rules_dir)"
+    fi
+}
+
+guard_rules_local_file() {
+    case ${1:-} in
+        direct|proxy) printf '%s/local-%s.tsv\n' "$(guard_rules_dir)" "$1" ;;
+        *) return 2 ;;
+    esac
+}
+
+guard_rules_remote_file() {
+    case ${1:-} in
+        direct|proxy) printf '%s/remote-%s.tsv\n' "$(guard_rules_dir)" "$1" ;;
+        *) return 2 ;;
+    esac
+}
+
+guard_rules_sources_dir() {
+    printf '%s/sources\n' "$(guard_rules_dir)"
+}
+
+guard_rules_providers_dir() {
+    printf '%s/providers\n' "$(guard_rules_dir)"
+}
+
+guard_rules_error() {
+    printf 'error: %s\n' "$*" >&2
+}
+
+guard_rules_staged_notice() {
+    printf '%s\n' "rules staged, not yet active; activation is provided by the separate Guard overlay command and is not performed by this rules module"
+}
+
+guard_rules_make_stage() {
+    _guard_rules_ms_base=$(guard_rules_dir)
+    mkdir -p "$_guard_rules_ms_base"
+    _guard_rules_ms_file=$(file_mktemp "$_guard_rules_ms_base") || return 1
+    rm -f "$_guard_rules_ms_file"
+    mkdir -p "$_guard_rules_ms_file/sources/direct" "$_guard_rules_ms_file/sources/proxy" "$_guard_rules_ms_file/providers"
+    printf '%s\n' "$_guard_rules_ms_file"
+}
+
+guard_rules_remove_stage() {
+    _guard_rules_rs_stage=${1:-}
+    [ -n "$_guard_rules_rs_stage" ] || return 0
+    case $_guard_rules_rs_stage in
+        "$(guard_rules_dir)"/*) rm -rf "$_guard_rules_rs_stage" ;;
+        *) guard_rules_error "refusing to remove a non-Guard staging path"; return 1 ;;
+    esac
+}
+
+guard_rules_ensure_empty_file() {
+    _guard_rules_eef_dest=$1
+    [ -f "$_guard_rules_eef_dest" ] && return 0
+    _guard_rules_eef_dir=$(dirname "$_guard_rules_eef_dest")
+    mkdir -p "$_guard_rules_eef_dir"
+    _guard_rules_eef_tmp=$(file_mktemp "$_guard_rules_eef_dir") || return 1
+    : > "$_guard_rules_eef_tmp"
+    if ! file_atomic_replace "$_guard_rules_eef_dest" "$_guard_rules_eef_tmp"; then
+        rm -f "$_guard_rules_eef_tmp"
+        return 1
+    fi
+    rm -f "$_guard_rules_eef_tmp"
+}
+
+guard_rules_ensure_layout() {
+    _guard_rules_el_dir=$(guard_rules_dir)
+    _guard_rules_el_config=$(guard_rules_config)
+    mkdir -p "$_guard_rules_el_dir" "$(guard_rules_sources_dir)/direct" "$(guard_rules_sources_dir)/proxy" "$(guard_rules_providers_dir)" "$(dirname "$_guard_rules_el_config")"
+    guard_rules_ensure_empty_file "$(guard_rules_local_file direct)"
+    guard_rules_ensure_empty_file "$(guard_rules_local_file proxy)"
+    guard_rules_ensure_empty_file "$(guard_rules_remote_file direct)"
+    guard_rules_ensure_empty_file "$(guard_rules_remote_file proxy)"
+    guard_rules_ensure_empty_file "$_guard_rules_el_config"
+}
+
+guard_rules_bad_chars() {
+    # Match whitespace and all control bytes.  The URL and matcher validators
+    # deliberately reject these instead of trying to repair user input.
+    LC_ALL=C awk 'BEGIN { bad = 0 } { if (NR > 1 || $0 ~ /[[:space:][:cntrl:]]/) bad = 1 } END { exit bad }'
+}
+
+guard_rules_validate_url() {
+    _guard_rules_vu_url=${1:-}
+    [ -n "$_guard_rules_vu_url" ] || return 1
+    if ! printf '%s' "$_guard_rules_vu_url" | guard_rules_bad_chars; then
+        return 1
+    fi
+    LC_ALL=C awk -v value="$_guard_rules_vu_url" '
+        BEGIN {
+            if (value !~ /^https:\/\//) exit 1
+            rest = value
+            sub(/^https:\/\//, "", rest)
+            slash = index(rest, "/")
+            if (slash <= 1) exit 1
+            host = substr(rest, 1, slash - 1)
+            path = substr(rest, slash)
+            if (host != "raw.githubusercontent.com" && host != "gist.githubusercontent.com") exit 1
+            if (path == "/" || path == "") exit 1
+            if (host ~ /:/ || host ~ /@/) exit 1
+            if (index(path, "?") || index(path, "#") || index(path, "\\")) exit 1
+            count = split(path, parts, "/")
+            if (host == "raw.githubusercontent.com") {
+                if (count < 5 || parts[2] == "" || parts[3] == "" || parts[4] == "" || parts[5] == "") exit 1
+            } else {
+                if (count < 5 || parts[2] == "" || parts[3] == "" || parts[4] != "raw" || parts[5] == "") exit 1
+            }
+            exit 0
+        }
+    '
+}
+
+guard_rules_validate_domain() {
+    _guard_rules_vd_value=${1:-}
+    LC_ALL=C awk -v value="$_guard_rules_vd_value" '
+        BEGIN {
+            if (length(value) < 1 || length(value) > 253) exit 1
+            if (value ~ /[^A-Za-z0-9.-]/ || value ~ /^[-.]|[-.]$/ || value ~ /\.\./) exit 1
+            count = split(value, labels, ".")
+            if (count < 1) exit 1
+            for (i = 1; i <= count; i++) {
+                label = labels[i]
+                if (length(label) < 1 || length(label) > 63) exit 1
+                if (length(label) == 1) {
+                    if (label !~ /^[A-Za-z0-9]$/) exit 1
+                } else if (label !~ /^[A-Za-z0-9][A-Za-z0-9-]*[A-Za-z0-9]$/) {
+                    exit 1
+                }
+            }
+            exit 0
+        }
+    '
+}
+
+guard_rules_validate_keyword() {
+    _guard_rules_vk_value=${1:-}
+    LC_ALL=C awk -v value="$_guard_rules_vk_value" '
+        BEGIN {
+            if (length(value) < 1 || length(value) > 253) exit 1
+            if (length(value) == 1) {
+                if (value !~ /^[A-Za-z0-9]$/) exit 1
+            } else if (value !~ /^[A-Za-z0-9][A-Za-z0-9._-]*[A-Za-z0-9]$/) {
+                exit 1
+            }
+            exit 0
+        }
+    '
+}
+
+guard_rules_validate_ipv4_cidr() {
+    _guard_rules_vi_value=${1:-}
+    LC_ALL=C awk -v value="$_guard_rules_vi_value" '
+        BEGIN {
+            if (split(value, pair, "/") != 2) exit 1
+            address = pair[1]
+            prefix = pair[2]
+            if (split(address, octets, ".") != 4) exit 1
+            for (i = 1; i <= 4; i++) {
+                octet = octets[i]
+                if (octet !~ /^[0-9]+$/ || length(octet) > 3) exit 1
+                if (length(octet) > 1 && substr(octet, 1, 1) == "0") exit 1
+                if ((octet + 0) > 255) exit 1
+            }
+            if (prefix !~ /^[0-9]+$/ || length(prefix) > 2) exit 1
+            if (length(prefix) > 1 && substr(prefix, 1, 1) == "0") exit 1
+            if ((prefix + 0) > 32) exit 1
+            exit 0
+        }
+    '
+}
+
+guard_rules_normalize_entry() {
+    _guard_rules_ne_entry=${1:-}
+    _guard_rules_ne_allow_keyword=${2:-0}
+    [ -n "$_guard_rules_ne_entry" ] || return 1
+    if ! printf '%s' "$_guard_rules_ne_entry" | guard_rules_bad_chars; then
+        return 1
+    fi
+    case $_guard_rules_ne_entry in
+        *,*) ;;
+        *) return 1 ;;
+    esac
+    _guard_rules_ne_kind=${_guard_rules_ne_entry%%,*}
+    _guard_rules_ne_value=${_guard_rules_ne_entry#*,}
+    case $_guard_rules_ne_value in
+        *,*|'') return 1 ;;
+    esac
+    case $_guard_rules_ne_kind in
+        DOMAIN|DOMAIN-SUFFIX)
+            _guard_rules_ne_value=$(printf '%s' "$_guard_rules_ne_value" | LC_ALL=C tr '[:upper:]' '[:lower:]')
+            guard_rules_validate_domain "$_guard_rules_ne_value" || return 1
+            ;;
+        DOMAIN-KEYWORD)
+            [ "$_guard_rules_ne_allow_keyword" = 1 ] || return 1
+            _guard_rules_ne_value=$(printf '%s' "$_guard_rules_ne_value" | LC_ALL=C tr '[:upper:]' '[:lower:]')
+            guard_rules_validate_keyword "$_guard_rules_ne_value" || return 1
+            ;;
+        IP-CIDR)
+            guard_rules_validate_ipv4_cidr "$_guard_rules_ne_value" || return 1
+            ;;
+        *) return 1 ;;
+    esac
+    printf '%s,%s\n' "$_guard_rules_ne_kind" "$_guard_rules_ne_value"
+}
+
+guard_rules_validate_rule_file() {
+    _guard_rules_vrf_file=${1:-}
+    _guard_rules_vrf_allow_keyword=${2:-0}
+    [ -f "$_guard_rules_vrf_file" ] || return 1
+    while IFS= read -r _guard_rules_vrf_line || [ -n "$_guard_rules_vrf_line" ]; do
+        case $_guard_rules_vrf_line in
+            ''|'#'*) continue ;;
+        esac
+        _guard_rules_vrf_normalized=$(guard_rules_normalize_entry "$_guard_rules_vrf_line" "$_guard_rules_vrf_allow_keyword") || return 1
+        [ "$_guard_rules_vrf_normalized" = "$_guard_rules_vrf_line" ] || return 1
+    done < "$_guard_rules_vrf_file"
+}
+
+guard_rules_normalize_remote_file() {
+    _guard_rules_nrf_input=$1
+    _guard_rules_nrf_output=$2
+    : > "$_guard_rules_nrf_output"
+    while IFS= read -r _guard_rules_nrf_line || [ -n "$_guard_rules_nrf_line" ]; do
+        case $_guard_rules_nrf_line in
+            ''|'#'*) continue ;;
+        esac
+        _guard_rules_nrf_normalized=$(guard_rules_normalize_entry "$_guard_rules_nrf_line" 1) || return 1
+        printf '%s\n' "$_guard_rules_nrf_normalized" >> "$_guard_rules_nrf_output"
+    done < "$_guard_rules_nrf_input"
+    LC_ALL=C sort -u "$_guard_rules_nrf_output" -o "$_guard_rules_nrf_output"
+}
+
+guard_rules_source_id() {
+    _guard_rules_sid_url=$1
+    _guard_rules_sid_tmp=$(file_mktemp) || return 1
+    printf '%s' "$_guard_rules_sid_url" > "$_guard_rules_sid_tmp" || {
+        rm -f "$_guard_rules_sid_tmp"
+        return 1
+    }
+    _guard_rules_sid_digest=$(file_sha256 "$_guard_rules_sid_tmp") || {
+        rm -f "$_guard_rules_sid_tmp"
+        return 1
+    }
+    rm -f "$_guard_rules_sid_tmp"
+    printf '%s\n' "$_guard_rules_sid_digest"
+}
+
+guard_rules_source_file() {
+    _guard_rules_sfp_root=$1
+    _guard_rules_sfp_scope=$2
+    _guard_rules_sfp_url=$3
+    printf '%s/%s/%s.tsv\n' "$_guard_rules_sfp_root" "$_guard_rules_sfp_scope" "$(guard_rules_source_id "$_guard_rules_sfp_url")"
+}
+
+guard_rules_validate_sources_file() {
+    _guard_rules_vsf_file=${1:-}
+    [ -f "$_guard_rules_vsf_file" ] || return 1
+    while IFS="$(printf '\t')" read -r _guard_rules_vsf_scope _guard_rules_vsf_url _guard_rules_vsf_extra || [ -n "${_guard_rules_vsf_scope:-}" ]; do
+        case ${_guard_rules_vsf_scope:-} in
+            ''|'#'*) continue ;;
+            direct|proxy) ;;
+            *) return 1 ;;
+        esac
+        [ -n "${_guard_rules_vsf_url:-}" ] || return 1
+        [ -z "${_guard_rules_vsf_extra:-}" ] || return 1
+        guard_rules_validate_url "$_guard_rules_vsf_url" || return 1
+    done < "$_guard_rules_vsf_file"
+}
+
+guard_rules_collect_sources() {
+    _guard_rules_cs_config=$1
+    _guard_rules_cs_root=$2
+    _guard_rules_cs_scope=$3
+    _guard_rules_cs_output=$4
+    : > "$_guard_rules_cs_output"
+    while IFS="$(printf '\t')" read -r _guard_rules_cs_cfg_scope _guard_rules_cs_url _guard_rules_cs_extra || [ -n "${_guard_rules_cs_cfg_scope:-}" ]; do
+        [ "${_guard_rules_cs_cfg_scope:-}" = "$_guard_rules_cs_scope" ] || continue
+        [ -n "${_guard_rules_cs_url:-}" ] || continue
+        _guard_rules_cs_source=$(guard_rules_source_file "$_guard_rules_cs_root" "$_guard_rules_cs_scope" "$_guard_rules_cs_url")
+        [ -f "$_guard_rules_cs_source" ] || continue
+        cat "$_guard_rules_cs_source" >> "$_guard_rules_cs_output"
+    done < "$_guard_rules_cs_config"
+    _guard_rules_cs_sorted=$(file_mktemp "$(dirname "$_guard_rules_cs_output")") || return 1
+    if ! LC_ALL=C sort -u "$_guard_rules_cs_output" > "$_guard_rules_cs_sorted"; then
+        rm -f "$_guard_rules_cs_sorted"
+        return 1
+    fi
+    mv -f "$_guard_rules_cs_sorted" "$_guard_rules_cs_output"
+}
+
+guard_rules_render_provider() {
+    _guard_rules_rp_kind=$1
+    _guard_rules_rp_local=$2
+    _guard_rules_rp_remote=$3
+    _guard_rules_rp_dest=$4
+    _guard_rules_rp_data=$(file_mktemp "$(dirname "$_guard_rules_rp_dest")") || return 1
+    case $_guard_rules_rp_kind in
+        domain)
+            awk -F ',' '
+                $1 == "DOMAIN" { print $2 }
+                $1 == "DOMAIN-SUFFIX" { print "+." $2 }
+                $1 == "DOMAIN-KEYWORD" { print "*" $2 "*" }
+            ' "$_guard_rules_rp_local" "$_guard_rules_rp_remote" | LC_ALL=C sort -u > "$_guard_rules_rp_data"
+            ;;
+        ip)
+            awk -F ',' '$1 == "IP-CIDR" { print "IP-CIDR," $2 ",no-resolve" }' "$_guard_rules_rp_local" "$_guard_rules_rp_remote" | LC_ALL=C sort -u > "$_guard_rules_rp_data"
+            ;;
+        *) rm -f "$_guard_rules_rp_data"; return 2 ;;
+    esac
+    {
+        printf 'payload:\n'
+        while IFS= read -r _guard_rules_rp_line || [ -n "$_guard_rules_rp_line" ]; do
+            [ -n "$_guard_rules_rp_line" ] || continue
+            printf "  - '%s'\n" "$_guard_rules_rp_line"
+        done < "$_guard_rules_rp_data"
+    } > "$_guard_rules_rp_dest"
+    rm -f "$_guard_rules_rp_data"
+}
+
+guard_rules_render_all() {
+    _guard_rules_ra_local_direct=$1
+    _guard_rules_ra_local_proxy=$2
+    _guard_rules_ra_remote_direct=$3
+    _guard_rules_ra_remote_proxy=$4
+    _guard_rules_ra_dest=$5
+    mkdir -p "$_guard_rules_ra_dest"
+    while IFS=' ' read -r _guard_rules_ra_name _guard_rules_ra_behavior _guard_rules_ra_file; do
+        case $_guard_rules_ra_name in
+            Custom_Direct_*)
+                _guard_rules_ra_local=$_guard_rules_ra_local_direct
+                _guard_rules_ra_remote=$_guard_rules_ra_remote_direct
+                ;;
+            Custom_Proxy_*)
+                _guard_rules_ra_local=$_guard_rules_ra_local_proxy
+                _guard_rules_ra_remote=$_guard_rules_ra_remote_proxy
+                ;;
+            *) return 2 ;;
+        esac
+        case $_guard_rules_ra_behavior in
+            domain) _guard_rules_ra_kind=domain ;;
+            classical) _guard_rules_ra_kind=ip ;;
+            *) return 2 ;;
+        esac
+        guard_rules_render_provider "$_guard_rules_ra_kind" "$_guard_rules_ra_local" "$_guard_rules_ra_remote" "$_guard_rules_ra_dest/$_guard_rules_ra_file" || return $?
+    done <<EOF
+$(guard_overlay_provider_specs)
+EOF
+}
+
+guard_rules_publish_providers() {
+    _guard_rules_pp_stage=$1
+    _guard_rules_pp_dest=$(guard_rules_providers_dir)
+    mkdir -p "$_guard_rules_pp_dest"
+    while IFS=' ' read -r _guard_rules_pp_key _guard_rules_pp_behavior _guard_rules_pp_name; do
+        [ -n "$_guard_rules_pp_name" ] || continue
+        if [ -f "$_guard_rules_pp_dest/$_guard_rules_pp_name" ] && \
+           cmp -s "$_guard_rules_pp_dest/$_guard_rules_pp_name" "$_guard_rules_pp_stage/$_guard_rules_pp_name"; then
+            continue
+        fi
+        if ! file_atomic_replace "$_guard_rules_pp_dest/$_guard_rules_pp_name" "$_guard_rules_pp_stage/$_guard_rules_pp_name"; then
+            return 1
+        fi
+    done <<EOF
+$(guard_overlay_provider_specs)
+EOF
+}
+
+guard_rules_init() {
+    guard_rules_ensure_layout
+    _guard_rules_gi_stage=$(guard_rules_make_stage) || return 1
+    _guard_rules_gi_local_direct=$(guard_rules_local_file direct)
+    _guard_rules_gi_local_proxy=$(guard_rules_local_file proxy)
+    _guard_rules_gi_direct=$(guard_rules_remote_file direct)
+    _guard_rules_gi_proxy=$(guard_rules_remote_file proxy)
+    if ! guard_rules_render_all "$_guard_rules_gi_local_direct" "$_guard_rules_gi_local_proxy" "$_guard_rules_gi_direct" "$_guard_rules_gi_proxy" "$_guard_rules_gi_stage/providers"; then
+        guard_rules_remove_stage "$_guard_rules_gi_stage"
+        return 1
+    fi
+    if ! guard_rules_publish_providers "$_guard_rules_gi_stage/providers"; then
+        guard_rules_remove_stage "$_guard_rules_gi_stage"
+        return 1
+    fi
+    guard_rules_remove_stage "$_guard_rules_gi_stage"
+    guard_rules_staged_notice
+}
+
+guard_rules_local_mutate() {
+    _guard_rules_lm_scope=$1
+    _guard_rules_lm_action=$2
+    _guard_rules_lm_entry=$3
+    case $_guard_rules_lm_scope in
+        direct|proxy) ;;
+        *) return 2 ;;
+    esac
+    _guard_rules_lm_normalized=$(guard_rules_normalize_entry "$_guard_rules_lm_entry" 0) || {
+        guard_rules_error "invalid local rule; expected DOMAIN, DOMAIN-SUFFIX, or IP-CIDR"
+        return 1
+    }
+    guard_rules_ensure_layout
+    _guard_rules_lm_local=$(guard_rules_local_file "$_guard_rules_lm_scope")
+    if ! guard_rules_validate_rule_file "$_guard_rules_lm_local" 0; then
+        guard_rules_error "Guard local rule state is invalid"
+        return 1
+    fi
+    _guard_rules_lm_stage=$(guard_rules_make_stage) || return 1
+    _guard_rules_lm_new="$_guard_rules_lm_stage/local-$_guard_rules_lm_scope.tsv"
+    if [ "$_guard_rules_lm_action" = add ]; then
+        awk -v want="$_guard_rules_lm_normalized" '$0 == want { found = 1 } { print } END { if (!found) print want }' "$_guard_rules_lm_local" > "$_guard_rules_lm_new"
+    else
+        awk -v want="$_guard_rules_lm_normalized" '$0 != want { print }' "$_guard_rules_lm_local" > "$_guard_rules_lm_new"
+    fi
+    _guard_rules_lm_sorted=$(file_mktemp "$_guard_rules_lm_stage") || {
+        guard_rules_remove_stage "$_guard_rules_lm_stage"
+        return 1
+    }
+    LC_ALL=C sort -u "$_guard_rules_lm_new" > "$_guard_rules_lm_sorted"
+    mv -f "$_guard_rules_lm_sorted" "$_guard_rules_lm_new"
+    _guard_rules_lm_direct=$(guard_rules_remote_file direct)
+    _guard_rules_lm_proxy=$(guard_rules_remote_file proxy)
+    _guard_rules_lm_local_direct=$(guard_rules_local_file direct)
+    _guard_rules_lm_local_proxy=$(guard_rules_local_file proxy)
+    if [ "$_guard_rules_lm_scope" = direct ]; then
+        _guard_rules_lm_local_direct=$_guard_rules_lm_new
+    else
+        _guard_rules_lm_local_proxy=$_guard_rules_lm_new
+    fi
+    if ! guard_rules_render_all "$_guard_rules_lm_local_direct" "$_guard_rules_lm_local_proxy" "$_guard_rules_lm_direct" "$_guard_rules_lm_proxy" "$_guard_rules_lm_stage/providers"; then
+        guard_rules_remove_stage "$_guard_rules_lm_stage"
+        return 1
+    fi
+    if ! file_atomic_replace "$_guard_rules_lm_local" "$_guard_rules_lm_new" || ! guard_rules_publish_providers "$_guard_rules_lm_stage/providers"; then
+        guard_rules_remove_stage "$_guard_rules_lm_stage"
+        return 1
+    fi
+    guard_rules_remove_stage "$_guard_rules_lm_stage"
+    guard_rules_staged_notice
+}
+
+guard_rules_list_local() {
+    _guard_rules_ll_scope=${1:-}
+    case $_guard_rules_ll_scope in
+        direct|proxy)
+            _guard_rules_ll_local=$(guard_rules_local_file "$_guard_rules_ll_scope")
+            [ -f "$_guard_rules_ll_local" ] || return 0
+            ;;
+        '')
+            guard_rules_list_local direct
+            guard_rules_list_local proxy
+            return 0
+            ;;
+        *) return 2 ;;
+    esac
+    cat "$_guard_rules_ll_local"
+}
+
+guard_rules_local_has_entries() {
+    _guard_rules_lhe_scope=${1:-}
+    case $_guard_rules_lhe_scope in
+        direct|proxy)
+            [ -s "$(guard_rules_local_file "$_guard_rules_lhe_scope")" ]
+            ;;
+        '')
+            [ -s "$(guard_rules_local_file direct)" ] || \
+                [ -s "$(guard_rules_local_file proxy)" ]
+            ;;
+        *)
+            return 2
+            ;;
+    esac
+}
+
+guard_rules_config_mutate() {
+    _guard_rules_cm_scope=$1
+    _guard_rules_cm_action=$2
+    _guard_rules_cm_url=$3
+    case $_guard_rules_cm_scope in
+        direct|proxy) ;;
+        *) return 2 ;;
+    esac
+    guard_rules_validate_url "$_guard_rules_cm_url" || {
+        guard_rules_error "only HTTPS raw.githubusercontent.com or gist.githubusercontent.com URLs are accepted"
+        return 1
+    }
+    guard_rules_ensure_layout
+    _guard_rules_cm_config=$(guard_rules_config)
+    guard_rules_validate_sources_file "$_guard_rules_cm_config" || {
+        guard_rules_error "Guard source configuration is invalid"
+        return 1
+    }
+    _guard_rules_cm_stage=$(guard_rules_make_stage) || return 1
+    _guard_rules_cm_new="$_guard_rules_cm_stage/sources.tsv"
+    _guard_rules_cm_found=0
+    if [ "$_guard_rules_cm_action" = add ]; then
+        awk -F '\t' -v scope="$_guard_rules_cm_scope" -v url="$_guard_rules_cm_url" '
+            $1 == scope && $2 == url { found = 1 }
+            { print }
+            END { if (!found) print scope "\t" url }
+        ' "$_guard_rules_cm_config" > "$_guard_rules_cm_new"
+    else
+        awk -F '\t' -v scope="$_guard_rules_cm_scope" -v url="$_guard_rules_cm_url" '$1 == scope && $2 == url { found = 1; next } { print }' "$_guard_rules_cm_config" > "$_guard_rules_cm_new"
+    fi
+    _guard_rules_cm_direct="$_guard_rules_cm_stage/remote-direct.tsv"
+    _guard_rules_cm_proxy="$_guard_rules_cm_stage/remote-proxy.tsv"
+    guard_rules_collect_sources "$_guard_rules_cm_new" "$(guard_rules_sources_dir)" direct "$_guard_rules_cm_direct"
+    guard_rules_collect_sources "$_guard_rules_cm_new" "$(guard_rules_sources_dir)" proxy "$_guard_rules_cm_proxy"
+    if ! guard_rules_render_all "$(guard_rules_local_file direct)" "$(guard_rules_local_file proxy)" "$_guard_rules_cm_direct" "$_guard_rules_cm_proxy" "$_guard_rules_cm_stage/providers"; then
+        guard_rules_remove_stage "$_guard_rules_cm_stage"
+        return 1
+    fi
+    if ! file_atomic_replace "$_guard_rules_cm_config" "$_guard_rules_cm_new" || \
+       ! file_atomic_replace "$(guard_rules_remote_file direct)" "$_guard_rules_cm_direct" || \
+       ! file_atomic_replace "$(guard_rules_remote_file proxy)" "$_guard_rules_cm_proxy" || \
+       ! guard_rules_publish_providers "$_guard_rules_cm_stage/providers"; then
+        guard_rules_remove_stage "$_guard_rules_cm_stage"
+        return 1
+    fi
+    guard_rules_remove_stage "$_guard_rules_cm_stage"
+    guard_rules_staged_notice
+}
+
+guard_rules_sync_run() {
+    guard_rules_ensure_layout
+    _guard_rules_sr_config=$(guard_rules_config)
+    guard_rules_validate_sources_file "$_guard_rules_sr_config" || {
+        guard_rules_error "Guard source configuration is invalid; keeping last-good staged rules"
+        return 1
+    }
+    _guard_rules_sr_stage=$(guard_rules_make_stage) || return 1
+    _guard_rules_sr_ok=1
+    while IFS="$(printf '\t')" read -r _guard_rules_sr_scope _guard_rules_sr_url _guard_rules_sr_extra || [ -n "${_guard_rules_sr_scope:-}" ]; do
+        case ${_guard_rules_sr_scope:-} in
+            ''|'#'*) continue ;;
+        esac
+        _guard_rules_sr_raw=$(file_mktemp "$_guard_rules_sr_stage") || { _guard_rules_sr_ok=0; break; }
+        if ! fetch_atomic "$_guard_rules_sr_url" "$_guard_rules_sr_raw" "" "" "$_GUARD_RULES_MAX_REMOTE_BYTES" 1; then
+            _guard_rules_sr_ok=0
+            break
+        fi
+        _guard_rules_sr_bytes=$(wc -c < "$_guard_rules_sr_raw" | tr -d '[:space:]')
+        case $_guard_rules_sr_bytes in
+            ''|*[!0-9]*) _guard_rules_sr_ok=0; break ;;
+        esac
+        if [ "$_guard_rules_sr_bytes" -gt "$_GUARD_RULES_MAX_REMOTE_BYTES" ]; then
+            guard_rules_error "remote rule source exceeds ${_GUARD_RULES_MAX_REMOTE_BYTES} bytes: $_guard_rules_sr_url"
+            _guard_rules_sr_ok=0
+            break
+        fi
+        _guard_rules_sr_snapshot=$(guard_rules_source_file "$_guard_rules_sr_stage/sources" "$_guard_rules_sr_scope" "$_guard_rules_sr_url")
+        mkdir -p "$(dirname "$_guard_rules_sr_snapshot")"
+        if ! guard_rules_normalize_remote_file "$_guard_rules_sr_raw" "$_guard_rules_sr_snapshot"; then
+            guard_rules_error "remote rule source has invalid matcher data: $_guard_rules_sr_url"
+            _guard_rules_sr_ok=0
+            break
+        fi
+    done < "$_guard_rules_sr_config"
+    if [ "$_guard_rules_sr_ok" != 1 ]; then
+        guard_rules_remove_stage "$_guard_rules_sr_stage"
+        guard_rules_error "sync failed; keeping last-good remote snapshots and providers"
+        return 1
+    fi
+    _guard_rules_sr_direct="$_guard_rules_sr_stage/remote-direct.tsv"
+    _guard_rules_sr_proxy="$_guard_rules_sr_stage/remote-proxy.tsv"
+    guard_rules_collect_sources "$_guard_rules_sr_config" "$_guard_rules_sr_stage/sources" direct "$_guard_rules_sr_direct"
+    guard_rules_collect_sources "$_guard_rules_sr_config" "$_guard_rules_sr_stage/sources" proxy "$_guard_rules_sr_proxy"
+    if ! guard_rules_render_all "$(guard_rules_local_file direct)" "$(guard_rules_local_file proxy)" "$_guard_rules_sr_direct" "$_guard_rules_sr_proxy" "$_guard_rules_sr_stage/providers"; then
+        guard_rules_remove_stage "$_guard_rules_sr_stage"
+        return 1
+    fi
+
+    # Every source has been fetched, size-checked, parsed, deduped, and used
+    # to render all four providers before any production snapshot is changed.
+    if ! file_atomic_replace "$(guard_rules_remote_file direct)" "$_guard_rules_sr_direct" || \
+       ! file_atomic_replace "$(guard_rules_remote_file proxy)" "$_guard_rules_sr_proxy"; then
+        guard_rules_remove_stage "$_guard_rules_sr_stage"
+        return 1
+    fi
+    mkdir -p "$(guard_rules_sources_dir)/direct" "$(guard_rules_sources_dir)/proxy"
+    while IFS="$(printf '\t')" read -r _guard_rules_sr_scope _guard_rules_sr_url _guard_rules_sr_extra || [ -n "${_guard_rules_sr_scope:-}" ]; do
+        case ${_guard_rules_sr_scope:-} in
+            ''|'#'*) continue ;;
+        esac
+        _guard_rules_sr_snapshot=$(guard_rules_source_file "$_guard_rules_sr_stage/sources" "$_guard_rules_sr_scope" "$_guard_rules_sr_url")
+        _guard_rules_sr_dest=$(guard_rules_source_file "$(guard_rules_sources_dir)" "$_guard_rules_sr_scope" "$_guard_rules_sr_url")
+        if ! file_atomic_replace "$_guard_rules_sr_dest" "$_guard_rules_sr_snapshot"; then
+            guard_rules_remove_stage "$_guard_rules_sr_stage"
+            return 1
+        fi
+    done < "$_guard_rules_sr_config"
+    if ! guard_rules_publish_providers "$_guard_rules_sr_stage/providers"; then
+        guard_rules_remove_stage "$_guard_rules_sr_stage"
+        return 1
+    fi
+    guard_rules_remove_stage "$_guard_rules_sr_stage"
+    guard_rules_staged_notice
+}
+
+guard_rules_sync_list() {
+    _guard_rules_sl_scope=${1:-}
+    _guard_rules_sl_config=$(guard_rules_config)
+    [ -f "$_guard_rules_sl_config" ] || return 0
+    case $_guard_rules_sl_scope in
+        direct|proxy)
+            awk -F '\t' -v scope="$_guard_rules_sl_scope" '$1 == scope { print }' "$_guard_rules_sl_config"
+            ;;
+        '') cat "$_guard_rules_sl_config" ;;
+        *) return 2 ;;
+    esac
+}
+
+guard_rules_sync_interval() {
+    _guard_rules_si_value=${GUARD_RULES_SYNC_INTERVAL:-$_GUARD_RULES_SYNC_INTERVAL_DEFAULT}
+    case $_guard_rules_si_value in
+        ''|*[!0-9]*) return 1 ;;
+    esac
+    [ "$_guard_rules_si_value" -gt 0 ] || return 1
+    printf '%s\n' "$_guard_rules_si_value"
+}
+
+guard_rules_sync_watch() {
+    [ "${GUARD_RULES_ALLOW_WATCH:-0}" = 1 ] || {
+        guard_rules_error "sync watch is internal-only; set GUARD_RULES_ALLOW_WATCH=1 explicitly"
+        return 2
+    }
+    _guard_rules_sw_rules_interval=$(guard_rules_sync_interval) || {
+        guard_rules_error "GUARD_RULES_SYNC_INTERVAL must be a positive integer"
+        return 2
+    }
+    _guard_rules_sw_resolver_interval=$(_guard_resolver_sync_interval) || {
+        guard_rules_error "GUARD_RESOLVER_SYNC_INTERVAL must be an integer in 5..300"
+        return 2
+    }
+    _guard_rules_sw_next_rules=0
+    trap 'guard_resolver_sync_stop; _guard_lock_release; exit 0' INT TERM
+    trap 'guard_resolver_sync_stop; _guard_lock_release' EXIT
+    while :; do
+        _guard_rules_sw_now=$(date +%s 2>/dev/null) || _guard_rules_sw_now=
+        case $_guard_rules_sw_now in
+            ''|*[!0-9]*)
+                guard_rules_error "scheduled watch cannot read a valid epoch clock"
+                sleep "$_guard_rules_sw_resolver_interval" || true
+                continue
+                ;;
+        esac
+        _guard_rules_sw_rules_due=0
+        if [ "$_guard_rules_sw_now" -ge "$_guard_rules_sw_next_rules" ] 2>/dev/null; then
+            _guard_rules_sw_rules_due=1
+        fi
+        if _guard_lock_acquire; then
+            if [ "$_guard_rules_sw_rules_due" = 1 ]; then
+                _guard_rules_sw_rules_rc=0
+                guard_rules_sync_run || _guard_rules_sw_rules_rc=$?
+                _guard_rules_sw_next_rules=$((_guard_rules_sw_now + _guard_rules_sw_rules_interval))
+                [ "$_guard_rules_sw_rules_rc" -eq 0 ] || \
+                    guard_rules_error "scheduled sync failed; last-good rules remain active"
+            fi
+
+            _guard_rules_sw_before=$(guard_resolver_sync_backend 2>/dev/null) || _guard_rules_sw_before=unavailable
+            [ -n "$_guard_rules_sw_before" ] || _guard_rules_sw_before=unavailable
+            _guard_rules_sw_resolver_rc=0
+            guard_resolver_sync_cycle || _guard_rules_sw_resolver_rc=$?
+
+            if [ "$_guard_rules_sw_resolver_rc" -ne 0 ]; then
+                _guard_rules_sw_state=$(_guard_resolver_sync_state_path)
+                _guard_rules_sw_reason=$(json_get "$_guard_rules_sw_state" reason 2>/dev/null) || _guard_rules_sw_reason=
+                if [ "$_guard_rules_sw_reason" = nft-consumer-unavailable ] && command -v guard_cmd_reconcile >/dev/null 2>&1; then
+                    # The direct WAN or Guard table changed without a reliable
+                    # external hotplug. Rebuild from current trusted state while
+                    # the watch already holds the Guard lock, then retry once.
+                    if guard_cmd_reconcile; then
+                        _guard_rules_sw_resolver_rc=0
+                        guard_resolver_sync_cycle || _guard_rules_sw_resolver_rc=$?
+                    else
+                        guard_rules_error "resolver consumer reconcile failed; capability remains fail-closed"
+                    fi
+                fi
+            fi
+
+            _guard_rules_sw_after=$(guard_resolver_sync_backend 2>/dev/null) || _guard_rules_sw_after=unavailable
+            [ -n "$_guard_rules_sw_after" ] || _guard_rules_sw_after=unavailable
+            if [ "$_guard_rules_sw_before" != "$_guard_rules_sw_after" ] && command -v guard_cmd_reconcile >/dev/null 2>&1; then
+                # A health transition changes policy semantics. Reconcile once
+                # so degradation installs fail-closed enforcement and recovery
+                # removes it immediately instead of waiting for another hook.
+                guard_cmd_reconcile || guard_rules_error "resolver capability transition reconcile failed"
+            fi
+            [ "$_guard_rules_sw_resolver_rc" -eq 0 ] || \
+                guard_rules_error "resolver sync cycle failed; capability remains fail-closed"
+            _guard_lock_release
+        else
+            guard_rules_error "scheduled watch could not acquire the Guard lock"
+        fi
+        sleep "$_guard_rules_sw_resolver_interval" || true
+    done
+}
+
+guard_rules_purge() {
+    _guard_rules_pg_dir=$(guard_rules_dir)
+    _guard_rules_pg_config=$(guard_rules_config)
+    [ -d "$_guard_rules_pg_dir" ] || return 0
+    rm -f "$_guard_rules_pg_dir/local-direct.tsv" "$_guard_rules_pg_dir/local-proxy.tsv" "$_guard_rules_pg_dir/remote-direct.tsv" "$_guard_rules_pg_dir/remote-proxy.tsv"
+    while IFS=' ' read -r _guard_rules_pg_key _guard_rules_pg_behavior _guard_rules_pg_name; do
+        [ -n "$_guard_rules_pg_name" ] || continue
+        rm -f "$_guard_rules_pg_dir/providers/$_guard_rules_pg_name"
+    done <<EOF
+$(guard_overlay_provider_specs)
+EOF
+    for _guard_rules_pg_scope in direct proxy; do
+        if [ -d "$_guard_rules_pg_dir/sources/$_guard_rules_pg_scope" ]; then
+            find "$_guard_rules_pg_dir/sources/$_guard_rules_pg_scope" -type f -name '*.tsv' -exec rm -f {} + 2>/dev/null || true
+        fi
+        rmdir "$_guard_rules_pg_dir/sources/$_guard_rules_pg_scope" 2>/dev/null || true
+    done
+    find "$_guard_rules_pg_dir" -type d -name 'shlib.*' -prune -exec rm -rf {} + 2>/dev/null || true
+    rmdir "$_guard_rules_pg_dir/providers" "$_guard_rules_pg_dir/sources" 2>/dev/null || true
+    rm -f "$_guard_rules_pg_config"
+    rmdir "$_guard_rules_pg_dir" 2>/dev/null || true
+}
+
+guard_cmd_rules() {
+    _guard_rules_cmd=${1:-}
+    [ -n "$_guard_rules_cmd" ] || {
+        guard_rules_error "usage: rules add-direct|add-proxy|list|remove-direct|remove-proxy|sync ..."
+        return 2
+    }
+    shift
+    case $_guard_rules_cmd in
+        add-direct)
+            [ "$#" -eq 1 ] || return 2
+            guard_rules_local_mutate direct add "$1"
+            ;;
+        add-proxy)
+            [ "$#" -eq 1 ] || return 2
+            guard_rules_local_mutate proxy add "$1"
+            ;;
+        remove-direct)
+            [ "$#" -eq 1 ] || return 2
+            guard_rules_local_mutate direct remove "$1"
+            ;;
+        remove-proxy)
+            [ "$#" -eq 1 ] || return 2
+            guard_rules_local_mutate proxy remove "$1"
+            ;;
+        list)
+            [ "$#" -le 1 ] || return 2
+            _guard_rules_list_scope=${1:-}
+            if guard_rules_local_has_entries "$_guard_rules_list_scope"; then
+                guard_rules_list_local "$_guard_rules_list_scope"
+            else
+                case $_guard_rules_list_scope in
+                    direct|proxy)
+                        printf 'No staged %s rules.\n' "$_guard_rules_list_scope"
+                        ;;
+                    '')
+                        printf '%s\n' 'No staged custom rules.'
+                        ;;
+                    *)
+                        return 2
+                        ;;
+                esac
+            fi
+            ;;
+        activate)
+            guard_overlay_activate "$@"
+            ;;
+        deactivate)
+            guard_overlay_deactivate "$@"
+            ;;
+        apply-overlay)
+            guard_overlay_apply_config "$@"
+            ;;
+        sync)
+            _guard_rules_sync_cmd=${1:-}
+            [ -n "$_guard_rules_sync_cmd" ] || return 2
+            shift
+            case $_guard_rules_sync_cmd in
+                add-direct) [ "$#" -eq 1 ] || return 2; guard_rules_config_mutate direct add "$1" ;;
+                add-proxy) [ "$#" -eq 1 ] || return 2; guard_rules_config_mutate proxy add "$1" ;;
+                remove-direct) [ "$#" -eq 1 ] || return 2; guard_rules_config_mutate direct remove "$1" ;;
+                remove-proxy) [ "$#" -eq 1 ] || return 2; guard_rules_config_mutate proxy remove "$1" ;;
+                list) [ "$#" -le 1 ] || return 2; guard_rules_sync_list "${1:-}" ;;
+                run) [ "$#" -eq 0 ] || return 2; guard_rules_sync_run ;;
+                watch) [ "$#" -eq 0 ] || return 2; guard_rules_sync_watch ;;
+                *) guard_rules_error "unknown rules sync command: $_guard_rules_sync_cmd"; return 2 ;;
+            esac
+            ;;
+        init)
+            [ "$#" -eq 0 ] || return 2
+            guard_rules_init
+            ;;
+        *)
+            guard_rules_error "unknown rules command: $_guard_rules_cmd"
+            return 2
+            ;;
+    esac
+}
+# END MODULE: guard-rules
+
+# BEGIN MODULE: service
+# OpenWrt init.d observation helpers. Lifecycle mutation requires --mutate.
+# Prefix: svc_
+set -eu
+
+_svc_dir() {
+    printf '%s\n' "${SVC_INITD_DIR:-/etc/init.d}"
+}
+
+_svc_path() {
+    printf '%s/%s\n' "$(_svc_dir)" "$1"
+}
+
+_svc_require_name() {
+    case $1 in
+        ''|*/*|.*)
+            printf '%s\n' "svc: invalid service name: $1" >&2
+            return 2
+            ;;
+    esac
+    case $1 in
+        *..*)
+            printf '%s\n' "svc: invalid service name: $1" >&2
+            return 2
+            ;;
+    esac
+}
+
+svc_exists() {
+    _svc_require_name "$1" || return $?
+    _svc_exists_path=$(_svc_path "$1")
+    [ -x "$_svc_exists_path" ]
+}
+
+svc_enabled() {
+    svc_exists "$1" || return 1
+    _svc_en_path=$(_svc_path "$1")
+    "$_svc_en_path" enabled >/dev/null 2>&1
+}
+
+svc_running() {
+    svc_exists "$1" || return 1
+    _svc_rn_path=$(_svc_path "$1")
+    if "$_svc_rn_path" running >/dev/null 2>&1; then
+        return 0
+    fi
+    _svc_rn_rc=0
+    _svc_rn_out=$("$_svc_rn_path" status 2>/dev/null) || _svc_rn_rc=$?
+    case $_svc_rn_out in
+        *"not running"*|*"inactive"*|*"stopped"*)
+            return 1
+            ;;
+        *"running"*|*"active"*)
+            return 0
+            ;;
+    esac
+    [ "$_svc_rn_rc" -eq 0 ]
+}
+
+svc_status() {
+    _svc_require_name "$1" || return $?
+    if ! svc_exists "$1"; then
+        printf '%s\n' "missing"
+        return 1
+    fi
+    if svc_running "$1"; then
+        printf '%s\n' "running"
+        return 0
+    fi
+    printf '%s\n' "stopped"
+    return 0
+}
+
+_svc_require_mutate() {
+    if [ "${1:-}" != "--mutate" ]; then
+        printf '%s\n' "svc: refusing to change service lifecycle without --mutate" >&2
+        return 2
+    fi
+}
+
+svc_restart() {
+    _svc_require_mutate "${1:-}" || return $?
+    shift
+    _svc_rs_name=${1:-}
+    if ! svc_exists "$_svc_rs_name"; then
+        printf '%s\n' "svc: service not found: $_svc_rs_name" >&2
+        return 1
+    fi
+    _svc_rs_path=$(_svc_path "$_svc_rs_name")
+    "$_svc_rs_path" restart
+}
+
+svc_enable() {
+    _svc_require_mutate "${1:-}" || return $?
+    shift
+    _svc_el_name=${1:-}
+    if ! svc_exists "$_svc_el_name"; then
+        printf '%s\n' "svc: service not found: $_svc_el_name" >&2
+        return 1
+    fi
+    _svc_el_path=$(_svc_path "$_svc_el_name")
+    "$_svc_el_path" enable
+}
+# END MODULE: service
+
+# BEGIN MODULE: guard-dns
+# DNS backend detection. Never starts, enables, or restarts dnsmasq.
+# Prefix: guard_dns_
+set -eu
+
+_GUARD_DNS_NAMES="adguardhome AdGuardHome adguard-home"
+
+_GUARD_DNS_BYPASS_RULES=0
+_GUARD_DNS_BYPASS_PORT53_RULES=0
+_GUARD_DNS_BYPASS_DOT853_RULES=0
+_GUARD_DNS_HIJACK_BYPASS_RULES=0
+_GUARD_DNS_BYPASS_UNKNOWN_SOURCE_RULES=0
+_GUARD_DNS_BYPASS_UNKNOWN_DPORT_RULES=0
+_GUARD_DNS_BYPASS_CLIENT_COUNT=0
+_GUARD_DNS_BYPASS_CLIENTS=
+
+guard_dns_agh_name() {
+    _guard_dns_agh=
+    for _guard_dns_cand in $_GUARD_DNS_NAMES
+    do
+        if svc_exists "$_guard_dns_cand"; then
+            _guard_dns_agh=$_guard_dns_cand
+            break
+        fi
+    done
+    if [ -n "$_guard_dns_agh" ]; then
+        printf '%s\n' "$_guard_dns_agh"
+        return 0
+    fi
+    return 1
+}
+
+guard_dns_dnsmasq_port() {
+    _guard_dns_port=
+    if command -v uci >/dev/null 2>&1; then
+        _guard_dns_port=$(uci -q get dhcp.@dnsmasq[0].port 2>/dev/null) || _guard_dns_port=
+        if [ -z "$_guard_dns_port" ]; then
+            _guard_dns_port=$(uci -q get dhcp.dnsmasq.port 2>/dev/null) || _guard_dns_port=
+        fi
+    fi
+    if [ -z "$_guard_dns_port" ]; then
+        _guard_dns_port=53
+    fi
+    printf '%s\n' "$_guard_dns_port"
+}
+
+guard_dns_backend() {
+    _guard_dns_agh_en=0
+    _guard_dns_agh_run=0
+    if _guard_dns_agh=$(guard_dns_agh_name 2>/dev/null); then
+        if svc_enabled "$_guard_dns_agh"; then
+            _guard_dns_agh_en=1
+        fi
+        if svc_running "$_guard_dns_agh"; then
+            _guard_dns_agh_run=1
+        fi
+    fi
+    if [ "$_guard_dns_agh_en" = 1 ] && [ "$_guard_dns_agh_run" = 1 ]; then
+        printf '%s\n' "adguardhome"
+        return 0
+    fi
+    _guard_dns_msq_en=0
+    _guard_dns_msq_run=0
+    if svc_exists dnsmasq; then
+        if svc_enabled dnsmasq; then
+            _guard_dns_msq_en=1
+        fi
+        if svc_running dnsmasq; then
+            _guard_dns_msq_run=1
+        fi
+    fi
+    if [ "$_guard_dns_msq_en" = 1 ] && [ "$_guard_dns_msq_run" = 1 ]; then
+        _guard_dns_port=$(guard_dns_dnsmasq_port)
+        if [ "$_guard_dns_port" != 0 ]; then
+            printf '%s\n' "dnsmasq"
+            return 0
+        fi
+    fi
+    printf '%s\n' "none"
+}
+
+guard_dns_domain_set_backend() {
+    _guard_dns_be=${1:-}
+    if [ -z "$_guard_dns_be" ]; then
+        _guard_dns_be=$(guard_dns_backend)
+    fi
+    case $_guard_dns_be in
+        dnsmasq)
+            printf '%s\n' "dnsmasq-nftset"
+            ;;
+        adguardhome)
+            # Promote AdGuard Home only when a separate structured resolver-sync
+            # helper proves the complete capability contract. Missing, stale, or
+            # contradictory evidence remains fail-closed.
+            if command -v guard_resolver_sync_backend >/dev/null 2>&1; then
+                guard_resolver_sync_backend
+            else
+                printf '%s\n' "unavailable"
+            fi
+            ;;
+        *)
+            printf '%s\n' "unavailable"
+            ;;
+    esac
+}
+
+_guard_dns_add_bypass_client() {
+    _guard_dns_client=$1
+    [ -n "$_guard_dns_client" ] || return 0
+    case " ${_GUARD_DNS_BYPASS_CLIENTS:-} " in
+        *" $_guard_dns_client "*) return 0 ;;
+    esac
+    if [ -n "${_GUARD_DNS_BYPASS_CLIENTS:-}" ]; then
+        _GUARD_DNS_BYPASS_CLIENTS="$_GUARD_DNS_BYPASS_CLIENTS $_guard_dns_client"
+    else
+        _GUARD_DNS_BYPASS_CLIENTS=$_guard_dns_client
+    fi
+    _GUARD_DNS_BYPASS_CLIENT_COUNT=$((_GUARD_DNS_BYPASS_CLIENT_COUNT + 1))
+}
+
+_guard_dns_source_is_literal() {
+    _guard_dns_sl_family=$1
+    _guard_dns_sl_value=$2
+    _guard_dns_sl_address=$_guard_dns_sl_value
+    _guard_dns_sl_prefix=
+
+    case $_guard_dns_sl_value in
+        */*)
+            _guard_dns_sl_address=${_guard_dns_sl_value%/*}
+            _guard_dns_sl_prefix=${_guard_dns_sl_value#*/}
+            case $_guard_dns_sl_prefix in
+                ''|*[!0-9]*) return 1 ;;
+            esac
+            [ "${#_guard_dns_sl_prefix}" -le 3 ] || return 1
+            case $_guard_dns_sl_prefix in
+                0|[1-9]|[1-9][0-9]) ;;
+                1[01][0-9]|12[0-8]) ;;
+                *) return 1 ;;
+            esac
+            ;;
+    esac
+
+    case $_guard_dns_sl_family in
+        ipv4)
+            _guard_resolver_sync_valid_ipv4 "$_guard_dns_sl_address" || return 1
+            if [ -n "$_guard_dns_sl_prefix" ]; then
+                [ "$_guard_dns_sl_prefix" -le 32 ] 2>/dev/null || return 1
+            fi
+            ;;
+        ipv6)
+            _guard_resolver_sync_valid_ipv6 "$_guard_dns_sl_address" || return 1
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+_guard_dns_scan_rule_records() {
+    _guard_dns_srr_chain=$1
+    awk -v scan_chain="$_guard_dns_srr_chain" '
+        function has_jump(target,    i) {
+            for (i = 1; i < NF; i++) {
+                if ($i == "jump" && $(i + 1) == target) return 1
+            }
+            return 0
+        }
+        function has_return(    i) {
+            for (i = 1; i <= NF; i++) if ($i == "return") return 1
+            return 0
+        }
+        function port_number(value,    number) {
+            if (value !~ /^[0-9]+$/ || length(value) > 5) return -1
+            number = value + 0
+            if (number > 65535) return -1
+            return number
+        }
+        function include_interval(first, last,    low, high) {
+            low = port_number(first)
+            high = port_number(last)
+            if (low < 0 || high < 0 || low > high) {
+                port_unknown = 1
+                return
+            }
+            if (low <= 53 && high >= 53) port53_match = 1
+            if (low <= 853 && high >= 853) port853_match = 1
+        }
+        function include_atom(atom,    separator, bounds) {
+            if (atom ~ /^[0-9]+$/) {
+                include_interval(atom, atom)
+                return
+            }
+            if (atom ~ /^[0-9]+-[0-9]+$/) {
+                split(atom, bounds, "-")
+                include_interval(bounds[1], bounds[2])
+                return
+            }
+            port_unknown = 1
+        }
+        function include_comparison(operator, value,    number) {
+            number = port_number(value)
+            if (number < 0) {
+                port_unknown = 1
+                return
+            }
+            if (operator == "!=" || operator == "<" || operator == "<=") {
+                if (operator == "!=" && number != 53) port53_match = 1
+                if (operator == "!=" && number != 853) port853_match = 1
+                if (operator == "<" && number > 53) port53_match = 1
+                if (operator == "<" && number > 853) port853_match = 1
+                if (operator == "<=" && number >= 53) port53_match = 1
+                if (operator == "<=" && number >= 853) port853_match = 1
+                return
+            }
+            if (operator == ">" && number < 53) port53_match = 1
+            if (operator == ">" && number < 853) port853_match = 1
+            if (operator == ">=" && number <= 53) port53_match = 1
+            if (operator == ">=" && number <= 853) port853_match = 1
+            if (operator == "=" || operator == "==") {
+                if (number == 53) port53_match = 1
+                if (number == 853) port853_match = 1
+            }
+        }
+        function analyze_dport(    i, j, token, operator, saw_value, closed, count) {
+            port53_match = 0
+            port853_match = 0
+            port_unknown = 0
+            count = 0
+            for (i = 1; i <= NF; i++) {
+                if ($i != "dport") continue
+                count++
+                j = i + 1
+                if (j > NF) {
+                    port_unknown = 1
+                    continue
+                }
+                if ($j == "{") {
+                    saw_value = 0
+                    closed = 0
+                    j++
+                    while (j <= NF && $j != "}") {
+                        token = $j
+                        gsub(/,/, "", token)
+                        if (token != "") {
+                            include_atom(token)
+                            saw_value = 1
+                        }
+                        j++
+                    }
+                    if (j <= NF && $j == "}") closed = 1
+                    if (!closed || !saw_value) port_unknown = 1
+                    i = j
+                    continue
+                }
+                token = $j
+                if (token == "!=" || token == "<" || token == "<=" ||
+                    token == ">" || token == ">=" || token == "=" || token == "==") {
+                    operator = token
+                    j++
+                    if (j > NF) {
+                        port_unknown = 1
+                    } else {
+                        token = $j
+                        gsub(/,/, "", token)
+                        include_comparison(operator, token)
+                    }
+                    i = j
+                    continue
+                }
+                gsub(/,/, "", token)
+                include_atom(token)
+                i = j
+            }
+            if (count > 1) port_unknown = 1
+            return count
+        }
+        function source_value(    i, family, value) {
+            for (i = 1; i < NF; i++) {
+                if ($i != "saddr") continue
+                if ($(i - 1) == "ip") family = "ipv4"
+                else if ($(i - 1) == "ip6") family = "ipv6"
+                else return "unknown|-"
+                value = $(i + 1)
+                gsub(/,/, "", value)
+                if (value == "{" || value == "}" || value == "" || value == "!") return "unknown|-"
+                return family "|" value
+            }
+            return "unknown|-"
+        }
+        {
+            for (i = 1; i <= NF; i++) {
+                if ($i == "comment" || $i == "#") {
+                    NF = i - 1
+                    break
+                }
+            }
+            if (scan_chain == "forward") {
+                if (!has_jump("accept_to_wan")) next
+                if (!analyze_dport()) next
+                if (port_unknown) {
+                    print "unknownPort|0|0|unknown|-"
+                    next
+                }
+                has53 = port53_match
+                has853 = port853_match
+                if (!has53 && !has853) next
+                split(source_value(), source, "|")
+                printf "forward|%d|%d|%s|%s\n", has53, has853, source[1], source[2]
+                next
+            }
+            if (!has_return() || !analyze_dport()) next
+            if (port_unknown) {
+                print "unknownPort|0|0|unknown|-"
+                next
+            }
+            if (!port53_match) next
+            split(source_value(), source, "|")
+            printf "dstnat|1|0|%s|%s\n", source[1], source[2]
+        }
+    '
+}
+
+guard_dns_detect_firewall_bypasses() {
+    _GUARD_DNS_BYPASS_AVAILABLE=0
+    _GUARD_DNS_BYPASS_DETECTED=0
+    _GUARD_DNS_BYPASS_RULES=0
+    _GUARD_DNS_BYPASS_PORT53_RULES=0
+    _GUARD_DNS_BYPASS_DOT853_RULES=0
+    _GUARD_DNS_HIJACK_BYPASS_RULES=0
+    _GUARD_DNS_BYPASS_UNKNOWN_SOURCE_RULES=0
+    _GUARD_DNS_BYPASS_UNKNOWN_DPORT_RULES=0
+    _GUARD_DNS_BYPASS_CLIENTS=
+    _GUARD_DNS_BYPASS_CLIENT_COUNT=0
+    _GUARD_DNS_BYPASS_PORT53=0
+    _GUARD_DNS_BYPASS_DOT853=0
+    _GUARD_DNS_HIJACK_BYPASS=0
+
+    command -v nft >/dev/null 2>&1 || return 0
+
+    _guard_dns_forward=$(nft -a list chain inet fw4 forward_lan 2>/dev/null) || return 0
+    _guard_dns_dstnat=$(nft -a list chain inet fw4 dstnat 2>/dev/null) || return 0
+    _GUARD_DNS_BYPASS_AVAILABLE=1
+
+    while IFS='|' read -r _guard_dns_kind _guard_dns_has53 _guard_dns_has853 _guard_dns_family _guard_dns_source; do
+        [ -n "$_guard_dns_kind" ] || continue
+        case $_guard_dns_kind in
+            forward)
+                _GUARD_DNS_BYPASS_RULES=$((_GUARD_DNS_BYPASS_RULES + 1))
+                _GUARD_DNS_BYPASS_PORT53_RULES=$((_GUARD_DNS_BYPASS_PORT53_RULES + _guard_dns_has53))
+                _GUARD_DNS_BYPASS_DOT853_RULES=$((_GUARD_DNS_BYPASS_DOT853_RULES + _guard_dns_has853))
+                ;;
+            dstnat)
+                _GUARD_DNS_HIJACK_BYPASS_RULES=$((_GUARD_DNS_HIJACK_BYPASS_RULES + 1))
+                ;;
+            unknownPort)
+                _GUARD_DNS_BYPASS_UNKNOWN_DPORT_RULES=$((_GUARD_DNS_BYPASS_UNKNOWN_DPORT_RULES + 1))
+                continue
+                ;;
+        esac
+        if _guard_dns_source_is_literal "$_guard_dns_family" "$_guard_dns_source"; then
+            _guard_dns_add_bypass_client "$_guard_dns_source"
+        else
+            _GUARD_DNS_BYPASS_UNKNOWN_SOURCE_RULES=$((_GUARD_DNS_BYPASS_UNKNOWN_SOURCE_RULES + 1))
+        fi
+    done <<EOF
+$(printf '%s\n' "$_guard_dns_forward" | _guard_dns_scan_rule_records forward)
+$(printf '%s\n' "$_guard_dns_dstnat" | _guard_dns_scan_rule_records dstnat)
+EOF
+
+    [ "$_GUARD_DNS_BYPASS_PORT53_RULES" -eq 0 ] || _GUARD_DNS_BYPASS_PORT53=1
+    [ "$_GUARD_DNS_BYPASS_DOT853_RULES" -eq 0 ] || _GUARD_DNS_BYPASS_DOT853=1
+    [ "$_GUARD_DNS_HIJACK_BYPASS_RULES" -eq 0 ] || _GUARD_DNS_HIJACK_BYPASS=1
+    if [ "$_GUARD_DNS_BYPASS_RULES" -gt 0 ] || [ "$_GUARD_DNS_HIJACK_BYPASS_RULES" -gt 0 ]; then
+        _GUARD_DNS_BYPASS_DETECTED=1
+    fi
+}
+
+guard_dns_detect() {
+    _GUARD_DNS_BACKEND=$(guard_dns_backend)
+    _GUARD_DNS_AGH_ENABLED=0
+    _GUARD_DNS_AGH_RUNNING=0
+    _GUARD_DNS_MSQ_ENABLED=0
+    _GUARD_DNS_MSQ_RUNNING=0
+    if _guard_dns_agh=$(guard_dns_agh_name 2>/dev/null); then
+        if svc_enabled "$_guard_dns_agh"; then
+            _GUARD_DNS_AGH_ENABLED=1
+        fi
+        if svc_running "$_guard_dns_agh"; then
+            _GUARD_DNS_AGH_RUNNING=1
+        fi
+    fi
+    if svc_exists dnsmasq; then
+        if svc_enabled dnsmasq; then
+            _GUARD_DNS_MSQ_ENABLED=1
+        fi
+        if svc_running dnsmasq; then
+            _GUARD_DNS_MSQ_RUNNING=1
+        fi
+    fi
+    _GUARD_DNS_DOMAIN_SET=$(guard_dns_domain_set_backend "$_GUARD_DNS_BACKEND")
+    guard_dns_detect_firewall_bypasses
+}
+
+# Guard never resurrects DNS daemons; detection is observation-only.
+# END MODULE: guard-dns
+
+# BEGIN MODULE: uci
+# Thin UCI wrappers. Get/set do not commit; failures that affect state are not hidden.
+# Prefix: uci_
+set -eu
+
+_uci_require() {
+    if ! command -v uci >/dev/null 2>&1; then
+        printf '%s\n' "uci: command not found" >&2
+        return 127
+    fi
+    if [ -z "${1:-}" ]; then
+        printf '%s\n' "uci: missing option" >&2
+        return 2
+    fi
+}
+
+uci_get() {
+    _uci_require "$1" || return $?
+    uci get "$1"
+}
+
+uci_get_default() {
+    _uci_require "$1" || return $?
+    _uci_gd_opt=$1
+    _uci_gd_default=${2:-}
+    if _uci_gd_val=$(uci -q get "$_uci_gd_opt"); then
+        printf '%s\n' "$_uci_gd_val"
+        return 0
+    fi
+    printf '%s\n' "$_uci_gd_default"
+}
+
+uci_get_bool() {
+    _uci_require "$1" || return $?
+    _uci_gb_opt=$1
+    _uci_gb_raw=
+    if _uci_gb_raw=$(uci -q get "$_uci_gb_opt"); then
+        :
+    elif [ "$#" -ge 2 ]; then
+        _uci_gb_raw=$2
+    else
+        return 1
+    fi
+    case $_uci_gb_raw in
+        1|true|TRUE|True|yes|YES|on|ON|enabled|ENABLED)
+            printf '1\n'
+            ;;
+        0|false|FALSE|False|no|NO|off|OFF|disabled|DISABLED|'')
+            printf '0\n'
+            ;;
+        *)
+            printf '%s\n' "uci: invalid bool for $_uci_gb_opt: $_uci_gb_raw" >&2
+            return 1
+            ;;
+    esac
+}
+
+uci_get_list() {
+    _uci_require "$1" || return $?
+    _uci_gl_nl='
+'
+    uci -d "$_uci_gl_nl" get "$1"
+}
+
+uci_set() {
+    _uci_require "$1" || return $?
+    if [ "$#" -lt 2 ]; then
+        printf '%s\n' "uci_set: missing value" >&2
+        return 2
+    fi
+    uci set "$1=$2"
+}
+
+uci_add_list() {
+    _uci_require "$1" || return $?
+    if [ "$#" -lt 2 ]; then
+        printf '%s\n' "uci_add_list: missing value" >&2
+        return 2
+    fi
+    uci add_list "$1=$2"
+}
+
+uci_delete() {
+    _uci_require "$1" || return $?
+    uci -q delete "$1" || true
+}
+
+uci_commit_if_changed() {
+    if ! command -v uci >/dev/null 2>&1; then
+        printf '%s\n' "uci: command not found" >&2
+        return 127
+    fi
+    _uci_cif_pkg=${1:-}
+    if [ -n "$_uci_cif_pkg" ]; then
+        _uci_cif_changes=$(uci changes "$_uci_cif_pkg") || return $?
+    else
+        _uci_cif_changes=$(uci changes) || return $?
+    fi
+    if [ -z "$_uci_cif_changes" ]; then
+        return 0
+    fi
+    if [ -n "$_uci_cif_pkg" ]; then
+        uci commit "$_uci_cif_pkg"
+    else
+        uci commit
+    fi
+}
+# END MODULE: uci
+
+# BEGIN MODULE: guard-uci-overlay
+# Normalized OpenClash Guard UCI overlay.
+#
+# Single authority for reading local operator intent from
+# /etc/config/openclash_guard. It does NOT touch nft or any subsystem; it only
+# reads UCI, validates against the #122 runtime contract, and exposes a
+# normalized snapshot plus redacted diagnostics.
+#
+# Wiring status (see docs/openclash-guard-uci-overlay-integration.md):
+#   Source wiring is present in the unsigned recovery candidate. Release,
+#   deployment, and live-router qualification remain pending.
+#
+# Trust model (per #122; contract at internal/config/openclash-guard/
+# uci-runtime-contract.json):
+#   - UCI is operator INTENT, not policy authority. It never widens signed
+#     policy. Authority resolution (signed ceiling/floor, live-capability
+#     gating) lives in uci-overlay-resolve.sh (depends on guard-policy /
+#     guard-environment).
+#   - A KNOWN option with an invalid value is a hard error: the overlay becomes
+#     invalid and the error is surfaced so reconcile/apply refuses BEFORE any
+#     nft mutation. No silent fallback to a weaker state. This applies to every
+#     contract-covered option, including the effective legacy controls
+#     (main.enabled, main.kill_switch, main.dns_kill_switch, udp.enabled,
+#     udp.src_ip).
+#   - An UNKNOWN option is ignored-and-reported: it gains no runtime authority
+#     and never invalidates an otherwise-valid config (forward compatibility).
+#
+# Contract parity: the option table mirrors internal/config/openclash-guard/
+# uci-runtime-contract.json. POSIX shell cannot parse that JSON, so the table
+# is kept in sync manually and verified by
+# tests/test_openclash_guard_uci_overlay.py. Change both together.
+#
+# Deliberate omissions: rules.direct_rule/proxy_rule/direct_source/
+# proxy_source are NOT modeled (no grammar/canonicalization/duplicate/conflict/
+# precedence semantics exist yet). See docs "Contract gaps". They are not
+# validated, not normalized, and gain no runtime authority.
+#
+# Prefix: guard_uci_overlay_
+set -eu
+
+# spec line: option_path|type|default|authority
+_GUARD_UCI_OVERLAY_SPEC='
+main.enabled|boolean|1|uci-runtime
+main.kill_switch|boolean|1|uci-runtime
+main.dns_kill_switch|boolean|0|uci-runtime
+main.profile_mode|enum|remote_ini|uci-overlay
+main.profile_url|https-url-or-empty||uci-overlay
+main.distribution_source|enum|auto|uci-overlay
+main.auto_refresh|boolean|1|uci-overlay
+routing.direct_region|region-ref|hk|signed-policy-gated
+routing.proxy_region|region-ref|us|signed-policy-gated
+routing.chatgpt|service-route-mode|proxy|signed-policy-gated
+routing.claude|service-route-mode|proxy|signed-policy-gated
+routing.grok|service-route-mode|proxy|signed-policy-gated
+dns.backend|enum|auto|live-capability-gated
+dns.resolver_sync|boolean|1|live-capability-gated
+dns.fail_closed|boolean|1|signed-policy-floor
+udp.enabled|boolean|1|signed-policy-gated
+udp.src_ip|ipv4-list||signed-policy-gated
+monitoring.enabled|boolean|0|monitor-service
+monitoring.interval|integer-enum|900|monitor-service
+monitoring.chatgpt|boolean|1|monitor-service
+monitoring.claude|boolean|1|monitor-service
+monitoring.grok|boolean|1|monitor-service
+'
+
+# Region catalog twin of internal/config/ai-routing/catalogs/regions.json.
+_GUARD_UCI_OVERLAY_REGIONS='us jp sg tw kr hk mo uk fr de it no ca au ru ua tr'
+_GUARD_UCI_OVERLAY_PRIMARY_ORDER='us jp sg tw kr'
+
+_GUARD_UCI_OVERLAY_LOADED=0
+_GUARD_UCI_OVERLAY_VALID=1
+_GUARD_UCI_OVERLAY_ERRORS=''
+_GUARD_UCI_OVERLAY_UNKNOWN=''
+# Availability of the local UCI store this session. 1 = read OK (or absent
+# package, a valid empty config), 0 = uci missing or package read failed.
+_GUARD_UCI_OVERLAY_UCI_AVAILABLE=1
+
+# Runtime consumers share one snapshot per preparation. Preflight starts each
+# new preparation with guard_uci_overlay_load(); consumers use this idempotent
+# entry point so setup checks, environment discovery, and reconcile reuse it.
+guard_uci_overlay_ensure_loaded() {
+    if [ "${_GUARD_UCI_OVERLAY_LOADED:-0}" = 1 ]; then
+        [ "$_GUARD_UCI_OVERLAY_VALID" = 1 ]
+        return $?
+    fi
+    guard_uci_overlay_load
+}
+
+_guard_uci_overlay_reset() {
+    _GUARD_UCI_OVERLAY_LOADED=0
+    _GUARD_UCI_OVERLAY_VALID=1
+    _GUARD_UCI_OVERLAY_ERRORS=''
+    _GUARD_UCI_OVERLAY_UNKNOWN=''
+    _GUARD_UCI_OVERLAY_UCI_AVAILABLE=1
+}
+
+_guard_uci_overlay_add_error() {
+    if [ -z "$_GUARD_UCI_OVERLAY_ERRORS" ]; then
+        _GUARD_UCI_OVERLAY_ERRORS="$1"
+    else
+        _GUARD_UCI_OVERLAY_ERRORS="$_GUARD_UCI_OVERLAY_ERRORS
+$1"
+    fi
+    _GUARD_UCI_OVERLAY_VALID=0
+}
+
+_guard_uci_overlay_add_unknown() {
+    if [ -z "$_GUARD_UCI_OVERLAY_UNKNOWN" ]; then
+        _GUARD_UCI_OVERLAY_UNKNOWN="$1"
+    else
+        _GUARD_UCI_OVERLAY_UNKNOWN="$_GUARD_UCI_OVERLAY_UNKNOWN
+$1"
+    fi
+}
+
+_guard_uci_overlay_var_name() {
+    printf '_GUARD_UCO_%s' "$(printf '%s' "$1" | tr '[:lower:].' '[:upper:]_')"
+}
+
+_guard_uci_overlay_field() {
+    # _guard_uci_overlay_field PATH FIELDNO -> prints the spec field.
+    # Match is exact: the spec line for PATH is "PATH|type|default|authority",
+    # so we require PATH terminated by the field separator (a bare prefix such
+    # as main.enabled matching main.enabledX would be a false positive).
+    _guard_uci_of_path=$1
+    _guard_uci_of_no=$2
+    _guard_uci_of_found=1
+    for _guard_uci_of_line in $_GUARD_UCI_OVERLAY_SPEC
+    do
+        case $_guard_uci_of_line in
+            "$_guard_uci_of_path"?*)
+                # Candidate shares PATH as prefix; require the very next char
+                # to be the field separator.
+                _guard_uci_of_rest=${_guard_uci_of_line#"$_guard_uci_of_path"}
+                case $_guard_uci_of_rest in
+                    '|'*)
+                        printf '%s' "$_guard_uci_of_rest" | cut -d'|' -f"$_guard_uci_of_no"
+                        _guard_uci_of_found=0
+                        break
+                        ;;
+                esac
+                ;;
+        esac
+    done
+    return $_guard_uci_of_found
+}
+
+_guard_uci_overlay_known() {
+    _guard_uci_overlay_field "$1" 1 >/dev/null
+}
+
+_guard_uci_overlay_type() { _guard_uci_overlay_field "$1" 2; }
+_guard_uci_overlay_default() { _guard_uci_overlay_field "$1" 3; }
+_guard_uci_overlay_authority() { _guard_uci_overlay_field "$1" 4; }
+
+_guard_uci_overlay_enum_values() {
+    case $1 in
+        main.profile_mode) printf 'remote_ini local' ;;
+        main.distribution_source) printf 'auto github-raw jsdelivr' ;;
+        dns.backend) printf 'auto adguardhome dnsmasq' ;;
+        routing.chatgpt|routing.claude|routing.grok) printf 'proxy direct auto block' ;;
+        monitoring.interval) printf '300 900 1800 3600' ;;
+        *) printf '' ;;
+    esac
+}
+
+_guard_uci_overlay_is_boolean() {
+    case $1 in
+        1|true|TRUE|True|yes|YES|on|ON|enabled|ENABLED) return 0 ;;
+        0|false|FALSE|False|no|NO|off|OFF|disabled|DISABLED|'') return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+_guard_uci_overlay_normalize_boolean() {
+    case $1 in
+        1|true|TRUE|True|yes|YES|on|ON|enabled|ENABLED) printf '1' ;;
+        *) printf '0' ;;
+    esac
+}
+
+_guard_uci_overlay_in_list() {
+    # _guard_uci_overlay_in_list NEEDLE item1 item2 ...
+    _guard_uci_il_needle=$1
+    shift || return 1
+    for _guard_uci_il_item in "$@"
+    do
+        [ "$_guard_uci_il_item" = "$_guard_uci_il_needle" ] && return 0
+    done
+    return 1
+}
+
+_guard_uci_overlay_region_set_for() {
+    case $1 in
+        routing.proxy_region) printf 'primaryOrder' ;;
+        *) printf 'registry' ;;
+    esac
+}
+
+_guard_uci_overlay_valid_region() {
+    # $1=value $2=regionSet(registry|primaryOrder)
+    if [ "$2" = "primaryOrder" ]; then
+        # shellcheck disable=SC2086
+        _guard_uci_overlay_in_list "$1" $_GUARD_UCI_OVERLAY_PRIMARY_ORDER
+    else
+        # shellcheck disable=SC2086
+        _guard_uci_overlay_in_list "$1" $_GUARD_UCI_OVERLAY_REGIONS
+    fi
+}
+
+_guard_uci_overlay_valid_ipv4() {
+    _guard_uci_v4=$1
+    case $_guard_uci_v4 in
+        *[!0-9.]*|'') return 1 ;;
+    esac
+    _guard_uci_v4_oldifs=$IFS
+    IFS='.'
+    # shellcheck disable=SC2086
+    set -- $_guard_uci_v4
+    IFS=$_guard_uci_v4_oldifs
+    [ "$#" -eq 4 ] || return 1
+    for _guard_uci_v4_octet in "$@"
+    do
+        case $_guard_uci_v4_octet in
+            0|[1-9]|[1-9][0-9]|[1-9][0-9][0-9]) : ;;
+            *) return 1 ;;
+        esac
+        [ "$_guard_uci_v4_octet" -le 255 ] 2>/dev/null || return 1
+    done
+    return 0
+}
+
+_guard_uci_overlay_check_https_url() {
+    # On failure prints a REASON (never the URL) and returns 1.
+    _guard_uci_url=$1
+    case $_guard_uci_url in
+        *[\ \	]*) printf 'URL contains whitespace'; return 1 ;;
+    esac
+    case $_guard_uci_url in
+        https://*) : ;;
+        http://*) printf 'URL is not HTTPS'; return 1 ;;
+        *) printf 'URL is malformed (must start with https://)'; return 1 ;;
+    esac
+    _guard_uci_url_rest=${_guard_uci_url#https://}
+    case $_guard_uci_url_rest in
+        '') printf 'URL is malformed (empty host)'; return 1 ;;
+        *@*) printf 'URL contains credentials'; return 1 ;;
+    esac
+    _guard_uci_url_host=${_guard_uci_url_rest%%/*}
+    case $_guard_uci_url_host in
+        ''|*[\ \	]*) printf 'URL is malformed (empty host)'; return 1 ;;
+    esac
+    return 0
+}
+
+# Validate an ipv4-list (space-separated). Success assigns the canonical
+# de-duplicated list into the variable named by $3. Failure records an error
+# and returns 1. Runs in the CURRENT shell (no command substitution) so the
+# recorded error persists.
+_guard_uci_overlay_validate_ipv4_list() {
+    _guard_uci_vl_path=$1
+    _guard_uci_vl_value=$2
+    _guard_uci_vl_resultvar=$3
+    _guard_uci_vl_out=''
+    for _guard_uci_vl_item in $_guard_uci_vl_value
+    do
+        [ -n "$_guard_uci_vl_item" ] || continue
+        if ! _guard_uci_overlay_valid_ipv4 "$_guard_uci_vl_item"; then
+            _guard_uci_overlay_add_error "$_guard_uci_vl_path|invalid IPv4 address in list"
+            return 1
+        fi
+        # shellcheck disable=SC2086
+        if _guard_uci_overlay_in_list "$_guard_uci_vl_item" $_guard_uci_vl_out; then
+            continue
+        fi
+        if [ -z "$_guard_uci_vl_out" ]; then
+            _guard_uci_vl_out=$_guard_uci_vl_item
+        else
+            _guard_uci_vl_out="$_guard_uci_vl_out $_guard_uci_vl_item"
+        fi
+    done
+    eval "$_guard_uci_vl_resultvar=\$_guard_uci_vl_out"
+    return 0
+}
+
+# Validate one known option value. On success assigns the NORMALIZED value to
+# the variable named by $4 and returns 0; on failure records "path|reason" and
+# returns 1. IMPORTANT: this mutates shell state (_GUARD_UCI_OVERLAY_ERRORS /
+# _GUARD_UCI_OVERLAY_VALID), so it must be called in the current shell — never
+# via $( command substitution ), which forks and discards the recorded error.
+_guard_uci_overlay_validate_value() {
+    _guard_uci_ovv_path=$1
+    _guard_uci_ovv_type=$2
+    _guard_uci_ovv_value=$3
+    _guard_uci_ovv_resultvar=$4
+    case $_guard_uci_ovv_type in
+        boolean)
+            if _guard_uci_overlay_is_boolean "$_guard_uci_ovv_value"; then
+                eval "$_guard_uci_ovv_resultvar=\$(_guard_uci_overlay_normalize_boolean "\$_guard_uci_ovv_value")"
+                return 0
+            fi
+            _guard_uci_overlay_add_error "$_guard_uci_ovv_path|invalid boolean (expected 0/1)"
+            return 1
+            ;;
+        enum|integer-enum|service-route-mode)
+            _guard_uci_ovv_allowed=$(_guard_uci_overlay_enum_values "$_guard_uci_ovv_path")
+            # shellcheck disable=SC2086
+            if _guard_uci_overlay_in_list "$_guard_uci_ovv_value" $_guard_uci_ovv_allowed; then
+                eval "$_guard_uci_ovv_resultvar=\$_guard_uci_ovv_value"
+                return 0
+            fi
+            _guard_uci_overlay_add_error "$_guard_uci_ovv_path|invalid value (allowed: $_guard_uci_ovv_allowed)"
+            return 1
+            ;;
+        region-ref)
+            _guard_uci_ovv_set=$(_guard_uci_overlay_region_set_for "$_guard_uci_ovv_path")
+            if _guard_uci_overlay_valid_region "$_guard_uci_ovv_value" "$_guard_uci_ovv_set"; then
+                eval "$_guard_uci_ovv_resultvar=\$_guard_uci_ovv_value"
+                return 0
+            fi
+            if [ "$_guard_uci_ovv_set" = "primaryOrder" ]; then
+                _guard_uci_overlay_add_error "$_guard_uci_ovv_path|invalid region (must be a routable proxy-exit region)"
+            else
+                _guard_uci_overlay_add_error "$_guard_uci_ovv_path|invalid region (unknown region id)"
+            fi
+            return 1
+            ;;
+        https-url-or-empty)
+            if [ -z "$_guard_uci_ovv_value" ]; then
+                eval "$_guard_uci_ovv_resultvar=''"
+                return 0
+            fi
+            _guard_uci_ovv_reason=$(_guard_uci_overlay_check_https_url "$_guard_uci_ovv_value") || {
+                _guard_uci_overlay_add_error "$_guard_uci_ovv_path|$_guard_uci_ovv_reason"
+                return 1
+            }
+            eval "$_guard_uci_ovv_resultvar=\$_guard_uci_ovv_value"
+            return 0
+            ;;
+        ipv4-list)
+            _guard_uci_overlay_validate_ipv4_list "$_guard_uci_ovv_path" "$_guard_uci_ovv_value" "$_guard_uci_ovv_resultvar"
+            return $?
+            ;;
+        *)
+            # rule-list / https-url-list intentionally not modeled.
+            eval "$_guard_uci_ovv_resultvar=\$_guard_uci_ovv_value"
+            return 0
+            ;;
+    esac
+}
+
+# Read the whole package, strictly validate known options, collect unknowns.
+# Populates the normalized snapshot. Returns 0 when valid, 1 when any known
+# option was invalid (errors recorded before any caller can mutate nft).
+guard_uci_overlay_load() {
+    _guard_uci_overlay_reset
+    # A new snapshot invalidates any previously resolved Layer-B effective
+    # state. The resolver is an optional higher layer; call its invalidation
+    # hook only when present (guarded, so this module stays dependency-free and
+    # the manifest can wire Layer B after Layer A without a cycle).
+    if command -v guard_uci_overlay_invalidate_resolved_state >/dev/null 2>&1; then
+        guard_uci_overlay_invalidate_resolved_state
+    fi
+    # Seed normalized vars with contract defaults (eval name is contract-only).
+    for _guard_uci_ol_line in $_GUARD_UCI_OVERLAY_SPEC
+    do
+        _guard_uci_ol_path=$(printf '%s' "$_guard_uci_ol_line" | cut -d'|' -f1)
+        _guard_uci_ol_dflt=$(printf '%s' "$_guard_uci_ol_line" | cut -d'|' -f3)
+        _guard_uci_ol_var=$(_guard_uci_overlay_var_name "$_guard_uci_ol_path")
+        eval "$_guard_uci_ol_var=\$_guard_uci_ol_dflt"
+        eval "${_guard_uci_ol_var}_RAW=''"
+    done
+
+    # uci must exist AND the package must be readable; otherwise treat the
+    # overlay as unavailable/invalid and fail (never quietly default).
+    if ! command -v uci >/dev/null 2>&1; then
+        _GUARD_UCI_OVERLAY_UCI_AVAILABLE=0
+        _guard_uci_overlay_add_error 'openclash_guard|uci command unavailable'
+        _GUARD_UCI_OVERLAY_LOADED=1
+        return 1
+    fi
+    if ! uci -q show openclash_guard >/dev/null 2>&1; then
+        # Distinguish "package absent" (valid empty config) from a real read
+        # failure. `uci show` exits non-zero when the package does not exist;
+        # an existing-but-empty or a read failure must not be conflated.
+        # Use `uci -q show` of the package with output captured: absence of the
+        # package config file is reported by uci as a specific message; treat
+        # any non-zero with NO config present as "absent" only when the config
+        # file itself is missing. If we cannot tell, conservatively fail.
+        _guard_uci_ol_show=$(uci show openclash_guard 2>&1) || _guard_uci_ol_show_rc=$?
+        case ${_guard_uci_ol_show_rc:-0} in
+            0) : ;;
+            *)
+                # uci reports "Entry not found" for a package that does not
+                # exist. Anything else is an unexpected read failure.
+                case $_guard_uci_ol_show in
+                    *'Entry not found'*|*'not found'*)
+                        # Package absent: valid empty config; defaults apply.
+                        _GUARD_UCI_OVERLAY_LOADED=1
+                        return 0
+                        ;;
+                    *)
+                        _GUARD_UCI_OVERLAY_UCI_AVAILABLE=0
+                        _guard_uci_overlay_add_error 'openclash_guard|package read failed'
+                        _GUARD_UCI_OVERLAY_LOADED=1
+                        return 1
+                        ;;
+                esac
+                ;;
+        esac
+    fi
+
+    # Snapshot-coherent collection. `uci show` is used ONLY as a coherence
+    # fingerprint (before/after); semantic VALUES are read with the real `uci
+    # get` CLI so UCI itself decodes quoting/escaping (never a home-grown shell
+    # quote parser, never `eval` of `uci show`). The before/after fingerprint
+    # comparison provides drift detection with a bounded retry; it is NOT a
+    # UCI transaction (see ABA caveat in the design doc).
+    _guard_uci_ol_attempt=0
+    _guard_uci_ol_coherent=0
+    while [ "$_guard_uci_ol_attempt" -lt "${GUARD_UCI_OVERLAY_MAX_ATTEMPTS:-2}" ]
+    do
+        _guard_uci_ol_attempt=$((_guard_uci_ol_attempt + 1))
+        # BEFORE fingerprint: explicit exit-status check, never `|| true` (a
+        # failed capture must not masquerade as an empty catalog).
+        if ! _guard_uci_ol_catalog_before=$(uci show openclash_guard 2>/dev/null); then
+            _guard_uci_overlay_add_error 'openclash_guard|coherence fingerprint capture failed (before)'
+            continue
+        fi
+        # Reset per-attempt state (unknown/errors/norm vars) without clearing
+        # the Layer-B invalidation already done above.
+        _GUARD_UCI_OVERLAY_VALID=1
+        _GUARD_UCI_OVERLAY_ERRORS=''
+        _GUARD_UCI_OVERLAY_UNKNOWN=''
+        for _guard_uci_ol_line in $_GUARD_UCI_OVERLAY_SPEC
+        do
+            _guard_uci_ol_path=$(printf '%s' "$_guard_uci_ol_line" | cut -d'|' -f1)
+            _guard_uci_ol_dflt=$(printf '%s' "$_guard_uci_ol_line" | cut -d'|' -f3)
+            _guard_uci_ol_var=$(_guard_uci_overlay_var_name "$_guard_uci_ol_path")
+            eval "$_guard_uci_ol_var=\$_guard_uci_ol_dflt"
+            eval "${_guard_uci_ol_var}_RAW=''"
+        done
+        if _guard_uci_overlay_populate_from_uci "$_guard_uci_ol_catalog_before"; then
+            # AFTER fingerprint: explicit exit-status check.
+            if ! _guard_uci_ol_catalog_after=$(uci show openclash_guard 2>/dev/null); then
+                _guard_uci_overlay_add_error 'openclash_guard|coherence fingerprint capture failed (after)'
+                continue
+            fi
+            if [ "$_guard_uci_ol_catalog_before" = "$_guard_uci_ol_catalog_after" ]; then
+                _guard_uci_ol_coherent=1
+                break
+            fi
+            # Generation changed mid-read: discard candidate and retry.
+        fi
+        # populate failed (a semantic field read failed): discard and retry.
+    done
+    if [ "$_guard_uci_ol_coherent" != 1 ]; then
+        _GUARD_UCI_OVERLAY_UCI_AVAILABLE=0
+        _guard_uci_overlay_add_error 'openclash_guard|snapshot not coherent (config changed or read failed)'
+        _GUARD_UCI_OVERLAY_LOADED=1
+        return 1
+    fi
+
+    _GUARD_UCI_OVERLAY_LOADED=1
+    [ "$_GUARD_UCI_OVERLAY_VALID" = 1 ]
+}
+
+# Derive option PATHS from the captured fingerprint catalog (paths only; values
+# are read separately with the real CLI). Prints one section.option per line.
+_guard_uci_overlay_catalog_paths() {
+    # Accept indexed list members such as udp.src_ip[0]='10.0.0.11', capture
+    # their canonical path, then de-duplicate before semantic reads.
+    printf '%s\n' "$1" \
+        | sed -n "s/^openclash_guard\.\([A-Za-z0-9_]*\.[A-Za-z0-9_]*\)\(\[[0-9][0-9]*\]\)*=.*/\1/p" \
+        | sort -u
+}
+
+# Read and validate semantic values for every option path present in the
+# fingerprint catalog, using the real `uci get` CLI. A failed semantic read on
+# an enumerated option DISCARDS the candidate (returns non-zero) instead of
+# validating an empty/partial value. Returns 0 when every option read cleanly
+# (validity of the VALUES is tracked separately in the overlay state).
+_guard_uci_overlay_populate_from_uci() {
+    _guard_uci_pf_catalog=$1
+    _guard_uci_pf_paths=$(_guard_uci_overlay_catalog_paths "$_guard_uci_pf_catalog")
+    for _guard_uci_pf_path in $_guard_uci_pf_paths
+    do
+        if ! _guard_uci_overlay_known "$_guard_uci_pf_path"; then
+            _guard_uci_overlay_add_unknown "$_guard_uci_pf_path"
+            continue
+        fi
+        _guard_uci_pf_type=$(_guard_uci_overlay_type "$_guard_uci_pf_path")
+        case $_guard_uci_pf_type in
+            ipv4-list|rule-list|https-url-list)
+                _guard_uci_pf_nl='
+'
+                # Explicit exit-status check BEFORE the tr pipe (CLI decodes the
+                # list form; a failed read discards the candidate).
+                if ! _guard_uci_pf_items=$(uci -d "$_guard_uci_pf_nl" -q get "openclash_guard.$_guard_uci_pf_path" 2>/dev/null); then
+                    _guard_uci_overlay_add_error "$_guard_uci_pf_path|read failed"
+                    return 1
+                fi
+                _guard_uci_pf_raw=$(printf '%s' "$_guard_uci_pf_items" | tr '\n' ' ')
+                ;;
+            *)
+                if ! _guard_uci_pf_raw=$(uci -q get "openclash_guard.$_guard_uci_pf_path" 2>/dev/null); then
+                    _guard_uci_overlay_add_error "$_guard_uci_pf_path|read failed"
+                    return 1
+                fi
+                ;;
+        esac
+        _guard_uci_pf_var=$(_guard_uci_overlay_var_name "$_guard_uci_pf_path")
+        eval "${_guard_uci_pf_var}_RAW=\$_guard_uci_pf_raw"
+        # Validate in the current shell so any recorded error persists (never
+        # wrap in $(...) — that would fork and lose _GUARD_UCI_OVERLAY_VALID).
+        _guard_uci_pf_norm=
+        if _guard_uci_overlay_validate_value "$_guard_uci_pf_path" "$_guard_uci_pf_type" "$_guard_uci_pf_raw" _guard_uci_pf_norm; then
+            eval "$_guard_uci_pf_var=\$_guard_uci_pf_norm"
+        fi
+        # On failure: keep the default; the error was recorded and VALID is 0.
+    done
+    return 0
+}
+
+guard_uci_overlay_read_raw() {
+    guard_uci_overlay_load
+}
+
+guard_uci_overlay_validate() {
+    if [ "$_GUARD_UCI_OVERLAY_LOADED" != 1 ]; then
+        guard_uci_overlay_load
+    fi
+    [ "$_GUARD_UCI_OVERLAY_VALID" = 1 ]
+}
+
+guard_uci_overlay_valid() {
+    printf '%s' "$_GUARD_UCI_OVERLAY_VALID"
+}
+
+# 1 when the local UCI store was read successfully this session (or the package
+# is legitimately absent); 0 when uci is missing or the package read failed.
+guard_uci_overlay_available() {
+    printf '%s' "$_GUARD_UCI_OVERLAY_UCI_AVAILABLE"
+}
+
+guard_uci_overlay_errors() {
+    printf '%s\n' "$_GUARD_UCI_OVERLAY_ERRORS"
+}
+
+guard_uci_overlay_unknown_options() {
+    printf '%s\n' "$_GUARD_UCI_OVERLAY_UNKNOWN"
+}
+
+guard_uci_overlay_get() {
+    _guard_uci_og_var=$(_guard_uci_overlay_var_name "$1")
+    eval "printf '%s' \"\${$_guard_uci_og_var:-}\""
+}
+
+guard_uci_overlay_get_raw() {
+    _guard_uci_ogr_var=$(_guard_uci_overlay_var_name "$1")
+    eval "printf '%s' \"\${${_guard_uci_ogr_var}_RAW:-}\""
+}
+
+# JSON-escape and quote a scalar. No secret values are ever passed in reasons.
+_guard_uci_overlay_json_q() {
+    _guard_uci_jq=$1
+    _guard_uci_jq_out=
+    _guard_uci_jq_i=1
+    _guard_uci_jq_len=${#_guard_uci_jq}
+    while [ "$_guard_uci_jq_i" -le "$_guard_uci_jq_len" ]
+    do
+        _guard_uci_jq_c=$(printf '%s' "$_guard_uci_jq" | cut -c "$_guard_uci_jq_i")
+        case $_guard_uci_jq_c in
+            '"') _guard_uci_jq_out="$_guard_uci_jq_out\\\"" ;;
+            '\') _guard_uci_jq_out="$_guard_uci_jq_out\\\\" ;;
+            *) _guard_uci_jq_out="$_guard_uci_jq_out$_guard_uci_jq_c" ;;
+        esac
+        _guard_uci_jq_i=$((_guard_uci_jq_i + 1))
+    done
+    printf '"%s"' "$_guard_uci_jq_out"
+}
+
+_guard_uci_overlay_json_errors() {
+    printf '['
+    _guard_uci_je_first=1
+    _guard_uci_je_oldifs=$IFS
+    IFS='
+'
+    for _guard_uci_je_line in $_GUARD_UCI_OVERLAY_ERRORS
+    do
+        IFS=$_guard_uci_je_oldifs
+        [ -n "$_guard_uci_je_line" ] || continue
+        _guard_uci_je_path=${_guard_uci_je_line%%|*}
+        _guard_uci_je_reason=${_guard_uci_je_line#*|}
+        [ "$_guard_uci_je_first" = 1 ] || printf ','
+        _guard_uci_je_first=0
+        printf '{"option":%s,"reason":%s}' \
+            "$(_guard_uci_overlay_json_q "$_guard_uci_je_path")" \
+            "$(_guard_uci_overlay_json_q "$_guard_uci_je_reason")"
+        IFS='
+'
+    done
+    IFS=$_guard_uci_je_oldifs
+    printf ']'
+}
+
+_guard_uci_overlay_json_unknown() {
+    printf '['
+    _guard_uci_ju_first=1
+    _guard_uci_ju_oldifs=$IFS
+    IFS='
+'
+    for _guard_uci_ju_line in $_GUARD_UCI_OVERLAY_UNKNOWN
+    do
+        IFS=$_guard_uci_ju_oldifs
+        [ -n "$_guard_uci_ju_line" ] || continue
+        [ "$_guard_uci_ju_first" = 1 ] || printf ','
+        _guard_uci_ju_first=0
+        printf '{"option":%s}' "$(_guard_uci_overlay_json_q "$_guard_uci_ju_line")"
+        IFS='
+'
+    done
+    IFS=$_guard_uci_ju_oldifs
+    printf ']'
+}
+
+# Diagnostics JSON (redacted), per #124. No secret values.
+# {"uciOverlay":{"available":bool,"valid":bool,"errors":[...],"unknownOptions":[...]}}
+guard_uci_overlay_json() {
+    if [ "$_GUARD_UCI_OVERLAY_LOADED" != 1 ]; then
+        guard_uci_overlay_load || true
+    fi
+    printf '{"uciOverlay":{"available":%s,"valid":%s,"errors":%s,"unknownOptions":%s}}' \
+        "$([ "$_GUARD_UCI_OVERLAY_UCI_AVAILABLE" = 1 ] && printf true || printf false)" \
+        "$([ "$_GUARD_UCI_OVERLAY_VALID" = 1 ] && printf true || printf false)" \
+        "$(_guard_uci_overlay_json_errors)" \
+        "$(_guard_uci_overlay_json_unknown)"
+}
+# END MODULE: guard-uci-overlay
+
+# BEGIN MODULE: guard-environment
+# Read-only normalized environment model for openclash-guard.
+# Prefix: guard_env_
+set -eu
+
+_GUARD_OC_INSTALLED=0
+_GUARD_OC_ENABLED=0
+_GUARD_OC_RUNNING=0
+_GUARD_OC_HEALTHY=0
+_GUARD_DNS_BACKEND=none
+_GUARD_DNS_MSQ_ENABLED=0
+_GUARD_DNS_MSQ_RUNNING=0
+_GUARD_DNS_AGH_ENABLED=0
+_GUARD_DNS_AGH_RUNNING=0
+_GUARD_DNS_DOMAIN_SET=unavailable
+_GUARD_DNS_BYPASS_AVAILABLE=0
+_GUARD_DNS_BYPASS_DETECTED=0
+_GUARD_DNS_BYPASS_RULES=0
+_GUARD_DNS_BYPASS_PORT53_RULES=0
+_GUARD_DNS_BYPASS_DOT853_RULES=0
+_GUARD_DNS_HIJACK_BYPASS_RULES=0
+_GUARD_DNS_BYPASS_UNKNOWN_SOURCE_RULES=0
+_GUARD_DNS_BYPASS_UNKNOWN_DPORT_RULES=0
+_GUARD_DNS_BYPASS_CLIENTS=
+_GUARD_DNS_BYPASS_CLIENT_COUNT=0
+_GUARD_DNS_BYPASS_PORT53=0
+_GUARD_DNS_BYPASS_DOT853=0
+_GUARD_DNS_HIJACK_BYPASS=0
+_GUARD_NET_IPV6=0
+_GUARD_NET_DIRECT_REGION=
+_GUARD_PROXY_HEALTHY=0
+_GUARD_PROXY_REGION=
+_GUARD_GAME_CLIENTS=0
+_GUARD_GAME_CLIENT_ITEMS=
+_GUARD_GAME_BLANKET=0
+_GUARD_NFT_AVAILABLE=0
+_GUARD_DEPENDENCY_FAILURE=0
+
+_guard_env_dependency_failed() {
+    _guard_ed_service=${GUARD_SERVICE_ID:-}
+    _guard_ed_file=${GUARD_DEPENDENCY_STATUS_FILE:-}
+    [ -n "$_guard_ed_service" ] && [ -f "$_guard_ed_file" ] || return 1
+    _guard_ed_deps=$(json_keys "$_guard_ed_file" "services.$_guard_ed_service.dependencies" 2>/dev/null) || return 1
+    for _guard_ed_dep in $_guard_ed_deps
+    do
+        _guard_ed_required=$(json_get "$_guard_ed_file" "services.$_guard_ed_service.dependencies.$_guard_ed_dep.required" 2>/dev/null) || _guard_ed_required=true
+        [ "$_guard_ed_required" = true ] || continue
+        _guard_ed_healthy=$(json_get "$_guard_ed_file" "services.$_guard_ed_service.dependencies.$_guard_ed_dep.healthy" 2>/dev/null) || _guard_ed_healthy=unknown
+        _guard_ed_compatible=$(json_get "$_guard_ed_file" "services.$_guard_ed_service.dependencies.$_guard_ed_dep.routeCompatible" 2>/dev/null) || _guard_ed_compatible=true
+        if [ "$_guard_ed_healthy" = false ] || [ "$_guard_ed_compatible" = false ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+_guard_env_json_bool() {
+    if [ "$1" = 1 ]; then
+        printf 'true'
+    else
+        printf 'false'
+    fi
+}
+
+_guard_env_json_string() {
+    printf '%s' "$1" | awk '
+        BEGIN { ORS = "" }
+        {
+            gsub(/\\/, "\\\\")
+            gsub(/"/, "\\\"")
+            gsub(/\t/, "\\t")
+            print
+        }
+    '
+}
+
+_guard_env_oc_probe_healthy() {
+    case ${GUARD_OPENCLASH_HEALTHY:-} in
+        1|true|TRUE|yes|YES|on|ON)
+            return 0
+            ;;
+        0|false|FALSE|no|NO|off|OFF)
+            return 1
+            ;;
+    esac
+    _guard_env_pidf=${GUARD_OPENCLASH_PID_FILE:-/tmp/etc/openclash/clash.pid}
+    if [ -f "$_guard_env_pidf" ]; then
+        _guard_env_pid=$(cat "$_guard_env_pidf" 2>/dev/null) || _guard_env_pid=
+        case $_guard_env_pid in
+            ''|*[!0-9]*)
+                ;;
+            *)
+                if kill -0 "$_guard_env_pid" 2>/dev/null; then
+                    return 0
+                fi
+                ;;
+        esac
+    fi
+    for _guard_env_if in ${GUARD_OPENCLASH_TUN_IFACES:-utun Meta tun0 utun0}
+    do
+        if [ -e "/sys/class/net/$_guard_env_if" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+_guard_env_ipv6() {
+    case ${GUARD_IPV6:-} in
+        1|true|TRUE|yes|YES|on|ON)
+            printf '1\n'
+            return 0
+            ;;
+        0|false|FALSE|no|NO|off|OFF)
+            printf '0\n'
+            return 0
+            ;;
+    esac
+    if [ -s /proc/net/if_inet6 ]; then
+        printf '1\n'
+        return 0
+    fi
+    printf '0\n'
+}
+
+_guard_env_proxy_healthy() {
+    case ${GUARD_PROXY_HEALTHY:-} in
+        1|true|TRUE|yes|YES|on|ON)
+            printf '1\n'
+            return 0
+            ;;
+        0|false|FALSE|no|NO|off|OFF)
+            printf '0\n'
+            return 0
+            ;;
+    esac
+    if [ "$_GUARD_OC_HEALTHY" = 1 ]; then
+        printf '1\n'
+    else
+        printf '0\n'
+    fi
+}
+
+_guard_env_load_clients() {
+    _GUARD_GAME_CLIENTS=0
+    _GUARD_GAME_CLIENT_ITEMS=
+    # Preserve a redacted intent count for status and template suggestions.
+    # The actual client addresses stay out of diagnostics and never establish
+    # an effective routing set while udp.src_ip remains deferred.
+    if command -v guard_uci_overlay_get >/dev/null 2>&1; then
+        _guard_env_items=$(guard_uci_overlay_get udp.src_ip) || _guard_env_items=
+        for _guard_env_item in $_guard_env_items
+        do
+            [ -n "$_guard_env_item" ] || continue
+            _GUARD_GAME_CLIENTS=$((_GUARD_GAME_CLIENTS + 1))
+        done
+    fi
+}
+
+_guard_env_json_list() {
+    _guard_env_jl_items=${1:-}
+    printf '['
+    _guard_env_jl_first=1
+    for _guard_env_jl_item in $_guard_env_jl_items
+    do
+        [ -n "$_guard_env_jl_item" ] || continue
+        if [ "$_guard_env_jl_first" = 1 ]; then
+            _guard_env_jl_first=0
+        else
+            printf ','
+        fi
+        printf '"%s"' "$(_guard_env_json_string "$_guard_env_jl_item")"
+    done
+    printf ']'
+}
+
+_guard_env_json_items() {
+    _guard_env_json_list "$_GUARD_GAME_CLIENT_ITEMS"
+}
+
+guard_env_detect() {
+    _GUARD_OC_INSTALLED=0
+    _GUARD_OC_ENABLED=0
+    _GUARD_OC_RUNNING=0
+    _GUARD_OC_HEALTHY=0
+    if svc_exists openclash; then
+        _GUARD_OC_INSTALLED=1
+        if svc_enabled openclash; then
+            _GUARD_OC_ENABLED=1
+        fi
+        if svc_running openclash; then
+            _GUARD_OC_RUNNING=1
+        fi
+    fi
+    if [ "$_GUARD_OC_RUNNING" = 1 ] && _guard_env_oc_probe_healthy; then
+        _GUARD_OC_HEALTHY=1
+    fi
+    guard_dns_detect
+    _GUARD_NET_IPV6=$(_guard_env_ipv6)
+    if [ -n "${GUARD_DIRECT_REGION:-}" ]; then
+        _GUARD_NET_DIRECT_REGION=$GUARD_DIRECT_REGION
+    else
+        _GUARD_NET_DIRECT_REGION=$(guard_geo_cached_country direct 2>/dev/null) || _GUARD_NET_DIRECT_REGION=
+    fi
+    _GUARD_PROXY_HEALTHY=$(_guard_env_proxy_healthy)
+    if [ -n "${GUARD_PROXY_REGION:-}" ]; then
+        _GUARD_PROXY_REGION=$GUARD_PROXY_REGION
+    elif [ -n "${GUARD_GEO_ROUTE:-}" ]; then
+        _GUARD_PROXY_REGION=$(guard_geo_cached_country route "$GUARD_GEO_ROUTE" 2>/dev/null) || _GUARD_PROXY_REGION=
+    else
+        _GUARD_PROXY_REGION=
+    fi
+    _guard_env_load_clients
+    # udp.blanket_udp_bypass is absent from the canonical UCI contract and
+    # remains inert. The environment override is retained for diagnostic
+    # fixtures; it does not grant a firewall bypass.
+    _GUARD_GAME_BLANKET=0
+    case ${GUARD_GAMING_BLANKET:-} in
+        1|true|TRUE|yes|YES|on|ON)
+            _GUARD_GAME_BLANKET=1
+            ;;
+        0|false|FALSE|no|NO|off|OFF)
+            _GUARD_GAME_BLANKET=0
+            ;;
+    esac
+    _GUARD_NFT_AVAILABLE=0
+    if command -v nft >/dev/null 2>&1; then
+        _GUARD_NFT_AVAILABLE=1
+    fi
+    case ${GUARD_DEPENDENCY_FAILED:-} in
+        1|true|TRUE|yes|YES|on|ON) _GUARD_DEPENDENCY_FAILURE=1 ;;
+        *) _GUARD_DEPENDENCY_FAILURE=0 ;;
+    esac
+    if _guard_env_dependency_failed; then
+        _GUARD_DEPENDENCY_FAILURE=1
+    fi
+}
+
+guard_env_get() {
+    case ${1:-} in
+        openclash.installed) printf '%s\n' "$_GUARD_OC_INSTALLED" ;;
+        openclash.enabled) printf '%s\n' "$_GUARD_OC_ENABLED" ;;
+        openclash.running) printf '%s\n' "$_GUARD_OC_RUNNING" ;;
+        openclash.healthy) printf '%s\n' "$_GUARD_OC_HEALTHY" ;;
+        dns.backend) printf '%s\n' "$_GUARD_DNS_BACKEND" ;;
+        dns.dnsmasqEnabled) printf '%s\n' "$_GUARD_DNS_MSQ_ENABLED" ;;
+        dns.dnsmasqRunning) printf '%s\n' "$_GUARD_DNS_MSQ_RUNNING" ;;
+        dns.adguardhomeEnabled) printf '%s\n' "$_GUARD_DNS_AGH_ENABLED" ;;
+        dns.adguardhomeRunning) printf '%s\n' "$_GUARD_DNS_AGH_RUNNING" ;;
+        dns.domainSetBackend) printf '%s\n' "$_GUARD_DNS_DOMAIN_SET" ;;
+        dns.clientBypass.available) printf '%s\n' "$_GUARD_DNS_BYPASS_AVAILABLE" ;;
+        dns.clientBypass.scanAvailable) printf '%s\n' "$_GUARD_DNS_BYPASS_AVAILABLE" ;;
+        dns.clientBypass.detected) printf '%s\n' "$_GUARD_DNS_BYPASS_DETECTED" ;;
+        dns.clientBypass.rules) printf '%s\n' "$_GUARD_DNS_BYPASS_RULES" ;;
+        dns.clientBypass.port53Rules) printf '%s\n' "$_GUARD_DNS_BYPASS_PORT53_RULES" ;;
+        dns.clientBypass.dot853Rules) printf '%s\n' "$_GUARD_DNS_BYPASS_DOT853_RULES" ;;
+        dns.clientBypass.hijackBypassRules) printf '%s\n' "$_GUARD_DNS_HIJACK_BYPASS_RULES" ;;
+        dns.clientBypass.unknownSourceRules) printf '%s\n' "$_GUARD_DNS_BYPASS_UNKNOWN_SOURCE_RULES" ;;
+        dns.clientBypass.unknownDportRules) printf '%s\n' "$_GUARD_DNS_BYPASS_UNKNOWN_DPORT_RULES" ;;
+        dns.clientBypass.count) printf '%s\n' "$_GUARD_DNS_BYPASS_CLIENT_COUNT" ;;
+        dns.clientBypass.clients.count) printf '%s\n' "$_GUARD_DNS_BYPASS_CLIENT_COUNT" ;;
+        dns.clientBypass.clients) printf '%s\n' "$_GUARD_DNS_BYPASS_CLIENTS" ;;
+        dns.clientBypass.clients.items) printf '%s\n' "$_GUARD_DNS_BYPASS_CLIENTS" ;;
+        dns.clientBypass.port53) printf '%s\n' "$_GUARD_DNS_BYPASS_PORT53" ;;
+        dns.clientBypass.dot853) printf '%s\n' "$_GUARD_DNS_BYPASS_DOT853" ;;
+        dns.clientBypass.hijack53) printf '%s\n' "$_GUARD_DNS_HIJACK_BYPASS" ;;
+        network.ipv6) printf '%s\n' "$_GUARD_NET_IPV6" ;;
+        network.directRegion) printf '%s\n' "$_GUARD_NET_DIRECT_REGION" ;;
+        network.directRegionReason) printf '%s\n' "${_GUARD_PREFLIGHT_DIRECT_REASON:-}" ;;
+        proxy.healthy) printf '%s\n' "$_GUARD_PROXY_HEALTHY" ;;
+        proxy.region) printf '%s\n' "$_GUARD_PROXY_REGION" ;;
+        proxy.regionReason) printf '%s\n' "${_GUARD_PREFLIGHT_PROXY_REASON:-}" ;;
+        proxy.route) printf '%s\n' "${_GUARD_GEO_ROUTE:-}" ;;
+        gaming.clients.count) printf '%s\n' "$_GUARD_GAME_CLIENTS" ;;
+        gaming.clients.items) printf '%s\n' "$_GUARD_GAME_CLIENT_ITEMS" ;;
+        gaming.blanketUdpBypassDetected) printf '%s\n' "$_GUARD_GAME_BLANKET" ;;
+        nft.available) printf '%s\n' "$_GUARD_NFT_AVAILABLE" ;;
+        dependency.requiredFailure) printf '%s\n' "$_GUARD_DEPENDENCY_FAILURE" ;;
+        *)
+            printf '%s\n' "guard_env_get: unknown key: ${1:-}" >&2
+            return 2
+            ;;
+    esac
+}
+
+guard_env_json() {
+    printf '{'
+    printf '"dependency":{"requiredFailure":%s},' \
+        "$(_guard_env_json_bool "$_GUARD_DEPENDENCY_FAILURE")"
+    printf '"openclash":{"installed":%s,"enabled":%s,"running":%s,"healthy":%s},' \
+        "$(_guard_env_json_bool "$_GUARD_OC_INSTALLED")" \
+        "$(_guard_env_json_bool "$_GUARD_OC_ENABLED")" \
+        "$(_guard_env_json_bool "$_GUARD_OC_RUNNING")" \
+        "$(_guard_env_json_bool "$_GUARD_OC_HEALTHY")"
+    printf '"dns":{"backend":"%s","dnsmasqEnabled":%s,"dnsmasqRunning":%s,"adguardhomeEnabled":%s,"adguardhomeRunning":%s,"domainSetBackend":"%s","clientBypass":{"available":%s,"count":%s,"clients":%s,"port53":%s,"dot853":%s,"hijack53":%s}},' \
+        "$(_guard_env_json_string "$_GUARD_DNS_BACKEND")" \
+        "$(_guard_env_json_bool "$_GUARD_DNS_MSQ_ENABLED")" \
+        "$(_guard_env_json_bool "$_GUARD_DNS_MSQ_RUNNING")" \
+        "$(_guard_env_json_bool "$_GUARD_DNS_AGH_ENABLED")" \
+        "$(_guard_env_json_bool "$_GUARD_DNS_AGH_RUNNING")" \
+        "$(_guard_env_json_string "$_GUARD_DNS_DOMAIN_SET")" \
+        "$(_guard_env_json_bool "$_GUARD_DNS_BYPASS_AVAILABLE")" \
+        "$_GUARD_DNS_BYPASS_CLIENT_COUNT" \
+        "$(_guard_env_json_list "$_GUARD_DNS_BYPASS_CLIENTS")" \
+        "$(_guard_env_json_bool "$_GUARD_DNS_BYPASS_PORT53")" \
+        "$(_guard_env_json_bool "$_GUARD_DNS_BYPASS_DOT853")" \
+        "$(_guard_env_json_bool "$_GUARD_DNS_HIJACK_BYPASS")"
+    printf '"network":{"ipv6":%s,"directRegion":"%s","directRegionReason":"%s"},' \
+        "$(_guard_env_json_bool "$_GUARD_NET_IPV6")" \
+        "$(_guard_env_json_string "$_GUARD_NET_DIRECT_REGION")" \
+        "$(_guard_env_json_string "${_GUARD_PREFLIGHT_DIRECT_REASON:-}")"
+    printf '"proxy":{"healthy":%s,"region":"%s","regionReason":"%s","route":"%s"},' \
+        "$(_guard_env_json_bool "$_GUARD_PROXY_HEALTHY")" \
+        "$(_guard_env_json_string "$_GUARD_PROXY_REGION")" \
+        "$(_guard_env_json_string "${_GUARD_PREFLIGHT_PROXY_REASON:-}")" \
+        "$(_guard_env_json_string "${_GUARD_GEO_ROUTE:-}")"
+    printf '"gaming":{"clients":{"count":%s,"items":%s},"blanketUdpBypassDetected":%s},' \
+        "$_GUARD_GAME_CLIENTS" \
+        "$(_guard_env_json_items)" \
+        "$(_guard_env_json_bool "$_GUARD_GAME_BLANKET")"
+    printf '"nft":{"available":%s}' "$(_guard_env_json_bool "$_GUARD_NFT_AVAILABLE")"
+    printf '}\n'
+}
+# END MODULE: guard-environment
+
+# BEGIN MODULE: guard-killswitch
+# Persistent inet table independent of disposable OpenClash/fw4 chains.
+# Prefix: guard_kill_
+set -eu
+
+_GUARD_UCI_ENABLED=1
+_GUARD_UCI_MODE=auto
+_GUARD_UCI_KILL_SWITCH=1
+_GUARD_UCI_DNS_KILL_SWITCH=0
+_GUARD_NFT_TABLE_EXISTS=0
+
+_guard_kill_comment() {
+    printf '%s:%s' "$_GUARD_NFT_PREFIX" "$1"
+}
+guard_kill_read_uci() {
+    _GUARD_UCI_ENABLED=1
+    _GUARD_UCI_MODE=auto
+    _GUARD_UCI_KILL_SWITCH=1
+    _GUARD_UCI_DNS_KILL_SWITCH=0
+    if command -v guard_uci_overlay_ensure_loaded >/dev/null 2>&1; then
+        guard_uci_overlay_ensure_loaded || return $?
+        _GUARD_UCI_ENABLED=$(guard_uci_overlay_get main.enabled)
+        _GUARD_UCI_KILL_SWITCH=$(guard_uci_overlay_get main.kill_switch)
+        _GUARD_UCI_DNS_KILL_SWITCH=$(guard_uci_overlay_get main.dns_kill_switch)
+    fi
+}
+
+_guard_kill_csv_set() {
+    _guard_ks_out=
+    _guard_ks_first=1
+    for _guard_ks_item in "$@"
+    do
+        [ -n "$_guard_ks_item" ] || continue
+        if [ "$_guard_ks_first" = 1 ]; then
+            _guard_ks_out=$_guard_ks_item
+            _guard_ks_first=0
+        else
+            _guard_ks_out="$_guard_ks_out, $_guard_ks_item"
+        fi
+    done
+    printf '%s' "$_guard_ks_out"
+}
+
+_guard_kill_add_set() {
+    _guard_as_name=$1
+    _guard_as_type=$2
+    _guard_as_tag=$3
+    _guard_as_flags=${4:-}
+    _guard_as_extra=
+    if [ -n "$_guard_as_flags" ]; then
+        _guard_as_extra=" flags $_guard_as_flags;"
+    fi
+    printf 'add set %s %s %s { type %s;%s comment "%s"; }\n' \
+        "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE" "$_guard_as_name" "$_guard_as_type" \
+        "$_guard_as_extra" "$(_guard_kill_comment "$_guard_as_tag")"
+}
+
+_guard_kill_add_elements() {
+    _guard_ae_name=$1
+    shift
+    _guard_ae_csv=$(_guard_kill_csv_set "$@")
+    if [ -z "$_guard_ae_csv" ]; then
+        return 0
+    fi
+    printf 'add element %s %s %s { %s }\n' \
+        "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE" "$_guard_ae_name" "$_guard_ae_csv"
+}
+
+_guard_kill_add_rule() {
+    printf 'add rule %s %s %s %s comment "%s"\n' \
+        "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE" "$1" "$2" "$(_guard_kill_comment "$3")"
+}
+
+guard_kill_delete_table() {
+    if [ "$_GUARD_NFT_AVAILABLE" != 1 ]; then
+        return 0
+    fi
+    # The OpenClash dataplane exemption and the Guard allow are one policy.
+    # Remove Guard-owned pre-TUN state first so disabling/removing Guard cannot
+    # leave a stale direct-routing bypass behind.
+    if command -v guard_dataplane_remove >/dev/null 2>&1; then
+        guard_dataplane_remove || return $?
+    fi
+    if nft_table_exists "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE"; then
+        nft delete table "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE"
+    fi
+}
+
+_guard_kill_render_resolver_sync_sets() {
+    [ "${_GUARD_DNS_BACKEND:-}" = adguardhome ] || return 0
+    printf 'add set %s %s %s { type ipv4_addr; flags timeout; comment "%s"; }\n' \
+        "$_GUARD_RESOLVER_SYNC_FAMILY" "$_GUARD_RESOLVER_SYNC_TABLE" "$_GUARD_RESOLVER_SYNC_V4_SET" \
+        "$_GUARD_RESOLVER_SYNC_V4_SET_COMMENT"
+    printf 'add set %s %s %s { type ipv6_addr; flags timeout; comment "%s"; }\n' \
+        "$_GUARD_RESOLVER_SYNC_FAMILY" "$_GUARD_RESOLVER_SYNC_TABLE" "$_GUARD_RESOLVER_SYNC_V6_SET" \
+        "$_GUARD_RESOLVER_SYNC_V6_SET_COMMENT"
+}
+
+_guard_kill_render_resolver_sync_cache() {
+    [ "${_GUARD_DNS_BACKEND:-}" = adguardhome ] || return 0
+    _guard_krc_cache=$(_guard_resolver_sync_cache_path)
+    _guard_krc_state=$(_guard_resolver_sync_state_path)
+    # Never replay cache bytes from an older selector inventory.  A state file
+    # from the current bundle binds the cache to the embedded source revision.
+    [ -f "$_guard_krc_state" ] && [ ! -L "$_guard_krc_state" ] || return 0
+    _guard_krc_revision=$(json_get "$_guard_krc_state" sourceRevision 2>/dev/null) || return 0
+    [ "$_guard_krc_revision" = "${_GUARD_RESOLVER_SYNC_DATA_SOURCE_REVISION:-}" ] || return 0
+    [ -f "$_guard_krc_cache" ] || return 0
+    [ ! -L "$_guard_krc_cache" ] || return 1
+    _guard_krc_now=${GUARD_RESOLVER_SYNC_NOW_EPOCH:-$(date +%s 2>/dev/null)}
+    _guard_resolver_sync_uint "$_guard_krc_now" || return 1
+    _guard_krc_max=$(_guard_resolver_sync_max_ttl) || return 1
+    while IFS=' ' read -r _guard_krc_family _guard_krc_ip _guard_krc_expiry _guard_krc_extra; do
+        [ -z "${_guard_krc_extra:-}" ] || return 1
+        [ -n "${_guard_krc_family:-}" ] || continue
+        _guard_resolver_sync_uint "$_guard_krc_expiry" || return 1
+        [ "$_guard_krc_expiry" -gt "$_guard_krc_now" ] 2>/dev/null || continue
+        _guard_krc_timeout=$((_guard_krc_expiry - _guard_krc_now))
+        [ "$_guard_krc_timeout" -le "$_guard_krc_max" ] 2>/dev/null || return 1
+        case $_guard_krc_family in
+            4)
+                _guard_resolver_sync_valid_ipv4 "$_guard_krc_ip" || return 1
+                _guard_krc_set=$_GUARD_RESOLVER_SYNC_V4_SET
+                ;;
+            6)
+                _guard_resolver_sync_valid_ipv6 "$_guard_krc_ip" || return 1
+                _guard_krc_set=$_GUARD_RESOLVER_SYNC_V6_SET
+                ;;
+            *) return 1 ;;
+        esac
+        printf 'add element %s %s %s { %s timeout %ss }\n' \
+            "$_GUARD_RESOLVER_SYNC_FAMILY" "$_GUARD_RESOLVER_SYNC_TABLE" "$_guard_krc_set" \
+            "$_guard_krc_ip" "$_guard_krc_timeout"
+    done < "$_guard_krc_cache"
+}
+
+_guard_kill_render_resolver_sync_rules() {
+    [ "${_GUARD_DNS_BACKEND:-}" = adguardhome ] || return 0
+    _guard_krrs_iface=$(_guard_resolver_sync_direct_iface 2>/dev/null) || return 0
+    printf 'add rule %s %s %s oifname "%s" ip daddr @%s reject comment "%s"\n' \
+        "$_GUARD_RESOLVER_SYNC_FAMILY" "$_GUARD_RESOLVER_SYNC_TABLE" "$_GUARD_RESOLVER_SYNC_CHAIN" \
+        "$_guard_krrs_iface" "$_GUARD_RESOLVER_SYNC_V4_SET" "$_GUARD_RESOLVER_SYNC_V4_RULE_COMMENT"
+    printf 'add rule %s %s %s oifname "%s" ip6 daddr @%s reject comment "%s"\n' \
+        "$_GUARD_RESOLVER_SYNC_FAMILY" "$_GUARD_RESOLVER_SYNC_TABLE" "$_GUARD_RESOLVER_SYNC_CHAIN" \
+        "$_guard_krrs_iface" "$_GUARD_RESOLVER_SYNC_V6_SET" "$_GUARD_RESOLVER_SYNC_V6_RULE_COMMENT"
+}
+
+# Base order: resolver-derived direct-path denies, then local accepts and
+# protected-port rejects. Scoped direct exceptions are appended by their
+# feature modules before guard_kill_render_final() emits the OpenClash tunnel
+# capability and, only for an infrastructure-wide failure, the global
+# fail-closed rule.
+guard_kill_render() {
+    if [ "${_GUARD_NFT_TABLE_EXISTS:-0}" = 1 ]; then
+        printf 'flush table %s %s\n' "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE"
+    else
+        printf 'add table %s %s\n' "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE"
+    fi
+    _guard_kill_add_set lan_rfc1918 ipv4_addr lan interval
+    _guard_kill_add_elements lan_rfc1918 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
+    _guard_kill_add_set protected_udp inet_service protected-udp
+    _guard_ku_ports=$(json_list "$_GUARD_POLICY_FILE" gaming.protectedUdpPorts 2>/dev/null) || _guard_ku_ports=
+    _guard_ku_has443=0
+    for _guard_ku_port in $_guard_ku_ports
+    do
+        if [ "$_guard_ku_port" = 443 ]; then
+            _guard_ku_has443=1
+            break
+        fi
+    done
+    if [ "$_guard_ku_has443" != 1 ]; then
+        _guard_ku_ports="$_guard_ku_ports 443"
+    fi
+    # shellcheck disable=SC2086
+    _guard_kill_add_elements protected_udp $_guard_ku_ports
+    _guard_kill_render_resolver_sync_sets || return $?
+    _guard_kill_render_resolver_sync_cache || return $?
+
+    printf 'add chain %s %s input { type filter hook input priority -150; policy accept; }\n' \
+        "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE"
+    printf 'add chain %s %s forward { type filter hook forward priority -150; policy accept; }\n' \
+        "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE"
+
+    _guard_kill_add_rule input 'ct state established,related accept' est-in
+    if [ "$_GUARD_UCI_DNS_KILL_SWITCH" = 1 ]; then
+        _guard_kill_add_rule input 'iifname != "lo" udp dport 53 reject' dns-ks
+        _guard_kill_add_rule input 'iifname != "lo" tcp dport 53 reject' dns-ks-tcp
+    fi
+
+    # Put resolver-derived direct-WAN rejects before the established-flow accept.
+    # If an already-open direct connection becomes a protected destination after
+    # a DNS observation, it must not bypass the resolver-sync kill switch merely
+    # because conntrack already considers the flow established.
+    _guard_kill_render_resolver_sync_rules || return $?
+    _guard_kill_add_rule forward 'ct state established,related accept' est
+    _guard_kill_add_rule forward 'iifname "lo" accept' lo
+    _guard_kill_add_rule forward 'udp dport { 67, 68 } accept' dhcp
+    _guard_kill_add_rule forward 'ip daddr @lan_rfc1918 accept' lan-dst
+    _guard_kill_add_rule forward 'udp dport @protected_udp reject' protected-udp
+}
+
+_guard_kill_valid_iface() {
+    case ${1:-} in
+        ''|*[!A-Za-z0-9_.:@-]*) return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
+# Discover the generic OpenClash UDP routing mark from the current mangle chain
+# instead of pinning a version-specific value. Scoped rules are deliberately
+# excluded. Multiple distinct generic marks are ambiguous and therefore fail
+# closed. nft may render the same mark compactly (0x162) or padded
+# (0x00000162), so normalize equivalent spellings before deciding uniqueness.
+_guard_kill_openclash_tunnel_mark() {
+    _guard_ktm_family=${GUARD_OPENCLASH_NFT_FAMILY:-inet}
+    _guard_ktm_table=${GUARD_OPENCLASH_NFT_TABLE:-fw4}
+    _guard_ktm_chain=${GUARD_OPENCLASH_MANGLE_CHAIN:-openclash_mangle}
+    _guard_ktm_listing=$(nft -a list chain "$_guard_ktm_family" "$_guard_ktm_table" "$_guard_ktm_chain" 2>/dev/null) || return 1
+    printf '%s\n' "$_guard_ktm_listing" | awk '
+        function normalize_mark(raw, hex) {
+            hex = tolower(raw)
+            sub(/^0x/, "", hex)
+            if (hex !~ /^[0-9a-f]+$/ || length(hex) > 8) {
+                return ""
+            }
+            sub(/^0+/, "", hex)
+            if (hex == "") {
+                hex = "0"
+            }
+            return "0x" hex
+        }
+        ($0 ~ /ip protocol udp/ || $0 ~ /meta l4proto udp/) &&
+        $0 ~ /meta mark set 0x[0-9A-Fa-f]+/ &&
+        $0 !~ /saddr|daddr|sport|dport|iifname|oifname/ {
+            if (match($0, /meta mark set 0x[0-9A-Fa-f]+/)) {
+                value = substr($0, RSTART, RLENGTH)
+                sub(/^meta mark set /, "", value)
+                value = normalize_mark(value)
+                if (value != "") {
+                    seen[value] = 1
+                }
+            }
+        }
+        END {
+            count = 0
+            result = ""
+            for (value in seen) {
+                count++
+                result = value
+            }
+            if (count == 1) {
+                print result
+            }
+        }
+    '
+}
+
+# Only emit allows for OpenClash TUN interface candidates that exist at the
+# current reconciliation point. A generic tun0 is intentionally not a default:
+# it is too easy for an unrelated VPN to own that name. Deployments that really
+# use tun0 can opt in explicitly through GUARD_OPENCLASH_TUN_IFACES.
+_guard_kill_openclash_tunnel_ifaces() {
+    command -v ip >/dev/null 2>&1 || return 1
+    _guard_kti_seen=' '
+    _guard_kti_found=0
+    for _guard_kti_iface in ${GUARD_OPENCLASH_TUN_IFACES:-utun Meta utun0}
+    do
+        _guard_kill_valid_iface "$_guard_kti_iface" || continue
+        case $_guard_kti_seen in
+            *" $_guard_kti_iface "*) continue ;;
+        esac
+        ip link show dev "$_guard_kti_iface" >/dev/null 2>&1 || continue
+        printf '%s\n' "$_guard_kti_iface"
+        _guard_kti_seen="$_guard_kti_seen$_guard_kti_iface "
+        _guard_kti_found=1
+    done
+    [ "$_guard_kti_found" = 1 ]
+}
+
+guard_kill_render_tunnel_egress() {
+    # If OpenClash is unhealthy or its current dataplane cannot be identified,
+    # preserve fail-closed behavior rather than broadening the allow to an
+    # interface-only exception.
+    [ "${_GUARD_OC_HEALTHY:-0}" = 1 ] || return 0
+    [ "${_GUARD_NFT_AVAILABLE:-0}" = 1 ] || return 0
+    _guard_kte_mark=$(_guard_kill_openclash_tunnel_mark) || return 0
+    [ -n "$_guard_kte_mark" ] || return 0
+    _guard_kte_ifaces=$(_guard_kill_openclash_tunnel_ifaces) || return 0
+    for _guard_kte_iface in $_guard_kte_ifaces
+    do
+        _guard_kill_add_rule forward \
+            "meta mark $_guard_kte_mark oifname \"$_guard_kte_iface\" accept" \
+            tunnel-egress
+    done
+}
+
+guard_kill_render_final() {
+    if [ "${_GUARD_POLICY_GLOBAL_FAILCLOSED:-0}" = 1 ]; then
+        guard_kill_render_tunnel_egress
+        _guard_kill_add_rule forward reject kill-switch
+    fi
+}
+
+guard_kill_apply_batch() {
+    _guard_ka_file=${1:-}
+    if [ -z "$_guard_ka_file" ] || [ ! -f "$_guard_ka_file" ]; then
+        printf '%s\n' "guard_kill_apply_batch: missing batch" >&2
+        return 2
+    fi
+    if [ "${GUARD_DRY_RUN:-0}" = 1 ]; then
+        cat "$_guard_ka_file"
+        return 0
+    fi
+    if [ "$_GUARD_NFT_AVAILABLE" != 1 ]; then
+        printf '%s\n' "guard_kill: nft not available" >&2
+        return 1
+    fi
+    nft_apply_batch "$_guard_ka_file"
+}
+# END MODULE: guard-killswitch
+
+# BEGIN MODULE: guard-dataplane
+# Guard-owned OpenClash gaming dataplane reconciliation.
+# Prefix: guard_dataplane_
+set -eu
+
+_GUARD_DATAPLANE_FAMILY=${GUARD_OPENCLASH_NFT_FAMILY:-inet}
+_GUARD_DATAPLANE_TABLE=${GUARD_OPENCLASH_NFT_TABLE:-fw4}
+_GUARD_DATAPLANE_TARGET_CHAIN=${GUARD_OPENCLASH_MANGLE_CHAIN:-openclash_mangle}
+_GUARD_DATAPLANE_CHAIN=${GUARD_DATAPLANE_CHAIN:-openclash_guard_gaming_direct}
+_GUARD_DATAPLANE_SET_PREFIX=${GUARD_DATAPLANE_SET_PREFIX:-openclash_guard_gaming_}
+_GUARD_DATAPLANE_COMMENT_PREFIX=${GUARD_DATAPLANE_COMMENT_PREFIX:-openclash-guard:gaming-direct}
+_GUARD_DATAPLANE_CAPABILITY_MARK=${GUARD_DATAPLANE_CAPABILITY_MARK:-0x40000000}
+_GUARD_DATAPLANE_READY=0
+_GUARD_DATAPLANE_TABLE_EXISTS=0
+_GUARD_DATAPLANE_TARGET_EXISTS=0
+_GUARD_DATAPLANE_CHAIN_EXISTS=0
+_GUARD_DATAPLANE_SRC_SET_EXISTS=0
+_GUARD_DATAPLANE_SPORT_SET_EXISTS=0
+_GUARD_DATAPLANE_DPORT_SET_EXISTS=0
+_GUARD_DATAPLANE_DST_SET_EXISTS=0
+_GUARD_DATAPLANE_PROTECTED_SET_EXISTS=0
+_GUARD_DATAPLANE_TARGET_HANDLE=
+_GUARD_DATAPLANE_OLD_JUMP_HANDLES=
+_GUARD_DATAPLANE_DIRECT_IFACE=
+_GUARD_DATAPLANE_SRCS=
+_GUARD_DATAPLANE_SOURCE_PORTS=
+_GUARD_DATAPLANE_DESTINATION_PORTS=
+_GUARD_DATAPLANE_DESTINATION_CIDRS=
+_GUARD_DATAPLANE_PROTECTED_PORTS=
+
+_guard_dataplane_src_set() { printf '%ssrc\n' "$_GUARD_DATAPLANE_SET_PREFIX"; }
+_guard_dataplane_sport_set() { printf '%ssport\n' "$_GUARD_DATAPLANE_SET_PREFIX"; }
+_guard_dataplane_dport_set() { printf '%sdport\n' "$_GUARD_DATAPLANE_SET_PREFIX"; }
+_guard_dataplane_dst_set() { printf '%sdst\n' "$_GUARD_DATAPLANE_SET_PREFIX"; }
+_guard_dataplane_protected_set() { printf '%sprotected\n' "$_GUARD_DATAPLANE_SET_PREFIX"; }
+
+guard_dataplane_capability_mark() {
+    case $_GUARD_DATAPLANE_CAPABILITY_MARK in
+        0x[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]) ;;
+        *) return 1 ;;
+    esac
+    [ "$_GUARD_DATAPLANE_CAPABILITY_MARK" != 0x00000000 ] || return 1
+    printf '%s\n' "$_GUARD_DATAPLANE_CAPABILITY_MARK"
+}
+
+_guard_dataplane_reset() {
+    _GUARD_DATAPLANE_READY=0
+    _GUARD_DATAPLANE_TABLE_EXISTS=0
+    _GUARD_DATAPLANE_TARGET_EXISTS=0
+    _GUARD_DATAPLANE_CHAIN_EXISTS=0
+    _GUARD_DATAPLANE_SRC_SET_EXISTS=0
+    _GUARD_DATAPLANE_SPORT_SET_EXISTS=0
+    _GUARD_DATAPLANE_DPORT_SET_EXISTS=0
+    _GUARD_DATAPLANE_DST_SET_EXISTS=0
+    _GUARD_DATAPLANE_PROTECTED_SET_EXISTS=0
+    _GUARD_DATAPLANE_TARGET_HANDLE=
+    _GUARD_DATAPLANE_OLD_JUMP_HANDLES=
+    _GUARD_DATAPLANE_DIRECT_IFACE=
+}
+
+_guard_dataplane_valid_iface() {
+    case ${1:-} in
+        ''|*[!A-Za-z0-9_.:@-]*) return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
+_guard_dataplane_iface_usable() {
+    _guard_dp_iu_iface=${1:-}
+    _guard_dataplane_valid_iface "$_guard_dp_iu_iface" || return 1
+    if command -v ip >/dev/null 2>&1; then
+        ip link show dev "$_guard_dp_iu_iface" >/dev/null 2>&1 || return 1
+    fi
+    return 0
+}
+
+guard_dataplane_resolve_direct_iface() {
+    _guard_dp_rd_iface=${GUARD_DIRECT_WAN_IFACE:-}
+    # openclash_guard.udp.direct_iface is not part of the runtime contract and
+    # remains ignored. Discover the interface from live network state instead.
+    if [ -z "$_guard_dp_rd_iface" ] && command -v ubus >/dev/null 2>&1 && command -v jsonfilter >/dev/null 2>&1; then
+        _guard_dp_rd_status=$(ubus call network.interface.wan status 2>/dev/null) || _guard_dp_rd_status=
+        if [ -n "$_guard_dp_rd_status" ]; then
+            _guard_dp_rd_iface=$(jsonfilter -s "$_guard_dp_rd_status" -e '@.l3_device' 2>/dev/null) || _guard_dp_rd_iface=
+        fi
+    fi
+    if [ -z "$_guard_dp_rd_iface" ] && command -v uci >/dev/null 2>&1; then
+        _guard_dp_rd_iface=$(uci -q get network.wan.device 2>/dev/null) || _guard_dp_rd_iface=
+        if [ -z "$_guard_dp_rd_iface" ]; then
+            _guard_dp_rd_iface=$(uci -q get network.wan.ifname 2>/dev/null) || _guard_dp_rd_iface=
+            set -- $_guard_dp_rd_iface
+            _guard_dp_rd_iface=${1:-}
+        fi
+    fi
+    if [ -z "$_guard_dp_rd_iface" ] && command -v ip >/dev/null 2>&1; then
+        _guard_dp_rd_iface=$(ip -4 route show default 2>/dev/null | awk '
+            $1 == "default" {
+                for (i = 1; i <= NF; i++) if ($i == "dev" && (i + 1) <= NF) { print $(i + 1); exit }
+            }
+        ') || _guard_dp_rd_iface=
+    fi
+    _guard_dataplane_iface_usable "$_guard_dp_rd_iface" || return 1
+    printf '%s\n' "$_guard_dp_rd_iface"
+}
+
+_guard_dataplane_handle_from_line() {
+    awk '
+        {
+            if (match($0, /# handle [0-9]+/)) {
+                value = substr($0, RSTART + 9)
+                gsub(/[^0-9].*/, "", value)
+                if (value != "") { print value; exit }
+            }
+        }
+    '
+}
+
+guard_dataplane_find_target_handle() {
+    _guard_dp_ft_listing=$(nft -a list chain "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$_GUARD_DATAPLANE_TARGET_CHAIN" 2>/dev/null) || return 1
+    _guard_dp_ft_anchor=${GUARD_OPENCLASH_UDP_ANCHOR:-jump openclash_upnp}
+    _guard_dp_ft_handle=$(printf '%s\n' "$_guard_dp_ft_listing" | awk -v anchor="$_guard_dp_ft_anchor" '
+        index($0, anchor) && ($0 ~ /ip protocol udp/ || $0 ~ /meta l4proto udp/) &&
+        $0 !~ /saddr|daddr|sport|dport|iifname|oifname/ {
+            if (match($0, /# handle [0-9]+/)) {
+                value = substr($0, RSTART + 9)
+                gsub(/[^0-9].*/, "", value)
+                if (value != "") { print value; exit }
+            }
+        }
+    ')
+    if [ -z "$_guard_dp_ft_handle" ]; then
+        _guard_dp_ft_handle=$(printf '%s\n' "$_guard_dp_ft_listing" | awk '
+            /meta l4proto udp/ && /meta mark set/ &&
+            $0 !~ /saddr|daddr|sport|dport|iifname|oifname/ {
+                if (match($0, /# handle [0-9]+/)) {
+                    value = substr($0, RSTART + 9)
+                    gsub(/[^0-9].*/, "", value)
+                    if (value != "") { print value; exit }
+                }
+            }
+        ')
+    fi
+    [ -n "$_guard_dp_ft_handle" ] || return 1
+    printf '%s\n' "$_guard_dp_ft_handle"
+}
+
+_guard_dataplane_capture_owned_state() {
+    [ "$_GUARD_DATAPLANE_TABLE_EXISTS" = 1 ] || return 0
+    if nft_chain_exists "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$_GUARD_DATAPLANE_TARGET_CHAIN"; then
+        _GUARD_DATAPLANE_TARGET_EXISTS=1
+        _GUARD_DATAPLANE_OLD_JUMP_HANDLES=$(nft_rule_handles_by_comment \
+            "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$_GUARD_DATAPLANE_TARGET_CHAIN" \
+            "$_GUARD_DATAPLANE_COMMENT_PREFIX" 2>/dev/null) || _GUARD_DATAPLANE_OLD_JUMP_HANDLES=
+    fi
+    if nft_chain_exists "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$_GUARD_DATAPLANE_CHAIN"; then
+        _GUARD_DATAPLANE_CHAIN_EXISTS=1
+    fi
+    if nft_set_exists "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_src_set)"; then
+        _GUARD_DATAPLANE_SRC_SET_EXISTS=1
+    fi
+    if nft_set_exists "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_sport_set)"; then
+        _GUARD_DATAPLANE_SPORT_SET_EXISTS=1
+    fi
+    if nft_set_exists "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_dport_set)"; then
+        _GUARD_DATAPLANE_DPORT_SET_EXISTS=1
+    fi
+    if nft_set_exists "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_dst_set)"; then
+        _GUARD_DATAPLANE_DST_SET_EXISTS=1
+    fi
+    if nft_set_exists "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_protected_set)"; then
+        _GUARD_DATAPLANE_PROTECTED_SET_EXISTS=1
+    fi
+}
+
+guard_dataplane_prepare() {
+    _guard_dataplane_reset
+    _GUARD_DATAPLANE_SRCS=${1:-}
+    _GUARD_DATAPLANE_SOURCE_PORTS=${2:-}
+    _GUARD_DATAPLANE_DESTINATION_PORTS=${3:-}
+    _GUARD_DATAPLANE_DESTINATION_CIDRS=${4:-}
+    _GUARD_DATAPLANE_PROTECTED_PORTS=${5:-}
+
+    if ! nft_table_exists "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE"; then
+        return 0
+    fi
+    _GUARD_DATAPLANE_TABLE_EXISTS=1
+    _guard_dataplane_capture_owned_state
+
+    [ "${_GUARD_OC_HEALTHY:-0}" = 1 ] || return 0
+    [ -n "$_GUARD_DATAPLANE_SRCS" ] || return 0
+    if [ -z "$_GUARD_DATAPLANE_SOURCE_PORTS" ] && [ -z "$_GUARD_DATAPLANE_DESTINATION_PORTS" ]; then
+        return 0
+    fi
+    # Missing protected-destination metadata disables DIRECT bypass creation.
+    [ -n "$_GUARD_DATAPLANE_PROTECTED_PORTS" ] || return 0
+    guard_dataplane_capability_mark >/dev/null 2>&1 || return 0
+    [ "$_GUARD_DATAPLANE_TARGET_EXISTS" = 1 ] || return 0
+
+    _GUARD_DATAPLANE_DIRECT_IFACE=$(guard_dataplane_resolve_direct_iface 2>/dev/null) || _GUARD_DATAPLANE_DIRECT_IFACE=
+    [ -n "$_GUARD_DATAPLANE_DIRECT_IFACE" ] || return 0
+    _GUARD_DATAPLANE_TARGET_HANDLE=$(guard_dataplane_find_target_handle 2>/dev/null) || _GUARD_DATAPLANE_TARGET_HANDLE=
+    [ -n "$_GUARD_DATAPLANE_TARGET_HANDLE" ] || return 0
+    _GUARD_DATAPLANE_READY=1
+}
+
+guard_dataplane_ready() {
+    [ "$_GUARD_DATAPLANE_READY" = 1 ]
+}
+
+guard_dataplane_direct_iface() {
+    guard_dataplane_ready || return 1
+    printf '%s\n' "$_GUARD_DATAPLANE_DIRECT_IFACE"
+}
+
+_guard_dataplane_csv() {
+    _guard_dp_csv_out=
+    for _guard_dp_csv_item in "$@"
+    do
+        [ -n "$_guard_dp_csv_item" ] || continue
+        if [ -z "$_guard_dp_csv_out" ]; then
+            _guard_dp_csv_out=$_guard_dp_csv_item
+        else
+            _guard_dp_csv_out="$_guard_dp_csv_out, $_guard_dp_csv_item"
+        fi
+    done
+    printf '%s' "$_guard_dp_csv_out"
+}
+
+_guard_dataplane_render_set() {
+    _guard_dp_rs_name=$1
+    _guard_dp_rs_type=$2
+    _guard_dp_rs_exists=$3
+    _guard_dp_rs_flags=${4:-}
+    if [ "$_guard_dp_rs_exists" = 1 ]; then
+        printf 'flush set %s %s %s\n' "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$_guard_dp_rs_name"
+    else
+        _guard_dp_rs_extra=
+        [ -n "$_guard_dp_rs_flags" ] && _guard_dp_rs_extra=" flags $_guard_dp_rs_flags;"
+        printf 'add set %s %s %s { type %s;%s comment "%s:set"; }\n' \
+            "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$_guard_dp_rs_name" \
+            "$_guard_dp_rs_type" "$_guard_dp_rs_extra" "$_GUARD_DATAPLANE_COMMENT_PREFIX"
+    fi
+}
+
+_guard_dataplane_render_elements() {
+    _guard_dp_re_name=$1
+    shift
+    _guard_dp_re_csv=$(_guard_dataplane_csv "$@")
+    [ -n "$_guard_dp_re_csv" ] || return 0
+    printf 'add element %s %s %s { %s }\n' \
+        "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$_guard_dp_re_name" "$_guard_dp_re_csv"
+}
+
+guard_dataplane_render() {
+    [ "$_GUARD_DATAPLANE_TABLE_EXISTS" = 1 ] || return 0
+
+    for _guard_dp_rr_handle in $_GUARD_DATAPLANE_OLD_JUMP_HANDLES
+    do
+        [ -n "$_guard_dp_rr_handle" ] || continue
+        printf 'delete rule %s %s %s handle %s\n' \
+            "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$_GUARD_DATAPLANE_TARGET_CHAIN" "$_guard_dp_rr_handle"
+    done
+
+    # Migrate away from the old child-chain jump. A child-chain return
+    # resumes at the next rule in openclash_mangle, so it cannot bypass the
+    # later generic OpenClash UDP mark. Direct verdicts must live in the
+    # OpenClash mangle chain itself.
+    if [ "$_GUARD_DATAPLANE_CHAIN_EXISTS" = 1 ]; then
+        printf 'flush chain %s %s %s\n' "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$_GUARD_DATAPLANE_CHAIN"
+        printf 'delete chain %s %s %s\n' "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$_GUARD_DATAPLANE_CHAIN"
+    fi
+    [ "$_GUARD_DATAPLANE_SRC_SET_EXISTS" = 1 ] && printf 'flush set %s %s %s\n' "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_src_set)"
+    [ "$_GUARD_DATAPLANE_SPORT_SET_EXISTS" = 1 ] && printf 'flush set %s %s %s\n' "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_sport_set)"
+    [ "$_GUARD_DATAPLANE_DPORT_SET_EXISTS" = 1 ] && printf 'flush set %s %s %s\n' "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_dport_set)"
+    [ "$_GUARD_DATAPLANE_DST_SET_EXISTS" = 1 ] && printf 'flush set %s %s %s\n' "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_dst_set)"
+    [ "$_GUARD_DATAPLANE_PROTECTED_SET_EXISTS" = 1 ] && printf 'flush set %s %s %s\n' "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_protected_set)"
+
+    guard_dataplane_ready || return 0
+
+    _guard_dp_rr_src_set=$(_guard_dataplane_src_set)
+    _guard_dataplane_render_set "$_guard_dp_rr_src_set" ipv4_addr "$_GUARD_DATAPLANE_SRC_SET_EXISTS" interval
+    # shellcheck disable=SC2086
+    _guard_dataplane_render_elements "$_guard_dp_rr_src_set" $_GUARD_DATAPLANE_SRCS
+
+    _guard_dp_rr_protected_set=$(_guard_dataplane_protected_set)
+    _guard_dataplane_render_set "$_guard_dp_rr_protected_set" inet_service "$_GUARD_DATAPLANE_PROTECTED_SET_EXISTS"
+    # shellcheck disable=SC2086
+    _guard_dataplane_render_elements "$_guard_dp_rr_protected_set" $_GUARD_DATAPLANE_PROTECTED_PORTS
+
+    _guard_dp_rr_dst_match=
+    if [ -n "$_GUARD_DATAPLANE_DESTINATION_CIDRS" ]; then
+        _guard_dp_rr_dst_set=$(_guard_dataplane_dst_set)
+        _guard_dataplane_render_set "$_guard_dp_rr_dst_set" ipv4_addr "$_GUARD_DATAPLANE_DST_SET_EXISTS" interval
+        # shellcheck disable=SC2086
+        _guard_dataplane_render_elements "$_guard_dp_rr_dst_set" $_GUARD_DATAPLANE_DESTINATION_CIDRS
+        _guard_dp_rr_dst_match="ip daddr @$_guard_dp_rr_dst_set "
+    fi
+
+    if [ -n "$_GUARD_DATAPLANE_SOURCE_PORTS" ]; then
+        _guard_dp_rr_sport_set=$(_guard_dataplane_sport_set)
+        _guard_dataplane_render_set "$_guard_dp_rr_sport_set" inet_service "$_GUARD_DATAPLANE_SPORT_SET_EXISTS"
+        # shellcheck disable=SC2086
+        _guard_dataplane_render_elements "$_guard_dp_rr_sport_set" $_GUARD_DATAPLANE_SOURCE_PORTS
+        _guard_dp_rr_cap=$(guard_dataplane_capability_mark) || return 1
+        printf 'insert rule %s %s %s position %s meta mark 0 ip saddr @%s %sudp dport != @%s udp sport @%s meta mark set %s return comment "%s:source"\n' \
+            "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$_GUARD_DATAPLANE_TARGET_CHAIN" \
+            "$_GUARD_DATAPLANE_TARGET_HANDLE" "$_guard_dp_rr_src_set" "$_guard_dp_rr_dst_match" \
+            "$_guard_dp_rr_protected_set" "$_guard_dp_rr_sport_set" "$_guard_dp_rr_cap" "$_GUARD_DATAPLANE_COMMENT_PREFIX"
+    fi
+
+    if [ -n "$_GUARD_DATAPLANE_DESTINATION_PORTS" ]; then
+        _guard_dp_rr_dport_set=$(_guard_dataplane_dport_set)
+        _guard_dataplane_render_set "$_guard_dp_rr_dport_set" inet_service "$_GUARD_DATAPLANE_DPORT_SET_EXISTS"
+        # shellcheck disable=SC2086
+        _guard_dataplane_render_elements "$_guard_dp_rr_dport_set" $_GUARD_DATAPLANE_DESTINATION_PORTS
+        _guard_dp_rr_cap=$(guard_dataplane_capability_mark) || return 1
+        printf 'insert rule %s %s %s position %s meta mark 0 ip saddr @%s %sudp dport != @%s udp dport @%s meta mark set %s return comment "%s:destination"\n' \
+            "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$_GUARD_DATAPLANE_TARGET_CHAIN" \
+            "$_GUARD_DATAPLANE_TARGET_HANDLE" "$_guard_dp_rr_src_set" "$_guard_dp_rr_dst_match" \
+            "$_guard_dp_rr_protected_set" "$_guard_dp_rr_dport_set" "$_guard_dp_rr_cap" "$_GUARD_DATAPLANE_COMMENT_PREFIX"
+    fi
+}
+
+guard_dataplane_remove() {
+    [ "${GUARD_DRY_RUN:-0}" != 1 ] || return 0
+    command -v nft >/dev/null 2>&1 || return 0
+    nft_table_exists "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" || return 0
+
+    if nft_chain_exists "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$_GUARD_DATAPLANE_TARGET_CHAIN"; then
+        nft_delete_rules_by_comment \
+            "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$_GUARD_DATAPLANE_TARGET_CHAIN" \
+            "$_GUARD_DATAPLANE_COMMENT_PREFIX" || return $?
+    fi
+    if nft_chain_exists "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$_GUARD_DATAPLANE_CHAIN"; then
+        nft flush chain "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$_GUARD_DATAPLANE_CHAIN" || return $?
+        nft delete chain "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$_GUARD_DATAPLANE_CHAIN" || return $?
+    fi
+    nft_delete_owned_set "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_src_set)" "$_GUARD_DATAPLANE_SET_PREFIX" || return $?
+    nft_delete_owned_set "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_sport_set)" "$_GUARD_DATAPLANE_SET_PREFIX" || return $?
+    nft_delete_owned_set "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_dport_set)" "$_GUARD_DATAPLANE_SET_PREFIX" || return $?
+    nft_delete_owned_set "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_dst_set)" "$_GUARD_DATAPLANE_SET_PREFIX" || return $?
+    nft_delete_owned_set "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$(_guard_dataplane_protected_set)" "$_GUARD_DATAPLANE_SET_PREFIX" || return $?
+}
+# END MODULE: guard-dataplane
+
+# BEGIN MODULE: guard-gaming
+# Scoped gaming exceptions. Never saddr+any-UDP. Protected UDP ports are destination-only.
+# Prefix: guard_game_
+set -eu
+
+_GUARD_GAME_ENABLED=0
+
+guard_game_read_uci() {
+    # udp.enabled has no authoritative signed-policy gate yet. Keep its UCI
+    # intent inert until the resolver contract defines that gate.
+    _GUARD_GAME_ENABLED=0
+}
+
+guard_game_src_ips() {
+    # udp.src_ip is deferred with udp.enabled; never use a raw or normalized
+    # operator list as authority for a direct-routing exception.
+    return 0
+}
+
+guard_game_udp_source_ports() {
+    json_list "$_GUARD_POLICY_FILE" gaming.udpSourcePorts 2>/dev/null || true
+}
+
+guard_game_udp_destination_ports() {
+    if json_has "$_GUARD_POLICY_FILE" gaming.udpDestinationPorts; then
+        json_list "$_GUARD_POLICY_FILE" gaming.udpDestinationPorts 2>/dev/null || true
+        return 0
+    fi
+    # Backward compatibility for installed schema-v1 runtime files. The
+    # ambiguous legacy field is interpreted only as a destination-port list.
+    json_list "$_GUARD_POLICY_FILE" gaming.udpPorts 2>/dev/null || true
+}
+
+guard_game_protected_udp_ports() {
+    json_list "$_GUARD_POLICY_FILE" gaming.protectedUdpPorts 2>/dev/null || true
+}
+
+guard_game_safe_udp_destination_ports() {
+    _guard_gsdp_ports=$(guard_game_udp_destination_ports)
+    for _guard_gsdp_port in $_guard_gsdp_ports
+    do
+        [ -n "$_guard_gsdp_port" ] || continue
+        if guard_policy_port_in_list "$_guard_gsdp_port" gaming.protectedUdpPorts; then
+            continue
+        fi
+        printf '%s\n' "$_guard_gsdp_port"
+    done
+}
+
+guard_game_source_port_enabled() {
+    _guard_gspe_want=$1
+    _guard_gspe_ports=$(guard_game_udp_source_ports)
+    for _guard_gspe_port in $_guard_gspe_ports
+    do
+        if [ "$_guard_gspe_port" = "$_guard_gspe_want" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+guard_game_destination_port_enabled() {
+    _guard_gdpe_want=$1
+    _guard_gdpe_ports=$(guard_game_udp_destination_ports)
+    for _guard_gdpe_port in $_guard_gdpe_ports
+    do
+        if [ "$_guard_gdpe_port" = "$_guard_gdpe_want" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+guard_game_direct_available() {
+    [ "$_GUARD_GAME_ENABLED" = 1 ] || return 1
+    [ "${_GUARD_OC_HEALTHY:-0}" = 1 ] || return 1
+    return 0
+}
+
+_guard_game_ip_in() {
+    _guard_gi_ip=$1
+    shift
+    for _guard_gi_item in "$@"
+    do
+        if [ "$_guard_gi_item" = "$_guard_gi_ip" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Prefix match for /8 /16 /24 plus exact host. Sufficient for the contract schema.
+_guard_game_dest_ok() {
+    _guard_gd_dest=$1
+    if [ -z "$_guard_gd_dest" ]; then
+        return 1
+    fi
+    _guard_gd_cidrs=$(json_list "$_GUARD_POLICY_FILE" gaming.destinationCidrs 2>/dev/null) || _guard_gd_cidrs=
+    if [ -z "$_guard_gd_cidrs" ]; then
+        return 0
+    fi
+    for _guard_gd_cidr in $_guard_gd_cidrs
+    do
+        [ -n "$_guard_gd_cidr" ] || continue
+        case $_guard_gd_cidr in
+            */8)
+                _guard_gd_net=${_guard_gd_cidr%/*}
+                _guard_gd_pfx=${_guard_gd_net%%.*}.
+                case $_guard_gd_dest in
+                    "$_guard_gd_pfx"*) return 0 ;;
+                esac
+                ;;
+            */16)
+                _guard_gd_net=${_guard_gd_cidr%/*}
+                _guard_gd_a=${_guard_gd_net%%.*}
+                _guard_gd_rest=${_guard_gd_net#*.}
+                _guard_gd_b=${_guard_gd_rest%%.*}
+                _guard_gd_pfx="${_guard_gd_a}.${_guard_gd_b}."
+                case $_guard_gd_dest in
+                    "$_guard_gd_pfx"*) return 0 ;;
+                esac
+                ;;
+            */24)
+                _guard_gd_net=${_guard_gd_cidr%/*}
+                _guard_gd_pfx=${_guard_gd_net%.*}.
+                case $_guard_gd_dest in
+                    "$_guard_gd_pfx"*) return 0 ;;
+                esac
+                ;;
+            */*)
+                _guard_gd_net=${_guard_gd_cidr%/*}
+                if [ "$_guard_gd_dest" = "$_guard_gd_net" ]; then
+                    return 0
+                fi
+                ;;
+            *)
+                if [ "$_guard_gd_dest" = "$_guard_gd_cidr" ]; then
+                    return 0
+                fi
+                ;;
+        esac
+    done
+    return 1
+}
+
+guard_game_flow_eligible() {
+    _guard_gf_proto=$1
+    _guard_gf_sport=$2
+    _guard_gf_dport=$3
+    _guard_gf_src=$4
+    _guard_gf_dest=$5
+    guard_game_direct_available || return 1
+    case $_guard_gf_proto in
+        udp|UDP) ;;
+        *) return 1 ;;
+    esac
+    # Protected ports describe the remote/destination endpoint. A trusted
+    # source-port exception must never override this fail-closed boundary.
+    if [ -n "$_guard_gf_dport" ] && guard_policy_port_in_list "$_guard_gf_dport" gaming.protectedUdpPorts; then
+        return 1
+    fi
+    _guard_gf_port_match=0
+    if [ -n "$_guard_gf_sport" ] && guard_game_source_port_enabled "$_guard_gf_sport"; then
+        _guard_gf_port_match=1
+    fi
+    if [ -n "$_guard_gf_dport" ] && guard_game_destination_port_enabled "$_guard_gf_dport"; then
+        _guard_gf_port_match=1
+    fi
+    [ "$_guard_gf_port_match" = 1 ] || return 1
+    _guard_gf_srcs=$(guard_game_src_ips)
+    if [ -z "$_guard_gf_srcs" ]; then
+        return 1
+    fi
+    if ! _guard_game_ip_in "$_guard_gf_src" $_guard_gf_srcs; then
+        return 1
+    fi
+    if json_has "$_GUARD_POLICY_FILE" gaming.destinationCidrs; then
+        _guard_gf_any=$(json_list "$_GUARD_POLICY_FILE" gaming.destinationCidrs 2>/dev/null) || _guard_gf_any=
+        if [ -n "$_guard_gf_any" ]; then
+            _guard_game_dest_ok "$_guard_gf_dest" || return 1
+        fi
+    fi
+    return 0
+}
+
+_guard_game_render_scoped() {
+    guard_game_direct_available || return 0
+    guard_dataplane_ready || return 0
+    _guard_gr_oif=$(guard_dataplane_direct_iface 2>/dev/null) || _guard_gr_oif=
+    [ -n "$_guard_gr_oif" ] || return 0
+    _guard_gr_cap=$(guard_dataplane_capability_mark 2>/dev/null) || _guard_gr_cap=
+    [ -n "$_guard_gr_cap" ] || return 0
+    _guard_gr_srcs=$(guard_game_src_ips)
+    [ -n "$_guard_gr_srcs" ] || return 0
+    _guard_gr_source_ports=$(guard_game_udp_source_ports)
+    _guard_gr_destination_ports=$(guard_game_safe_udp_destination_ports)
+    if [ -z "$_guard_gr_source_ports" ] && [ -z "$_guard_gr_destination_ports" ]; then return 0; fi
+
+    _guard_kill_add_set gaming_src ipv4_addr gaming-src interval
+    # shellcheck disable=SC2086
+    _guard_kill_add_elements gaming_src $_guard_gr_srcs
+    _guard_gr_cidrs=$(json_list "$_GUARD_POLICY_FILE" gaming.destinationCidrs 2>/dev/null) || _guard_gr_cidrs=
+    _guard_gr_dst_match=
+    if [ -n "$_guard_gr_cidrs" ]; then
+        _guard_kill_add_set gaming_dst ipv4_addr gaming-dst interval
+        # shellcheck disable=SC2086
+        _guard_kill_add_elements gaming_dst $_guard_gr_cidrs
+        _guard_gr_dst_match='ip daddr @gaming_dst '
+    fi
+    if [ -n "$_guard_gr_source_ports" ]; then
+        _guard_kill_add_set gaming_udp_source inet_service gaming-udp-source
+        # shellcheck disable=SC2086
+        _guard_kill_add_elements gaming_udp_source $_guard_gr_source_ports
+    fi
+    if [ -n "$_guard_gr_destination_ports" ]; then
+        _guard_kill_add_set gaming_udp_destination inet_service gaming-udp-destination
+        # shellcheck disable=SC2086
+        _guard_kill_add_elements gaming_udp_destination $_guard_gr_destination_ports
+    fi
+
+    # Run before the main Guard forward chain so established outbound gaming
+    # flows cannot survive a route change onto an unintended egress.
+    printf 'add chain %s %s gaming_egress { type filter hook forward priority -151; policy accept; }\n' \
+        "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE"
+    if [ -n "$_guard_gr_source_ports" ]; then
+        _guard_kill_add_rule gaming_egress "ip saddr @gaming_src ip daddr != @lan_rfc1918 ${_guard_gr_dst_match}udp dport != @protected_udp udp sport @gaming_udp_source meta mark != $_guard_gr_cap reject" game-udp-source-capability
+        _guard_kill_add_rule gaming_egress "ip saddr @gaming_src ip daddr != @lan_rfc1918 ${_guard_gr_dst_match}meta mark $_guard_gr_cap oifname != \"$_guard_gr_oif\" udp dport != @protected_udp udp sport @gaming_udp_source reject" game-udp-source-egress
+        _guard_kill_add_rule forward "ip saddr @gaming_src ${_guard_gr_dst_match}meta mark $_guard_gr_cap oifname \"$_guard_gr_oif\" udp sport @gaming_udp_source meta mark set 0 accept" game-udp-source
+    fi
+    if [ -n "$_guard_gr_destination_ports" ]; then
+        _guard_kill_add_rule gaming_egress "ip saddr @gaming_src ip daddr != @lan_rfc1918 ${_guard_gr_dst_match}udp dport @gaming_udp_destination meta mark != $_guard_gr_cap reject" game-udp-destination-capability
+        _guard_kill_add_rule gaming_egress "ip saddr @gaming_src ip daddr != @lan_rfc1918 ${_guard_gr_dst_match}meta mark $_guard_gr_cap oifname != \"$_guard_gr_oif\" udp dport @gaming_udp_destination reject" game-udp-destination-egress
+        _guard_kill_add_rule forward "ip saddr @gaming_src ${_guard_gr_dst_match}meta mark $_guard_gr_cap oifname \"$_guard_gr_oif\" udp dport @gaming_udp_destination meta mark set 0 accept" game-udp-destination
+    fi
+}
+
+# Reconcile both halves from the same normalized directional policy. The Guard
+# accept is emitted only when the OpenClash dataplane target and direct egress
+# interface have been validated; otherwise only stale Guard-owned dataplane
+# state is removed and the final kill-switch remains authoritative.
+guard_game_render() {
+    _guard_game_dp_srcs=$(guard_game_src_ips)
+    _guard_game_dp_sports=$(guard_game_udp_source_ports)
+    _guard_game_dp_dports=$(guard_game_safe_udp_destination_ports)
+    _guard_game_dp_cidrs=$(json_list "$_GUARD_POLICY_FILE" gaming.destinationCidrs 2>/dev/null) || _guard_game_dp_cidrs=
+    _guard_game_dp_protected=$(guard_game_protected_udp_ports)
+
+    guard_dataplane_prepare \
+        "$_guard_game_dp_srcs" \
+        "$_guard_game_dp_sports" \
+        "$_guard_game_dp_dports" \
+        "$_guard_game_dp_cidrs" \
+        "$_guard_game_dp_protected" || return $?
+    _guard_game_render_scoped
+    guard_dataplane_render
+}
+# END MODULE: guard-gaming
+
+# BEGIN MODULE: guard-template
+# Data-driven template matcher and apply. Detection never auto-applies.
+# Prefix: guard_template_
+set -eu
+
+_GUARD_TEMPLATE_APPLY_KEYS="guard.kill_switch guard.dns_kill_switch dns.ownership gaming.blanket_udp_bypass gaming.protect_udp_443 mode policy.refresh"
+
+_guard_template_catalog_path() {
+    if [ -n "${GUARD_TEMPLATES_FILE:-}" ]; then
+        printf '%s\n' "$GUARD_TEMPLATES_FILE"
+        return 0
+    fi
+    _guard_tc_pol=$(_guard_policy_default_path)
+    printf '%s/openclash-guard-templates.json\n' "$(dirname "$_guard_tc_pol")"
+}
+
+guard_template_validate_file() {
+    _guard_tv_file=${1:-}
+    [ -f "$_guard_tv_file" ] || return 1
+    json_load "$_guard_tv_file" || return 1
+    _guard_tv_ver=$(json_get "$_guard_tv_file" schemaVersion 2>/dev/null) || _guard_tv_ver=
+    [ "$_guard_tv_ver" = 1 ] || return 1
+    json_has "$_guard_tv_file" templates
+}
+
+_guard_template_is_int() {
+    case ${1:-} in
+        ''|*[!0-9]*)
+            return 1
+            ;;
+        *)
+            return 0
+            ;;
+    esac
+}
+
+_guard_template_severity_rank() {
+    case ${1:-} in
+        high)
+            printf '0\n'
+            ;;
+        medium)
+            printf '1\n'
+            ;;
+        info)
+            printf '2\n'
+            ;;
+        *)
+            printf '9\n'
+            ;;
+    esac
+}
+
+_guard_template_severity_label() {
+    printf '%s' "$1" | tr 'a-z' 'A-Z'
+}
+
+_guard_template_eval_all() {
+    _guard_te_cat=$1
+    _guard_te_pfx=$2
+    _guard_te_env=$3
+    _guard_te_keys=$(json_keys "$_guard_te_cat" "$_guard_te_pfx") || return 1
+    if [ -z "$_guard_te_keys" ]; then
+        return 1
+    fi
+    for _guard_te_i in $_guard_te_keys
+    do
+        [ -n "$_guard_te_i" ] || continue
+        _guard_template_eval_node "$_guard_te_cat" "${_guard_te_pfx}.${_guard_te_i}" "$_guard_te_env" || return 1
+    done
+    return 0
+}
+
+_guard_template_eval_any() {
+    _guard_ty_cat=$1
+    _guard_ty_pfx=$2
+    _guard_ty_env=$3
+    _guard_ty_keys=$(json_keys "$_guard_ty_cat" "$_guard_ty_pfx") || return 1
+    for _guard_ty_i in $_guard_ty_keys
+    do
+        [ -n "$_guard_ty_i" ] || continue
+        if _guard_template_eval_node "$_guard_ty_cat" "${_guard_ty_pfx}.${_guard_ty_i}" "$_guard_ty_env"; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+_guard_template_contains() {
+    _guard_tcn_cat=$1
+    _guard_tcn_pfx=$2
+    _guard_tcn_env=$3
+    _guard_tcn_path=$4
+    _guard_tcn_needle=$(json_get "$_guard_tcn_cat" "${_guard_tcn_pfx}.contains") || return 1
+    if json_list "$_guard_tcn_env" "$_guard_tcn_path" >/dev/null 2>&1; then
+        _guard_tcn_items=$(json_list "$_guard_tcn_env" "$_guard_tcn_path") || return 1
+        for _guard_tcn_item in $_guard_tcn_items
+        do
+            if [ "$_guard_tcn_item" = "$_guard_tcn_needle" ]; then
+                return 0
+            fi
+        done
+        return 1
+    fi
+    _guard_tcn_hay=$(json_get "$_guard_tcn_env" "$_guard_tcn_path" 2>/dev/null) || return 1
+    case $_guard_tcn_hay in
+        *"$_guard_tcn_needle"*)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+_guard_template_eval_leaf() {
+    _guard_tl_cat=$1
+    _guard_tl_pfx=$2
+    _guard_tl_env=$3
+    _guard_tl_path=$(json_get "$_guard_tl_cat" "${_guard_tl_pfx}.path") || return 1
+    _guard_tl_lhs=$(json_get "$_guard_tl_env" "$_guard_tl_path" 2>/dev/null) || _guard_tl_lhs=
+    if json_has "$_guard_tl_cat" "${_guard_tl_pfx}.eq"; then
+        _guard_tl_rhs=$(json_get "$_guard_tl_cat" "${_guard_tl_pfx}.eq") || return 1
+        [ "$_guard_tl_lhs" = "$_guard_tl_rhs" ]
+        return $?
+    fi
+    if json_has "$_guard_tl_cat" "${_guard_tl_pfx}.ne"; then
+        _guard_tl_rhs=$(json_get "$_guard_tl_cat" "${_guard_tl_pfx}.ne") || return 1
+        [ "$_guard_tl_lhs" != "$_guard_tl_rhs" ]
+        return $?
+    fi
+    if json_has "$_guard_tl_cat" "${_guard_tl_pfx}.in"; then
+        _guard_tl_items=$(json_list "$_guard_tl_cat" "${_guard_tl_pfx}.in") || return 1
+        for _guard_tl_item in $_guard_tl_items
+        do
+            if [ "$_guard_tl_item" = "$_guard_tl_lhs" ]; then
+                return 0
+            fi
+        done
+        return 1
+    fi
+    if json_has "$_guard_tl_cat" "${_guard_tl_pfx}.contains"; then
+        _guard_template_contains "$_guard_tl_cat" "$_guard_tl_pfx" "$_guard_tl_env" "$_guard_tl_path"
+        return $?
+    fi
+    if json_has "$_guard_tl_cat" "${_guard_tl_pfx}.gte"; then
+        _guard_tl_rhs=$(json_get "$_guard_tl_cat" "${_guard_tl_pfx}.gte") || return 1
+        if ! _guard_template_is_int "$_guard_tl_lhs" || ! _guard_template_is_int "$_guard_tl_rhs"; then
+            return 1
+        fi
+        [ "$_guard_tl_lhs" -ge "$_guard_tl_rhs" ]
+        return $?
+    fi
+    if json_has "$_guard_tl_cat" "${_guard_tl_pfx}.lte"; then
+        _guard_tl_rhs=$(json_get "$_guard_tl_cat" "${_guard_tl_pfx}.lte") || return 1
+        if ! _guard_template_is_int "$_guard_tl_lhs" || ! _guard_template_is_int "$_guard_tl_rhs"; then
+            return 1
+        fi
+        [ "$_guard_tl_lhs" -le "$_guard_tl_rhs" ]
+        return $?
+    fi
+    if json_has "$_guard_tl_cat" "${_guard_tl_pfx}.exists"; then
+        _guard_tl_want=$(json_get "$_guard_tl_cat" "${_guard_tl_pfx}.exists") || _guard_tl_want=true
+        if json_has "$_guard_tl_env" "$_guard_tl_path"; then
+            _guard_tl_has=1
+        else
+            _guard_tl_has=0
+        fi
+        case $_guard_tl_want in
+            true|1)
+                [ "$_guard_tl_has" = 1 ]
+                ;;
+            false|0)
+                [ "$_guard_tl_has" = 0 ]
+                ;;
+            *)
+                return 1
+                ;;
+        esac
+        return $?
+    fi
+    return 1
+}
+
+_guard_template_eval_node() {
+    _guard_tn_cat=$1
+    _guard_tn_pfx=$2
+    _guard_tn_env=$3
+    if json_has "$_guard_tn_cat" "${_guard_tn_pfx}.all"; then
+        _guard_template_eval_all "$_guard_tn_cat" "${_guard_tn_pfx}.all" "$_guard_tn_env"
+        return $?
+    fi
+    if json_has "$_guard_tn_cat" "${_guard_tn_pfx}.any"; then
+        _guard_template_eval_any "$_guard_tn_cat" "${_guard_tn_pfx}.any" "$_guard_tn_env"
+        return $?
+    fi
+    if json_has "$_guard_tn_cat" "${_guard_tn_pfx}.not"; then
+        if _guard_template_eval_node "$_guard_tn_cat" "${_guard_tn_pfx}.not" "$_guard_tn_env"; then
+            return 1
+        fi
+        return 0
+    fi
+    _guard_template_eval_leaf "$_guard_tn_cat" "$_guard_tn_pfx" "$_guard_tn_env"
+}
+
+guard_template_match() {
+    _guard_tm_cat=${1:-}
+    _guard_tm_id=${2:-}
+    _guard_tm_env=${3:-}
+    if [ -z "$_guard_tm_cat" ] || [ -z "$_guard_tm_id" ] || [ -z "$_guard_tm_env" ]; then
+        printf '%s\n' "guard_template_match: usage: catalog id env.json" >&2
+        return 2
+    fi
+    if ! json_has "$_guard_tm_cat" "templates.${_guard_tm_id}"; then
+        return 1
+    fi
+    _guard_template_eval_node "$_guard_tm_cat" "templates.${_guard_tm_id}.when" "$_guard_tm_env"
+}
+
+guard_template_matches() {
+    _guard_tms_cat=$1
+    _guard_tms_env=$2
+    _guard_tms_ids=$(json_keys "$_guard_tms_cat" templates) || _guard_tms_ids=
+    _guard_tms_out=$(file_mktemp) || return 1
+    : > "$_guard_tms_out"
+    for _guard_tms_id in $_guard_tms_ids
+    do
+        [ -n "$_guard_tms_id" ] || continue
+        if guard_template_match "$_guard_tms_cat" "$_guard_tms_id" "$_guard_tms_env"; then
+            _guard_tms_sev=$(json_get "$_guard_tms_cat" "templates.${_guard_tms_id}.recommendation.severity") || _guard_tms_sev=info
+            _guard_tms_rank=$(_guard_template_severity_rank "$_guard_tms_sev")
+            printf '%s\t%s\n' "$_guard_tms_rank" "$_guard_tms_id" >> "$_guard_tms_out"
+        fi
+    done
+    sort -n "$_guard_tms_out" | awk -F '\t' '{print $2}'
+    rm -f "$_guard_tms_out"
+}
+
+_guard_template_require_catalog() {
+    _GUARD_TEMPLATE_FILE=$(_guard_template_catalog_path)
+    if [ ! -f "$_GUARD_TEMPLATE_FILE" ]; then
+        cli_error "template catalog missing: $_GUARD_TEMPLATE_FILE"
+        return 1
+    fi
+    if ! guard_template_validate_file "$_GUARD_TEMPLATE_FILE"; then
+        cli_error "invalid template catalog: $_GUARD_TEMPLATE_FILE"
+        return 1
+    fi
+}
+
+_guard_template_env_file() {
+    guard_kill_read_uci
+    guard_game_read_uci
+    guard_env_detect
+    _guard_tef=$(file_mktemp) || return 1
+    guard_env_json > "$_guard_tef"
+    printf '%s\n' "$_guard_tef"
+}
+
+_guard_template_uci_config_path() {
+    printf '%s\n' "${GUARD_UCI_CONFIG_FILE:-${GUARD_PREFIX:-}/etc/config/openclash_guard}"
+}
+
+_guard_template_ensure_uci_config() {
+    _guard_teuc_path=$(_guard_template_uci_config_path)
+    if [ -e "$_guard_teuc_path" ]; then
+        if [ ! -f "$_guard_teuc_path" ]; then
+            cli_error "UCI config path is not a regular file: $_guard_teuc_path"
+            return 1
+        fi
+        return 0
+    fi
+    _guard_teuc_dir=$(dirname "$_guard_teuc_path")
+    mkdir -p "$_guard_teuc_dir" || return 1
+    _guard_teuc_tmp=$(file_mktemp "$_guard_teuc_dir") || return 1
+    if ! printf '%s\n' '# OpenClash Guard UCI configuration.' > "$_guard_teuc_tmp"; then
+        rm -f "$_guard_teuc_tmp"
+        return 1
+    fi
+    chmod 0644 "$_guard_teuc_tmp"
+    if ! file_atomic_replace "$_guard_teuc_path" "$_guard_teuc_tmp"; then
+        rm -f "$_guard_teuc_tmp"
+        return 1
+    fi
+    rm -f "$_guard_teuc_tmp"
+}
+
+guard_intent_ensure_sections() {
+    if [ "${GUARD_DRY_RUN:-0}" = 1 ]; then
+        return 0
+    fi
+    if ! command -v uci >/dev/null 2>&1; then
+        printf '%s\n' "uci: command not found" >&2
+        return 127
+    fi
+    _guard_template_ensure_uci_config || return $?
+    uci_set openclash_guard.main openclash_guard
+    uci_set openclash_guard.udp udp
+}
+
+_guard_template_bool_uci() {
+    case $1 in
+        true|1)
+            printf '1\n'
+            ;;
+        false|0)
+            printf '0\n'
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+_guard_template_set() {
+    _guard_ts_opt=$1
+    _guard_ts_val=$2
+    if [ "${GUARD_DRY_RUN:-0}" = 1 ]; then
+        printf 'would set %s=%s\n' "$_guard_ts_opt" "$_guard_ts_val"
+        return 0
+    fi
+    uci_set "$_guard_ts_opt" "$_guard_ts_val"
+}
+
+_guard_template_apply_key() {
+    _guard_tak_key=$1
+    _guard_tak_val=$2
+    case $_guard_tak_key in
+        guard.kill_switch)
+            _guard_tak_uci=$(_guard_template_bool_uci "$_guard_tak_val") || return 1
+            _guard_template_set openclash_guard.main.kill_switch "$_guard_tak_uci"
+            ;;
+        guard.dns_kill_switch)
+            _guard_tak_uci=$(_guard_template_bool_uci "$_guard_tak_val") || return 1
+            _guard_template_set openclash_guard.main.dns_kill_switch "$_guard_tak_uci"
+            ;;
+        dns.ownership)
+            if [ "$_guard_tak_val" != preserve ]; then
+                cli_error "dns.ownership must be preserve"
+                return 1
+            fi
+            _guard_template_set openclash_guard.main.dns_ownership preserve
+            ;;
+        gaming.blanket_udp_bypass)
+            _guard_tak_uci=$(_guard_template_bool_uci "$_guard_tak_val") || return 1
+            if [ "$_guard_tak_uci" = 1 ]; then
+                cli_error "refusing to enable blanket UDP bypass"
+                return 1
+            fi
+            _guard_template_set openclash_guard.udp.blanket_udp_bypass 0
+            ;;
+        gaming.protect_udp_443)
+            _guard_tak_uci=$(_guard_template_bool_uci "$_guard_tak_val") || return 1
+            if [ "$_guard_tak_uci" != 1 ]; then
+                cli_error "UDP/443 protection cannot be disabled"
+                return 1
+            fi
+            _guard_template_set openclash_guard.udp.protect_udp_443 1
+            ;;
+        mode)
+            case $_guard_tak_val in
+                auto|strict|manual)
+                    ;;
+                *)
+                    cli_error "invalid mode: $_guard_tak_val"
+                    return 1
+                    ;;
+            esac
+            _guard_template_set openclash_guard.main.mode "$_guard_tak_val"
+            ;;
+        policy.refresh)
+            _guard_tak_uci=$(_guard_template_bool_uci "$_guard_tak_val") || return 1
+            _guard_template_set openclash_guard.main.policy_refresh "$_guard_tak_uci"
+            ;;
+        *)
+            cli_error "unknown apply key: $_guard_tak_key"
+            return 1
+            ;;
+    esac
+}
+
+_guard_template_dump_apply() {
+    _guard_td_cat=$1
+    _guard_td_id=$2
+    for _guard_td_key in $_GUARD_TEMPLATE_APPLY_KEYS
+    do
+        if json_has "$_guard_td_cat" "templates.${_guard_td_id}.apply.${_guard_td_key}"; then
+            _guard_td_val=$(json_get "$_guard_td_cat" "templates.${_guard_td_id}.apply.${_guard_td_key}") || continue
+            printf '%s=%s\n' "$_guard_td_key" "$_guard_td_val"
+        fi
+    done
+}
+
+_guard_template_print_one() {
+    _guard_tp_cat=$1
+    _guard_tp_id=$2
+    _guard_tp_explain=${3:-0}
+    _guard_tp_title=$(json_get "$_guard_tp_cat" "templates.${_guard_tp_id}.title") || _guard_tp_title=$_guard_tp_id
+    _guard_tp_sev=$(json_get "$_guard_tp_cat" "templates.${_guard_tp_id}.recommendation.severity") || _guard_tp_sev=info
+    _guard_tp_reason=$(json_get "$_guard_tp_cat" "templates.${_guard_tp_id}.recommendation.reason") || _guard_tp_reason=
+    printf '[%s] %s\n' "$(_guard_template_severity_label "$_guard_tp_sev")" "$_guard_tp_id"
+    printf '  %s\n' "$_guard_tp_reason"
+    if [ "$_guard_tp_explain" = 1 ]; then
+        _guard_tp_risk=$(json_get "$_guard_tp_cat" "templates.${_guard_tp_id}.recommendation.risk") || _guard_tp_risk=
+        _guard_tp_desc=$(json_get "$_guard_tp_cat" "templates.${_guard_tp_id}.description") || _guard_tp_desc=
+        printf '  title: %s\n' "$_guard_tp_title"
+        printf '  detected: %s\n' "$_guard_tp_desc"
+        printf '  risk: %s\n' "$_guard_tp_risk"
+        printf '  proposed:\n'
+        _guard_template_dump_apply "$_guard_tp_cat" "$_guard_tp_id" | sed 's/^/    /'
+    fi
+    printf '\n  Apply:\n    openclash-guard template apply %s\n' "$_guard_tp_id"
+}
+
+guard_cmd_template_list() {
+    _guard_template_require_catalog || return $?
+    _guard_tl_json=0
+    _guard_tl_explain=0
+    while [ "$#" -gt 0 ]
+    do
+        case $1 in
+            --json)
+                _guard_tl_json=1
+                shift
+                ;;
+            --explain)
+                _guard_tl_explain=1
+                shift
+                ;;
+            *)
+                cli_die "unknown template list option: $1" 2
+                ;;
+        esac
+    done
+    _guard_tl_ids=$(json_keys "$_GUARD_TEMPLATE_FILE" templates) || _guard_tl_ids=
+    if [ "$_guard_tl_json" = 1 ] || [ "$_GUARD_JSON" = 1 ]; then
+        printf '{"templates":['
+        _guard_tl_first=1
+        for _guard_tl_id in $_guard_tl_ids
+        do
+            [ -n "$_guard_tl_id" ] || continue
+            if [ "$_guard_tl_first" = 1 ]; then
+                _guard_tl_first=0
+            else
+                printf ','
+            fi
+            printf '"%s"' "$(_guard_env_json_string "$_guard_tl_id")"
+        done
+        printf ']}\n'
+        return 0
+    fi
+    cli_section "Templates"
+    for _guard_tl_id in $_guard_tl_ids
+    do
+        [ -n "$_guard_tl_id" ] || continue
+        _guard_tl_title=$(json_get "$_GUARD_TEMPLATE_FILE" "templates.${_guard_tl_id}.title") || _guard_tl_title=
+        cli_kv "$_guard_tl_id" "$_guard_tl_title"
+        if [ "$_guard_tl_explain" = 1 ]; then
+            _guard_template_dump_apply "$_GUARD_TEMPLATE_FILE" "$_guard_tl_id" | sed 's/^/  /'
+        fi
+    done
+}
+
+guard_cmd_template_suggest() {
+    _guard_tsg_json=0
+    _guard_tsg_explain=0
+    _guard_tsg_service=
+    while [ "$#" -gt 0 ]
+    do
+        case $1 in
+            --json)
+                _guard_tsg_json=1
+                shift
+                ;;
+            --explain)
+                _guard_tsg_explain=1
+                shift
+                ;;
+            --service)
+                _guard_tsg_service=$2
+                shift 2
+                ;;
+            *)
+                cli_die "unknown template suggest option: $1" 2
+                ;;
+        esac
+    done
+    if [ "$_GUARD_JSON" = 1 ]; then
+        _guard_tsg_json=1
+    fi
+    _guard_template_require_catalog || return $?
+    export GUARD_SERVICE_ID=$_guard_tsg_service
+    _guard_tsg_env=$(_guard_template_env_file) || return $?
+    _guard_tsg_ids=$(guard_template_matches "$_GUARD_TEMPLATE_FILE" "$_guard_tsg_env") || _guard_tsg_ids=
+    if [ "$_guard_tsg_json" = 1 ]; then
+        printf '{"suggestions":['
+        _guard_tsg_first=1
+        for _guard_tsg_id in $_guard_tsg_ids
+        do
+            [ -n "$_guard_tsg_id" ] || continue
+            _guard_tsg_sev=$(json_get "$_GUARD_TEMPLATE_FILE" "templates.${_guard_tsg_id}.recommendation.severity") || _guard_tsg_sev=info
+            _guard_tsg_conf=$(json_get "$_GUARD_TEMPLATE_FILE" "templates.${_guard_tsg_id}.recommendation.confidence") || _guard_tsg_conf=high
+            _guard_tsg_reason=$(json_get "$_GUARD_TEMPLATE_FILE" "templates.${_guard_tsg_id}.recommendation.reason") || _guard_tsg_reason=
+            if [ "$_guard_tsg_first" = 1 ]; then
+                _guard_tsg_first=0
+            else
+                printf ','
+            fi
+            printf '{"id":"%s","severity":"%s","confidence":"%s","reason":"%s","applyCommand":"openclash-guard template apply %s"}' \
+                "$(_guard_env_json_string "$_guard_tsg_id")" \
+                "$(_guard_env_json_string "$_guard_tsg_sev")" \
+                "$(_guard_env_json_string "$_guard_tsg_conf")" \
+                "$(_guard_env_json_string "$_guard_tsg_reason")" \
+                "$(_guard_env_json_string "$_guard_tsg_id")"
+        done
+        printf ']}\n'
+        rm -f "$_guard_tsg_env"
+        return 0
+    fi
+    cli_section "Suggested Templates"
+    _guard_tsg_any=0
+    for _guard_tsg_id in $_guard_tsg_ids
+    do
+        [ -n "$_guard_tsg_id" ] || continue
+        _guard_tsg_any=1
+        printf '\n'
+        _guard_template_print_one "$_GUARD_TEMPLATE_FILE" "$_guard_tsg_id" "$_guard_tsg_explain"
+    done
+    rm -f "$_guard_tsg_env"
+    if [ "$_guard_tsg_any" != 1 ]; then
+        cli_info "no templates matched"
+    fi
+}
+
+guard_cmd_template_show() {
+    _guard_tsh_json=0
+    _guard_tsh_explain=0
+    _guard_tsh_id=
+    while [ "$#" -gt 0 ]
+    do
+        case $1 in
+            --json)
+                _guard_tsh_json=1
+                shift
+                ;;
+            --explain)
+                _guard_tsh_explain=1
+                shift
+                ;;
+            --*)
+                cli_die "unknown template show option: $1" 2
+                ;;
+            *)
+                if [ -n "$_guard_tsh_id" ]; then
+                    cli_die "duplicate template id" 2
+                fi
+                _guard_tsh_id=$1
+                shift
+                ;;
+        esac
+    done
+    if [ "$_GUARD_JSON" = 1 ]; then
+        _guard_tsh_json=1
+    fi
+    if [ -z "$_guard_tsh_id" ]; then
+        cli_error "usage: openclash-guard template show <id>"
+        return 2
+    fi
+    _guard_template_require_catalog || return $?
+    if ! json_has "$_GUARD_TEMPLATE_FILE" "templates.${_guard_tsh_id}"; then
+        cli_error "unknown template: $_guard_tsh_id"
+        return 1
+    fi
+    if [ "$_guard_tsh_json" = 1 ]; then
+        printf '{"id":"%s","title":"%s","description":"%s","severity":"%s","confidence":"%s","reason":"%s","risk":"%s","apply":{' \
+            "$(_guard_env_json_string "$_guard_tsh_id")" \
+            "$(_guard_env_json_string "$(json_get "$_GUARD_TEMPLATE_FILE" "templates.${_guard_tsh_id}.title")")" \
+            "$(_guard_env_json_string "$(json_get "$_GUARD_TEMPLATE_FILE" "templates.${_guard_tsh_id}.description")")" \
+            "$(_guard_env_json_string "$(json_get "$_GUARD_TEMPLATE_FILE" "templates.${_guard_tsh_id}.recommendation.severity")")" \
+            "$(_guard_env_json_string "$(json_get "$_GUARD_TEMPLATE_FILE" "templates.${_guard_tsh_id}.recommendation.confidence")")" \
+            "$(_guard_env_json_string "$(json_get "$_GUARD_TEMPLATE_FILE" "templates.${_guard_tsh_id}.recommendation.reason")")" \
+            "$(_guard_env_json_string "$(json_get "$_GUARD_TEMPLATE_FILE" "templates.${_guard_tsh_id}.recommendation.risk")")"
+        _guard_tsh_first=1
+        for _guard_tsh_key in $_GUARD_TEMPLATE_APPLY_KEYS
+        do
+            if json_has "$_GUARD_TEMPLATE_FILE" "templates.${_guard_tsh_id}.apply.${_guard_tsh_key}"; then
+                _guard_tsh_val=$(json_get "$_GUARD_TEMPLATE_FILE" "templates.${_guard_tsh_id}.apply.${_guard_tsh_key}") || continue
+                if [ "$_guard_tsh_first" = 1 ]; then
+                    _guard_tsh_first=0
+                else
+                    printf ','
+                fi
+                case $_guard_tsh_val in
+                    true|false)
+                        printf '"%s":%s' "$(_guard_env_json_string "$_guard_tsh_key")" "$_guard_tsh_val"
+                        ;;
+                    *)
+                        printf '"%s":"%s"' "$(_guard_env_json_string "$_guard_tsh_key")" "$(_guard_env_json_string "$_guard_tsh_val")"
+                        ;;
+                esac
+            fi
+        done
+        printf '}}\n'
+        return 0
+    fi
+    cli_section "$_guard_tsh_id"
+    _guard_template_print_one "$_GUARD_TEMPLATE_FILE" "$_guard_tsh_id" 1
+}
+
+guard_cmd_template_apply() {
+    _guard_ta_id=
+    while [ "$#" -gt 0 ]
+    do
+        case $1 in
+            --json)
+                _GUARD_JSON=1
+                shift
+                ;;
+            --yes|-y)
+                cli_set_assume_yes 1
+                shift
+                ;;
+            --dry-run)
+                GUARD_DRY_RUN=1
+                shift
+                ;;
+            --*)
+                cli_die "unknown template apply option: $1" 2
+                ;;
+            *)
+                if [ -n "$_guard_ta_id" ]; then
+                    cli_die "duplicate template id" 2
+                fi
+                _guard_ta_id=$1
+                shift
+                ;;
+        esac
+    done
+    if [ -z "$_guard_ta_id" ]; then
+        cli_error "usage: openclash-guard template apply <id> [--dry-run] [--yes]"
+        return 2
+    fi
+    _guard_template_require_catalog || return $?
+    if ! json_has "$_GUARD_TEMPLATE_FILE" "templates.${_guard_ta_id}"; then
+        cli_error "unknown template: $_guard_ta_id"
+        return 1
+    fi
+    _guard_ta_env=$(_guard_template_env_file) || return $?
+    rm -f "$_guard_ta_env"
+    if [ "${GUARD_DRY_RUN:-0}" != 1 ]; then
+        if ! cli_confirm "Apply template ${_guard_ta_id}?"; then
+            cli_error "refusing to apply without confirmation (pass --yes)"
+            return 1
+        fi
+    fi
+    cli_section "template ${_guard_ta_id}"
+    _guard_template_dump_apply "$_GUARD_TEMPLATE_FILE" "$_guard_ta_id"
+    guard_intent_ensure_sections || return $?
+    for _guard_ta_key in $_GUARD_TEMPLATE_APPLY_KEYS
+    do
+        if json_has "$_GUARD_TEMPLATE_FILE" "templates.${_guard_ta_id}.apply.${_guard_ta_key}"; then
+            _guard_ta_val=$(json_get "$_GUARD_TEMPLATE_FILE" "templates.${_guard_ta_id}.apply.${_guard_ta_key}") || continue
+            _guard_template_apply_key "$_guard_ta_key" "$_guard_ta_val" || return $?
+        fi
+    done
+    if [ "${GUARD_DRY_RUN:-0}" = 1 ]; then
+        cli_info "dry-run: no UCI written"
+        return 0
+    fi
+    uci_commit_if_changed openclash_guard || return $?
+    guard_cmd_reconcile
+}
+
+guard_cmd_template() {
+    _guard_tc_sub=${1:-}
+    if [ "$#" -gt 0 ]; then
+        shift
+    fi
+    case $_guard_tc_sub in
+        list)
+            guard_cmd_template_list "$@"
+            ;;
+        suggest)
+            guard_cmd_template_suggest "$@"
+            ;;
+        show)
+            guard_cmd_template_show "$@"
+            ;;
+        apply)
+            guard_cmd_template_apply "$@"
+            ;;
+        *)
+            printf '%s\n' "usage: openclash-guard template list|suggest|show|apply" >&2
+            return 2
+            ;;
+    esac
+}
+# END MODULE: guard-template
+
+# BEGIN MODULE: guard-install
+# Interactive and headless installer. Headless never prompts.
+# Prefix: guard_install_
+set -eu
+
+_guard_install_root() {
+    printf '%s\n' "${GUARD_PREFIX:-}"
+}
+
+_guard_install_bin() {
+    printf '%s/usr/bin/openclash-guard\n' "$(_guard_install_root)"
+}
+
+_guard_install_etc() {
+    printf '%s/etc/openclash-guard\n' "$(_guard_install_root)"
+}
+
+_guard_install_init() {
+    printf '%s/etc/init.d/openclash-guard\n' "$(_guard_install_root)"
+}
+
+_guard_install_hotplug() {
+    printf '%s/etc/hotplug.d/firewall/99-openclash-guard\n' "$(_guard_install_root)"
+}
+
+_guard_install_fw4() {
+    printf '%s/etc/openclash-guard/fw4.include\n' "$(_guard_install_root)"
+}
+
+_guard_install_oc_hook() {
+    printf '%s/usr/lib/openclash-guard/on-openclash-restart\n' "$(_guard_install_root)"
+}
+
+_guard_install_oc_custom_hook() {
+    printf '%s/etc/openclash/custom/openclash_custom_firewall_rules.sh\n' "$(_guard_install_root)"
+}
+
+_guard_install_observations() {
+    printf '%s/environment.json\n' "$(_guard_install_etc)"
+}
+
+_GUARD_INSTALL_OC_BEGIN='# BEGIN OPENCLASH-GUARD MANAGED'
+_GUARD_INSTALL_OC_END='# END OPENCLASH-GUARD MANAGED'
+_GUARD_INSTALL_VERSION_WARNING='WARNING: NO AUTO-UPGRADE AND NO AUTO-INSTALL. This checker is read-only; it never runs the installer or changes the runtime.'
+
+_guard_install_check_version() {
+    _guard_icv_installed=$(_guard_install_bin)
+    _guard_icv_installed_sha=
+    _guard_icv_published_sha=
+    _guard_icv_status=untrusted
+    _guard_icv_signature=untrusted
+    _guard_icv_sequence=
+    _guard_icv_revision=
+    _guard_icv_source=
+    _guard_icv_fingerprint=
+    _guard_icv_trust_state=unrecorded
+    _guard_icv_trust_reason=
+    _guard_icv_key=$(_guard_distribution_trusted_key)
+
+    if [ -f "$_guard_icv_installed" ]; then
+        _guard_icv_installed_sha=$(file_sha256 "$_guard_icv_installed" 2>/dev/null) || _guard_icv_installed_sha=
+    fi
+    if guard_distribution_fetch_release auto >/dev/null 2>&1; then
+        _guard_icv_signature=$_GUARD_RELEASE_SIGNATURE_STATE
+        _guard_icv_published_sha=$_GUARD_RELEASE_BUNDLE_SHA256
+        _guard_icv_sequence=$_GUARD_RELEASE_SEQUENCE
+        _guard_icv_revision=$_GUARD_RELEASE_REVISION
+        _guard_icv_source=$_GUARD_RELEASE_SOURCE
+        _guard_icv_fingerprint=$_GUARD_RELEASE_KEY_FINGERPRINT
+        if [ -z "$_guard_icv_installed_sha" ]; then
+            _guard_icv_status=not-installed
+        elif [ "$_guard_icv_installed_sha" = "$_guard_icv_published_sha" ]; then
+            _guard_icv_status=current
+        else
+            _guard_icv_status=different
+        fi
+    fi
+    _guard_icv_trust_state=${_GUARD_RELEASE_STATE:-unrecorded}
+    _guard_icv_trust_reason=${_GUARD_RELEASE_STATE_REASON:-}
+
+    if [ "${_GUARD_JSON:-0}" = 1 ]; then
+        printf '{"status":"%s","installedSha256":"%s","publishedSha256":"%s","release":{"signature":"%s","sequence":"%s","revision":"%s","source":"%s","keyFingerprint":"%s","trustedKey":"%s","rollbackState":"%s","rollbackReason":"%s"},"autoUpgrade":false,"autoInstall":false}\n' \
+            "$(_guard_env_json_string "$_guard_icv_status")" \
+            "$(_guard_env_json_string "$_guard_icv_installed_sha")" \
+            "$(_guard_env_json_string "$_guard_icv_published_sha")" \
+            "$(_guard_env_json_string "$_guard_icv_signature")" \
+            "$(_guard_env_json_string "$_guard_icv_sequence")" \
+            "$(_guard_env_json_string "$_guard_icv_revision")" \
+            "$(_guard_env_json_string "$_guard_icv_source")" \
+            "$(_guard_env_json_string "$_guard_icv_fingerprint")" \
+            "$(_guard_env_json_string "$_guard_icv_key")" \
+            "$(_guard_env_json_string "$_guard_icv_trust_state")" \
+            "$(_guard_env_json_string "$_guard_icv_trust_reason")"
+    else
+        cli_section "OpenClash Guard version check"
+        cli_kv installed.sha256 "${_guard_icv_installed_sha:-not-installed}"
+        cli_kv published.sha256 "${_guard_icv_published_sha:-untrusted}"
+        cli_kv release.signature "$_guard_icv_signature"
+        [ -z "$_guard_icv_sequence" ] || cli_kv release.sequence "$_guard_icv_sequence"
+        [ -z "$_guard_icv_revision" ] || cli_kv release.revision "$_guard_icv_revision"
+        [ -z "$_guard_icv_source" ] || cli_kv release.source "$_guard_icv_source"
+        [ -z "$_guard_icv_fingerprint" ] || cli_kv release.keyFingerprint "$_guard_icv_fingerprint"
+        cli_kv release.trustedKey "$_guard_icv_key"
+        cli_kv release.rollbackState "$_guard_icv_trust_state"
+        [ -z "$_guard_icv_trust_reason" ] || cli_kv release.rollbackReason "$_guard_icv_trust_reason"
+        cli_kv status "$_guard_icv_status"
+        cli_warn "$_GUARD_INSTALL_VERSION_WARNING"
+    fi
+    [ "$_guard_icv_status" != untrusted ]
+}
+
+
+_guard_install_integrity_check() {
+    _guard_iic_state=$(_guard_distribution_release_state_path)
+    _guard_iic_status=unrecorded
+    _guard_iic_bundle=unrecorded
+    _guard_iic_policy=unrecorded
+    _guard_iic_templates=unrecorded
+    _guard_iic_sequence=
+    _guard_iic_revision=
+    _guard_iic_bundle_actual=
+    _guard_iic_policy_actual=
+    _guard_iic_templates_actual=
+    if [ -f "$_guard_iic_state" ]; then
+        _guard_iic_sequence=$(_guard_distribution_state_get "$_guard_iic_state" highestSequence 2>/dev/null) || _guard_iic_sequence=
+        _guard_iic_revision=$(_guard_distribution_state_get "$_guard_iic_state" highestRevision 2>/dev/null) || _guard_iic_revision=
+        _guard_iic_bundle_expected=$(_guard_distribution_state_get "$_guard_iic_state" installedBundleSha256 2>/dev/null) || _guard_iic_bundle_expected=
+        _guard_iic_policy_expected=$(_guard_distribution_state_get "$_guard_iic_state" installedPolicySha256 2>/dev/null) || _guard_iic_policy_expected=
+        _guard_iic_templates_expected=$(_guard_distribution_state_get "$_guard_iic_state" installedTemplatesSha256 2>/dev/null) || _guard_iic_templates_expected=
+        _guard_iic_bundle_expected=$(_guard_distribution_valid_sha256 "$_guard_iic_bundle_expected" 2>/dev/null) || _guard_iic_bundle_expected=
+        _guard_iic_policy_expected=$(_guard_distribution_valid_sha256 "$_guard_iic_policy_expected" 2>/dev/null) || _guard_iic_policy_expected=
+        _guard_iic_templates_expected=$(_guard_distribution_valid_sha256 "$_guard_iic_templates_expected" 2>/dev/null) || _guard_iic_templates_expected=
+        if [ -n "$_guard_iic_bundle_expected" ] && [ -n "$_guard_iic_policy_expected" ] && [ -n "$_guard_iic_templates_expected" ]; then
+            _guard_iic_bundle_path=$(_guard_install_bin)
+            _guard_iic_policy_path=$(_guard_policy_default_path)
+            _guard_iic_templates_path=$(_guard_template_catalog_path)
+            if [ -s "$_guard_iic_bundle_path" ]; then
+                _guard_iic_bundle_actual=$(file_sha256 "$_guard_iic_bundle_path" 2>/dev/null) || _guard_iic_bundle_actual=
+                [ "$_guard_iic_bundle_actual" = "$_guard_iic_bundle_expected" ] && _guard_iic_bundle=verified || _guard_iic_bundle=modified
+            else
+                _guard_iic_bundle=missing
+            fi
+            if [ -s "$_guard_iic_policy_path" ]; then
+                _guard_iic_policy_actual=$(file_sha256 "$_guard_iic_policy_path" 2>/dev/null) || _guard_iic_policy_actual=
+                [ "$_guard_iic_policy_actual" = "$_guard_iic_policy_expected" ] && _guard_iic_policy=verified || _guard_iic_policy=modified
+            else
+                _guard_iic_policy=missing
+            fi
+            if [ -s "$_guard_iic_templates_path" ]; then
+                _guard_iic_templates_actual=$(file_sha256 "$_guard_iic_templates_path" 2>/dev/null) || _guard_iic_templates_actual=
+                [ "$_guard_iic_templates_actual" = "$_guard_iic_templates_expected" ] && _guard_iic_templates=verified || _guard_iic_templates=modified
+            else
+                _guard_iic_templates=missing
+            fi
+            if [ "$_guard_iic_bundle" = verified ] && [ "$_guard_iic_policy" = verified ] && [ "$_guard_iic_templates" = verified ]; then
+                _guard_iic_status=verified
+            else
+                _guard_iic_status=modified
+            fi
+        fi
+    fi
+    if [ "${_GUARD_JSON:-0}" = 1 ]; then
+        printf '{"status":"%s","networkAccess":false,"receipt":{"path":"%s","sequence":"%s","revision":"%s"},"artifacts":{"bundle":{"state":"%s","sha256":"%s"},"policy":{"state":"%s","sha256":"%s"},"templates":{"state":"%s","sha256":"%s"}}}\n' \
+            "$(_guard_env_json_string "$_guard_iic_status")" \
+            "$(_guard_env_json_string "$_guard_iic_state")" \
+            "$(_guard_env_json_string "$_guard_iic_sequence")" \
+            "$(_guard_env_json_string "$_guard_iic_revision")" \
+            "$(_guard_env_json_string "$_guard_iic_bundle")" \
+            "$(_guard_env_json_string "$_guard_iic_bundle_actual")" \
+            "$(_guard_env_json_string "$_guard_iic_policy")" \
+            "$(_guard_env_json_string "$_guard_iic_policy_actual")" \
+            "$(_guard_env_json_string "$_guard_iic_templates")" \
+            "$(_guard_env_json_string "$_guard_iic_templates_actual")"
+    else
+        cli_section "OpenClash Guard local integrity check"
+        cli_kv status "$_guard_iic_status"
+        cli_kv networkAccess false
+        cli_kv receipt.path "$_guard_iic_state"
+        [ -z "$_guard_iic_sequence" ] || cli_kv receipt.sequence "$_guard_iic_sequence"
+        [ -z "$_guard_iic_revision" ] || cli_kv receipt.revision "$_guard_iic_revision"
+        cli_kv bundle "$_guard_iic_bundle"
+        cli_kv policy "$_guard_iic_policy"
+        cli_kv templates "$_guard_iic_templates"
+    fi
+    [ "$_guard_iic_status" = verified ]
+}
+
+_guard_install_write() {
+    _guard_iw_dest=$1
+    _guard_iw_mode=${2:-0644}
+    if [ "${GUARD_DRY_RUN:-0}" = 1 ]; then
+        printf 'would write %s\n' "$_guard_iw_dest"
+        cat >/dev/null
+        return 0
+    fi
+    _guard_iw_dir=$(dirname "$_guard_iw_dest")
+    mkdir -p "$_guard_iw_dir"
+    _guard_iw_tmp=$(file_mktemp "$_guard_iw_dir") || return 1
+    if ! cat > "$_guard_iw_tmp"; then
+        rm -f "$_guard_iw_tmp"
+        return 1
+    fi
+    chmod "$_guard_iw_mode" "$_guard_iw_tmp"
+    if [ -f "$_guard_iw_dest" ] && cmp -s "$_guard_iw_dest" "$_guard_iw_tmp"; then
+        chmod "$_guard_iw_mode" "$_guard_iw_dest"
+        rm -f "$_guard_iw_tmp"
+        return 0
+    fi
+    if ! file_atomic_replace "$_guard_iw_dest" "$_guard_iw_tmp"; then
+        rm -f "$_guard_iw_tmp"
+        return 1
+    fi
+    chmod "$_guard_iw_mode" "$_guard_iw_dest"
+    rm -f "$_guard_iw_tmp"
+}
+
+_guard_install_copy() {
+    _guard_ic_src=$1
+    _guard_ic_dest=$2
+    _guard_ic_mode=${3:-0644}
+    if [ ! -f "$_guard_ic_src" ]; then
+        return 1
+    fi
+    if [ "${GUARD_DRY_RUN:-0}" = 1 ]; then
+        printf 'would copy %s -> %s\n' "$_guard_ic_src" "$_guard_ic_dest"
+        return 0
+    fi
+    mkdir -p "$(dirname "$_guard_ic_dest")"
+    if [ -f "$_guard_ic_dest" ] && cmp -s "$_guard_ic_src" "$_guard_ic_dest"; then
+        chmod "$_guard_ic_mode" "$_guard_ic_dest"
+        return 0
+    fi
+    file_atomic_replace "$_guard_ic_dest" "$_guard_ic_src" || return $?
+    chmod "$_guard_ic_mode" "$_guard_ic_dest"
+}
+
+_guard_install_self() {
+    _guard_is_dest=$(_guard_install_bin)
+    if [ "${GUARD_DRY_RUN:-0}" = 1 ]; then
+        printf 'would install %s\n' "$_guard_is_dest"
+        return 0
+    fi
+    mkdir -p "$(dirname "$_guard_is_dest")"
+    _guard_is_source=${GUARD_SELF_PATH:-$0}
+    if [ -f "$_guard_is_source" ] && guard_distribution_validate_bundle "$_guard_is_source"; then
+        if [ -f "$_guard_is_dest" ] && cmp -s "$_guard_is_source" "$_guard_is_dest"; then
+            chmod 0755 "$_guard_is_dest"
+            return 0
+        fi
+        file_atomic_replace "$_guard_is_dest" "$_guard_is_source" || return $?
+        chmod 0755 "$_guard_is_dest"
+        return 0
+    fi
+    cli_info "script is running from stdin; fetching the verified published bundle"
+    if ! guard_distribution_fetch_bundle "$_guard_is_dest" auto; then
+        cli_error "unable to install a verified OpenClash Guard bundle"
+        return 1
+    fi
+}
+
+_guard_install_shebang() {
+    printf '%s%s\n' '#!' "${1:-/bin/sh}"
+}
+
+_guard_install_script() {
+    _guard_is_dest=$1
+    _guard_is_interp=$2
+    _guard_is_body=$3
+    {
+        _guard_install_shebang "$_guard_is_interp"
+        printf '%s' "$_guard_is_body"
+    } | _guard_install_write "$_guard_is_dest" 0755
+}
+
+_guard_install_hooks() {
+    _guard_ih_bin=$(_guard_install_bin)
+    _guard_install_script "$(_guard_install_init)" "/bin/sh /etc/rc.common" "\
+# OpenClash Guard boot reconcile and fixed-interval rule sync.
+USE_PROCD=1
+START=99
+STOP=10
+PROG=${_guard_ih_bin}
+
+start_service() {
+	\"\$PROG\" reconcile
+	procd_open_instance rules-sync
+	procd_set_param command \"\$PROG\" rules sync watch
+	procd_set_param env GUARD_RULES_ALLOW_WATCH=1
+	procd_set_param respawn 3600 5 5
+	procd_close_instance
+}
+
+reload_service() {
+	\"\$PROG\" reconcile
+	\"\$PROG\" rules sync run || true
+}
+
+stop_service() {
+	\"\$PROG\" --yes remove || true
+}
+"
+    _guard_ih_body="# Re-apply owned table. Does not enable OpenClash.
+[ -x ${_guard_ih_bin} ] || exit 0
+${_guard_ih_bin} reconcile
+"
+    _guard_install_script "$(_guard_install_hotplug)" "/bin/sh" "# fw4/firewall reload hook.
+${_guard_ih_body}"
+    _guard_install_script "$(_guard_install_fw4)" "/bin/sh" "# fw4 include.
+${_guard_ih_body}"
+    _guard_install_script "$(_guard_install_oc_hook)" "/bin/sh" "# Observe OpenClash restart.
+${_guard_ih_body}"
+    _guard_ih_oc="$(_guard_install_root)/etc/openclash"
+    if [ -d "$_guard_ih_oc" ]; then
+        _guard_install_script "${_guard_ih_oc}/openclash-guard-hook.sh" "/bin/sh" "# Legacy drop-in observer; lifecycle wiring uses OpenClash's documented custom firewall hook.
+${_guard_ih_body}"
+    fi
+}
+
+_guard_install_fw4_registration_valid() {
+    command -v uci >/dev/null 2>&1 || return 1
+    [ "$(uci_get_default firewall.openclash_guard '' 2>/dev/null || true)" = include ] || return 1
+    [ "$(uci_get_default firewall.openclash_guard.type '' 2>/dev/null || true)" = script ] || return 1
+    [ "$(uci_get_default firewall.openclash_guard.path '' 2>/dev/null || true)" = "$(_guard_install_fw4)" ] || return 1
+    [ "$(uci_get_default firewall.openclash_guard.enabled 0 2>/dev/null || printf 0)" = 1 ] || return 1
+}
+
+_guard_install_register_fw4_include() {
+    if [ "${GUARD_DRY_RUN:-0}" = 1 ]; then
+        printf 'would register firewall.openclash_guard -> %s\n' "$(_guard_install_fw4)"
+        return 0
+    fi
+    command -v uci >/dev/null 2>&1 || return 127
+    uci_set firewall.openclash_guard include
+    uci_set firewall.openclash_guard.type script
+    uci_set firewall.openclash_guard.path "$(_guard_install_fw4)"
+    uci_set firewall.openclash_guard.enabled 1
+    uci_commit_if_changed firewall
+}
+
+_guard_install_openclash_hook_valid() {
+    _guard_iohv_root="$(_guard_install_root)/etc/openclash"
+    [ -d "$_guard_iohv_root" ] || return 0
+    _guard_iohv_file=$(_guard_install_oc_custom_hook)
+    _guard_iohv_target=$(_guard_install_oc_hook)
+    _guard_iohv_call="[ -x \"$_guard_iohv_target\" ] && \"$_guard_iohv_target\""
+    [ -x "$_guard_iohv_file" ] || return 1
+    [ "$(grep -Fxc "$_GUARD_INSTALL_OC_BEGIN" "$_guard_iohv_file" 2>/dev/null || true)" -eq 1 ] || return 1
+    [ "$(grep -Fxc "$_GUARD_INSTALL_OC_END" "$_guard_iohv_file" 2>/dev/null || true)" -eq 1 ] || return 1
+    grep -Fqx "$_guard_iohv_call" "$_guard_iohv_file" >/dev/null 2>&1
+}
+
+_guard_install_wire_openclash_hook() {
+    _guard_iow_root="$(_guard_install_root)/etc/openclash"
+    [ -d "$_guard_iow_root" ] || return 0
+    _guard_iow_file=$(_guard_install_oc_custom_hook)
+    _guard_iow_target=$(_guard_install_oc_hook)
+    _guard_iow_call="[ -x \"$_guard_iow_target\" ] && \"$_guard_iow_target\""
+    if [ "${GUARD_DRY_RUN:-0}" = 1 ]; then
+        printf 'would manage OpenClash lifecycle block in %s\n' "$_guard_iow_file"
+        return 0
+    fi
+    mkdir -p "$(dirname "$_guard_iow_file")"
+    if [ -f "$_guard_iow_file" ]; then
+        _guard_iow_begin=$(grep -Fxc "$_GUARD_INSTALL_OC_BEGIN" "$_guard_iow_file" 2>/dev/null || true)
+        _guard_iow_end=$(grep -Fxc "$_GUARD_INSTALL_OC_END" "$_guard_iow_file" 2>/dev/null || true)
+        if [ "$_guard_iow_begin" -ne "$_guard_iow_end" ] || [ "$_guard_iow_begin" -gt 1 ]; then
+            cli_error "refusing to modify malformed OpenClash Guard managed block in $_guard_iow_file"
+            return 1
+        fi
+        if [ "$_guard_iow_begin" -eq 1 ] && grep -Fqx "$_guard_iow_call" "$_guard_iow_file" >/dev/null 2>&1; then
+            chmod 0755 "$_guard_iow_file"
+            return 0
+        fi
+    fi
+    _guard_iow_stripped=$(file_mktemp) || return 1
+    _guard_iow_candidate=$(file_mktemp) || { rm -f "$_guard_iow_stripped"; return 1; }
+    if [ -f "$_guard_iow_file" ]; then
+        awk -v begin="$_GUARD_INSTALL_OC_BEGIN" -v end="$_GUARD_INSTALL_OC_END" '
+            $0 == begin { skip=1; next }
+            $0 == end { skip=0; next }
+            !skip { print }
+        ' "$_guard_iow_file" > "$_guard_iow_stripped"
+    else
+        printf '%s%s\n\n%s\n' '#!' '/bin/sh' 'exit 0' > "$_guard_iow_stripped"
+    fi
+    awk -v begin="$_GUARD_INSTALL_OC_BEGIN" -v call="$_guard_iow_call" -v end="$_GUARD_INSTALL_OC_END" '
+        !inserted && $0 ~ /^[[:space:]]*exit[[:space:]]+0[[:space:]]*$/ {
+            print begin
+            print call
+            print end
+            print ""
+            inserted=1
+        }
+        { print }
+        END {
+            if (!inserted) {
+                print ""
+                print begin
+                print call
+                print end
+            }
+        }
+    ' "$_guard_iow_stripped" > "$_guard_iow_candidate"
+    if ! _guard_install_write "$_guard_iow_file" 0755 < "$_guard_iow_candidate"; then
+        rm -f "$_guard_iow_stripped" "$_guard_iow_candidate"
+        return 1
+    fi
+    rm -f "$_guard_iow_stripped" "$_guard_iow_candidate"
+}
+
+_guard_install_unwire_openclash_hook() {
+    _guard_iuoh_file=$(_guard_install_oc_custom_hook)
+    [ -f "$_guard_iuoh_file" ] || return 0
+    _guard_iuoh_begin=$(grep -Fxc "$_GUARD_INSTALL_OC_BEGIN" "$_guard_iuoh_file" 2>/dev/null || true)
+    _guard_iuoh_end=$(grep -Fxc "$_GUARD_INSTALL_OC_END" "$_guard_iuoh_file" 2>/dev/null || true)
+    [ "$_guard_iuoh_begin" -eq 0 ] && [ "$_guard_iuoh_end" -eq 0 ] && return 0
+    if [ "$_guard_iuoh_begin" -ne 1 ] || [ "$_guard_iuoh_end" -ne 1 ]; then
+        cli_warn "preserving malformed OpenClash custom firewall hook: $_guard_iuoh_file"
+        return 1
+    fi
+    _guard_iuoh_tmp=$(file_mktemp) || return 1
+    awk -v begin="$_GUARD_INSTALL_OC_BEGIN" -v end="$_GUARD_INSTALL_OC_END" '
+        $0 == begin { skip=1; next }
+        $0 == end { skip=0; next }
+        !skip { print }
+    ' "$_guard_iuoh_file" > "$_guard_iuoh_tmp"
+    if ! _guard_install_write "$_guard_iuoh_file" 0755 < "$_guard_iuoh_tmp"; then
+        rm -f "$_guard_iuoh_tmp"
+        return 1
+    fi
+    rm -f "$_guard_iuoh_tmp"
+}
+
+_guard_install_register_lifecycle() {
+    _guard_install_register_fw4_include || return $?
+    _guard_install_wire_openclash_hook
+}
+
+_guard_install_unregister_lifecycle() {
+    _guard_iul_rc=0
+    _guard_install_unwire_openclash_hook || _guard_iul_rc=1
+    if command -v uci >/dev/null 2>&1; then
+        uci_delete firewall.openclash_guard.enabled
+        uci_delete firewall.openclash_guard.path
+        uci_delete firewall.openclash_guard.type
+        uci_delete firewall.openclash_guard
+        uci_commit_if_changed firewall || _guard_iul_rc=1
+    fi
+    return "$_guard_iul_rc"
+}
+
+_guard_install_service_control() {
+    if [ -n "${GUARD_SERVICE_CONTROL:-}" ]; then
+        printf '%s\n' "$GUARD_SERVICE_CONTROL"
+        return 0
+    fi
+    if [ -n "${GUARD_PREFIX:-}" ]; then
+        return 1
+    fi
+    _guard_install_init
+}
+
+_guard_install_enable_service() {
+    if [ "${GUARD_DRY_RUN:-0}" = 1 ]; then
+        printf 'would enable %s\n' "$(_guard_install_init)"
+        return 0
+    fi
+    _guard_ies_control=$(_guard_install_service_control) || {
+        cli_info "service enable deferred for prefixed installation"
+        return 0
+    }
+    if [ ! -x "$_guard_ies_control" ]; then
+        cli_error "Guard service control is missing: $_guard_ies_control"
+        return 1
+    fi
+    if "$_guard_ies_control" enabled >/dev/null 2>&1; then
+        return 0
+    fi
+    "$_guard_ies_control" enable
+}
+
+_guard_install_stop_disable_service() {
+    _guard_isd_control=$(_guard_install_service_control) || return 0
+    [ -x "$_guard_isd_control" ] || return 0
+    "$_guard_isd_control" stop >/dev/null 2>&1 || true
+    if "$_guard_isd_control" enabled >/dev/null 2>&1; then
+        "$_guard_isd_control" disable || return $?
+    fi
+}
+
+_guard_install_service_state() {
+    _guard_iss_control=$(_guard_install_service_control) || {
+        printf '%s\n' deferred
+        return 0
+    }
+    if [ ! -x "$_guard_iss_control" ]; then
+        printf '%s\n' missing
+        return 1
+    fi
+    if "$_guard_iss_control" enabled >/dev/null 2>&1; then
+        printf '%s\n' enabled
+        return 0
+    fi
+    printf '%s\n' disabled
+    return 1
+}
+
+_guard_install_policy_files() {
+    _guard_ip_etc=$(_guard_install_etc)
+    _guard_ip_pol=${_GUARD_PREFLIGHT_POLICY_FILE:-}
+    _guard_ip_tpl=${_GUARD_PREFLIGHT_TEMPLATES_FILE:-${GUARD_TEMPLATES_SOURCE:-}}
+    if [ -z "$_guard_ip_pol" ] && [ -n "${GUARD_POLICY_FILE:-}" ] && [ -f "${GUARD_POLICY_FILE}" ]; then
+        _guard_ip_pol=$GUARD_POLICY_FILE
+    fi
+    if [ -n "$_guard_ip_pol" ] && [ -f "$_guard_ip_pol" ]; then
+        # GUARD_POLICY_FILE may identify a staged source. Installation always
+        # publishes the validated runtime into the installer-owned directory.
+        _guard_ip_dest=$(_guard_install_etc)/openclash-guard.json
+        _guard_install_copy "$_guard_ip_pol" "$_guard_ip_dest" 0644 || return $?
+        if [ "${GUARD_DRY_RUN:-0}" != 1 ]; then
+            GUARD_POLICY_FILE=$_guard_ip_dest
+        fi
+    fi
+    if [ -z "$_guard_ip_tpl" ] && [ -n "$_guard_ip_pol" ]; then
+        _guard_ip_sib=$(dirname "$_guard_ip_pol")/openclash-guard-templates.json
+        if [ -f "$_guard_ip_sib" ]; then
+            _guard_ip_tpl=$_guard_ip_sib
+        fi
+    fi
+    if [ -z "$_guard_ip_tpl" ] && [ -n "${GUARD_TEMPLATES_FILE:-}" ] && [ -f "${GUARD_TEMPLATES_FILE}" ]; then
+        _guard_ip_tpl=$GUARD_TEMPLATES_FILE
+    fi
+    if [ -n "$_guard_ip_tpl" ] && [ -f "$_guard_ip_tpl" ]; then
+        _guard_ip_tpl_dest="$(_guard_install_etc)/openclash-guard-templates.json"
+        _guard_install_copy "$_guard_ip_tpl" "$_guard_ip_tpl_dest" 0644 || return $?
+        if [ "${GUARD_DRY_RUN:-0}" != 1 ]; then
+            GUARD_TEMPLATES_FILE=$_guard_ip_tpl_dest
+        fi
+    fi
+}
+
+_guard_install_apply_preflight_templates() {
+    _guard_iat_catalog=${_GUARD_PREFLIGHT_TEMPLATES_FILE:-}
+    [ -f "$_guard_iat_catalog" ] || return 0
+    for _guard_iat_id in ${_GUARD_PREFLIGHT_TEMPLATE_IDS:-}
+    do
+        [ -n "$_guard_iat_id" ] || continue
+        for _guard_iat_key in $_GUARD_TEMPLATE_APPLY_KEYS
+        do
+            if json_has "$_guard_iat_catalog" "templates.${_guard_iat_id}.apply.${_guard_iat_key}"; then
+                _guard_iat_val=$(json_get "$_guard_iat_catalog" "templates.${_guard_iat_id}.apply.${_guard_iat_key}") || return 1
+                _guard_template_apply_key "$_guard_iat_key" "$_guard_iat_val" || return $?
+            fi
+        done
+    done
+}
+
+_guard_install_write_uci() {
+    _guard_iu_mode=$1
+    _guard_iu_ks=$2
+    _guard_iu_dns=$3
+    _guard_iu_game=$4
+    _guard_iu_url=$5
+    _guard_iu_clients=$6
+    guard_intent_ensure_sections || return $?
+    _guard_template_set openclash_guard.main.enabled 1
+    _guard_template_set openclash_guard.main.mode "$_guard_iu_mode"
+    _guard_template_set openclash_guard.main.kill_switch "$_guard_iu_ks"
+    _guard_template_set openclash_guard.main.dns_kill_switch "$_guard_iu_dns"
+    _guard_template_set openclash_guard.main.dns_ownership preserve
+    _guard_template_set openclash_guard.main.policy_refresh 1
+    if [ -n "$_guard_iu_url" ]; then
+        _guard_template_set openclash_guard.main.policy_url "$_guard_iu_url"
+    fi
+    _guard_template_set openclash_guard.udp.enabled "$_guard_iu_game"
+    _guard_template_set openclash_guard.udp.blanket_udp_bypass 0
+    _guard_template_set openclash_guard.udp.protect_udp_443 1
+    if [ -n "$_guard_iu_clients" ]; then
+        if [ "${GUARD_DRY_RUN:-0}" = 1 ]; then
+            for _guard_iu_c in $_guard_iu_clients
+            do
+                [ -n "$_guard_iu_c" ] || continue
+                printf 'would add_list openclash_guard.udp.src_ip=%s\n' "$_guard_iu_c"
+            done
+        else
+            uci_delete openclash_guard.udp.src_ip
+            for _guard_iu_c in $_guard_iu_clients
+            do
+                [ -n "$_guard_iu_c" ] || continue
+                uci_add_list openclash_guard.udp.src_ip "$_guard_iu_c"
+            done
+        fi
+    fi
+    if [ "${GUARD_DRY_RUN:-0}" = 1 ]; then
+        return 0
+    fi
+    uci_commit_if_changed openclash_guard || return $?
+}
+
+_guard_install_render_observations() {
+    _guard_iro_detected_at=$1
+    {
+        printf '{"schemaVersion":1,'
+        printf '"detectedAt":"%s",' "$(_guard_env_json_string "$_guard_iro_detected_at")"
+        printf '"dns":{"backend":"%s","domainSetBackend":"%s"},' \
+            "$(_guard_env_json_string "$_GUARD_DNS_BACKEND")" \
+            "$(_guard_env_json_string "$_GUARD_DNS_DOMAIN_SET")"
+        printf '"direct":{"region":"%s","reason":"%s"},' \
+            "$(_guard_env_json_string "$_GUARD_NET_DIRECT_REGION")" \
+            "$(_guard_env_json_string "${_GUARD_PREFLIGHT_DIRECT_REASON:-}")"
+        printf '"proxy":{"region":"%s","healthy":%s,"route":"%s","reason":"%s"},' \
+            "$(_guard_env_json_string "$_GUARD_PROXY_REGION")" \
+            "$(_guard_env_json_bool "$_GUARD_PROXY_HEALTHY")" \
+            "$(_guard_env_json_string "${_GUARD_GEO_ROUTE:-}")" \
+            "$(_guard_env_json_string "${_GUARD_PREFLIGHT_PROXY_REASON:-}")"
+        printf '"templates":['
+        _guard_iwo_first=1
+        for _guard_iwo_id in ${_GUARD_PREFLIGHT_TEMPLATE_IDS:-}
+        do
+            [ -n "$_guard_iwo_id" ] || continue
+            [ "$_guard_iwo_first" = 1 ] || printf ','
+            _guard_iwo_first=0
+            printf '"%s"' "$(_guard_env_json_string "$_guard_iwo_id")"
+        done
+        printf ']}\n'
+    }
+}
+
+_guard_install_write_observations() {
+    _guard_iwo_dest=$(_guard_install_observations)
+    if [ "${GUARD_DRY_RUN:-0}" = 1 ]; then
+        printf 'would write %s\n' "$_guard_iwo_dest"
+        return 0
+    fi
+    mkdir -p "$(dirname "$_guard_iwo_dest")"
+    _guard_iwo_tmp=$(file_mktemp "$(dirname "$_guard_iwo_dest")") || return 1
+    _guard_iwo_detected_at=
+    if [ -f "$_guard_iwo_dest" ] && json_load "$_guard_iwo_dest" >/dev/null 2>&1; then
+        _guard_iwo_detected_at=$(json_get "$_guard_iwo_dest" detectedAt 2>/dev/null) || _guard_iwo_detected_at=
+    fi
+    [ -n "$_guard_iwo_detected_at" ] || _guard_iwo_detected_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    _guard_install_render_observations "$_guard_iwo_detected_at" > "$_guard_iwo_tmp"
+    json_load "$_guard_iwo_tmp" || {
+        rm -f "$_guard_iwo_tmp"
+        return 1
+    }
+    if [ -f "$_guard_iwo_dest" ] && cmp -s "$_guard_iwo_dest" "$_guard_iwo_tmp"; then
+        rm -f "$_guard_iwo_tmp"
+        return 0
+    fi
+    _guard_install_render_observations "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$_guard_iwo_tmp"
+    file_atomic_replace "$_guard_iwo_dest" "$_guard_iwo_tmp"
+    _guard_iwo_rc=$?
+    rm -f "$_guard_iwo_tmp"
+    return "$_guard_iwo_rc"
+}
+
+_GUARD_SETUP_INVALID_REASON=
+
+guard_install_validate() {
+    _GUARD_SETUP_INVALID_REASON=
+    _guard_iv_bin=$(_guard_install_bin)
+    _guard_iv_policy=$(_guard_policy_default_path)
+    _guard_iv_templates=$(dirname "$_guard_iv_policy")/openclash-guard-templates.json
+    _guard_iv_observations=$(_guard_install_observations)
+    _guard_iv_state=$(_guard_distribution_state_path)
+    if [ ! -x "$_guard_iv_bin" ] || ! guard_distribution_validate_bundle "$_guard_iv_bin" >/dev/null 2>&1; then
+        _GUARD_SETUP_INVALID_REASON="verified Guard runtime bundle is missing"
+        return 1
+    fi
+    if ! guard_policy_validate_file "$_guard_iv_policy" >/dev/null 2>&1; then
+        _GUARD_SETUP_INVALID_REASON="runtime policy is missing or invalid"
+        return 1
+    fi
+    if ! guard_template_validate_file "$_guard_iv_templates" >/dev/null 2>&1; then
+        _GUARD_SETUP_INVALID_REASON="template catalog is missing or invalid"
+        return 1
+    fi
+    if ! json_load "$_guard_iv_observations" >/dev/null 2>&1 || \
+       [ "$(json_get "$_guard_iv_observations" schemaVersion 2>/dev/null || printf 0)" != 1 ]; then
+        _GUARD_SETUP_INVALID_REASON="validated environment observations are missing"
+        return 1
+    fi
+    if [ ! -f "$_guard_iv_state" ] || [ -z "$(_guard_distribution_selected 2>/dev/null || true)" ]; then
+        _GUARD_SETUP_INVALID_REASON="distribution source metadata is missing"
+        return 1
+    fi
+    for _guard_iv_hook in "$(_guard_install_init)" "$(_guard_install_hotplug)" "$(_guard_install_fw4)" "$(_guard_install_oc_hook)"
+    do
+        if [ ! -x "$_guard_iv_hook" ]; then
+            _GUARD_SETUP_INVALID_REASON="required runtime hook is missing: $_guard_iv_hook"
+            return 1
+        fi
+    done
+    if ! _guard_install_fw4_registration_valid; then
+        _GUARD_SETUP_INVALID_REASON="fw4 include is not registered in firewall UCI"
+        return 1
+    fi
+    if ! _guard_install_openclash_hook_valid; then
+        _GUARD_SETUP_INVALID_REASON="OpenClash post-firewall lifecycle hook is not wired"
+        return 1
+    fi
+    # main.enabled is runtime contract state and comes from the single
+    # normalized snapshot. dns_ownership and protect_udp_443 are legacy Setup
+    # completeness markers only: they are not contract options and never
+    # authorize runtime routing or bypass behavior.
+    if ! command -v uci >/dev/null 2>&1 || \
+       ! guard_uci_overlay_ensure_loaded || \
+       [ "$(guard_uci_overlay_get main.enabled)" != 1 ] || \
+       [ "$(uci_get_default openclash_guard.main.dns_ownership "" 2>/dev/null || true)" != preserve ] || \
+       [ "$(uci_get_default openclash_guard.udp.protect_udp_443 0 2>/dev/null || printf 0)" != 1 ]; then
+        _GUARD_SETUP_INVALID_REASON="required Guard UCI configuration is incomplete"
+        return 1
+    fi
+}
+
+_guard_install_print_env() {
+    cli_section "Environment"
+    cli_kv "OpenWrt/fw4" "$(guard_env_get nft.available)"
+    cli_kv "OpenClash" "$(guard_env_get openclash.running)"
+    cli_kv "DNS backend" "$(guard_env_get dns.backend)"
+    cli_kv "dnsmasq DNS" "$(guard_env_get dns.dnsmasqEnabled)"
+    cli_kv "Direct region" "$(guard_env_get network.directRegion)"
+    cli_kv "Gaming clients" "$(guard_env_get gaming.clients.count)"
+}
+
+_guard_install_print_proposed() {
+    _guard_ipp_ks=$1
+    _guard_ipp_dns=$2
+    _guard_ipp_game=$3
+    cli_section "Proposed policy"
+    if [ "$_guard_ipp_ks" = 1 ]; then
+        cli_kv "Global kill switch" enabled
+    else
+        cli_kv "Global kill switch" disabled
+    fi
+    cli_kv "AI service guard" enabled
+    if [ "$_guard_ipp_game" = 1 ]; then
+        cli_kv "Gaming UDP bypass" scoped
+    else
+        cli_kv "Gaming UDP bypass" disabled
+    fi
+    if [ "$_guard_ipp_dns" = 1 ]; then
+        cli_kv "DNS kill switch" enabled
+    else
+        cli_kv "DNS kill switch" disabled
+    fi
+    cli_kv "Policy refresh" enabled
+}
+
+guard_cmd_install() {
+    _guard_in_mode=auto
+    _guard_in_url=
+    _guard_in_ks=
+    _guard_in_dns=
+    _guard_in_game=
+    _guard_in_norefresh=0
+    _guard_in_clients=
+    _guard_in_check_version=0
+    while [ "$#" -gt 0 ]
+    do
+        case $1 in
+            --mode)
+                _guard_in_mode=$2
+                shift 2
+                ;;
+            --policy-url)
+                _guard_in_url=$2
+                shift 2
+                ;;
+            --enable-kill-switch)
+                _guard_in_ks=1
+                shift
+                ;;
+            --disable-kill-switch)
+                _guard_in_ks=0
+                shift
+                ;;
+            --enable-dns-kill-switch)
+                _guard_in_dns=1
+                shift
+                ;;
+            --disable-dns-kill-switch)
+                _guard_in_dns=0
+                shift
+                ;;
+            --enable-gaming-bypass)
+                _guard_in_game=1
+                shift
+                ;;
+            --disable-gaming-bypass)
+                _guard_in_game=0
+                shift
+                ;;
+            --gaming-client)
+                _guard_in_clients="${_guard_in_clients} $2"
+                shift 2
+                ;;
+            --no-refresh)
+                _guard_in_norefresh=1
+                shift
+                ;;
+            --check-version)
+                _guard_in_check_version=1
+                shift
+                ;;
+            --yes|-y)
+                cli_set_assume_yes 1
+                shift
+                ;;
+            --dry-run)
+                GUARD_DRY_RUN=1
+                shift
+                ;;
+            --json)
+                _GUARD_JSON=1
+                shift
+                ;;
+            *)
+                cli_die "unknown install option: $1" 2
+                ;;
+        esac
+    done
+if [ "$_guard_in_check_version" = 1 ]; then
+    _guard_install_check_version
+    return $?
+fi
+case $_guard_in_mode in
+    auto|strict|manual)
+            ;;
+        *)
+            cli_error "invalid --mode: $_guard_in_mode (auto|strict|manual)"
+            return 2
+            ;;
+    esac
+    guard_preflight_require_stage || return $?
+    _guard_in_ks_eff=${_guard_in_ks:-1}
+    _guard_in_dns_eff=${_guard_in_dns:-0}
+    _guard_in_game_eff=${_guard_in_game:-1}
+    if [ "$_guard_in_mode" = strict ]; then
+        _guard_in_ks_eff=${_guard_in_ks:-1}
+    fi
+    guard_kill_read_uci
+    guard_game_read_uci
+    guard_env_detect
+    if [ -f "$(_guard_policy_default_path)" ]; then
+        guard_policy_load "$(_guard_policy_default_path)" 2>/dev/null || true
+        guard_geo_detect_direct >/dev/null 2>&1 || true
+        guard_env_detect
+    fi
+    if [ "$_GUARD_JSON" != 1 ]; then
+        cli_section "OpenClash Guard Setup"
+        _guard_install_print_env
+        printf '\n'
+        _guard_install_print_proposed "$_guard_in_ks_eff" "$_guard_in_dns_eff" "$_guard_in_game_eff"
+        printf '\n'
+        if [ -f "$(_guard_template_catalog_path)" ]; then
+            GUARD_TEMPLATES_FILE=${GUARD_TEMPLATES_FILE:-$(_guard_template_catalog_path)}
+            _guard_in_env=$(_guard_template_env_file) || _guard_in_env=
+            if [ -n "$_guard_in_env" ]; then
+                _guard_in_ids=$(guard_template_matches "${GUARD_TEMPLATES_FILE}" "$_guard_in_env") || _guard_in_ids=
+                rm -f "$_guard_in_env"
+                if [ -n "$_guard_in_ids" ]; then
+                    cli_section "Suggested Templates"
+                    for _guard_in_id in $_guard_in_ids
+                    do
+                        [ -n "$_guard_in_id" ] || continue
+                        printf '\n'
+                        _guard_template_print_one "${GUARD_TEMPLATES_FILE}" "$_guard_in_id" 0
+                    done
+                    printf '\n'
+                    cli_info "suggestions are not auto-applied"
+                fi
+            fi
+        fi
+    fi
+    if [ "${GUARD_DRY_RUN:-0}" != 1 ]; then
+        if ! cli_confirm "Provision the complete OpenClash Guard runtime?"; then
+            cli_error "refusing to install without confirmation (pass --yes)"
+            return 1
+        fi
+    fi
+    _guard_install_self || return $?
+    _guard_install_policy_files || return $?
+    _guard_install_hooks || return $?
+    _guard_install_register_lifecycle || return $?
+    guard_rules_init || return $?
+    _guard_install_write_uci "$_guard_in_mode" "$_guard_in_ks_eff" "$_guard_in_dns_eff" "$_guard_in_game_eff" "$_guard_in_url" "$_guard_in_clients" || return $?
+    _guard_install_write_observations || return $?
+    _guard_install_enable_service || return $?
+    if [ "${GUARD_DRY_RUN:-0}" = 1 ]; then
+        cli_info "dry-run: install not written"
+        return 0
+    fi
+    # Setup changed UCI after preflight's read-only snapshot. Start a fresh
+    # lifecycle validation snapshot for the newly-written configuration.
+    guard_uci_overlay_load || {
+        cli_error "Setup wrote UCI values that fail the runtime contract"
+        return 1
+    }
+    _guard_distribution_record "$_GUARD_PREFLIGHT_SOURCE" "$_GUARD_PREFLIGHT_POLICY_URL" "$_GUARD_PREFLIGHT_TEMPLATES_URL" 1 || return $?
+    if ! guard_install_validate; then
+        cli_error "Setup validation failed: $_GUARD_SETUP_INVALID_REASON"
+        return 1
+    fi
+    _GUARD_PREFLIGHT_UCI_VALID=1
+    _GUARD_PREFLIGHT_SETUP_VALID=1
+    _GUARD_PREFLIGHT_SETUP_REASON="complete runtime validated"
+    if [ "${_GUARD_RELEASE_SIGNATURE_STATE:-}" = verified ]; then
+        if ! guard_distribution_record_release_state             "$(_guard_install_bin)" "$(_guard_policy_default_path)" "$(_guard_template_catalog_path)"; then
+            cli_error "setup is valid, but authenticated release receipt could not be recorded"
+            return 1
+        fi
+    else
+        cli_warn "authenticated release receipt not updated; setup used local/offline inputs"
+    fi
+    _guard_in_overlay=$(_guard_overlay_hook_path)
+    if [ -f "$_guard_in_overlay" ]; then
+        if cli_confirm "Activate the four staged Custom rule-provider slots through OpenClash's documented hook?"; then
+            guard_overlay_activate --yes || {
+                cli_error "setup completed, but rule activation failed safely; staged rules are not active"
+                return 1
+            }
+        else
+            cli_warn "rules are staged, not yet active; run 'openclash-guard rules activate --yes'"
+        fi
+    else
+        cli_warn "rules are staged, not yet active; OpenClash custom-overwrite hook was not found at $_guard_in_overlay"
+    fi
+    cli_success "setup complete; runtime is valid and not yet applied"
+}
+
+guard_cmd_health_check() {
+    _guard_hc_json=${_GUARD_JSON:-0}
+    while [ "$#" -gt 0 ]; do
+        case $1 in
+            --json) _guard_hc_json=1; shift ;;
+            *) cli_error "unknown health-check option: $1"; return 2 ;;
+        esac
+    done
+    _guard_hc_valid=1
+    _guard_hc_reason=
+    if ! guard_install_validate; then
+        _guard_hc_valid=0
+        _guard_hc_reason=$_GUARD_SETUP_INVALID_REASON
+    fi
+    _guard_hc_service=$(_guard_install_service_state 2>/dev/null) || true
+    [ -n "$_guard_hc_service" ] || _guard_hc_service=missing
+    if [ "$_guard_hc_service" = missing ] || [ "$_guard_hc_service" = disabled ]; then
+        _guard_hc_valid=0
+        [ -n "$_guard_hc_reason" ] || _guard_hc_reason="Guard service is $_guard_hc_service"
+    fi
+    _guard_hc_overlay=$(guard_overlay_activation)
+    if [ "$_guard_hc_json" = 1 ]; then
+        printf '{"healthy":%s,"service":"%s","firewallHooks":%s,"rules":{"activation":"%s","data":"preserved"},"reason":"%s"}\n' \
+            "$(_guard_env_json_bool "$_guard_hc_valid")" \
+            "$(_guard_env_json_string "$_guard_hc_service")" \
+            "$(_guard_env_json_bool "$([ -x "$(_guard_install_hotplug)" ] && [ -x "$(_guard_install_fw4)" ] && printf 1 || printf 0)")" \
+            "$(_guard_env_json_string "$_guard_hc_overlay")" \
+            "$(_guard_env_json_string "$_guard_hc_reason")"
+    else
+        cli_section "OpenClash Guard health check"
+        cli_kv install "$([ "$_guard_hc_valid" = 1 ] && printf healthy || printf unhealthy)"
+        cli_kv service "$_guard_hc_service"
+        cli_kv firewall.hotplug "$([ -x "$(_guard_install_hotplug)" ] && printf present || printf missing)"
+        cli_kv firewall.fw4 "$([ -x "$(_guard_install_fw4)" ] && printf present || printf missing)"
+        cli_kv rules.activation "$_guard_hc_overlay"
+        [ -z "$_guard_hc_reason" ] || cli_kv reason "$_guard_hc_reason"
+    fi
+    [ "$_guard_hc_valid" = 1 ]
+}
+
+_guard_install_remove_owned_file() {
+    _guard_irof_file=$1
+    _guard_irof_marker=${2:-}
+    [ -e "$_guard_irof_file" ] || return 0
+    if [ -n "$_guard_irof_marker" ] && ! grep -F "$_guard_irof_marker" "$_guard_irof_file" >/dev/null 2>&1; then
+        cli_warn "preserving modified file not recognized as Guard-owned: $_guard_irof_file"
+        return 0
+    fi
+    rm -f "$_guard_irof_file"
+}
+
+guard_cmd_uninstall() {
+    _guard_un_yes=0
+    _guard_un_purge=0
+    while [ "$#" -gt 0 ]; do
+        case $1 in
+            --yes|-y) _guard_un_yes=1; shift ;;
+            --purge-rules) _guard_un_purge=1; shift ;;
+            *) cli_error "unknown uninstall option: $1"; return 2 ;;
+        esac
+    done
+    [ "$_guard_un_yes" -eq 1 ] && cli_set_assume_yes 1
+    if [ "$_guard_un_purge" -eq 1 ]; then
+        _guard_un_prompt="Uninstall OpenClash Guard and permanently delete staged rule data?"
+    else
+        _guard_un_prompt="Uninstall OpenClash Guard and preserve staged rule data?"
+    fi
+    if ! cli_confirm "$_guard_un_prompt"; then
+        cli_error "refusing to uninstall without confirmation (pass --yes)"
+        return 1
+    fi
+    _guard_un_rc=0
+    if ! guard_overlay_deactivate --yes; then
+        cli_error "uninstall stopped before removing the Guard runtime because the managed overlay could not be removed safely"
+        return 1
+    fi
+    guard_cmd_remove || _guard_un_rc=1
+    _guard_install_stop_disable_service || _guard_un_rc=1
+    _guard_install_unregister_lifecycle || _guard_un_rc=1
+    if command -v uci >/dev/null 2>&1; then
+        for _guard_un_uci in \
+            openclash_guard.main.enabled \
+            openclash_guard.main.mode \
+            openclash_guard.main.kill_switch \
+            openclash_guard.main.dns_kill_switch \
+            openclash_guard.main.dns_ownership \
+            openclash_guard.main.policy_refresh \
+            openclash_guard.main.policy_url \
+            openclash_guard.udp.enabled \
+            openclash_guard.udp.blanket_udp_bypass \
+            openclash_guard.udp.protect_udp_443 \
+            openclash_guard.udp.src_ip
+        do
+            uci_delete "$_guard_un_uci"
+        done
+        uci_delete openclash_guard.main
+        uci_delete openclash_guard.udp
+        uci_commit_if_changed openclash_guard || _guard_un_rc=1
+    fi
+    _guard_install_remove_owned_file "$(_guard_install_hotplug)" "# fw4/firewall reload hook." || _guard_un_rc=1
+    _guard_install_remove_owned_file "$(_guard_install_fw4)" "# fw4 include." || _guard_un_rc=1
+    _guard_install_remove_owned_file "$(_guard_install_oc_hook)" "# Observe OpenClash restart." || _guard_un_rc=1
+    _guard_install_remove_owned_file "$(_guard_install_init)" "# OpenClash Guard boot reconcile" || _guard_un_rc=1
+    _guard_un_oc_dropin="$(_guard_install_root)/etc/openclash/openclash-guard-hook.sh"
+    _guard_install_remove_owned_file "$_guard_un_oc_dropin" "# Drop-in observer." || _guard_un_rc=1
+    _guard_install_remove_owned_file "$(_guard_install_bin)" || _guard_un_rc=1
+    _guard_install_remove_owned_file "$(_guard_install_etc)/openclash-guard.json" || _guard_un_rc=1
+    _guard_install_remove_owned_file "$(_guard_install_etc)/openclash-guard-templates.json" || _guard_un_rc=1
+    _guard_install_remove_owned_file "$(_guard_install_observations)" || _guard_un_rc=1
+    _guard_install_remove_owned_file "$(_guard_distribution_state_path)" || _guard_un_rc=1
+    if [ "$_guard_un_purge" -eq 1 ]; then
+        guard_rules_purge || _guard_un_rc=1
+    else
+        cli_info "preserved staged rule data under $(_guard_overlay_provider_root | sed 's,/providers$,,' )"
+    fi
+    rmdir "$(_guard_install_etc)/backups" "$(_guard_install_etc)" 2>/dev/null || true
+    rmdir "$(_guard_install_root)/usr/lib/openclash-guard" 2>/dev/null || true
+    if [ "$_guard_un_rc" -ne 0 ]; then
+        cli_error "uninstall completed with cleanup errors"
+        return "$_guard_un_rc"
+    fi
+    if [ "$_guard_un_purge" -eq 1 ]; then
+        cli_success "OpenClash Guard uninstalled; staged rule data deleted"
+    else
+        cli_success "OpenClash Guard uninstalled; staged rule data preserved"
+    fi
+}
+# END MODULE: guard-install
+
+# BEGIN MODULE: guard-preflight
+# Complete read-only bootstrap discovery for OpenClash Guard.
+# Prefix: guard_preflight_
+set -eu
+
+_GUARD_PREFLIGHT_COMPLETE=0
+_GUARD_PREFLIGHT_POLICY_FILE=
+_GUARD_PREFLIGHT_TEMPLATES_FILE=
+_GUARD_PREFLIGHT_SOURCE=
+_GUARD_PREFLIGHT_POLICY_URL=
+_GUARD_PREFLIGHT_TEMPLATES_URL=
+_GUARD_PREFLIGHT_SOURCE_REASON=
+_GUARD_PREFLIGHT_DIRECT_REASON=
+_GUARD_PREFLIGHT_PROXY_REASON=
+_GUARD_PREFLIGHT_TEMPLATE_IDS=
+_GUARD_PREFLIGHT_TEMPLATE_REASON=
+_GUARD_PREFLIGHT_SETUP_VALID=0
+_GUARD_PREFLIGHT_SETUP_REASON=
+_GUARD_PREFLIGHT_INSTALL_VALID=0
+_GUARD_PREFLIGHT_UCI_VALID=0
+_GUARD_PREFLIGHT_GUARD_INSTALLED=0
+_GUARD_PREFLIGHT_CACHE_DIR=
+_GUARD_PREFLIGHT_CACHE_TEMP=0
+_GUARD_PREFLIGHT_POLICY_TEMP=0
+_GUARD_PREFLIGHT_TEMPLATES_TEMP=0
+
+# Current preflight materialization: local | github-raw | jsdelivr | override | none.
+# Distinct from persisted distribution provenance (selectedSource).
+guard_runtime_source() {
+    if [ -n "${_GUARD_PREFLIGHT_SOURCE:-}" ]; then
+        printf '%s\n' "$_GUARD_PREFLIGHT_SOURCE"
+    else
+        printf '%s\n' "none"
+    fi
+}
+
+_guard_preflight_remove_file() {
+    [ -n "${1:-}" ] && [ -f "$1" ] && rm -f "$1"
+}
+
+guard_preflight_cleanup() {
+    if [ "${_GUARD_PREFLIGHT_POLICY_TEMP:-0}" = 1 ]; then
+        _guard_preflight_remove_file "${_GUARD_PREFLIGHT_POLICY_FILE:-}"
+    fi
+    if [ "${_GUARD_PREFLIGHT_TEMPLATES_TEMP:-0}" = 1 ]; then
+        _guard_preflight_remove_file "${_GUARD_PREFLIGHT_TEMPLATES_FILE:-}"
+    fi
+    if [ "${_GUARD_PREFLIGHT_CACHE_TEMP:-0}" = 1 ] && [ -n "${_GUARD_PREFLIGHT_CACHE_DIR:-}" ] && [ -d "$_GUARD_PREFLIGHT_CACHE_DIR" ]; then
+        _guard_preflight_remove_file "$_GUARD_PREFLIGHT_CACHE_DIR/direct.json"
+        for _guard_pc_file in "$_GUARD_PREFLIGHT_CACHE_DIR"/route-*.json
+        do
+            [ -f "$_guard_pc_file" ] && rm -f "$_guard_pc_file"
+        done
+        rmdir "$_GUARD_PREFLIGHT_CACHE_DIR" 2>/dev/null || true
+    fi
+    _GUARD_PREFLIGHT_POLICY_FILE=
+    _GUARD_PREFLIGHT_TEMPLATES_FILE=
+    _GUARD_PREFLIGHT_CACHE_DIR=
+    _GUARD_PREFLIGHT_CACHE_TEMP=0
+    _GUARD_PREFLIGHT_POLICY_TEMP=0
+    _GUARD_PREFLIGHT_TEMPLATES_TEMP=0
+}
+
+_guard_preflight_source_list() {
+    case ${1:-auto} in
+        auto) printf '%s\n' "github-raw jsdelivr" ;;
+        github-raw|raw|jsdelivr|cdn) printf '%s\n' "$1" ;;
+        *) return 2 ;;
+    esac
+}
+
+guard_preflight_stage_distribution() {
+    _guard_ps_source=${1:-auto}
+    _guard_ps_base=${2:-}
+    _guard_ps_sources=$(_guard_preflight_source_list "$_guard_ps_source") || {
+        _GUARD_PREFLIGHT_SOURCE_REASON="unsupported distribution source: $_guard_ps_source"
+        return 2
+    }
+    if [ "${_GUARD_PREFLIGHT_POLICY_TEMP:-0}" = 1 ]; then
+        _guard_preflight_remove_file "${_GUARD_PREFLIGHT_POLICY_FILE:-}"
+    fi
+    if [ "${_GUARD_PREFLIGHT_TEMPLATES_TEMP:-0}" = 1 ]; then
+        _guard_preflight_remove_file "${_GUARD_PREFLIGHT_TEMPLATES_FILE:-}"
+    fi
+    _GUARD_PREFLIGHT_POLICY_FILE=
+    _GUARD_PREFLIGHT_TEMPLATES_FILE=
+    _GUARD_PREFLIGHT_SOURCE=
+    _GUARD_PREFLIGHT_POLICY_URL=
+    _GUARD_PREFLIGHT_TEMPLATES_URL=
+    _GUARD_PREFLIGHT_SOURCE_REASON=
+    _GUARD_PREFLIGHT_POLICY_TEMP=0
+    _GUARD_PREFLIGHT_TEMPLATES_TEMP=0
+    for _guard_ps_item in $_guard_ps_sources
+    do
+        _guard_ps_policy=$(file_mktemp) || return 1
+        _guard_ps_templates=$(file_mktemp) || {
+            rm -f "$_guard_ps_policy"
+            return 1
+        }
+        if ! guard_distribution_fetch_release "$_guard_ps_item" "$_guard_ps_base"; then
+            rm -f "$_guard_ps_policy" "$_guard_ps_templates"
+            continue
+        fi
+        _guard_ps_policy_url=$(_guard_distribution_policy_url "$_guard_ps_item" "$_guard_ps_base") || {
+            rm -f "$_guard_ps_policy" "$_guard_ps_templates"
+            continue
+        }
+        _guard_ps_templates_url=$(_guard_distribution_templates_url "$_guard_ps_item" "$_guard_ps_base") || {
+            rm -f "$_guard_ps_policy" "$_guard_ps_templates"
+            continue
+        }
+        _guard_ps_ok=1
+        fetch_http "$_guard_ps_policy_url" "$_guard_ps_policy" "" 1 2097152 || _guard_ps_ok=0
+        [ "$_guard_ps_ok" = 1 ] && guard_distribution_verify_hash "$_guard_ps_policy" "$_GUARD_RELEASE_POLICY_SHA256" || _guard_ps_ok=0
+        [ "$_guard_ps_ok" = 1 ] && guard_policy_validate_file "$_guard_ps_policy" || _guard_ps_ok=0
+        [ "$_guard_ps_ok" = 1 ] && fetch_http "$_guard_ps_templates_url" "$_guard_ps_templates" "" 1 4194304 || _guard_ps_ok=0
+        [ "$_guard_ps_ok" = 1 ] && guard_distribution_verify_hash "$_guard_ps_templates" "$_GUARD_RELEASE_TEMPLATES_SHA256" || _guard_ps_ok=0
+        [ "$_guard_ps_ok" = 1 ] && guard_template_validate_file "$_guard_ps_templates" || _guard_ps_ok=0
+        if [ "$_guard_ps_ok" = 1 ]; then
+            _GUARD_PREFLIGHT_POLICY_FILE=$_guard_ps_policy
+            _GUARD_PREFLIGHT_TEMPLATES_FILE=$_guard_ps_templates
+            _GUARD_PREFLIGHT_SOURCE=$_guard_ps_item
+            _GUARD_PREFLIGHT_POLICY_URL=$_guard_ps_policy_url
+            _GUARD_PREFLIGHT_TEMPLATES_URL=$_guard_ps_templates_url
+            _GUARD_PREFLIGHT_POLICY_TEMP=1
+            _GUARD_PREFLIGHT_TEMPLATES_TEMP=1
+            return 0
+        fi
+        rm -f "$_guard_ps_policy" "$_guard_ps_templates"
+    done
+    _GUARD_PREFLIGHT_SOURCE_REASON="no distribution source supplied authenticated policy and template bytes"
+    return 1
+}
+
+_guard_preflight_installed_policy() {
+    _guard_pi_policy=$(_guard_policy_default_path)
+    if guard_policy_validate_file "$_guard_pi_policy" >/dev/null 2>&1; then
+        printf '%s\n' "$_guard_pi_policy"
+        return 0
+    fi
+    return 1
+}
+
+_guard_preflight_installed_templates() {
+    _guard_pi_templates=$(_guard_template_catalog_path)
+    if guard_template_validate_file "$_guard_pi_templates" >/dev/null 2>&1; then
+        printf '%s\n' "$_guard_pi_templates"
+        return 0
+    fi
+    return 1
+}
+
+_guard_preflight_last_error() {
+    _guard_pe_file=$1
+    _guard_pe_fallback=$2
+    _guard_pe_line=$(tail -n 1 "$_guard_pe_file" 2>/dev/null) || _guard_pe_line=
+    rm -f "$_guard_pe_file"
+    if [ -n "$_guard_pe_line" ]; then
+        printf '%s\n' "$_guard_pe_line"
+    else
+        printf '%s\n' "$_guard_pe_fallback"
+    fi
+}
+
+_guard_preflight_geo_cache() {
+    if [ -n "${GUARD_GEO_CACHE_DIR:-}" ] && [ -d "$GUARD_GEO_CACHE_DIR" ]; then
+        _GUARD_PREFLIGHT_CACHE_DIR=$GUARD_GEO_CACHE_DIR
+        _GUARD_PREFLIGHT_CACHE_TEMP=0
+        return 0
+    fi
+    _guard_pg_marker=$(file_mktemp) || return 1
+    rm -f "$_guard_pg_marker"
+    mkdir "$_guard_pg_marker" || return 1
+    _GUARD_PREFLIGHT_CACHE_DIR=$_guard_pg_marker
+    _GUARD_PREFLIGHT_CACHE_TEMP=1
+    GUARD_GEO_CACHE_DIR=$_guard_pg_marker
+    export GUARD_GEO_CACHE_DIR
+}
+
+_guard_preflight_detect_direct() {
+    if [ -n "${GUARD_DIRECT_REGION:-}" ]; then
+        _GUARD_NET_DIRECT_REGION=$GUARD_DIRECT_REGION
+        _GUARD_PREFLIGHT_DIRECT_REASON="provided by GUARD_DIRECT_REGION"
+        return 0
+    fi
+    _GUARD_NET_DIRECT_REGION=
+    _guard_pd_err=$(file_mktemp) || return 1
+    if guard_geo_detect_direct >/dev/null 2>"$_guard_pd_err"; then
+        _GUARD_NET_DIRECT_REGION=$(guard_geo_cached_country direct 2>/dev/null) || _GUARD_NET_DIRECT_REGION=
+        rm -f "$_guard_pd_err"
+        if [ -n "$_GUARD_NET_DIRECT_REGION" ]; then
+            _GUARD_PREFLIGHT_DIRECT_REASON="direct HTTPS geo probe bypassed proxy environment"
+            return 0
+        fi
+    fi
+    _GUARD_PREFLIGHT_DIRECT_REASON=$(_guard_preflight_last_error "$_guard_pd_err" "direct geo providers returned no usable country")
+    return 1
+}
+
+_guard_preflight_detect_proxy() {
+    _GUARD_PROXY_HEALTHY=0
+    if [ "$_GUARD_OC_INSTALLED" != 1 ]; then
+        _GUARD_PROXY_REGION=
+        _GUARD_PREFLIGHT_PROXY_REASON="OpenClash is not installed"
+        return 1
+    fi
+    if [ "$_GUARD_OC_RUNNING" != 1 ]; then
+        _GUARD_PROXY_REGION=
+        _GUARD_PREFLIGHT_PROXY_REASON="OpenClash is not running"
+        return 1
+    fi
+    if [ "$_GUARD_OC_HEALTHY" != 1 ]; then
+        _GUARD_PROXY_REGION=
+        _GUARD_PREFLIGHT_PROXY_REASON="OpenClash runtime health probe failed"
+        return 1
+    fi
+    if [ -n "${GUARD_PROXY_REGION:-}" ]; then
+        _GUARD_PROXY_REGION=$GUARD_PROXY_REGION
+        _GUARD_PROXY_HEALTHY=$(_guard_env_proxy_healthy)
+        if guard_geo_discover_proxy_route; then
+            _GUARD_PROXY_HEALTHY=1
+            _GUARD_PREFLIGHT_PROXY_REASON="provided by GUARD_PROXY_REGION; route capability discovered"
+        else
+            _GUARD_PREFLIGHT_PROXY_REASON="provided by GUARD_PROXY_REGION; route was not testable: ${_GUARD_GEO_ROUTE_REASON:-unavailable}"
+        fi
+        return 0
+    fi
+    if ! guard_geo_discover_proxy_route; then
+        _GUARD_PROXY_REGION=
+        _GUARD_PREFLIGHT_PROXY_REASON=${_GUARD_GEO_ROUTE_REASON:-OpenClash proxy route is unavailable}
+        return 1
+    fi
+    _GUARD_PROXY_REGION=
+    _guard_pp_err=$(file_mktemp) || return 1
+    if guard_geo_detect_route "$_GUARD_GEO_ROUTE" >/dev/null 2>"$_guard_pp_err"; then
+        _GUARD_PROXY_REGION=$(guard_geo_cached_country route "$_GUARD_GEO_ROUTE" 2>/dev/null) || _GUARD_PROXY_REGION=
+        rm -f "$_guard_pp_err"
+        if [ -n "$_GUARD_PROXY_REGION" ]; then
+            _GUARD_PROXY_HEALTHY=1
+            _GUARD_PREFLIGHT_PROXY_REASON="geo probe traversed $_GUARD_GEO_ROUTE"
+            return 0
+        fi
+    fi
+    _GUARD_PREFLIGHT_PROXY_REASON=$(_guard_preflight_last_error "$_guard_pp_err" "no active OpenClash proxy route could be tested successfully")
+    return 1
+}
+
+_guard_preflight_match_templates() {
+    _GUARD_PREFLIGHT_TEMPLATE_IDS=
+    _GUARD_PREFLIGHT_TEMPLATE_REASON=
+    _guard_pt_catalog=${_GUARD_PREFLIGHT_TEMPLATES_FILE:-}
+    if [ -z "$_guard_pt_catalog" ] || [ ! -f "$_guard_pt_catalog" ]; then
+        _guard_pt_catalog=$(_guard_preflight_installed_templates 2>/dev/null) || _guard_pt_catalog=
+    fi
+    if [ -z "$_guard_pt_catalog" ]; then
+        _GUARD_PREFLIGHT_TEMPLATE_REASON="no validated template catalog is available"
+        return 1
+    fi
+    _guard_pt_env=$(file_mktemp) || return 1
+    guard_env_json > "$_guard_pt_env"
+    _GUARD_PREFLIGHT_TEMPLATE_IDS=$(guard_template_matches "$_guard_pt_catalog" "$_guard_pt_env") || _GUARD_PREFLIGHT_TEMPLATE_IDS=
+    rm -f "$_guard_pt_env"
+    if [ -n "$_GUARD_PREFLIGHT_TEMPLATE_IDS" ]; then
+        _GUARD_PREFLIGHT_TEMPLATE_REASON="matched against complete preflight environment"
+    else
+        _GUARD_PREFLIGHT_TEMPLATE_REASON="validated catalog has no matching template"
+    fi
+}
+
+_guard_preflight_local_policy() {
+    # Accept a locally-provided policy file from the environment without a network fetch.
+    # This keeps preflight non-mutating and allows tests/operators to supply known-good files.
+    _guard_plp_file=${GUARD_POLICY_FILE:-}
+    if [ -n "$_guard_plp_file" ] && guard_policy_validate_file "$_guard_plp_file" >/dev/null 2>&1; then
+        printf '%s\n' "$_guard_plp_file"
+        return 0
+    fi
+    return 1
+}
+
+_guard_preflight_local_templates() {
+    # Accept a locally-provided templates file from the environment.
+    for _guard_plt_f in "${GUARD_TEMPLATES_FILE:-}" "${GUARD_TEMPLATES_SOURCE:-}"
+    do
+        [ -n "$_guard_plt_f" ] && guard_template_validate_file "$_guard_plt_f" >/dev/null 2>&1 || continue
+        printf '%s\n' "$_guard_plt_f"
+        return 0
+    done
+    # Try sibling of GUARD_POLICY_FILE
+    _guard_plt_pol=${GUARD_POLICY_FILE:-}
+    if [ -n "$_guard_plt_pol" ]; then
+        _guard_plt_sib=$(dirname "$_guard_plt_pol")/openclash-guard-templates.json
+        if guard_template_validate_file "$_guard_plt_sib" >/dev/null 2>&1; then
+            printf '%s\n' "$_guard_plt_sib"
+            return 0
+        fi
+    fi
+    return 1
+}
+
+guard_preflight_run() {
+    guard_preflight_cleanup
+    _GUARD_PREFLIGHT_COMPLETE=0
+    _GUARD_PREFLIGHT_SETUP_VALID=0
+    _GUARD_PREFLIGHT_SETUP_REASON=
+    _GUARD_PREFLIGHT_GUARD_INSTALLED=0
+    _GUARD_PREFLIGHT_INSTALL_VALID=0
+    _GUARD_PREFLIGHT_UCI_VALID=0
+    # Start this preparation with one fresh normalized snapshot. Installation
+    # marker validation is separate lifecycle evidence: it reuses main.enabled
+    # from the snapshot and checks only its two historical markers directly.
+    if guard_uci_overlay_load; then
+        _GUARD_PREFLIGHT_UCI_VALID=1
+    fi
+    if guard_install_validate >/dev/null 2>&1; then
+        _GUARD_PREFLIGHT_INSTALL_VALID=1
+    fi
+    guard_kill_read_uci || true
+    guard_game_read_uci || true
+    guard_env_detect
+    [ -x "$(_guard_install_bin)" ] && _GUARD_PREFLIGHT_GUARD_INSTALLED=1
+    # Use locally-provided files when available; only fetch from network when none exist.
+    _guard_pf_local_pol=$(_guard_preflight_local_policy 2>/dev/null) || _guard_pf_local_pol=
+    _guard_pf_local_tpl=$(_guard_preflight_local_templates 2>/dev/null) || _guard_pf_local_tpl=
+    if [ -n "$_guard_pf_local_pol" ] && [ -n "$_guard_pf_local_tpl" ]; then
+        _GUARD_PREFLIGHT_POLICY_FILE=$_guard_pf_local_pol
+        _GUARD_PREFLIGHT_TEMPLATES_FILE=$_guard_pf_local_tpl
+        _GUARD_PREFLIGHT_SOURCE=local
+        _GUARD_PREFLIGHT_POLICY_URL=
+        _GUARD_PREFLIGHT_TEMPLATES_URL=
+        _GUARD_PREFLIGHT_POLICY_TEMP=0
+        _GUARD_PREFLIGHT_TEMPLATES_TEMP=0
+    elif [ -n "$_guard_pf_local_pol" ] && [ -z "$_guard_pf_local_tpl" ]; then
+        # Have policy but no templates: try network for templates only.
+        guard_preflight_stage_distribution "${GUARD_DISTRIBUTION_SOURCE:-auto}" "${GUARD_POLICY_BASE_URL:-}" || true
+    else
+        guard_preflight_stage_distribution "${GUARD_DISTRIBUTION_SOURCE:-auto}" "${GUARD_POLICY_BASE_URL:-}" || true
+    fi
+    if [ -z "$_GUARD_PREFLIGHT_POLICY_FILE" ]; then
+        # Network fetch may have failed or no network pair was found; fall back to local policy.
+        if [ -n "$_guard_pf_local_pol" ]; then
+            _GUARD_PREFLIGHT_POLICY_FILE=$_guard_pf_local_pol
+        else
+            _GUARD_PREFLIGHT_POLICY_FILE=$(_guard_preflight_installed_policy 2>/dev/null) || _GUARD_PREFLIGHT_POLICY_FILE=
+        fi
+    fi
+    if [ -z "$_GUARD_PREFLIGHT_TEMPLATES_FILE" ]; then
+        _GUARD_PREFLIGHT_TEMPLATES_FILE=$(_guard_preflight_installed_templates 2>/dev/null) || _GUARD_PREFLIGHT_TEMPLATES_FILE=
+    fi
+    _guard_preflight_geo_cache || {
+        _GUARD_PREFLIGHT_DIRECT_REASON="unable to create temporary geo cache"
+        _GUARD_PREFLIGHT_PROXY_REASON="unable to create temporary geo cache"
+    }
+    if [ -n "$_GUARD_PREFLIGHT_POLICY_FILE" ] && [ -n "$_GUARD_PREFLIGHT_CACHE_DIR" ]; then
+        _guard_preflight_detect_direct || true
+        _guard_preflight_detect_proxy || true
+    else
+        _GUARD_NET_DIRECT_REGION=
+        _GUARD_PROXY_REGION=
+        [ -n "$_GUARD_PREFLIGHT_DIRECT_REASON" ] || _GUARD_PREFLIGHT_DIRECT_REASON="no validated runtime policy is available for geo providers"
+        [ -n "$_GUARD_PREFLIGHT_PROXY_REASON" ] || _GUARD_PREFLIGHT_PROXY_REASON="no validated runtime policy is available for geo providers"
+    fi
+    _guard_preflight_match_templates || true
+    if [ "$_GUARD_PREFLIGHT_UCI_VALID" != 1 ]; then
+        _GUARD_PREFLIGHT_SETUP_REASON="openclash_guard UCI overlay is unavailable or invalid"
+    elif [ "$_GUARD_PREFLIGHT_INSTALL_VALID" = 1 ]; then
+        _GUARD_PREFLIGHT_SETUP_VALID=1
+        _GUARD_PREFLIGHT_SETUP_REASON="complete runtime validated"
+    elif [ -n "${_GUARD_PREFLIGHT_POLICY_FILE:-}" ] && \
+         [ -f "${_GUARD_PREFLIGHT_POLICY_FILE:-}" ] && \
+         [ "$(guard_uci_overlay_available)" = 1 ] && \
+         [ -n "$(guard_uci_overlay_get_raw main.enabled)" ] && \
+         [ "${_GUARD_UCI_ENABLED:-0}" = 1 ]; then
+        _GUARD_PREFLIGHT_SETUP_VALID=1
+        _GUARD_PREFLIGHT_SETUP_REASON="operational: policy loaded and Guard enabled in UCI"
+    else
+        _GUARD_PREFLIGHT_SETUP_REASON=${_GUARD_SETUP_INVALID_REASON:-runtime is not fully provisioned}
+    fi
+    _GUARD_PREFLIGHT_COMPLETE=1
+}
+
+guard_preflight_require_stage() {
+    if [ "${_GUARD_PREFLIGHT_COMPLETE:-0}" != 1 ]; then
+        guard_preflight_run
+    fi
+    if [ -f "${_GUARD_PREFLIGHT_POLICY_FILE:-}" ] && \
+       [ -f "${_GUARD_PREFLIGHT_TEMPLATES_FILE:-}" ]; then
+        return 0
+    fi
+    cli_error "Setup requires a validated policy/template pair: ${_GUARD_PREFLIGHT_SOURCE_REASON:-unavailable}"
+    return 1
+}
+# END MODULE: guard-preflight
+
+# BEGIN MODULE: guard-menu
+# Interactive /dev/tty frontend over the existing guard command functions.
+# Prefix: guard_menu_
+set -eu
+
+_guard_menu_value() {
+    if [ -n "${1:-}" ]; then
+        printf '%s\n' "$1" | tr 'a-z' 'A-Z'
+    else
+        printf '%s\n' "unknown"
+    fi
+}
+
+_guard_menu_environment() {
+    _guard_me_openclash="installed=$_GUARD_OC_INSTALLED enabled=$_GUARD_OC_ENABLED running=$_GUARD_OC_RUNNING healthy=$_GUARD_OC_HEALTHY"
+    _guard_me_dns=$_GUARD_DNS_BACKEND
+    [ "$_guard_me_dns" = adguardhome ] && _guard_me_dns="AdGuard Home"
+    [ "$_guard_me_dns" = none ] && _guard_me_dns=unknown
+    _guard_me_guard=uninitialized
+    [ "$_GUARD_PREFLIGHT_SETUP_VALID" = 1 ] && _guard_me_guard=valid
+    _guard_me_templates=$(printf '%s' "$_GUARD_PREFLIGHT_TEMPLATE_IDS" | tr '\n' ' ')
+    [ -n "$_guard_me_templates" ] || _guard_me_templates=none
+
+    cli_section "OpenClash Guard"
+    printf '\nDetected environment\n'
+    cli_kv "  OpenClash" "$_guard_me_openclash"
+    cli_kv "  DNS backend / ownership" "$_guard_me_dns / $_GUARD_DNS_DOMAIN_SET"
+    cli_kv "  Direct region" "$(_guard_menu_value "$_GUARD_NET_DIRECT_REGION")"
+    [ -n "$_GUARD_NET_DIRECT_REGION" ] || cli_kv "    Reason" "$_GUARD_PREFLIGHT_DIRECT_REASON"
+    cli_kv "  Proxy region" "$(_guard_menu_value "$_GUARD_PROXY_REGION")"
+    [ -n "$_GUARD_PROXY_REGION" ] || cli_kv "    Reason" "$_GUARD_PREFLIGHT_PROXY_REASON"
+    cli_kv "  Proxy health" "$_GUARD_PROXY_HEALTHY"
+    cli_kv "  Routing capability" "${_GUARD_GEO_ROUTE:-unavailable}"
+    cli_kv "  Guard runtime" "$_guard_me_guard"
+    [ "$_GUARD_PREFLIGHT_SETUP_VALID" = 1 ] || cli_kv "    Reason" "$_GUARD_PREFLIGHT_SETUP_REASON"
+    cli_kv "  Runtime source" "$(guard_runtime_source)"
+    [ -n "$_GUARD_PREFLIGHT_SOURCE" ] || cli_kv "    Reason" "$_GUARD_PREFLIGHT_SOURCE_REASON"
+    cli_kv "  Distribution provenance" "$(_guard_distribution_selected_or_none)"
+    cli_kv "  Matching templates" "$_guard_me_templates"
+    [ -n "$_GUARD_PREFLIGHT_TEMPLATE_IDS" ] || cli_kv "    Reason" "$_GUARD_PREFLIGHT_TEMPLATE_REASON"
+}
+
+_guard_menu_setup() {
+    _guard_dispatch install || return $?
+    guard_preflight_run
+    if [ "$_GUARD_PREFLIGHT_SETUP_VALID" != 1 ]; then
+        cli_error "Setup returned without a valid runtime: $_GUARD_PREFLIGHT_SETUP_REASON"
+        return 1
+    fi
+    if cli_confirm "Setup is valid. Apply / reconcile now?"; then
+        _guard_dispatch reconcile
+    else
+        cli_info "Setup is valid; Apply remains pending"
+    fi
+}
+
+_guard_menu_confirm_dispatch() {
+    _guard_mc_prompt=$1
+    shift
+    if ! cli_confirm "$_guard_mc_prompt"; then
+        cli_warn "aborted"
+        return 1
+    fi
+    _guard_dispatch "$@"
+}
+
+guard_menu() {
+    guard_preflight_run
+    while :; do
+        printf '\n'
+        _guard_menu_environment
+        printf '\nActions\n'
+        if [ "$_GUARD_PREFLIGHT_SETUP_VALID" = 1 ]; then
+            printf '%s\n' \
+                "  1. Refresh runtime assets    [mutating]" \
+                "  2. Apply / reconcile         [mutating]" \
+                "  3. Status                    [read-only]" \
+                "  4. Doctor                    [read-only]" \
+                "  5. Remove firewall rules     [mutating]" \
+                "  6. Health check              [read-only]" \
+                "  7. List staged custom rules  [read-only]" \
+                "  8. Uninstall Guard           [mutating]" \
+                "  0. Exit"
+        else
+            printf '%s\n' \
+                "  1. Setup                     [mutating]" \
+                "  2. Status                    [read-only]" \
+                "  3. Doctor                    [read-only]" \
+                "  0. Exit"
+        fi
+        printf '\nSelect an action: ' >&2
+        _guard_menu_choice=$(cli_read_tty) || return 0
+        printf '\n'
+        if [ "$_GUARD_PREFLIGHT_SETUP_VALID" = 1 ]; then
+            case $_guard_menu_choice in
+                1) _guard_menu_confirm_dispatch "Refresh the validated runtime assets?" refresh --source auto || true; guard_preflight_run || true ;;
+                2) _guard_menu_confirm_dispatch "Apply OpenClash Guard firewall policy?" reconcile || true; guard_preflight_run || true ;;
+                3) _guard_dispatch status || true ;;
+                4) _guard_dispatch doctor || true ;;
+                5) _guard_dispatch remove || true; guard_preflight_run || true ;;
+                6) _guard_dispatch health-check || true ;;
+                7) _guard_dispatch rules list || true ;;
+                8) if _guard_menu_confirm_dispatch "Uninstall OpenClash Guard and preserve staged rule data?" uninstall --yes; then return 0; fi ;;
+                0) return 0 ;;
+                *) cli_warn "unknown menu choice: $_guard_menu_choice" ;;
+            esac
+        else
+            case $_guard_menu_choice in
+                1) _guard_menu_setup || true; guard_preflight_run || true ;;
+                2) _guard_dispatch status || true ;;
+                3) _guard_dispatch doctor || true ;;
+                0) return 0 ;;
+                *) cli_warn "unknown menu choice: $_guard_menu_choice" ;;
+            esac
+        fi
+    done
+}
+# END MODULE: guard-menu
+
+# BEGIN MODULE: guard-tunnel-health
+# Read-only health probe for Guard-owned OpenClash classified tunnel egress.
+# Prefix: guard_health_tunnel_
+set -eu
+
+_GUARD_HEALTH_TUN_EXPECTED=0
+_GUARD_HEALTH_TUN_STATE=inactive
+_GUARD_HEALTH_TUN_MARK=
+_GUARD_HEALTH_TUN_IFACES=
+_GUARD_HEALTH_TUN_RULES=not-required
+_GUARD_HEALTH_TUN_REASON=
+
+_guard_health_tunnel_reset() {
+    _GUARD_HEALTH_TUN_EXPECTED=0
+    _GUARD_HEALTH_TUN_STATE=inactive
+    _GUARD_HEALTH_TUN_MARK=
+    _GUARD_HEALTH_TUN_IFACES=
+    _GUARD_HEALTH_TUN_RULES=not-required
+    _GUARD_HEALTH_TUN_REASON=
+}
+
+_guard_health_tunnel_fail() {
+    _GUARD_HEALTH_TUN_STATE=failed
+    _GUARD_HEALTH_TUN_REASON=$1
+    return 1
+}
+
+_guard_health_tunnel_comment_count() {
+    _guard_htcc_listing=$1
+    _guard_htcc_suffix=$2
+    printf '%s\n' "$_guard_htcc_listing" | awk \
+        -v marker="comment \"${_GUARD_NFT_PREFIX}:${_guard_htcc_suffix}\"" \
+        'index($0, marker) { count++ } END { print count + 0 }'
+}
+
+_guard_health_tunnel_anchor_line() {
+    _guard_htal_listing=$1
+    _guard_htal_suffix=$2
+    printf '%s\n' "$_guard_htal_listing" | awk \
+        -v marker="comment \"${_GUARD_NFT_PREFIX}:${_guard_htal_suffix}\"" \
+        'index($0, marker) { print NR; exit }'
+}
+
+_guard_health_tunnel_iface_comment_count() {
+    _guard_htic_listing=$1
+    _guard_htic_iface=$2
+    printf '%s\n' "$_guard_htic_listing" | awk \
+        -v marker="comment \"${_GUARD_NFT_PREFIX}:tunnel-egress\"" \
+        -v iface="oifname \"${_guard_htic_iface}\"" \
+        'index($0, marker) && index($0, iface) { count++ } END { print count + 0 }'
+}
+
+_guard_health_tunnel_exact_rule_line() {
+    _guard_hter_listing=$1
+    _guard_hter_mark=$2
+    _guard_hter_iface=$3
+    printf '%s\n' "$_guard_hter_listing" | awk \
+        -v marker="comment \"${_GUARD_NFT_PREFIX}:tunnel-egress\"" \
+        -v expected="$_guard_hter_mark" \
+        -v iface="oifname \"${_guard_hter_iface}\"" '
+        function normalize_mark(raw, hex) {
+            hex = tolower(raw)
+            sub(/^0x/, "", hex)
+            if (hex !~ /^[0-9a-f]+$/ || length(hex) > 8) {
+                return ""
+            }
+            sub(/^0+/, "", hex)
+            if (hex == "") {
+                hex = "0"
+            }
+            return "0x" hex
+        }
+        BEGIN { wanted = normalize_mark(expected) }
+        index($0, marker) && index($0, iface) &&
+        $0 ~ /(^|[[:space:]])accept([[:space:]]|$)/ {
+            value = ""
+            if (match($0, /meta mark 0x[0-9A-Fa-f]+/)) {
+                value = substr($0, RSTART, RLENGTH)
+                sub(/^meta mark /, "", value)
+                value = normalize_mark(value)
+            }
+            if (wanted != "" && value == wanted) {
+                print NR
+                exit
+            }
+        }
+    '
+}
+
+guard_health_tunnel_probe() {
+    _guard_htp_mark=${1:-}
+    _guard_htp_ifaces=${2:-}
+    _GUARD_HEALTH_TUN_STATE=failed
+    _GUARD_HEALTH_TUN_REASON=
+    _GUARD_HEALTH_TUN_RULES=missing
+
+    [ -n "$_guard_htp_mark" ] || {
+        _guard_health_tunnel_fail generic-mark-unavailable
+        return $?
+    }
+    [ -n "$_guard_htp_ifaces" ] || {
+        _guard_health_tunnel_fail openclash-tun-interface-unavailable
+        return $?
+    }
+    command -v nft >/dev/null 2>&1 || {
+        _guard_health_tunnel_fail nft-unavailable
+        return $?
+    }
+
+    _guard_htp_listing=$(nft -a list chain \
+        "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE" forward 2>/dev/null) || {
+        _guard_health_tunnel_fail guard-forward-unavailable
+        return $?
+    }
+
+    _guard_htp_protected_count=$(_guard_health_tunnel_comment_count "$_guard_htp_listing" protected-udp)
+    _guard_htp_kill_count=$(_guard_health_tunnel_comment_count "$_guard_htp_listing" kill-switch)
+    if [ "$_guard_htp_protected_count" -ne 1 ]; then
+        _GUARD_HEALTH_TUN_RULES=malformed
+        _guard_health_tunnel_fail protected-udp-anchor-invalid
+        return $?
+    fi
+    if [ "$_guard_htp_kill_count" -ne 1 ]; then
+        _GUARD_HEALTH_TUN_RULES=malformed
+        _guard_health_tunnel_fail kill-switch-anchor-invalid
+        return $?
+    fi
+    _guard_htp_protected=$(_guard_health_tunnel_anchor_line "$_guard_htp_listing" protected-udp)
+    _guard_htp_kill=$(_guard_health_tunnel_anchor_line "$_guard_htp_listing" kill-switch)
+    if [ "$_guard_htp_protected" -ge "$_guard_htp_kill" ]; then
+        _GUARD_HEALTH_TUN_RULES=misordered
+        _guard_health_tunnel_fail guard-anchor-order-invalid
+        return $?
+    fi
+
+    _guard_htp_expected=0
+    _guard_htp_ok=1
+    for _guard_htp_iface in $_guard_htp_ifaces
+    do
+        _guard_htp_expected=$((_guard_htp_expected + 1))
+        _guard_htp_iface_count=$(_guard_health_tunnel_iface_comment_count "$_guard_htp_listing" "$_guard_htp_iface")
+        if [ "$_guard_htp_iface_count" -eq 0 ]; then
+            _GUARD_HEALTH_TUN_RULES=missing
+            _GUARD_HEALTH_TUN_REASON="missing-interface-$_guard_htp_iface"
+            _guard_htp_ok=0
+            break
+        fi
+        if [ "$_guard_htp_iface_count" -ne 1 ]; then
+            _GUARD_HEALTH_TUN_RULES=duplicate
+            _GUARD_HEALTH_TUN_REASON="duplicate-interface-$_guard_htp_iface"
+            _guard_htp_ok=0
+            break
+        fi
+        _guard_htp_line=$(_guard_health_tunnel_exact_rule_line \
+            "$_guard_htp_listing" "$_guard_htp_mark" "$_guard_htp_iface")
+        if [ -z "$_guard_htp_line" ]; then
+            _GUARD_HEALTH_TUN_RULES=malformed
+            _GUARD_HEALTH_TUN_REASON="malformed-interface-$_guard_htp_iface"
+            _guard_htp_ok=0
+            break
+        fi
+        if [ "$_guard_htp_line" -le "$_guard_htp_protected" ] || [ "$_guard_htp_line" -ge "$_guard_htp_kill" ]; then
+            _GUARD_HEALTH_TUN_RULES=misordered
+            _GUARD_HEALTH_TUN_REASON="misordered-interface-$_guard_htp_iface"
+            _guard_htp_ok=0
+            break
+        fi
+    done
+
+    if [ "$_guard_htp_ok" != 1 ]; then
+        _GUARD_HEALTH_TUN_STATE=failed
+        return 1
+    fi
+
+    _guard_htp_total=$(_guard_health_tunnel_comment_count "$_guard_htp_listing" tunnel-egress)
+    if [ "$_guard_htp_total" -ne "$_guard_htp_expected" ]; then
+        _GUARD_HEALTH_TUN_RULES=unexpected
+        _guard_health_tunnel_fail unexpected-tunnel-egress-rule
+        return $?
+    fi
+
+    _GUARD_HEALTH_TUN_RULES=present
+    _GUARD_HEALTH_TUN_STATE=ready
+    return 0
+}
+
+guard_health_tunnel_assess() {
+    _guard_health_tunnel_reset
+    guard_env_detect
+
+    if [ "${_GUARD_OC_HEALTHY:-0}" != 1 ]; then
+        _GUARD_HEALTH_TUN_REASON=openclash-unhealthy
+        return 0
+    fi
+
+    _guard_hta_policy=$(_guard_policy_default_path)
+    if ! guard_policy_load "$_guard_hta_policy" >/dev/null 2>&1; then
+        _GUARD_HEALTH_TUN_REASON=runtime-policy-unavailable
+        return 0
+    fi
+    if [ "${_GUARD_POLICY_ENFORCEMENT:-}" != reject ]; then
+        _GUARD_HEALTH_TUN_REASON=fail-closed-policy-inactive
+        return 0
+    fi
+    if [ "${_GUARD_NFT_AVAILABLE:-0}" != 1 ]; then
+        _GUARD_HEALTH_TUN_REASON=nft-unavailable
+        return 0
+    fi
+
+    _guard_hta_mark=$(_guard_kill_openclash_tunnel_mark 2>/dev/null) || _guard_hta_mark=
+    if [ -z "$_guard_hta_mark" ]; then
+        _GUARD_HEALTH_TUN_REASON=generic-mark-unavailable
+        return 0
+    fi
+    _guard_hta_ifaces=$(_guard_kill_openclash_tunnel_ifaces 2>/dev/null) || _guard_hta_ifaces=
+    if [ -z "$_guard_hta_ifaces" ]; then
+        _GUARD_HEALTH_TUN_REASON=openclash-tun-interface-unavailable
+        return 0
+    fi
+
+    _GUARD_HEALTH_TUN_EXPECTED=1
+    _GUARD_HEALTH_TUN_MARK=$_guard_hta_mark
+    _GUARD_HEALTH_TUN_IFACES=$_guard_hta_ifaces
+    guard_health_tunnel_probe "$_guard_hta_mark" "$_guard_hta_ifaces"
+}
+# END MODULE: guard-tunnel-health
+
+# BEGIN MODULE: guard-health
+# Read-only health probes for OpenClash Guard runtime state.
+# Prefix: guard_health_
+set -eu
+
+_GUARD_HEALTH_DP_EXPECTED=0
+_GUARD_HEALTH_DP_STATE=inactive
+_GUARD_HEALTH_DP_SOURCE_RULE=not-required
+_GUARD_HEALTH_DP_DESTINATION_RULE=not-required
+_GUARD_HEALTH_DP_REASON=
+
+_guard_health_dataplane_reset() {
+    _GUARD_HEALTH_DP_EXPECTED=0
+    _GUARD_HEALTH_DP_STATE=inactive
+    _GUARD_HEALTH_DP_SOURCE_RULE=not-required
+    _GUARD_HEALTH_DP_DESTINATION_RULE=not-required
+    _GUARD_HEALTH_DP_REASON=
+}
+
+_guard_health_dataplane_fail() {
+    _GUARD_HEALTH_DP_STATE=failed
+    _GUARD_HEALTH_DP_REASON=$1
+    return 1
+}
+
+_guard_health_dataplane_anchor_line() {
+    _guard_hda_listing=$1
+    _guard_hda_anchor=${GUARD_OPENCLASH_UDP_ANCHOR:-jump openclash_upnp}
+    _guard_hda_line=$(printf '%s\n' "$_guard_hda_listing" | awk -v anchor="$_guard_hda_anchor" '
+        index($0, anchor) && ($0 ~ /ip protocol udp/ || $0 ~ /meta l4proto udp/) &&
+        $0 !~ /saddr|daddr|sport|dport|iifname|oifname/ { print NR; exit }
+    ')
+    if [ -z "$_guard_hda_line" ]; then
+        _guard_hda_line=$(printf '%s\n' "$_guard_hda_listing" | awk '
+            /meta l4proto udp/ && /meta mark set/ &&
+            $0 !~ /saddr|daddr|sport|dport|iifname|oifname/ { print NR; exit }
+        ')
+    fi
+    [ -n "$_guard_hda_line" ] || return 1
+    printf '%s\n' "$_guard_hda_line"
+}
+
+_guard_health_dataplane_comment_count() {
+    _guard_hcc_listing=$1
+    _guard_hcc_suffix=$2
+    printf '%s\n' "$_guard_hcc_listing" | awk \
+        -v marker="comment \"${_GUARD_DATAPLANE_COMMENT_PREFIX}:${_guard_hcc_suffix}\"" \
+        'index($0, marker) { count++ } END { print count + 0 }'
+}
+
+_guard_health_dataplane_rule_line() {
+    _guard_hrl_listing=$1
+    _guard_hrl_kind=$2
+    _guard_hrl_need_dst=$3
+    _guard_hrl_src=$(_guard_dataplane_src_set)
+    _guard_hrl_protected=$(_guard_dataplane_protected_set)
+    _guard_hrl_dst=$(_guard_dataplane_dst_set)
+    _guard_hrl_cap=$(guard_dataplane_capability_mark) || return 1
+    case $_guard_hrl_kind in
+        source)
+            _guard_hrl_port=$(_guard_dataplane_sport_set)
+            _guard_hrl_port_expr="udp sport @$_guard_hrl_port"
+            ;;
+        destination)
+            _guard_hrl_port=$(_guard_dataplane_dport_set)
+            _guard_hrl_port_expr="udp dport @$_guard_hrl_port"
+            ;;
+        *) return 2 ;;
+    esac
+    printf '%s\n' "$_guard_hrl_listing" | awk \
+        -v marker="comment \"${_GUARD_DATAPLANE_COMMENT_PREFIX}:${_guard_hrl_kind}\"" \
+        -v src="ip saddr @$_guard_hrl_src" \
+        -v protected="udp dport != @$_guard_hrl_protected" \
+        -v port="$_guard_hrl_port_expr" \
+        -v cap="meta mark set $_guard_hrl_cap" \
+        -v dst="ip daddr @$_guard_hrl_dst" \
+        -v needdst="$_guard_hrl_need_dst" '
+        index($0, marker) && index($0, src) && index($0, protected) &&
+        index($0, port) && index($0, cap) && $0 ~ /(^|[[:space:]])return([[:space:]]|$)/ {
+            hasdst = index($0, dst) > 0
+            if ((needdst == "1" && hasdst) || (needdst != "1" && !hasdst)) {
+                print NR
+                exit
+            }
+        }
+    '
+}
+
+_guard_health_dataplane_check_rule() {
+    _guard_hcr_listing=$1
+    _guard_hcr_kind=$2
+    _guard_hcr_required=$3
+    _guard_hcr_need_dst=$4
+    _guard_hcr_anchor=$5
+    _guard_hcr_count=$(_guard_health_dataplane_comment_count "$_guard_hcr_listing" "$_guard_hcr_kind")
+
+    if [ "$_guard_hcr_required" != 1 ]; then
+        if [ "$_guard_hcr_count" -ne 0 ]; then
+            printf '%s\n' unexpected
+            return 1
+        fi
+        printf '%s\n' not-required
+        return 0
+    fi
+    if [ "$_guard_hcr_count" -eq 0 ]; then
+        printf '%s\n' missing
+        return 1
+    fi
+    if [ "$_guard_hcr_count" -ne 1 ]; then
+        printf '%s\n' duplicate
+        return 1
+    fi
+    _guard_hcr_line=$(_guard_health_dataplane_rule_line "$_guard_hcr_listing" "$_guard_hcr_kind" "$_guard_hcr_need_dst") || _guard_hcr_line=
+    if [ -z "$_guard_hcr_line" ]; then
+        printf '%s\n' malformed
+        return 1
+    fi
+    if [ "$_guard_hcr_line" -ge "$_guard_hcr_anchor" ]; then
+        printf '%s\n' misordered
+        return 1
+    fi
+    printf '%s\n' present
+}
+
+guard_health_dataplane_probe() {
+    _guard_hp_need_source=${1:-0}
+    _guard_hp_need_destination=${2:-0}
+    _guard_hp_need_dst_scope=${3:-0}
+    _GUARD_HEALTH_DP_STATE=failed
+    _GUARD_HEALTH_DP_REASON=
+    _GUARD_HEALTH_DP_SOURCE_RULE=not-required
+    _GUARD_HEALTH_DP_DESTINATION_RULE=not-required
+
+    command -v nft >/dev/null 2>&1 || {
+        _guard_health_dataplane_fail nft-unavailable
+        return $?
+    }
+    _guard_hp_listing=$(nft -a list chain \
+        "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$_GUARD_DATAPLANE_TARGET_CHAIN" 2>/dev/null) || {
+        _guard_health_dataplane_fail target-chain-unavailable
+        return $?
+    }
+
+    if printf '%s\n' "$_guard_hp_listing" | grep -F "jump $_GUARD_DATAPLANE_CHAIN" >/dev/null 2>&1 || \
+       nft_chain_exists "$_GUARD_DATAPLANE_FAMILY" "$_GUARD_DATAPLANE_TABLE" "$_GUARD_DATAPLANE_CHAIN"; then
+        _guard_health_dataplane_fail stale-legacy-dataplane
+        return $?
+    fi
+
+    _guard_hp_anchor=$(_guard_health_dataplane_anchor_line "$_guard_hp_listing" 2>/dev/null) || _guard_hp_anchor=
+    if [ -z "$_guard_hp_anchor" ]; then
+        _guard_health_dataplane_fail generic-udp-anchor-unavailable
+        return $?
+    fi
+
+    _guard_hp_ok=1
+    _GUARD_HEALTH_DP_SOURCE_RULE=$(_guard_health_dataplane_check_rule \
+        "$_guard_hp_listing" source "$_guard_hp_need_source" "$_guard_hp_need_dst_scope" "$_guard_hp_anchor") || _guard_hp_ok=0
+    _GUARD_HEALTH_DP_DESTINATION_RULE=$(_guard_health_dataplane_check_rule \
+        "$_guard_hp_listing" destination "$_guard_hp_need_destination" "$_guard_hp_need_dst_scope" "$_guard_hp_anchor") || _guard_hp_ok=0
+
+    if [ "$_guard_hp_ok" != 1 ]; then
+        if [ "$_GUARD_HEALTH_DP_SOURCE_RULE" != present ] && [ "$_GUARD_HEALTH_DP_SOURCE_RULE" != not-required ]; then
+            _guard_health_dataplane_fail "source-rule-$_GUARD_HEALTH_DP_SOURCE_RULE"
+        else
+            _guard_health_dataplane_fail "destination-rule-$_GUARD_HEALTH_DP_DESTINATION_RULE"
+        fi
+        return $?
+    fi
+    _GUARD_HEALTH_DP_STATE=ready
+    return 0
+}
+
+guard_health_dataplane_assess() {
+    _guard_health_dataplane_reset
+    guard_game_read_uci
+    guard_env_detect
+
+    if [ "$_GUARD_GAME_ENABLED" != 1 ]; then
+        _GUARD_HEALTH_DP_REASON=gaming-bypass-disabled
+        return 0
+    fi
+    if [ "${_GUARD_OC_HEALTHY:-0}" != 1 ]; then
+        _GUARD_HEALTH_DP_REASON=openclash-unhealthy
+        return 0
+    fi
+
+    _guard_ha_policy=$(_guard_policy_default_path)
+    if ! guard_policy_load "$_guard_ha_policy" >/dev/null 2>&1; then
+        _GUARD_HEALTH_DP_REASON=runtime-policy-unavailable
+        return 0
+    fi
+    _guard_ha_srcs=$(guard_game_src_ips)
+    if [ -z "$_guard_ha_srcs" ]; then
+        _GUARD_HEALTH_DP_REASON=no-trusted-gaming-clients
+        return 0
+    fi
+    _guard_ha_source_ports=$(guard_game_udp_source_ports)
+    _guard_ha_destination_ports=$(guard_game_safe_udp_destination_ports)
+    if [ -z "$_guard_ha_source_ports" ] && [ -z "$_guard_ha_destination_ports" ]; then
+        _GUARD_HEALTH_DP_REASON=no-directional-gaming-ports
+        return 0
+    fi
+    _guard_ha_protected=$(guard_game_protected_udp_ports)
+    if [ -z "$_guard_ha_protected" ]; then
+        _GUARD_HEALTH_DP_REASON=protected-udp-metadata-unavailable
+        return 0
+    fi
+
+    _guard_ha_need_source=0
+    _guard_ha_need_destination=0
+    _guard_ha_need_dst_scope=0
+    [ -n "$_guard_ha_source_ports" ] && _guard_ha_need_source=1
+    [ -n "$_guard_ha_destination_ports" ] && _guard_ha_need_destination=1
+    _guard_ha_cidrs=$(json_list "$_GUARD_POLICY_FILE" gaming.destinationCidrs 2>/dev/null) || _guard_ha_cidrs=
+    [ -n "$_guard_ha_cidrs" ] && _guard_ha_need_dst_scope=1
+
+    _GUARD_HEALTH_DP_EXPECTED=1
+    guard_health_dataplane_probe \
+        "$_guard_ha_need_source" "$_guard_ha_need_destination" "$_guard_ha_need_dst_scope"
+}
+
+guard_health_check_run() {
+    _guard_hc_json=${_GUARD_JSON:-0}
+    while [ "$#" -gt 0 ]; do
+        case $1 in
+            --json) _guard_hc_json=1; shift ;;
+            *) cli_error "unknown health-check option: $1"; return 2 ;;
+        esac
+    done
+
+    _guard_hc_valid=1
+    _guard_hc_reason=
+    if ! guard_install_validate; then
+        _guard_hc_valid=0
+        _guard_hc_reason=$_GUARD_SETUP_INVALID_REASON
+    fi
+    _guard_hc_service=$(_guard_install_service_state 2>/dev/null) || true
+    [ -n "$_guard_hc_service" ] || _guard_hc_service=missing
+    if [ "$_guard_hc_service" = missing ] || [ "$_guard_hc_service" = disabled ]; then
+        _guard_hc_valid=0
+        [ -n "$_guard_hc_reason" ] || _guard_hc_reason="Guard service is $_guard_hc_service"
+    fi
+    _guard_hc_overlay=$(guard_overlay_activation)
+
+    if ! guard_health_dataplane_assess; then
+        _guard_hc_valid=0
+        [ -n "$_guard_hc_reason" ] || _guard_hc_reason="gaming DIRECT dataplane: $_GUARD_HEALTH_DP_REASON"
+    fi
+    if ! guard_health_tunnel_assess; then
+        _guard_hc_valid=0
+        [ -n "$_guard_hc_reason" ] || _guard_hc_reason="classified tunnel egress: $_GUARD_HEALTH_TUN_REASON"
+    fi
+
+    if [ "$_guard_hc_json" = 1 ]; then
+        printf '{"healthy":%s,"service":"%s","firewallHooks":%s,"rules":{"activation":"%s","data":"preserved"},"dataplane":{"expected":%s,"state":"%s","sourceRule":"%s","destinationRule":"%s","reason":"%s"},"tunnelEgress":{"expected":%s,"state":"%s","mark":"%s","interfaces":"%s","rules":"%s","reason":"%s"},"reason":"%s"}\n' \
+            "$(_guard_env_json_bool "$_guard_hc_valid")" \
+            "$(_guard_env_json_string "$_guard_hc_service")" \
+            "$(_guard_env_json_bool "$([ -x "$(_guard_install_hotplug)" ] && [ -x "$(_guard_install_fw4)" ] && printf 1 || printf 0)")" \
+            "$(_guard_env_json_string "$_guard_hc_overlay")" \
+            "$(_guard_env_json_bool "$_GUARD_HEALTH_DP_EXPECTED")" \
+            "$(_guard_env_json_string "$_GUARD_HEALTH_DP_STATE")" \
+            "$(_guard_env_json_string "$_GUARD_HEALTH_DP_SOURCE_RULE")" \
+            "$(_guard_env_json_string "$_GUARD_HEALTH_DP_DESTINATION_RULE")" \
+            "$(_guard_env_json_string "$_GUARD_HEALTH_DP_REASON")" \
+            "$(_guard_env_json_bool "$_GUARD_HEALTH_TUN_EXPECTED")" \
+            "$(_guard_env_json_string "$_GUARD_HEALTH_TUN_STATE")" \
+            "$(_guard_env_json_string "$_GUARD_HEALTH_TUN_MARK")" \
+            "$(_guard_env_json_string "$_GUARD_HEALTH_TUN_IFACES")" \
+            "$(_guard_env_json_string "$_GUARD_HEALTH_TUN_RULES")" \
+            "$(_guard_env_json_string "$_GUARD_HEALTH_TUN_REASON")" \
+            "$(_guard_env_json_string "$_guard_hc_reason")"
+    else
+        cli_section "OpenClash Guard health check"
+        cli_kv install "$([ "$_guard_hc_valid" = 1 ] && printf healthy || printf unhealthy)"
+        cli_kv service "$_guard_hc_service"
+        cli_kv firewall.hotplug "$([ -x "$(_guard_install_hotplug)" ] && printf present || printf missing)"
+        cli_kv firewall.fw4 "$([ -x "$(_guard_install_fw4)" ] && printf present || printf missing)"
+        cli_kv rules.activation "$_guard_hc_overlay"
+        cli_kv gaming.dataplane.expected "$_GUARD_HEALTH_DP_EXPECTED"
+        cli_kv gaming.dataplane.state "$_GUARD_HEALTH_DP_STATE"
+        cli_kv gaming.dataplane.sourceRule "$_GUARD_HEALTH_DP_SOURCE_RULE"
+        cli_kv gaming.dataplane.destinationRule "$_GUARD_HEALTH_DP_DESTINATION_RULE"
+        [ -z "$_GUARD_HEALTH_DP_REASON" ] || cli_kv gaming.dataplane.reason "$_GUARD_HEALTH_DP_REASON"
+        cli_kv tunnel.egress.expected "$_GUARD_HEALTH_TUN_EXPECTED"
+        cli_kv tunnel.egress.state "$_GUARD_HEALTH_TUN_STATE"
+        [ -z "$_GUARD_HEALTH_TUN_MARK" ] || cli_kv tunnel.egress.mark "$_GUARD_HEALTH_TUN_MARK"
+        [ -z "$_GUARD_HEALTH_TUN_IFACES" ] || cli_kv tunnel.egress.interfaces "$_GUARD_HEALTH_TUN_IFACES"
+        cli_kv tunnel.egress.rules "$_GUARD_HEALTH_TUN_RULES"
+        [ -z "$_GUARD_HEALTH_TUN_REASON" ] || cli_kv tunnel.egress.reason "$_GUARD_HEALTH_TUN_REASON"
+        [ -z "$_guard_hc_reason" ] || cli_kv reason "$_guard_hc_reason"
+    fi
+    [ "$_guard_hc_valid" = 1 ]
+}
+# END MODULE: guard-health
+
+# BEGIN MODULE: guard-uci-overlay-resolve
+# Authority resolution for the OpenClash Guard UCI overlay (Layer B).
+#
+# Consumes the VALIDATED normalized snapshot produced by uci-overlay.sh plus the
+# signed runtime policy + live capability observation, and computes effective
+# values for the options whose signed/live gate is defined by an AUTHORITATIVE
+# source today. UCI is operator intent; it never widens signed policy. See:
+#   - internal/config/openclash-guard/uci-overlay-resolution.json (contract)
+#   - docs/openclash-guard-uci-overlay-integration.md (integration design)
+#
+# Wiring status: source-wired in the unsigned recovery candidate and included
+# in its generated bundle. Signing, deployment, and live verification remain
+# pending.
+# Reads signed-policy JSON via shell/lib/json.sh and accepts the live DNS
+# backend as an explicit input so it remains testable offline.
+#
+# SCOPE DISCIPLINE (do not invent semantics): this resolver computes effective
+# values ONLY where an authoritative contract/runtime defines the gate:
+#   - routing.<svc> direct ceiling (signed policy class directAllowed)
+#   - dns.fail_closed signed-policy floor (firewallKillSwitch || !directAllowed)
+#   - dns.backend live-capability gating (mirrors guard_dns_backend detection)
+# The following are contract GAPS (see the resolution contract's gaps section)
+# and are NOT resolved here; they surface as PASSTHROUGH (normalized value) and
+# are explicitly flagged, never silently treated as resolved:
+#   - dns.resolver_sync capability semantics
+#   - routing.direct_region / routing.proxy_region signed-policy gate
+#   - udp.enabled / udp.src_ip signed-policy gate
+#
+# Prefix: guard_uci_overlay_resolve_
+set -eu
+
+# Inputs (set explicitly; no hidden global coupling beyond these). These use
+# the _GUARD_UCOR_ prefix to avoid colliding with the overlay's per-option
+# snapshot variables (_GUARD_UCO_<PATH>, e.g. dns.backend -> _GUARD_UCO_DNS_BACKEND).
+#   _GUARD_UCOR_POLICY_FILE   : path to runtime policy JSON. Consumption implies
+#                               it has already passed the authoritative
+#                               guard_policy_load() validation in production;
+#                               this module only performs surface/schema sanity
+#                               (it does NOT authenticate provenance).
+#   _GUARD_UCOR_DNS_BACKEND   : live detected DNS backend as guard_dns_backend()
+#                               reports it (adguardhome|dnsmasq|none); empty
+#                               means capability unknown.
+_GUARD_UCOR_POLICY_FILE=''
+_GUARD_UCOR_DNS_BACKEND=''
+
+# Options whose Layer-B gate is NOT defined by an authoritative contract. These
+# are surfaced as passthrough (identity) with a "deferred" flag; they are NOT
+# treated as resolved and MUST NOT be consumed as an authoritative effective
+# value without a future contract update.
+_GUARD_UCOR_DEFERRED_OPTIONS='routing.direct_region routing.proxy_region udp.enabled udp.src_ip dns.resolver_sync'
+
+_GUARD_UCO_RESOLUTION_NOTES=''
+
+# --- Policy surface / schema sanity (defense-in-depth, NOT provenance) ----
+#
+# Resolution consumes validated UCI intent + a signed runtime policy that has
+# ALREADY been accepted by the real Guard policy authority + OBSERVED live
+# capability. This module performs a SURFACE/SCHEMA sanity check over the
+# policy fields the resolver reads (schema, services, protectionClasses,
+# class-field consistency); it does NOT authenticate provenance, verify the
+# detached signature, or establish that the file came from the trusted release
+# chain. Production wiring must feed the resolver a policy file ONLY after
+# guard_policy_load() (the authoritative policy validation) has succeeded, and
+# the resolved provenance is owned by the signed-runtime pipeline — not by a
+# caller-supplied _GUARD_UCOR_POLICY_FILE. Never duplicate cryptographic /
+# provenance logic here.
+
+# True when the supplied policy file is well-formed, declares a supported
+# schemaVersion, and contains services + protectionClasses with consistent
+# references. This is a schema-sanity gate, NOT provenance authentication.
+_guard_uci_resolve_policy_available() {
+    _guard_uci_rpa_file=$_GUARD_UCOR_POLICY_FILE
+    if [ -z "$_guard_uci_rpa_file" ] || [ ! -f "$_guard_uci_rpa_file" ]; then
+        return 1
+    fi
+    if ! json_load "$_guard_uci_rpa_file" 2>/dev/null; then
+        return 1
+    fi
+    # Must declare the supported schema version (mirrors the authoritative
+    # guard_policy_validate_file requirement of schemaVersion 1).
+    _guard_uci_rpa_ver=$(json_get "$_guard_uci_rpa_file" schemaVersion 2>/dev/null) || _guard_uci_rpa_ver=
+    [ "$_guard_uci_rpa_ver" = "1" ] || return 1
+    if ! json_has "$_guard_uci_rpa_file" services 2>/dev/null; then
+        return 1
+    fi
+    if ! json_has "$_guard_uci_rpa_file" protectionClasses 2>/dev/null; then
+        return 1
+    fi
+    # Every service must reference an existing protectionClass.
+    _guard_uci_rpa_svcs=$(json_keys "$_guard_uci_rpa_file" services 2>/dev/null) || _guard_uci_rpa_svcs=
+    for _guard_uci_rpa_svc in $_guard_uci_rpa_svcs
+    do
+        [ -n "$_guard_uci_rpa_svc" ] || continue
+        _guard_uci_rpa_cls=$(json_get "$_guard_uci_rpa_file" "services.${_guard_uci_rpa_svc}.protectionClass" 2>/dev/null) || _guard_uci_rpa_cls=
+        [ -n "$_guard_uci_rpa_cls" ] || return 1
+        json_has "$_guard_uci_rpa_file" "protectionClasses.${_guard_uci_rpa_cls}" 2>/dev/null || return 1
+        # The class fields the resolver reads must be present and boolean.
+        _guard_uci_rpa_da=$(json_get "$_guard_uci_rpa_file" "protectionClasses.${_guard_uci_rpa_cls}.directAllowed" 2>/dev/null) || _guard_uci_rpa_da=
+        case $_guard_uci_rpa_da in true|false) : ;; *) return 1 ;; esac
+        _guard_uci_rpa_ks=$(json_get "$_guard_uci_rpa_file" "protectionClasses.${_guard_uci_rpa_cls}.firewallKillSwitch" 2>/dev/null) || _guard_uci_rpa_ks=
+        case $_guard_uci_rpa_ks in true|false) : ;; *) return 1 ;; esac
+    done
+    return 0
+}
+
+# True when the live DNS backend observation is a VALID observed value
+# (adguardhome | dnsmasq | none). An empty/unset/other value means the
+# observation is unavailable or not performed — NOT the same as "none" (a
+# real observation that no backend is live).
+_guard_uci_resolve_dns_observation_valid() {
+    case $_GUARD_UCOR_DNS_BACKEND in
+        adguardhome|dnsmasq|none) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+_guard_uci_resolve_note() {
+    if [ -z "$_GUARD_UCO_RESOLUTION_NOTES" ]; then
+        _GUARD_UCO_RESOLUTION_NOTES="$1"
+    else
+        _GUARD_UCO_RESOLUTION_NOTES="$_GUARD_UCO_RESOLUTION_NOTES
+$1"
+    fi
+}
+
+_guard_uci_resolve_json_get() {
+    [ -n "$_GUARD_UCOR_POLICY_FILE" ] || return 1
+    json_get "$_GUARD_UCOR_POLICY_FILE" "$1" 2>/dev/null
+}
+
+_guard_uci_resolve_class_field() {
+    # _guard_uci_resolve_class_field SERVICE CLASSFIELD
+    _guard_uci_rcf_svc=$1
+    _guard_uci_rcf_field=$2
+    _guard_uci_rcf_class=$(_guard_uci_resolve_json_get "services.${_guard_uci_rcf_svc}.protectionClass") || return 1
+    [ -n "$_guard_uci_rcf_class" ] || return 1
+    _guard_uci_resolve_json_get "protectionClasses.${_guard_uci_rcf_class}.${_guard_uci_rcf_field}"
+}
+
+_guard_uci_resolve_is_deferred() {
+    # shellcheck disable=SC2086
+    _guard_uci_overlay_in_list "$1" $_GUARD_UCOR_DEFERRED_OPTIONS
+}
+
+# Resolve a per-service route-mode option (routing.<svc>). The ONLY signed gate
+# defined by an authoritative source today is the directAllowed ceiling: a
+# requested "direct" is honoured only when the service's protection class has
+# directAllowed=true; otherwise effective falls back to "proxy". Region gating
+# is NOT part of the config-time gate (allowedRegions constrains live route
+# eval in guard_policy_region_allowed, not this snapshot) and is deferred.
+_guard_uci_overlay_resolve_service_route() {
+    _guard_uci_rsr_svc=$1
+    _guard_uci_rsr_resultvar=$2
+    _guard_uci_rsr_requested=$(guard_uci_overlay_get "routing.${_guard_uci_rsr_svc}")
+    _guard_uci_rsr_effective=$_guard_uci_rsr_requested
+    _guard_uci_rsr_reason=honoured
+    if [ "$_guard_uci_rsr_requested" = "direct" ]; then
+        _guard_uci_rsr_da=$(_guard_uci_resolve_class_field "$_guard_uci_rsr_svc" directAllowed 2>/dev/null) || _guard_uci_rsr_da=false
+        if [ "$_guard_uci_rsr_da" != true ]; then
+            _guard_uci_rsr_effective=proxy
+            _guard_uci_rsr_reason='direct not permitted by signed policy'
+        fi
+    fi
+    _guard_uci_resolve_note "routing.${_guard_uci_rsr_svc}|${_guard_uci_rsr_requested}|${_guard_uci_rsr_effective}|${_guard_uci_rsr_reason}"
+    eval "$_guard_uci_rsr_resultvar=\$_guard_uci_rsr_effective"
+}
+
+# Apply the dns.fail_closed signed-policy FLOOR. Mirrors
+# guard_policy_needs_failclosed: any class with firewallKillSwitch=true OR
+# directAllowed=false forces fail-closed; an operator 0 cannot lower the floor.
+_guard_uci_overlay_resolve_fail_closed() {
+    _guard_uci_rfc_resultvar=$1
+    _guard_uci_rfc_requested=$(guard_uci_overlay_get dns.fail_closed)
+    _guard_uci_rfc_effective=$_guard_uci_rfc_requested
+    _guard_uci_rfc_reason=honoured
+    _guard_uci_rfc_svcs=$(json_keys "$_GUARD_UCOR_POLICY_FILE" services 2>/dev/null) || _guard_uci_rfc_svcs=
+    _guard_uci_rfc_floor=0
+    for _guard_uci_rfc_svc in $_guard_uci_rfc_svcs
+    do
+        [ -n "$_guard_uci_rfc_svc" ] || continue
+        _guard_uci_rfc_ks=$(_guard_uci_resolve_class_field "$_guard_uci_rfc_svc" firewallKillSwitch 2>/dev/null) || _guard_uci_rfc_ks=false
+        _guard_uci_rfc_da=$(_guard_uci_resolve_class_field "$_guard_uci_rfc_svc" directAllowed 2>/dev/null) || _guard_uci_rfc_da=true
+        if [ "$_guard_uci_rfc_ks" = true ] || [ "$_guard_uci_rfc_da" = false ]; then
+            _guard_uci_rfc_floor=1
+            break
+        fi
+    done
+    if [ "$_guard_uci_rfc_floor" = 1 ] && [ "$_guard_uci_rfc_requested" != 1 ]; then
+        _guard_uci_rfc_effective=1
+        _guard_uci_rfc_reason='fail-closed floor required by signed policy'
+    fi
+    _guard_uci_resolve_note "dns.fail_closed|${_guard_uci_rfc_requested}|${_guard_uci_rfc_effective}|${_guard_uci_rfc_reason}"
+    eval "$_guard_uci_rfc_resultvar=\$_guard_uci_rfc_effective"
+}
+
+# Resolve dns.backend against live capability, mirroring guard_dns_backend()
+# detection semantics exactly (adguardhome | dnsmasq | none). "auto" resolves
+# to the detected backend, else "none". An explicit request is honoured only
+# when it equals the detected backend; otherwise effective is "none" — a
+# preference cannot install capability. Downstream (resolver-sync, port
+# availability) keys off this EFFECTIVE value, not the raw live input.
+_guard_uci_overlay_resolve_dns_backend() {
+    _guard_uci_rdb_resultvar=$1
+    _guard_uci_rdb_requested=$(guard_uci_overlay_get dns.backend)
+    _guard_uci_rdb_live=$_GUARD_UCOR_DNS_BACKEND
+    case $_guard_uci_rdb_live in
+        adguardhome|dnsmasq) : ;;
+        *) _guard_uci_rdb_live=none ;;
+    esac
+    _guard_uci_rdb_effective=$_guard_uci_rdb_requested
+    _guard_uci_rdb_reason=honoured
+    if [ "$_guard_uci_rdb_requested" = "auto" ]; then
+        _guard_uci_rdb_effective=$_guard_uci_rdb_live
+    elif [ "$_guard_uci_rdb_requested" = "$_guard_uci_rdb_live" ]; then
+        _guard_uci_rdb_effective=$_guard_uci_rdb_requested
+    else
+        _guard_uci_rdb_effective=none
+        _guard_uci_rdb_reason='requested DNS backend not detected live'
+    fi
+    _guard_uci_resolve_note "dns.backend|${_guard_uci_rdb_requested}|${_guard_uci_rdb_effective}|${_guard_uci_rdb_reason}"
+    eval "$_guard_uci_rdb_resultvar=\$_guard_uci_rdb_effective"
+}
+
+# Options whose effective value REQUIRES a completed Layer-B resolution. For
+# these, guard_uci_overlay_effective() must never fall back to the normalized
+# (unresolved) UCI value: an unset resolved value means "not yet resolved",
+# which is a hard refusal, not a passthrough.
+_GUARD_UCOR_RESOLVED_OPTIONS='routing.chatgpt routing.claude routing.grok dns.fail_closed dns.backend'
+
+# Explicit Layer-B resolved-state lifecycle flag. 1 only after the complete
+# normal resolution path succeeds; 0 at every other time (initial, and after
+# any overlay re-load invalidates prior effective state).
+_GUARD_UCO_RESOLVED=0
+
+# Invalidate every piece of Layer-B resolved state. Called on sourcing (initial
+# state) and by the Layer-A overlay whenever a new snapshot is loaded, so a
+# previously-resolved effective value can never leak across snapshots.
+guard_uci_overlay_invalidate_resolved_state() {
+    _GUARD_UCO_RESOLVED=0
+    _GUARD_UCO_EFFECTIVE_ROUTING_CHATGPT=
+    _GUARD_UCO_EFFECTIVE_ROUTING_CLAUDE=
+    _GUARD_UCO_EFFECTIVE_ROUTING_GROK=
+    _GUARD_UCO_EFFECTIVE_DNS_FAIL_CLOSED=
+    _GUARD_UCO_EFFECTIVE_DNS_BACKEND=
+    _GUARD_UCO_RESOLUTION_NOTES=
+}
+
+# Establish the initial (unresolved) state.
+guard_uci_overlay_invalidate_resolved_state
+
+_guard_uci_resolve_is_resolved_option() {
+    # shellcheck disable=SC2086
+    _guard_uci_overlay_in_list "$1" $_GUARD_UCOR_RESOLVED_OPTIONS
+}
+
+# Compute effective values for the gated options defined by authoritative
+# sources. Requires a LOADED and VALID Layer-A snapshot; otherwise refuses
+# (non-zero) and presents NO effective state as usable. On success sets
+# _GUARD_UCO_RESOLVED=1. Use guard_uci_overlay_resolve_diagnostics for the
+# read-only diagnostics-only path.
+guard_uci_overlay_resolve() {
+    if [ "${_GUARD_UCI_OVERLAY_LOADED:-0}" != 1 ]; then
+        printf '%s\n' 'guard_uci_overlay_resolve: overlay snapshot not loaded' >&2
+        return 2
+    fi
+    if ! guard_uci_overlay_validate; then
+        printf '%s\n' 'guard_uci_overlay_resolve: refusing to resolve an invalid overlay; fix openclash_guard values first' >&2
+        return 1
+    fi
+    # Trust boundary: require ALL authority inputs. A missing/malformed signed
+    # policy must not degrade into permissive defaults (e.g. an empty service
+    # list would hide the fail-closed floor). An unavailable/invalid DNS
+    # observation is NOT the same as the observed value "none".
+    if ! _guard_uci_resolve_policy_available; then
+        printf '%s\n' 'guard_uci_overlay_resolve: policy file unavailable or failed schema sanity (authority input)' >&2
+        guard_uci_overlay_invalidate_resolved_state
+        return 3
+    fi
+    if ! _guard_uci_resolve_dns_observation_valid; then
+        printf '%s\n' 'guard_uci_overlay_resolve: live DNS backend observation unavailable or invalid (expected adguardhome|dnsmasq|none)' >&2
+        guard_uci_overlay_invalidate_resolved_state
+        return 3
+    fi
+    # Atomic commit: invalidate, compute, and only mark resolved on success so a
+    # partial computation never leaves partial effective globals behind.
+    guard_uci_overlay_invalidate_resolved_state
+    if ! _guard_uci_overlay_resolve_apply; then
+        guard_uci_overlay_invalidate_resolved_state
+        printf '%s\n' 'guard_uci_overlay_resolve: computation failed; no effective state committed' >&2
+        return 1
+    fi
+    _GUARD_UCO_RESOLVED=1
+}
+
+# Diagnostics-only resolution insight for an already-loaded snapshot, including
+# an invalid one. Read-only: runs any inference in a SUBSHELL so it cannot
+# mutate the caller's _GUARD_UCO_RESOLVED, _GUARD_UCO_EFFECTIVE_*, or notes.
+# Never treats the result as an authoritative effective value; returns 0.
+guard_uci_overlay_resolve_diagnostics() {
+    if [ "${_GUARD_UCI_OVERLAY_LOADED:-0}" != 1 ]; then
+        printf '%s\n' '{"error":"overlay not loaded"}'
+        return 0
+    fi
+    _guard_uci_diag_notes=
+    # Report which authority inputs are available (diagnostic read-only; does
+    # not commit anything).
+    _guard_uci_diag_policy=0
+    _guard_uci_diag_dns=0
+    _guard_uci_resolve_policy_available && _guard_uci_diag_policy=1
+    _guard_uci_resolve_dns_observation_valid && _guard_uci_diag_dns=1
+    if guard_uci_overlay_validate && [ "$_guard_uci_diag_policy" = 1 ] && [ "$_guard_uci_diag_dns" = 1 ]; then
+        # Subshell: apply-side-effects (effective vars, RESOLVED, notes) are
+        # discarded; only the notes text is captured out.
+        _guard_uci_diag_notes=$(
+            guard_uci_overlay_invalidate_resolved_state
+            _guard_uci_overlay_resolve_apply
+            guard_uci_overlay_resolve_notes
+        )
+    fi
+    _guard_uci_diag_overlay=$(guard_uci_overlay_json)
+    # guard_uci_overlay_json yields {"uciOverlay":{...}}; unwrap to the inner
+    # diagnostics object so the projection is a single-level document.
+    _guard_uci_diag_overlay=${_guard_uci_diag_overlay#'{"uciOverlay":'}
+    _guard_uci_diag_overlay=${_guard_uci_diag_overlay%'}'}
+    _guard_uci_diag_auth=$(printf '{"policy":%s,"dns":%s}' \
+        "$([ "$_guard_uci_diag_policy" = 1 ] && printf true || printf false)" \
+        "$([ "$_guard_uci_diag_dns" = 1 ] && printf true || printf false)")
+    if [ -n "$_guard_uci_diag_notes" ]; then
+        printf '{"resolvedPreviewNotes":"%s","valid":%s,"authorityInputs":%s,"uciOverlay":%s}\n' \
+            "$(printf '%s' "$_guard_uci_diag_notes" | tr '\n' ';' | sed 's/"/\\"/g')" \
+            "$([ "$(guard_uci_overlay_valid)" = 1 ] && printf true || printf false)" \
+            "$_guard_uci_diag_auth" \
+            "$_guard_uci_diag_overlay"
+    else
+        printf '{"valid":%s,"authorityInputs":%s,"uciOverlay":%s}\n' \
+            "$([ "$(guard_uci_overlay_valid)" = 1 ] && printf true || printf false)" \
+            "$_guard_uci_diag_auth" \
+            "$_guard_uci_diag_overlay"
+    fi
+}
+
+# Internal: run resolution into the current shell's effective vars + notes.
+# Caller is responsible for having invalidated state first. Does NOT set
+# _GUARD_UCO_RESOLVED (the normal path does, the diagnostics path must not).
+_guard_uci_overlay_resolve_apply() {
+    _GUARD_UCO_RESOLUTION_NOTES=
+    for _guard_uci_r_svc in chatgpt claude grok
+    do
+        _guard_uci_overlay_resolve_service_route "$_guard_uci_r_svc" "_GUARD_UCO_EFFECTIVE_ROUTING_$(printf '%s' "$_guard_uci_r_svc" | tr '[:lower:]' '[:upper:]')"
+    done
+    _guard_uci_overlay_resolve_fail_closed _GUARD_UCO_EFFECTIVE_DNS_FAIL_CLOSED
+    _guard_uci_overlay_resolve_dns_backend _GUARD_UCO_EFFECTIVE_DNS_BACKEND
+    # Deferred (contract gap) options: intentionally NOT given an effective var.
+    return 0
+}
+
+# True only when a snapshot is LOADED, Layer-A VALID, AND a full Layer-B
+# resolution has completed successfully for THIS snapshot. Distinct from
+# "loaded && valid": it becomes false again as soon as a new snapshot is
+# loaded (which invalidates the prior resolution) until re-resolved.
+guard_uci_overlay_resolve_state_valid() {
+    [ "${_GUARD_UCI_OVERLAY_LOADED:-0}" = 1 ] \
+        && [ "$_GUARD_UCO_RESOLVED" = 1 ] \
+        && guard_uci_overlay_validate
+}
+
+# Get an effective (resolved) value by option path.
+#   - resolved-gated options (routing.<svc>, dns.fail_closed, dns.backend):
+#     returns the Layer-B resolved value. REFUSES (non-zero, no output) when no
+#     completed resolution exists for the current snapshot — never falls back
+#     to the normalized UCI value, so a stale or unresolved value can't leak.
+#   - deferred contract-gap options: prints "DEFERRED:<normalized>" (explicitly
+#     flagged, never a usable effective value).
+#   - other options (no authority constraint): the normalized UCI value.
+guard_uci_overlay_effective() {
+    if _guard_uci_resolve_is_deferred "$1"; then
+        printf 'DEFERRED:%s' "$(guard_uci_overlay_get "$1")"
+        return 0
+    fi
+    if _guard_uci_resolve_is_resolved_option "$1"; then
+        if [ "$_GUARD_UCO_RESOLVED" != 1 ]; then
+            printf '%s\n' "guard_uci_overlay_effective: $1 requires a completed resolution (call guard_uci_overlay_resolve first)" >&2
+            return 1
+        fi
+        _guard_uci_eff_var="_GUARD_UCO_EFFECTIVE_$(printf '%s' "$1" | tr '[:lower:].' '[:upper:]_')"
+        eval "_guard_uci_eff_val=\${$_guard_uci_eff_var-}"
+        # A resolved option must have a concrete value; absence here would be a
+        # resolver bug, so treat it as a refusal rather than a silent fallback.
+        if [ -z "$_guard_uci_eff_val" ]; then
+            printf '%s\n' "guard_uci_overlay_effective: $1 has no resolved value" >&2
+            return 1
+        fi
+        printf '%s' "$_guard_uci_eff_val"
+        return 0
+    fi
+    guard_uci_overlay_get "$1"
+}
+
+# List the options whose Layer-B gate is a documented contract gap (deferred).
+guard_uci_overlay_deferred_options() {
+    printf '%s\n' "$_GUARD_UCOR_DEFERRED_OPTIONS"
+}
+
+guard_uci_overlay_deferred_reason() {
+    case $1 in
+        dns.resolver_sync) printf '%s' 'resolver-sync capability semantics are undefined' ;;
+        routing.direct_region) printf '%s' 'the signed-policy gate is undefined' ;;
+        routing.proxy_region) printf '%s' 'the signed-policy gate is undefined' ;;
+        udp.enabled) printf '%s' 'no authoritative signed-policy gate is defined; scoped UDP bypass is disabled' ;;
+        udp.src_ip) printf '%s' 'no authoritative signed-policy gate is defined; client list does not authorize routing' ;;
+        *) return 1 ;;
+    esac
+}
+
+# Redacted, stable status projection. It names deferred settings and reasons,
+# never their configured values.
+guard_uci_overlay_deferred_json() {
+    printf '['
+    _guard_uci_dj_first=1
+    for _guard_uci_dj_option in $_GUARD_UCOR_DEFERRED_OPTIONS
+    do
+        [ "$_guard_uci_dj_first" = 1 ] || printf ','
+        _guard_uci_dj_first=0
+        printf '{"option":"%s","reason":"%s"}' \
+            "$_guard_uci_dj_option" \
+            "$(guard_uci_overlay_deferred_reason "$_guard_uci_dj_option")"
+    done
+    printf ']'
+}
+
+# List the options whose effective value requires a completed Layer-B resolution.
+guard_uci_overlay_resolved_options() {
+    printf '%s\n' "$_GUARD_UCOR_RESOLVED_OPTIONS"
+}
+
+# Diagnostics notes (requested/effective/reason), one per line, redacted.
+guard_uci_overlay_resolve_notes() {
+    printf '%s\n' "$_GUARD_UCO_RESOLUTION_NOTES"
+}
+# END MODULE: guard-uci-overlay-resolve
+
+# BEGIN MODULE: guard-main
+# openclash-guard CLI: lifecycle, diagnostics, templates, geo, and custom rules.
+set -eu
+
+_GUARD_JSON=0
+_GUARD_LOCK_HELD=0
+
+guard_usage() {
+    printf '%s\n' "usage: openclash-guard apply|reconcile|status|doctor [SERVICE]|health-check|version-check|integrity-check|refresh|remove|eval|template|install|uninstall|geo|rules [--json] [--yes] [--dry-run] [--policy-file FILE]"
+}
+
+_guard_lock_path() {
+    printf '%s\n' "${GUARD_LOCK_PATH:-/var/lock/openclash-guard.lock}"
+}
+
+_guard_lock_acquire() {
+    _guard_lp=$(_guard_lock_path)
+    lock_acquire "$_guard_lp" "${GUARD_LOCK_TIMEOUT:-30}" || return $?
+    _GUARD_LOCK_HELD=1
+}
+
+_guard_lock_release() {
+    if [ "$_GUARD_LOCK_HELD" = 1 ]; then
+        lock_release "$(_guard_lock_path)" || true
+        _GUARD_LOCK_HELD=0
+    fi
+}
+
+_guard_distribution_state_path() {
+    if [ -n "${GUARD_DISTRIBUTION_STATE_FILE:-}" ]; then
+        printf '%s\n' "$GUARD_DISTRIBUTION_STATE_FILE"
+    elif [ -n "${GUARD_POLICY_FILE:-}" ]; then
+        printf '%s/distribution-state\n' "$(dirname "$GUARD_POLICY_FILE")"
+    else
+        printf '%s/etc/openclash-guard/distribution-state\n' "${GUARD_PREFIX:-}"
+    fi
+}
+
+_guard_distribution_selected() {
+    _guard_ds_file=$(_guard_distribution_state_path)
+    [ -f "$_guard_ds_file" ] || return 1
+    sed -n 's/^selectedSource=//p' "$_guard_ds_file" | head -n 1
+}
+
+_guard_distribution_selected_or_none() {
+    _guard_dson=$(_guard_distribution_selected 2>/dev/null) || _guard_dson=
+    if [ -n "$_guard_dson" ]; then
+        printf '%s\n' "$_guard_dson"
+    else
+        printf '%s\n' "none"
+    fi
+}
+
+_guard_distribution_record() {
+    [ "${GUARD_DRY_RUN:-0}" = 1 ] && return 0
+    _guard_dr_file=$(_guard_distribution_state_path)
+    _guard_dr_preserve=${4:-0}
+    if [ "$_guard_dr_preserve" = 1 ] && [ -f "$_guard_dr_file" ]; then
+        _guard_dr_source=$(sed -n 's/^selectedSource=//p' "$_guard_dr_file" | head -n 1)
+        _guard_dr_policy=$(sed -n 's/^policyURL=//p' "$_guard_dr_file" | head -n 1)
+        _guard_dr_templates=$(sed -n 's/^templatesURL=//p' "$_guard_dr_file" | head -n 1)
+        if [ "$_guard_dr_source" = "$1" ] && \
+           [ "$_guard_dr_policy" = "${2:-}" ] && \
+           [ "$_guard_dr_templates" = "${3:-}" ]; then
+            return 0
+        fi
+    fi
+    mkdir -p "$(dirname "$_guard_dr_file")"
+    _guard_dr_tmp=$(file_mktemp "$(dirname "$_guard_dr_file")") || return 1
+    printf 'selectedSource=%s\npolicyURL=%s\ntemplatesURL=%s\nlastRefresh=%s\n' \
+        "$1" "${2:-}" "${3:-}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$_guard_dr_tmp"
+    file_atomic_replace "$_guard_dr_file" "$_guard_dr_tmp"
+    _guard_dr_rc=$?
+    rm -f "$_guard_dr_tmp"
+    return "$_guard_dr_rc"
+}
+
+_guard_prepare() {
+    _guard_pp_direct=${_GUARD_NET_DIRECT_REGION:-}
+    _guard_pp_proxy=${_GUARD_PROXY_REGION:-}
+    _guard_pp_proxy_healthy=${_GUARD_PROXY_HEALTHY:-0}
+    if ! guard_uci_overlay_ensure_loaded; then
+        cli_error "openclash_guard UCI overlay is invalid; refusing to proceed"
+        return 1
+    fi
+    guard_policy_load "$(_guard_policy_default_path)" || return $?
+    guard_kill_read_uci || return $?
+    guard_game_read_uci || return $?
+    guard_env_detect
+    if [ "${_GUARD_PREFLIGHT_COMPLETE:-0}" = 1 ]; then
+        _GUARD_NET_DIRECT_REGION=$_guard_pp_direct
+        _GUARD_PROXY_REGION=$_guard_pp_proxy
+        _GUARD_PROXY_HEALTHY=$_guard_pp_proxy_healthy
+    fi
+    _GUARD_UCOR_POLICY_FILE=$_GUARD_POLICY_FILE
+    case ${_GUARD_DNS_BACKEND:-} in
+        adguardhome|dnsmasq|none) _GUARD_UCOR_DNS_BACKEND=$_GUARD_DNS_BACKEND ;;
+        *)
+            cli_error "live DNS backend observation is unavailable; refusing to resolve UCI overlay"
+            return 1
+            ;;
+    esac
+    if ! guard_uci_overlay_resolve; then
+        cli_error "openclash_guard UCI overlay resolution failed; refusing to proceed"
+        return 1
+    fi
+    if [ -z "$_GUARD_NET_DIRECT_REGION" ]; then
+        guard_geo_detect_direct >/dev/null 2>&1 || true
+        _GUARD_NET_DIRECT_REGION=$(guard_geo_cached_country direct 2>/dev/null) || _GUARD_NET_DIRECT_REGION=
+    fi
+    if [ -z "$_GUARD_PROXY_REGION" ] && [ -n "${GUARD_GEO_ROUTE:-}" ]; then
+        guard_geo_detect_route "$GUARD_GEO_ROUTE" >/dev/null 2>&1 || true
+        _GUARD_PROXY_REGION=$(guard_geo_cached_country route "$GUARD_GEO_ROUTE" 2>/dev/null) || _GUARD_PROXY_REGION=
+    fi
+    guard_policy_refresh_state
+}
+
+_guard_prepare_readonly() {
+    if [ "${_GUARD_PREFLIGHT_COMPLETE:-0}" != 1 ]; then
+        guard_preflight_run
+    fi
+    _guard_pr_policy=$(_guard_policy_default_path)
+    if [ ! -f "$_guard_pr_policy" ] && [ -f "${_GUARD_PREFLIGHT_POLICY_FILE:-}" ]; then
+        _guard_pr_policy=$_GUARD_PREFLIGHT_POLICY_FILE
+    fi
+    if guard_policy_load "$_guard_pr_policy" >/dev/null 2>&1; then
+        guard_policy_refresh_state
+        return 0
+    fi
+    _GUARD_POLICY_STATE=uninitialized
+    _GUARD_POLICY_ENFORCEMENT=unavailable
+    _GUARD_POLICY_STATE_REASON=runtime-policy-unavailable
+    _GUARD_POLICY_DEGRADED_COMPONENTS=
+    return 1
+}
+
+_guard_require_setup_for_apply() {
+    if [ "${_GUARD_PREFLIGHT_UCI_VALID:-0}" != 1 ]; then
+        cli_error "openclash_guard UCI overlay is unavailable or invalid; refusing before any nft mutation"
+        return 1
+    fi
+    if [ "${_GUARD_PREFLIGHT_SETUP_VALID:-0}" = 1 ]; then
+        return 0
+    fi
+    cli_error "Apply is blocked until Setup validates: ${_GUARD_SETUP_INVALID_REASON:-runtime is incomplete}"
+    return 1
+}
+
+_guard_require_atomic_overlay_for_apply() {
+    if ! guard_uci_overlay_validate; then
+        cli_error "openclash_guard UCI overlay invalid; refusing reconcile/apply without any nft mutation"
+        return 1
+    fi
+    if ! guard_uci_overlay_resolve_state_valid; then
+        cli_error "openclash_guard UCI overlay resolution is not current; refusing reconcile/apply without any nft mutation"
+        return 1
+    fi
+    return 0
+}
+
+_guard_write_batch() {
+    _guard_wb=$1
+    : > "$_guard_wb"
+    {
+        guard_kill_render
+        guard_game_render
+        guard_kill_render_final
+    } >> "$_guard_wb"
+}
+
+guard_cmd_reconcile() {
+    if [ "${_GUARD_PREFLIGHT_COMPLETE:-0}" != 1 ]; then
+        guard_preflight_run
+    fi
+    _guard_require_setup_for_apply || return $?
+    _guard_prepare || return $?
+    _guard_require_atomic_overlay_for_apply || return $?
+    if [ "$_GUARD_NFT_AVAILABLE" != 1 ]; then
+        cli_error "nft is required"
+        return 1
+    fi
+    guard_migrate_stale
+    if [ "$_GUARD_UCI_ENABLED" != 1 ]; then
+        guard_kill_delete_table
+        cli_info "openclash-guard disabled"
+        return 0
+    fi
+    _guard_batch=$(file_mktemp)
+    _GUARD_NFT_TABLE_EXISTS=0
+    if nft_table_exists "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE"; then
+        _GUARD_NFT_TABLE_EXISTS=1
+    fi
+    _guard_write_batch "$_guard_batch"
+    guard_kill_apply_batch "$_guard_batch"
+    _guard_rc=$?
+    rm -f "$_guard_batch"
+    if [ "$_guard_rc" -ne 0 ]; then
+        return "$_guard_rc"
+    fi
+    cli_info "reconciled table $_GUARD_NFT_FAMILY $_GUARD_NFT_TABLE (state=$_GUARD_POLICY_STATE enforcement=$_GUARD_POLICY_ENFORCEMENT)"
+}
+
+guard_cmd_apply() {
+    guard_cmd_reconcile
+}
+
+guard_cmd_remove() {
+    if ! guard_uci_overlay_ensure_loaded; then
+        cli_error "openclash_guard UCI overlay is invalid; refusing to proceed"
+        return 1
+    fi
+    if ! cli_confirm "Remove openclash-guard nft table?"; then
+        cli_warn "aborted"
+        return 1
+    fi
+    guard_kill_read_uci
+    guard_env_detect
+    if [ -f "$(_guard_policy_default_path)" ]; then
+        guard_policy_load "$(_guard_policy_default_path)" 2>/dev/null || true
+    fi
+    guard_migrate_stale
+    guard_kill_delete_table
+    cli_info "removed openclash-guard table"
+}
+
+guard_cmd_refresh() {
+    _guard_refresh_source=${GUARD_DISTRIBUTION_SOURCE:-auto}
+    _guard_refresh_base=${GUARD_POLICY_BASE_URL:-}
+    _guard_refresh_url=
+    _guard_refresh_templates_url=
+    while [ "$#" -gt 0 ]; do
+        case $1 in
+            --source) _guard_refresh_source=$2; shift 2 ;;
+            --base-url) _guard_refresh_base=$2; shift 2 ;;
+            --policy-url) _guard_refresh_url=$2; shift 2 ;;
+            --templates-url) _guard_refresh_templates_url=$2; shift 2 ;;
+            *) cli_error "unknown refresh option: $1"; return 2 ;;
+        esac
+    done
+    if [ -n "$_guard_refresh_url" ] || [ -n "$_guard_refresh_templates_url" ]; then
+        cli_error "unauthenticated --policy-url/--templates-url overrides are disabled; use signed --base-url metadata instead"
+        return 2
+    fi
+    if ! guard_preflight_stage_distribution "$_guard_refresh_source" "$_guard_refresh_base"; then
+        cli_error "refresh failed; keeping the installed runtime pair: $_GUARD_PREFLIGHT_SOURCE_REASON"
+        return 1
+    fi
+    _guard_dest=$(_guard_policy_default_path)
+    _guard_dir=$(dirname "$_guard_dest")
+    if [ ! -d "$_guard_dir" ]; then
+        cli_error "policy directory missing: $_guard_dir"
+        return 1
+    fi
+    _guard_templates_dest="$_guard_dir/openclash-guard-templates.json"
+    if ! file_atomic_replace "$_guard_dest" "$_GUARD_PREFLIGHT_POLICY_FILE" || \
+       ! file_atomic_replace "$_guard_templates_dest" "$_GUARD_PREFLIGHT_TEMPLATES_FILE"; then
+        cli_error "refresh failed while publishing the validated runtime pair"
+        return 1
+    fi
+    GUARD_POLICY_FILE=$_guard_dest
+    GUARD_TEMPLATES_FILE=$_guard_templates_dest
+    if ! guard_policy_validate_file "$_guard_dest" || ! guard_template_validate_file "$_guard_templates_dest"; then
+        cli_error "published runtime pair failed post-write validation"
+        return 1
+    fi
+    if [ "${_GUARD_RELEASE_SIGNATURE_STATE:-}" = verified ]; then
+        if ! guard_distribution_record_release_state             "$(_guard_install_bin)" "$_guard_dest" "$_guard_templates_dest"; then
+            cli_error "runtime pair was published, but authenticated release receipt could not be recorded"
+            return 1
+        fi
+    fi
+    _guard_distribution_record "$_GUARD_PREFLIGHT_SOURCE" "$_GUARD_PREFLIGHT_POLICY_URL" "$_GUARD_PREFLIGHT_TEMPLATES_URL" || return $?
+    cli_success "runtime policy and template catalog refreshed; Apply remains pending"
+}
+
+guard_status_json_extra() {
+    printf ',"runtime":{"source":"%s"},"distribution":{"selectedSource":"%s"},"rules":{"activation":"%s"},"firewall":{"table":"%s"}' \
+        "$(_guard_env_json_string "$(guard_runtime_source)")" \
+        "$(_guard_env_json_string "$(_guard_distribution_selected_or_none)")" \
+        "$(_guard_env_json_string "$(guard_overlay_activation)")" \
+        "$(_guard_env_json_string "$(guard_firewall_table_state)")"
+    guard_status_uci_overlay_json
+}
+
+guard_status_uci_overlay_json() {
+    # Status exposes option names and static deferral reasons only; never raw
+    # UCI values such as URLs, credentials, or configured client addresses.
+    guard_uci_overlay_ensure_loaded >/dev/null 2>&1 || true
+    _guard_suo_base=$(guard_uci_overlay_json 2>/dev/null) || _guard_suo_base=
+    [ -n "$_guard_suo_base" ] || return 0
+    _guard_suo_open='{'
+    _guard_suo_close='}'
+    _guard_suo_prefix=$_guard_suo_open'"uciOverlay":'$_guard_suo_open
+    _guard_suo_suffix=$_guard_suo_close$_guard_suo_close
+    _guard_suo_inner=${_guard_suo_base#"$_guard_suo_prefix"}
+    _guard_suo_inner=${_guard_suo_inner%"$_guard_suo_suffix"}
+    _guard_suo_deferred=$(guard_uci_overlay_deferred_json)
+    printf ',"uciOverlay":%s%s%s,"uciDeferredOptions":%s' \
+        "$_guard_suo_open" "$_guard_suo_inner" "$_guard_suo_close" "$_guard_suo_deferred"
+}
+
+guard_doctor_uci_overlay() {
+    guard_uci_overlay_ensure_loaded >/dev/null 2>&1 || true
+    cli_section "uci overlay"
+    cli_kv uciOverlay.available "$(guard_uci_overlay_available)"
+    cli_kv uciOverlay.valid "$(guard_uci_overlay_valid)"
+    _guard_duo_errors=$(guard_uci_overlay_errors) || _guard_duo_errors=
+    printf '%s\n' "$_guard_duo_errors" | while IFS='|' read -r _guard_duo_path _guard_duo_reason
+    do
+        [ -n "$_guard_duo_path" ] || continue
+        cli_warn "$_guard_duo_path: $_guard_duo_reason"
+    done
+    for _guard_duo_path in $(guard_uci_overlay_deferred_options)
+    do
+        _guard_duo_reason=$(guard_uci_overlay_deferred_reason "$_guard_duo_path") || continue
+        cli_warn "$_guard_duo_path is deferred: $_guard_duo_reason"
+    done
+    _guard_duo_unknown=$(guard_uci_overlay_unknown_options) || _guard_duo_unknown=
+    printf '%s\n' "$_guard_duo_unknown" | while IFS= read -r _guard_duo_path
+    do
+        [ -n "$_guard_duo_path" ] || continue
+        cli_info "unknown option ignored: $_guard_duo_path"
+    done
+}
+
+_guard_emit_status_json() {
+    _guard_sj=$(guard_env_json)
+    _guard_sj=${_guard_sj%?}
+    printf '%s,' "$_guard_sj"
+    guard_policy_json_extra
+    guard_status_json_extra
+    guard_doctor_json_extra
+    printf '}\n'
+}
+
+guard_doctor_json_extra() {
+    [ -n "${_guard_doctor_service:-}" ] || return 0
+    printf ',"dependencies":{'
+    _guard_dj_first=1
+    # shellcheck disable=SC2153
+    _guard_dj_deps=$(json_keys "$_GUARD_POLICY_FILE" "services.$_guard_doctor_service.dependencies" 2>/dev/null) || _guard_dj_deps=
+    for _guard_dj_dep in $_guard_dj_deps; do
+        _guard_dj_base="services.$_guard_doctor_service.dependencies.$_guard_dj_dep"
+        _guard_dj_required=$(json_get "$_GUARD_POLICY_FILE" "$_guard_dj_base.required" 2>/dev/null) || _guard_dj_required=true
+        _guard_dj_status=PASS
+        if [ "$_guard_dj_required" = true ]; then
+            _guard_dj_healthy=$(json_get "${GUARD_DEPENDENCY_STATUS_FILE:-}" "$_guard_dj_base.healthy" 2>/dev/null) || _guard_dj_healthy=unknown
+            _guard_dj_compatible=$(json_get "${GUARD_DEPENDENCY_STATUS_FILE:-}" "$_guard_dj_base.routeCompatible" 2>/dev/null) || _guard_dj_compatible=true
+            if [ "$_guard_dj_healthy" = false ] || [ "$_guard_dj_compatible" = false ]; then
+                _guard_dj_status=FAIL
+            elif [ "$_guard_dj_healthy" = unknown ]; then
+                _guard_dj_status=UNKNOWN
+            fi
+        fi
+        [ "$_guard_dj_first" = 1 ] || printf ','
+        _guard_dj_first=0
+        printf '"%s":{"status":"%s","required":%s}' \
+            "$(_guard_env_json_string "$_guard_dj_dep")" "$_guard_dj_status" "$_guard_dj_required"
+    done
+    printf '}'
+}
+
+guard_cmd_status() {
+    _guard_prepare_readonly || true
+    if [ "$_GUARD_JSON" = 1 ]; then
+        _guard_emit_status_json
+        return 0
+    fi
+    cli_section "openclash-guard status"
+    cli_kv openclash.installed "$(guard_env_get openclash.installed)"
+    cli_kv openclash.enabled "$(guard_env_get openclash.enabled)"
+    cli_kv openclash.running "$(guard_env_get openclash.running)"
+    cli_kv openclash.healthy "$(guard_env_get openclash.healthy)"
+    cli_kv dns.backend "$(guard_env_get dns.backend)"
+    cli_kv dns.domainSetBackend "$(guard_env_get dns.domainSetBackend)"
+    cli_kv network.directRegion "$(guard_env_get network.directRegion)"
+    if [ -z "$_GUARD_NET_DIRECT_REGION" ]; then
+        cli_kv network.directRegionReason "$(guard_env_get network.directRegionReason)"
+    fi
+    cli_kv proxy.region "$(guard_env_get proxy.region)"
+    if [ -z "$_GUARD_PROXY_REGION" ]; then
+        cli_kv proxy.regionReason "$(guard_env_get proxy.regionReason)"
+    fi
+    cli_kv proxy.route "$(guard_env_get proxy.route)"
+    cli_kv proxy.healthy "$(guard_env_get proxy.healthy)"
+    cli_kv gaming.clients.count "$(guard_env_get gaming.clients.count)"
+    cli_kv nft.available "$(guard_env_get nft.available)"
+    cli_kv state "$_GUARD_POLICY_STATE"
+    [ -n "$_GUARD_POLICY_STATE_REASON" ] && cli_kv state.reason "$_GUARD_POLICY_STATE_REASON"
+    [ -n "$_GUARD_POLICY_DEGRADED_COMPONENTS" ] && cli_kv state.degradedComponents "$_GUARD_POLICY_DEGRADED_COMPONENTS"
+    cli_kv enforcement "$_GUARD_POLICY_ENFORCEMENT"
+    cli_kv firewall.table "$(guard_firewall_table_state)"
+    cli_kv rules.activation "$(guard_overlay_activation)"
+    cli_kv runtime.source "$(guard_runtime_source)"
+    cli_kv distribution.selectedSource "$(_guard_distribution_selected_or_none)"
+}
+
+guard_cmd_doctor() {
+    _guard_doctor_service=
+    while [ "$#" -gt 0 ]; do
+        case $1 in
+            --json) _GUARD_JSON=1; shift ;;
+            --yes) shift ;;
+            *)
+                [ -z "$_guard_doctor_service" ] || { cli_error "unknown doctor option: $1"; return 2; }
+                _guard_doctor_service=$1
+                shift
+                ;;
+        esac
+    done
+    guard_cmd_status
+    if [ "$_GUARD_JSON" = 1 ]; then
+        return 0
+    fi
+    cli_section "doctor"
+    cli_kv dns.dnsmasqEnabled "$(guard_env_get dns.dnsmasqEnabled)"
+    cli_kv dns.dnsmasqRunning "$(guard_env_get dns.dnsmasqRunning)"
+    cli_kv dns.adguardhomeEnabled "$(guard_env_get dns.adguardhomeEnabled)"
+    cli_kv dns.adguardhomeRunning "$(guard_env_get dns.adguardhomeRunning)"
+    if [ "$_GUARD_DNS_BACKEND" = adguardhome ]; then
+        cli_info "AdGuard Home owns DNS; dnsmasq will not be enabled, started, or restarted"
+    fi
+    if [ "$_GUARD_DNS_DOMAIN_SET" = unavailable ] && guard_policy_needs_failclosed 2>/dev/null; then
+        cli_warn "domain-set backend unavailable; fail-closed enforcement=reject (not fail-open)"
+    fi
+    _guard_doctor_dns_bypass_available=$(guard_env_get dns.clientBypass.available)
+    if [ "$_guard_doctor_dns_bypass_available" = 1 ]; then
+        _guard_doctor_dns_bypass_detected=$(guard_env_get dns.clientBypass.detected)
+        _guard_doctor_dns_bypass_rules=$(guard_env_get dns.clientBypass.rules)
+        _guard_doctor_dns_bypass_port53_rules=$(guard_env_get dns.clientBypass.port53Rules)
+        _guard_doctor_dns_bypass_dot853_rules=$(guard_env_get dns.clientBypass.dot853Rules)
+        _guard_doctor_dns_bypass_hijack_rules=$(guard_env_get dns.clientBypass.hijackBypassRules)
+        _guard_doctor_dns_bypass_unknown_sources=$(guard_env_get dns.clientBypass.unknownSourceRules)
+        _guard_doctor_dns_bypass_unknown_dports=$(guard_env_get dns.clientBypass.unknownDportRules)
+        _guard_doctor_dns_bypass_count=$(guard_env_get dns.clientBypass.clients.count)
+        _guard_doctor_dns_bypass_clients=$(guard_env_get dns.clientBypass.clients.items)
+        cli_kv dns.clientBypass.rules "$_guard_doctor_dns_bypass_rules"
+        cli_kv dns.clientBypass.port53Rules "$_guard_doctor_dns_bypass_port53_rules"
+        cli_kv dns.clientBypass.dot853Rules "$_guard_doctor_dns_bypass_dot853_rules"
+        cli_kv dns.clientBypass.hijackBypassRules "$_guard_doctor_dns_bypass_hijack_rules"
+        cli_kv dns.clientBypass.unknownSourceRules "$_guard_doctor_dns_bypass_unknown_sources"
+        cli_kv dns.clientBypass.unknownDportRules "$_guard_doctor_dns_bypass_unknown_dports"
+        cli_kv dns.clientBypass.clients.count "$_guard_doctor_dns_bypass_count"
+        [ -z "$_guard_doctor_dns_bypass_clients" ] || cli_kv dns.clientBypass.clients.items "$_guard_doctor_dns_bypass_clients"
+        if [ "$_guard_doctor_dns_bypass_detected" = 1 ]; then
+            cli_warn "client DNS firewall bypass detected: rules=$_guard_doctor_dns_bypass_rules clients=$_guard_doctor_dns_bypass_count unknownSourceRules=$_guard_doctor_dns_bypass_unknown_sources unknownDportRules=$_guard_doctor_dns_bypass_unknown_dports port53Rules=$_guard_doctor_dns_bypass_port53_rules dot853Rules=$_guard_doctor_dns_bypass_dot853_rules hijackBypassRules=$_guard_doctor_dns_bypass_hijack_rules"
+            cli_info "DNS bypass diagnostics are observation-only; firewall policy was not modified"
+        elif [ "$_guard_doctor_dns_bypass_unknown_dports" -gt 0 ] 2>/dev/null; then
+            cli_warn "DNS bypass scan incomplete: unknownDportRules=$_guard_doctor_dns_bypass_unknown_dports; unsupported destination-port selectors may include port 53 or 853"
+        fi
+    elif [ "$_guard_doctor_dns_bypass_available" = 0 ]; then
+        cli_warn "client DNS firewall bypass diagnostics unavailable; required fw4 chains could not be observed"
+    fi
+    cli_info "gaming bypass never matches protected UDP ports (including 443)"
+    guard_doctor_uci_overlay
+    if [ -n "$_guard_doctor_service" ]; then
+        # shellcheck disable=SC2153
+        if ! json_has "$_GUARD_POLICY_FILE" "services.$_guard_doctor_service"; then
+            cli_error "unknown service: $_guard_doctor_service"
+            return 2
+        fi
+        cli_section "$_guard_doctor_service dependency check"
+        _guard_doctor_dependencies=$(json_keys "$_GUARD_POLICY_FILE" "services.$_guard_doctor_service.dependencies" 2>/dev/null) || _guard_doctor_dependencies=
+        if [ -z "$_guard_doctor_dependencies" ]; then
+            cli_info "no configured dependencies"
+            return 0
+        fi
+        for _guard_doctor_dep in $_guard_doctor_dependencies
+        do
+            _guard_doctor_base="services.$_guard_doctor_service.dependencies.$_guard_doctor_dep"
+            _guard_doctor_host=$(json_get "$_GUARD_POLICY_FILE" "$_guard_doctor_base.host") || _guard_doctor_host=
+            _guard_doctor_role=$(json_get "$_GUARD_POLICY_FILE" "$_guard_doctor_base.role") || _guard_doctor_role=
+            _guard_doctor_required=$(json_get "$_GUARD_POLICY_FILE" "$_guard_doctor_base.required") || _guard_doctor_required=false
+            _guard_doctor_route=$(json_get "$_GUARD_POLICY_FILE" "$_guard_doctor_base.routePolicy") || _guard_doctor_route=
+            _guard_doctor_path=$(json_get "$_GUARD_POLICY_FILE" "$_guard_doctor_base.path") || _guard_doctor_path=/
+            _guard_doctor_granularity=$(json_get "$_GUARD_POLICY_FILE" "$_guard_doctor_base.matcher.availableGranularity") || _guard_doctor_granularity=host
+            _guard_doctor_scope=$(json_get "$_GUARD_POLICY_FILE" "$_guard_doctor_base.matcher.scopeExpansion") || _guard_doctor_scope=false
+            _guard_doctor_status=PASS
+            if [ "$_guard_doctor_required" = true ]; then
+                _guard_doctor_healthy=$(json_get "${GUARD_DEPENDENCY_STATUS_FILE:-}" "$_guard_doctor_base.healthy" 2>/dev/null) || _guard_doctor_healthy=unknown
+                _guard_doctor_compatible=$(json_get "${GUARD_DEPENDENCY_STATUS_FILE:-}" "$_guard_doctor_base.routeCompatible" 2>/dev/null) || _guard_doctor_compatible=true
+                if [ "$_guard_doctor_healthy" = false ] || [ "$_guard_doctor_compatible" = false ]; then
+                    _guard_doctor_status=FAIL
+                elif [ "$_guard_doctor_healthy" = unknown ]; then
+                    _guard_doctor_status=UNKNOWN
+                fi
+            fi
+            printf '  %s [%s] %s\n' "$_guard_doctor_dep" "$_guard_doctor_status" "$_guard_doctor_host"
+            cli_kv role "$_guard_doctor_role"
+            cli_kv required "$_guard_doctor_required"
+            cli_kv routePolicy "$_guard_doctor_route"
+            cli_kv path "$_guard_doctor_path"
+            cli_kv matcher "$_guard_doctor_granularity"
+            if [ "$_guard_doctor_scope" = true ]; then
+                cli_warn "host matcher broadens path scope; explicit approval required"
+            fi
+        done
+    fi
+}
+
+guard_cmd_geo() {
+    _guard_geo_sub=${1:-}
+    if [ "$#" -gt 0 ]; then
+        shift
+    fi
+    case $_guard_geo_sub in
+        direct)
+            _guard_prepare_readonly || true
+            guard_geo_detect_direct
+            ;;
+        route)
+            if [ -z "${1:-}" ]; then
+                cli_error "usage: openclash-guard geo route <id>"
+                return 2
+            fi
+            _guard_prepare_readonly || true
+            if [ -z "${_GUARD_GEO_PROXY_URL:-}" ]; then
+                guard_geo_discover_proxy_route || {
+                    cli_error "${_GUARD_GEO_ROUTE_REASON:-OpenClash proxy route is unavailable}"
+                    return 1
+                }
+            fi
+            guard_geo_detect_route "$1"
+            ;;
+        *)
+            printf '%s\n' "usage: openclash-guard geo direct|route <id>" >&2
+            return 2
+            ;;
+    esac
+}
+
+guard_cmd_eval() {
+    _guard_ev_svc=
+    _guard_ev_proto=udp
+    _guard_ev_sport=
+    _guard_ev_dport=
+    _guard_ev_src=
+    _guard_ev_dest=
+    while [ "$#" -gt 0 ]
+    do
+        case $1 in
+            --service)
+                _guard_ev_svc=$2
+                shift 2
+                ;;
+            --proto)
+                _guard_ev_proto=$2
+                shift 2
+                ;;
+            --sport)
+                _guard_ev_sport=$2
+                shift 2
+                ;;
+            --dport)
+                _guard_ev_dport=$2
+                shift 2
+                ;;
+            --src)
+                _guard_ev_src=$2
+                shift 2
+                ;;
+            --dest)
+                _guard_ev_dest=$2
+                shift 2
+                ;;
+            *)
+                cli_die "unknown eval option: $1" 2
+                ;;
+        esac
+    done
+    _guard_prepare || return $?
+    _guard_ev_verdict=$(guard_policy_eval "$_guard_ev_svc" "$_guard_ev_proto" "$_guard_ev_dport" "$_guard_ev_src" "$_guard_ev_dest" "$_guard_ev_sport")
+    if [ "$_GUARD_JSON" = 1 ]; then
+        printf '{"verdict":"%s","service":"%s","proto":"%s","sport":"%s","dport":"%s","src":"%s","dest":"%s"}\n' \
+            "$(_guard_env_json_string "$_guard_ev_verdict")" \
+            "$(_guard_env_json_string "$_guard_ev_svc")" \
+            "$(_guard_env_json_string "$_guard_ev_proto")" \
+            "$(_guard_env_json_string "$_guard_ev_sport")" \
+            "$(_guard_env_json_string "$_guard_ev_dport")" \
+            "$(_guard_env_json_string "$_guard_ev_src")" \
+            "$(_guard_env_json_string "$_guard_ev_dest")"
+        return 0
+    fi
+    printf '%s\n' "$_guard_ev_verdict"
+}
+
+_guard_cmd_needs_lock() {
+    case $1 in
+        status|doctor|health-check|version-check|integrity-check|eval|geo)
+            return 1
+            ;;
+        rules)
+            case ${2:-} in
+                list)
+                    return 1
+                    ;;
+                sync)
+                    case ${3:-} in
+                        list|watch) return 1 ;;
+                    esac
+                    ;;
+            esac
+            return 0
+            ;;
+        template)
+            case $2 in
+                apply)
+                    return 0
+                    ;;
+                *)
+                    return 1
+                    ;;
+            esac
+            ;;
+        *)
+            return 0
+            ;;
+    esac
+}
+
+_guard_dispatch() {
+    _guard_dispatch_cmd=${1:-}
+    [ -n "$_guard_dispatch_cmd" ] || return 2
+    shift
+    if _guard_cmd_needs_lock "$_guard_dispatch_cmd" "${1:-}" "${2:-}"; then
+        _guard_lock_acquire || return $?
+        trap _guard_lock_release EXIT INT TERM
+    fi
+    _guard_dispatch_rc=0
+    case $_guard_dispatch_cmd in
+        apply) guard_cmd_apply || _guard_dispatch_rc=$? ;;
+        reconcile) guard_cmd_reconcile || _guard_dispatch_rc=$? ;;
+        status) guard_cmd_status || _guard_dispatch_rc=$? ;;
+        doctor) guard_cmd_doctor "$@" || _guard_dispatch_rc=$? ;;
+        health-check) guard_health_check_run "$@" || _guard_dispatch_rc=$? ;;
+        version-check) _guard_install_check_version || _guard_dispatch_rc=$? ;;
+        integrity-check) _guard_install_integrity_check || _guard_dispatch_rc=$? ;;
+        refresh) guard_cmd_refresh "$@" || _guard_dispatch_rc=$? ;;
+        remove) guard_cmd_remove || _guard_dispatch_rc=$? ;;
+        eval) guard_cmd_eval "$@" || _guard_dispatch_rc=$? ;;
+        template) guard_cmd_template "$@" || _guard_dispatch_rc=$? ;;
+        install) guard_cmd_install "$@" || _guard_dispatch_rc=$? ;;
+        uninstall) guard_cmd_uninstall "$@" || _guard_dispatch_rc=$? ;;
+        geo) guard_cmd_geo "$@" || _guard_dispatch_rc=$? ;;
+        rules) guard_cmd_rules "$@" || _guard_dispatch_rc=$? ;;
+        *) guard_usage >&2; _guard_dispatch_rc=2 ;;
+    esac
+    _guard_lock_release
+    trap - EXIT INT TERM
+    return "$_guard_dispatch_rc"
+}
+
+main() {
+    _GUARD_JSON=0
+    _guard_cmd=
+    if [ "$#" -eq 0 ]; then
+        if cli_has_controlling_tty; then
+            guard_menu
+            return $?
+        fi
+        cli_error "no controlling terminal; pass a subcommand for headless use"
+        guard_usage >&2
+        return 2
+    fi
+    while [ "$#" -gt 0 ]
+    do
+        case $1 in
+            --json)
+                _GUARD_JSON=1
+                shift
+                ;;
+            --yes|-y)
+                cli_set_assume_yes 1
+                shift
+                ;;
+            --dry-run)
+                GUARD_DRY_RUN=1
+                shift
+                ;;
+            --policy-file)
+                # shellcheck disable=SC2034
+                GUARD_POLICY_FILE=$2
+                shift 2
+                ;;
+            -h|--help)
+                guard_usage
+                return 0
+                ;;
+            apply|reconcile|status|doctor|health-check|version-check|integrity-check|refresh|remove|eval|template|install|uninstall|geo|rules)
+                [ -z "$_guard_cmd" ] || break
+                _guard_cmd=$1
+                shift
+                ;;
+            *)
+                [ -n "$_guard_cmd" ] && break
+                cli_die "unknown argument: $1" 2
+                ;;
+        esac
+    done
+    if [ -z "$_guard_cmd" ]; then
+        guard_usage >&2
+        return 2
+    fi
+    _guard_dispatch "$_guard_cmd" "$@"
+}
+# END MODULE: guard-main
+
+main "$@"

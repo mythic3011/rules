@@ -1,0 +1,39 @@
+{
+  "name": "mythic3011-rules-routing-validation",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "imports": {
+    "#routing/*": "./internal/typescript/routing/*",
+    "#routing-test/*": "./tests/routing/*"
+  },
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "routing": "node --import tsx internal/typescript/routing/cli.ts",
+    "routing:validate": "pnpm run routing validate",
+    "routing:generate": "pnpm run routing generate",
+    "routing:check": "pnpm run routing check",
+    "typecheck": "tsc --noEmit",
+    "test:routing": "node --import tsx --test tests/routing/*.test.ts",
+    "generate:profile-service-runtime": "python3 internal/python/generate_profile_service_runtime.py",
+    "test:profile-service": "pnpm --filter mythic-rules-profile-service test",
+    "profile:e2e": "pnpm --filter mythic-rules-profile-service test:e2e",
+    "web:build": "vite build",
+    "web:dev": "vite",
+    "web:preview": "vite preview",
+    "test:web": "node --test tests/web_site_security.test.ts"
+  },
+  "dependencies": {
+    "yaml": "^2.8.0",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "vite": "^8.3.0"
+  }
+}

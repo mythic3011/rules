@@ -1,0 +1,32 @@
+site_name: mythic3011/rules documentation
+docs_dir: docs
+nav:
+  - Home: README.md
+  - Getting started: getting-started.md
+  - Repository layout: repository-layout.md
+  - Migration: migration-v2.md
+  - AI routing:
+      - Profile generator: ai-profile-generator.md
+      - Schema foundation: ai-routing-schema-foundation.md
+      - Firewall proof: ai-routing-firewall-proof.md
+      - Kill switch: kill-switch.md
+      - SSH routing: ssh-routing.md
+      - Node normalization: node-normalization.md
+  - OpenClash guides:
+      - Guide index: guides/openclash/README.md
+      - Adblock pipeline design: guides/openclash/ADBLOCK_PIPELINE_DESIGN.md
+      - Adblock operations: guides/openclash/ADBLOCK_PIPELINE_OPERATIONS.md
+      - Rule asset contract: guides/openclash/RULE_ASSET_MATCHING_CONTRACT.md
+theme:
+  name: material
+plugins:
+  - search
+markdown_extensions:
+  - toc:
+      permalink: true
+  - tables
+  - admonition
+  - def_list
+  - footnotes
+  - attr_list
+  - md_in_html

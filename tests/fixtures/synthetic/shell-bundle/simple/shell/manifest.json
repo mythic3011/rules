@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "generatedRoot": "dist",
+  "modules": {
+    "util": {
+      "path": "shell/lib/util.sh",
+      "depends": [],
+      "before": [],
+      "after": []
+    },
+    "main": {
+      "path": "shell/apps/demo/main.sh",
+      "depends": ["util"],
+      "before": [],
+      "after": []
+    }
+  },
+  "apps": {
+    "demo": {
+      "entry": "shell/apps/demo/main.sh",
+      "depends": ["util"],
+      "output": "dist/demo.sh"
+    }
+  }
+}

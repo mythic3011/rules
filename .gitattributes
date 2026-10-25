@@ -1,0 +1,7 @@
+# Keep source and generated text deterministic across checkout platforms.
+* text=auto eol=lf
+
+# Signed release inputs are opaque bytes; Git must never transform them.
+dist/** -text
+cfg/runtime/openclash-guard*.json -text
+setup/openclash/install.sh -text

@@ -1,0 +1,20 @@
+# Compilers consume sharedBackends for ownership-override projection.
+# An upstream ruleset name does not imply ownership of every host it lists.
+# legacyEffectiveConsumer is compatibility metadata derived from generated
+# YAML first-match (catalog payload + RULE-SET order).
+sharedBackends:
+  google-code-assist:
+    displayName: "Google Code Assist backend"
+    domains:
+      - cloudcode-pa.googleapis.com
+    consumers:
+      - android-studio-ai
+      - antigravity
+    legacyEffectiveConsumer: antigravity
+  gcs-object-storage:
+    displayName: "GCS object storage"
+    domains:
+      - storage.googleapis.com
+    consumers:
+      - flow-music
+    legacyEffectiveConsumer: flow-music

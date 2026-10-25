@@ -1,0 +1,351 @@
+name: Sign OpenClash Guard release
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_branch:
+        description: Same-repository branch whose exact head metadata should be signed
+        required: true
+        type: string
+  workflow_run:
+    workflows:
+      - Auto generate AI profiles
+    types:
+      - completed
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: openclash-guard-release-signer
+  cancel-in-progress: false
+
+jobs:
+  qualify-release:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-24.04
+    outputs:
+      should_sign: ${{ steps.candidate.outputs.should_sign }}
+      target_branch: ${{ steps.candidate.outputs.target_branch }}
+      candidate_sha: ${{ steps.candidate.outputs.candidate_sha }}
+    steps:
+      - name: Checkout trusted signer code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up pinned Python for trusted regeneration
+        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version: "3.12.3"
+
+      - name: Install pinned trusted YAML parser
+        run: >-
+          python -m pip install --disable-pip-version-check --no-input --no-deps --only-binary=:all: PyYAML==6.0.3
+
+      - name: Qualify immutable release candidate
+        id: candidate
+        env:
+          AUTO_BRANCH: ${{ github.event.workflow_run.head_branch || '' }}
+          AUTO_TRIGGER_SHA: ${{ github.event.workflow_run.head_sha || '' }}
+          GH_TOKEN: ${{ github.token }}
+          MANUAL_BRANCH: ${{ inputs.target_branch || '' }}
+          RUN_MODE: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+
+          emit_skip() {
+            {
+              printf 'should_sign=false\n'
+              printf 'target_branch=%s\n' "$requested_branch"
+              printf 'candidate_sha=%s\n' "${candidate_sha:-}"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          }
+
+          if [ "$RUN_MODE" = workflow_run ]; then
+            requested_branch="$AUTO_BRANCH"
+            trigger_sha="$AUTO_TRIGGER_SHA"
+          else
+            requested_branch="$MANUAL_BRANCH"
+            trigger_sha=
+          fi
+
+          [ -n "$requested_branch" ] || {
+            echo "No candidate branch was supplied" >&2
+            exit 1
+          }
+          git check-ref-format --branch "$requested_branch" >/dev/null
+          case "$requested_branch" in
+            main)
+              if [ "$RUN_MODE" = workflow_run ]; then
+                echo "Automatic signing ignores generator runs on main."
+                candidate_sha="$GITHUB_SHA"
+                emit_skip
+              fi
+              echo "Refusing to write a release signature directly to main" >&2
+              exit 1
+              ;;
+          esac
+
+          remote_sha="$(git ls-remote --heads origin "refs/heads/${requested_branch}" | awk '{print $1}')"
+          [ -n "$remote_sha" ] || {
+            echo "Candidate branch does not exist: $requested_branch" >&2
+            exit 1
+          }
+          git fetch --no-tags origin "refs/heads/${requested_branch}:refs/remotes/origin/${requested_branch}"
+          candidate_sha="$(git rev-parse "refs/remotes/origin/${requested_branch}^{commit}")"
+          [ "$candidate_sha" = "$remote_sha" ]
+
+          git merge-base --is-ancestor "$GITHUB_SHA" "$candidate_sha" || {
+            echo "Candidate branch does not contain trusted main signer revision $GITHUB_SHA" >&2
+            exit 1
+          }
+
+          if [ "$RUN_MODE" = workflow_run ]; then
+            [ -n "$trigger_sha" ] || {
+              echo "Generator workflow did not expose its triggering SHA" >&2
+              exit 1
+            }
+
+            trusted_generator_blob="$(git rev-parse "$GITHUB_SHA:.github/workflows/auto-generate-ai-profiles.yml")"
+            candidate_generator_blob="$(git rev-parse "$candidate_sha:.github/workflows/auto-generate-ai-profiles.yml")"
+            if [ "$trusted_generator_blob" != "$candidate_generator_blob" ]; then
+              echo "Automatic signing skipped: candidate changed the generator workflow relative to trusted main."
+              emit_skip
+            fi
+
+            if [ "$candidate_sha" != "$trigger_sha" ]; then
+              if ! git merge-base --is-ancestor "$trigger_sha" "$candidate_sha"; then
+                echo "Automatic signing skipped: branch no longer descends from the completed generator run."
+                emit_skip
+              fi
+
+              gh api \
+                -H 'Accept: application/vnd.github+json' \
+                "/repos/${GITHUB_REPOSITORY}/actions/workflows/auto-generate-ai-profiles.yml/runs?head_sha=${candidate_sha}&event=push&per_page=10" \
+                > "$RUNNER_TEMP/newer-generator-runs.json"
+              newer_runs="$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1], encoding="utf-8")).get("workflow_runs", [])))' "$RUNNER_TEMP/newer-generator-runs.json")"
+              if [ "$newer_runs" -gt 0 ]; then
+                echo "Automatic signing skipped: candidate head has its own generator run; that run will qualify the head when complete."
+                emit_skip
+              fi
+
+              ./rulesctl managed-paths > "$RUNNER_TEMP/managed-paths.txt"
+              git diff --name-only "$trigger_sha..$candidate_sha" > "$RUNNER_TEMP/candidate-followup-paths.txt"
+              if ! python3 - "$RUNNER_TEMP/managed-paths.txt" "$RUNNER_TEMP/candidate-followup-paths.txt" <<'PY'
+          import sys
+
+          managed_file, changed_file = sys.argv[1:]
+          managed = [line.strip().rstrip("/") for line in open(managed_file, encoding="utf-8") if line.strip()]
+          changed = [line.strip() for line in open(changed_file, encoding="utf-8") if line.strip()]
+          unexpected = [
+              path
+              for path in changed
+              if not any(path == root or path.startswith(root + "/") for root in managed)
+          ]
+          if unexpected:
+              print("Unexpected post-generator paths: " + ", ".join(unexpected), file=sys.stderr)
+              raise SystemExit(1)
+          PY
+              then
+                echo "Automatic signing skipped: branch moved after generation with non-managed changes."
+                emit_skip
+              fi
+            fi
+          fi
+
+          python3 internal/python/verify_openclash_guard_release_candidate.py \
+            --candidate-sha "$candidate_sha" \
+            --trusted-sha "$GITHUB_SHA" \
+            --output "$RUNNER_TEMP/release-candidate.json"
+          sequence="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["sequence"])' "$RUNNER_TEMP/release-candidate.json")"
+          trusted_sequence="$(python3 -c 'import json; print(json.load(open("internal/config/ai-routing/catalogs/distribution.json", encoding="utf-8"))["releaseSequence"])')"
+
+          if [ "$RUN_MODE" = workflow_run ]; then
+            expected_sequence=$((trusted_sequence + 1))
+            if [ "$sequence" -ne "$expected_sequence" ]; then
+              echo "Automatic signing skipped: candidate sequence $sequence is not trusted sequence + 1 ($expected_sequence)."
+              emit_skip
+            fi
+
+            if git cat-file -e "$candidate_sha:dist/openclash-guard.release.json.sig" 2>/dev/null; then
+              echo "Automatic signing skipped: candidate already contains a detached signature."
+              emit_skip
+            fi
+          fi
+
+          {
+            printf 'should_sign=true\n'
+            printf 'target_branch=%s\n' "$requested_branch"
+            printf 'candidate_sha=%s\n' "$candidate_sha"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Regenerate complete distribution with trusted code
+        if: steps.candidate.outputs.should_sign == 'true'
+        env:
+          CANDIDATE_SHA: ${{ steps.candidate.outputs.candidate_sha }}
+        run: |
+          set -euo pipefail
+          python3 internal/python/verify_openclash_guard_release_candidate.py \
+            --candidate-sha "$CANDIDATE_SHA" \
+            --trusted-sha "$GITHUB_SHA" \
+            --regenerate
+
+  sign-release:
+    needs: qualify-release
+    if: needs.qualify-release.outputs.should_sign == 'true' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    environment: openclash-guard-release
+    permissions:
+      contents: write
+    env:
+      EXPECTED_SIGNER_FINGERPRINT: "66215942e340d69f"
+      USIGN_SOURCE_REPOSITORY: "https://github.com/openwrt/usign.git"
+      USIGN_SOURCE_REVISION: "c4c72b1b07945ee192361dc751291a7c98d6adcd"
+      TARGET_BRANCH: ${{ needs.qualify-release.outputs.target_branch }}
+      CANDIDATE_SHA: ${{ needs.qualify-release.outputs.candidate_sha }}
+
+    steps:
+      - name: Checkout trusted signer code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Reconfirm immutable candidate head
+        run: |
+          set -euo pipefail
+          git check-ref-format --branch "$TARGET_BRANCH" >/dev/null
+          remote_sha="$(git ls-remote --heads origin "refs/heads/${TARGET_BRANCH}" | awk '{print $1}')"
+          [ "$remote_sha" = "$CANDIDATE_SHA" ] || {
+            echo "Candidate moved after qualification; refusing to sign stale output" >&2
+            exit 1
+          }
+          git fetch --no-tags origin "refs/heads/${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}"
+          resolved_sha="$(git rev-parse "refs/remotes/origin/${TARGET_BRANCH}^{commit}")"
+          [ "$resolved_sha" = "$CANDIDATE_SHA" ]
+          git merge-base --is-ancestor "$GITHUB_SHA" "$CANDIDATE_SHA" || {
+            echo "Candidate branch no longer contains the trusted main signer revision $GITHUB_SHA" >&2
+            exit 1
+          }
+
+      - name: Build pinned usign
+        run: |
+          set -euo pipefail
+          command -v git >/dev/null
+          command -v cmake >/dev/null
+          command -v cc >/dev/null
+
+          source_dir="$RUNNER_TEMP/usign-src"
+          build_dir="$RUNNER_TEMP/usign-build"
+          bin_dir="$RUNNER_TEMP/usign-bin"
+
+          git clone --filter=blob:none --no-checkout "$USIGN_SOURCE_REPOSITORY" "$source_dir"
+          git -C "$source_dir" fetch --depth=1 origin "$USIGN_SOURCE_REVISION"
+          resolved_revision="$(git -C "$source_dir" rev-parse FETCH_HEAD)"
+          [ "$resolved_revision" = "$USIGN_SOURCE_REVISION" ] || {
+            echo "Pinned usign revision resolved unexpectedly: $resolved_revision" >&2
+            exit 1
+          }
+          git -C "$source_dir" checkout --detach "$USIGN_SOURCE_REVISION"
+
+          cmake -S "$source_dir" -B "$build_dir" -DCMAKE_BUILD_TYPE=Release
+          cmake --build "$build_dir" --parallel
+          mkdir -p "$bin_dir"
+          install -m 0755 "$build_dir/usign" "$bin_dir/usign"
+          [ -x "$bin_dir/usign" ]
+          printf '%s\n' "$bin_dir" >> "$GITHUB_PATH"
+
+      - name: Verify candidate metadata and authenticated artifact bytes
+        run: |
+          set -euo pipefail
+          python3 internal/python/verify_openclash_guard_release_candidate.py \
+            --candidate-sha "$CANDIDATE_SHA" \
+            --trusted-sha "$GITHUB_SHA" \
+            --output "$RUNNER_TEMP/release-candidate.json"
+          sequence="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["sequence"])' "$RUNNER_TEMP/release-candidate.json")"
+          printf 'RELEASE_SEQUENCE=%s\n' "$sequence" >> "$GITHUB_ENV"
+          git show "$CANDIDATE_SHA:dist/openclash-guard.release.json" > "$RUNNER_TEMP/openclash-guard.release.json"
+
+      - name: Sign and verify detached metadata signature
+        env:
+          USIGN_PRIVATE_KEY: ${{ secrets.OPENCLASH_GUARD_USIGN_PRIVATE_KEY }}
+          USIGN_PUBLIC_KEY: ${{ secrets.OPENCLASH_GUARD_USIGN_PUBLIC_KEY }}
+        run: |
+          set -euo pipefail
+          [ -n "$USIGN_PRIVATE_KEY" ] || { echo "Missing release private key secret" >&2; exit 1; }
+          [ -n "$USIGN_PUBLIC_KEY" ] || { echo "Missing release public key secret" >&2; exit 1; }
+          umask 077
+          private_key="$RUNNER_TEMP/openclash-guard-release.sec"
+          public_key="$RUNNER_TEMP/openclash-guard-release.pub"
+          signature="$RUNNER_TEMP/openclash-guard.release.json.sig"
+          cleanup() { rm -f "$private_key" "$public_key"; }
+          trap cleanup EXIT
+          printf '%s' "$USIGN_PRIVATE_KEY" > "$private_key"
+          printf '%s' "$USIGN_PUBLIC_KEY" > "$public_key"
+          usign -S -m "$RUNNER_TEMP/openclash-guard.release.json" -s "$private_key" -x "$signature"
+          usign -V -m "$RUNNER_TEMP/openclash-guard.release.json" -p "$public_key" -x "$signature"
+          grep -Fqx "untrusted comment: signed by key ${EXPECTED_SIGNER_FINGERPRINT}" "$signature" || {
+            echo "Signature was produced by an unexpected signing key" >&2
+            exit 1
+          }
+
+      - name: Publish signature-only commit to unchanged candidate head
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          remote_sha="$(git ls-remote --heads origin "refs/heads/${TARGET_BRANCH}" | awk '{print $1}')"
+          [ "$remote_sha" = "$CANDIDATE_SHA" ] || {
+            echo "Candidate moved after validation; refusing to sign a stale head" >&2
+            exit 1
+          }
+
+          signature_entry="$(git ls-tree "$CANDIDATE_SHA" -- dist/openclash-guard.release.json.sig)"
+          if [ -n "$signature_entry" ]; then
+            signature_mode="${signature_entry%% *}"
+            case "$signature_mode" in
+              100644|100755) ;;
+              *) echo "Candidate signature path is not a regular file" >&2; exit 1 ;;
+            esac
+          fi
+
+          git checkout --detach "$CANDIDATE_SHA"
+          signature_path=dist/openclash-guard.release.json.sig
+          if [ -L "$signature_path" ] || { [ -e "$signature_path" ] && [ ! -f "$signature_path" ]; }; then
+            echo "Checked-out candidate signature path is not a regular file" >&2
+            exit 1
+          fi
+          cp "$RUNNER_TEMP/openclash-guard.release.json.sig" "$signature_path"
+          git add -- "$signature_path"
+
+          if git diff --cached --quiet; then
+            echo "Candidate already carries this exact verified signature."
+            exit 0
+          fi
+          changed="$(git diff --cached --name-only)"
+          [ "$changed" = "dist/openclash-guard.release.json.sig" ] || {
+            echo "Refusing non-signature release mutation: $changed" >&2
+            exit 1
+          }
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "release: sign OpenClash Guard metadata sequence ${RELEASE_SEQUENCE}"
+
+          remote_sha="$(git ls-remote --heads origin "refs/heads/${TARGET_BRANCH}" | awk '{print $1}')"
+          [ "$remote_sha" = "$CANDIDATE_SHA" ] || {
+            echo "Candidate moved before publication; refusing non-fast-forward release write" >&2
+            exit 1
+          }
+          git -c credential.helper= -c credential.helper='!gh auth git-credential' push origin "HEAD:refs/heads/${TARGET_BRANCH}"

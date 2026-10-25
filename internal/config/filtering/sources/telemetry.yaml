@@ -1,0 +1,49 @@
+sources:
+  - id: hagezi_native_apple
+    enabled: true
+    priority: 10
+    format: adblock_domains
+    url: https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/native.apple.txt
+    homepage: https://github.com/hagezi/dns-blocklists
+
+  - id: hagezi_native_huawei
+    enabled: true
+    priority: 20
+    format: adblock_domains
+    url: https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/native.huawei.txt
+    homepage: https://github.com/hagezi/dns-blocklists
+
+  - id: hagezi_native_oppo_realme
+    enabled: true
+    priority: 30
+    format: adblock_domains
+    url: https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/native.oppo-realme.txt
+    homepage: https://github.com/hagezi/dns-blocklists
+
+  - id: hagezi_native_samsung
+    enabled: true
+    priority: 40
+    format: adblock_domains
+    url: https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/native.samsung.txt
+    homepage: https://github.com/hagezi/dns-blocklists
+
+  - id: hagezi_native_tiktok
+    enabled: true
+    priority: 50
+    format: adblock_domains
+    url: https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/native.tiktok.txt
+    homepage: https://github.com/hagezi/dns-blocklists
+
+  - id: hagezi_native_vivo
+    enabled: true
+    priority: 60
+    format: adblock_domains
+    url: https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/native.vivo.txt
+    homepage: https://github.com/hagezi/dns-blocklists
+
+  - id: hagezi_native_xiaomi
+    enabled: true
+    priority: 70
+    format: adblock_domains
+    url: https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/native.xiaomi.txt
+    homepage: https://github.com/hagezi/dns-blocklists

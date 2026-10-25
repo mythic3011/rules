@@ -1,0 +1,34 @@
+{
+  "openclash": {
+    "installed": true,
+    "enabled": true,
+    "running": true,
+    "healthy": true
+  },
+  "dns": {
+    "backend": "adguardhome",
+    "dnsmasqEnabled": false,
+    "dnsmasqRunning": false,
+    "adguardhomeEnabled": true,
+    "adguardhomeRunning": true,
+    "domainSetBackend": "unavailable"
+  },
+  "network": {
+    "ipv6": false,
+    "directRegion": "zz"
+  },
+  "proxy": {
+    "healthy": true,
+    "region": "aa"
+  },
+  "gaming": {
+    "clients": {
+      "count": 0,
+      "items": []
+    },
+    "blanketUdpBypassDetected": false
+  },
+  "nft": {
+    "available": true
+  }
+}

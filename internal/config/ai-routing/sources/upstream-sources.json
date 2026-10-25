@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "sources": {
+    "vpsdance": {
+      "label": "VPSDance AI rules",
+      "repository": "VPSDance/ai-proxy-rules",
+      "trackingRef": "main",
+      "revision": "d07cac190c33e7914ba7adaf7e7c14298fba7024",
+      "rawBaseUrl": "https://raw.githubusercontent.com/VPSDance/ai-proxy-rules"
+    }
+  }
+}

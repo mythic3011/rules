@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 2
+    },
+    "routing": {
+      "type": "object",
+      "properties": {
+        "primaryOrder": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$"
+          }
+        }
+      },
+      "required": [
+        "primaryOrder"
+      ],
+      "additionalProperties": false
+    },
+    "regions": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "group": {
+            "type": "string",
+            "minLength": 1
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "exit"
+              ]
+            }
+          },
+          "match": {
+            "type": "object",
+            "properties": {
+              "flags": {
+                "default": [],
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "aliases": {
+                "default": [],
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "cities": {
+                "default": [],
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "airportCodes": {
+                "default": [],
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Z]{3}$"
+                }
+              },
+              "countryCodes": {
+                "type": "object",
+                "properties": {
+                  "alpha2": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[A-Z]{2}$"
+                    }
+                  },
+                  "alpha3": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[A-Z]{3}$"
+                    }
+                  }
+                },
+                "required": [
+                  "alpha2",
+                  "alpha3"
+                ],
+                "additionalProperties": false
+              },
+              "prefixes": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Z]{2,3}$"
+                }
+              }
+            },
+            "required": [
+              "flags",
+              "aliases",
+              "cities",
+              "airportCodes",
+              "countryCodes",
+              "prefixes"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "group",
+          "roles",
+          "match"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "routing",
+    "regions"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,9 @@
+# Committed claim of the pinned VPSDance anthropic.yaml payload.
+# revision: d07cac190c33e7914ba7adaf7e7c14298fba7024
+# path: rules/clash/anthropic.yaml
+# This is not a remote RuleSet solver. It pins the known first-match collision
+# and the Anthropic-owned suffixes that must remain on the Claude provider.
+payload:
+  - DOMAIN-SUFFIX,anthropic.com
+  - DOMAIN-SUFFIX,claude.ai
+  - DOMAIN,storage.googleapis.com

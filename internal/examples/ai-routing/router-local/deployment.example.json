@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "mode": "example",
+  "policyVersion": "1",
+  "controller": {
+    "url": "http://127.0.0.1:9090",
+    "secretFile": "/etc/openclash/ai-routing/controller.secret"
+  },
+  "protectedSources": [
+    { "kind": "vlan", "name": "EXAMPLE-PROTECTED-VLAN" }
+  ]
+}

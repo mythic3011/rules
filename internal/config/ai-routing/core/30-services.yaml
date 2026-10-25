@@ -1,0 +1,177 @@
+services:
+  chatgpt:
+    protectionClass: stable-session
+    defaultRoute: us-stable
+    allowedRoutes: [us-stable, sg-stable, jp-stable, reject]
+    selector:
+      kind: profile-aware
+      hiddenProfileTarget: "@profile/chatgpt"
+      allowedRouteRefs: [us-stable, sg-stable, jp-stable, reject]
+    upstream: { source: vpsdance, provider: openai }
+    endpoints:
+      service: { session: stable }
+  copilot:
+    protectionClass: direct-capable
+    defaultRoute: direct
+    allowedRoutes: [direct, us-stable, sg-stable, jp-stable, reject]
+    selector:
+      kind: profile-aware
+      hiddenProfileTarget: "@profile/copilot"
+      allowedRouteRefs: [direct, us-stable, sg-stable, jp-stable, reject]
+    upstream: { source: vpsdance, provider: copilot }
+    endpoints:
+      service: { session: stateless }
+  claude:
+    protectionClass: account-protected
+    defaultRoute: reject
+    allowedRoutes: [reject, us-stable, sg-stable, jp-stable]
+    selector:
+      kind: explicit-node
+      initialRoute: reject
+      allowedRouteRefs: [reject, us-stable, sg-stable, jp-stable]
+    upstream: { source: vpsdance, provider: anthropic }
+    endpoints:
+      service: { session: stable }
+  gemini:
+    protectionClass: direct-capable
+    defaultRoute: direct
+    allowedRoutes: [direct, us-stable, sg-stable, jp-stable, reject]
+    selector:
+      kind: profile-aware
+      hiddenProfileTarget: "@profile/gemini"
+      allowedRouteRefs: [direct, us-stable, sg-stable, jp-stable, reject]
+    upstream: { source: local-rules, provider: gemini }
+    endpoints:
+      service: { session: stateless }
+  notebooklm:
+    protectionClass: direct-capable
+    defaultRoute: direct
+    allowedRoutes: [direct, us-stable, sg-stable, jp-stable, reject]
+    selector:
+      kind: profile-aware
+      hiddenProfileTarget: "@profile/notebooklm"
+      allowedRouteRefs: [direct, us-stable, sg-stable, jp-stable, reject]
+    upstream: { source: local-rules, provider: notebooklm }
+    endpoints:
+      service: { session: stateless }
+  perplexity:
+    protectionClass: direct-capable
+    defaultRoute: direct
+    allowedRoutes: [direct, us-stable, sg-stable, jp-stable, reject]
+    selector:
+      kind: profile-aware
+      hiddenProfileTarget: "@profile/perplexity"
+      allowedRouteRefs: [direct, us-stable, sg-stable, jp-stable, reject]
+    upstream: { source: vpsdance, provider: perplexity }
+    endpoints:
+      service: { session: stateless }
+  grok:
+    protectionClass: direct-capable
+    defaultRoute: direct
+    allowedRoutes: [direct, us-stable, sg-stable, jp-stable, reject]
+    selector:
+      kind: profile-aware
+      hiddenProfileTarget: "@profile/grok"
+      allowedRouteRefs: [direct, us-stable, sg-stable, jp-stable, reject]
+    upstream: { source: vpsdance, provider: x-ai }
+    endpoints:
+      service: { session: stateless }
+  poe:
+    protectionClass: stable-session
+    defaultRoute: us-stable
+    allowedRoutes: [us-stable, sg-stable, jp-stable, reject]
+    selector:
+      kind: profile-aware
+      hiddenProfileTarget: "@profile/poe"
+      allowedRouteRefs: [us-stable, sg-stable, jp-stable, reject]
+    upstream: { source: vpsdance, provider: poe }
+    endpoints:
+      service: { session: stable }
+  windsurf:
+    displayName: "🌊 Windsurf"
+    protectionClass: proxy-required
+    defaultRoute: us-stable
+    allowedRoutes:
+      - us-stable
+      - sg-stable
+      - jp-stable
+      - reject
+    selector:
+      kind: profile-aware
+      visibleGroup: "🌊 Windsurf"
+      hiddenProfileTarget: "@profile/windsurf"
+      allowedRouteRefs:
+        - us-stable
+        - sg-stable
+        - jp-stable
+        - reject
+    upstream:
+      source: vpsdance
+      provider: windsurf
+    endpoints:
+      service:
+        ruleset: AI_Windsurf_Classical
+        session: stable
+  huggingface:
+    protectionClass: proxy-required
+    defaultRoute: us-stable
+    allowedRoutes:
+      - us-stable
+      - sg-stable
+      - jp-stable
+      - reject
+    selector:
+      kind: profile-aware
+      hiddenProfileTarget: "@profile/huggingface"
+      allowedRouteRefs:
+        - us-stable
+        - sg-stable
+        - jp-stable
+        - reject
+    upstream:
+      source: vpsdance
+      provider: huggingface
+    endpoints:
+      service:
+        session: stable
+  flow-music:
+    protectionClass: proxy-required
+    defaultRoute: jp-stable
+    allowedRoutes:
+      - jp-stable
+      - sg-stable
+      - us-stable
+      - reject
+    selector:
+      kind: profile-aware
+      hiddenProfileTarget: "@profile/flow-music"
+      allowedRouteRefs:
+        - jp-stable
+        - sg-stable
+        - us-stable
+        - reject
+    upstream: { source: local-rules, provider: flow-music }
+    endpoints:
+      service: { session: stable }
+    dependencies:
+      - id: producer-media
+        host: storage.googleapis.com
+        path: /producer-app-public/
+        role: media
+        required: true
+        routePolicy: inherit
+        matcher:
+          desiredGranularity: path
+          availableGranularity: host
+          scopeExpansion: true
+  opencode:
+    protectionClass: direct-capable
+    defaultRoute: direct
+    allowedRoutes: [direct, us-stable, sg-stable, jp-stable, reject]
+    selector:
+      kind: profile-aware
+      hiddenProfileTarget: "@profile/opencode"
+      allowedRouteRefs: [direct, us-stable, sg-stable, jp-stable, reject]
+    upstream: { source: local-rules, provider: opencode }
+    endpoints:
+      service: { session: stateless }

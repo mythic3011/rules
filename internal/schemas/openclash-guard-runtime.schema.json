@@ -1,0 +1,266 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mythic3011/rules/internal/schemas/openclash-guard-runtime.schema.json",
+  "title": "OpenClash Guard runtime policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "revision",
+    "nft",
+    "protectionClasses",
+    "services",
+    "gaming",
+    "geoProviders"
+    ,"distributionSources"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "revision": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "nft": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["family", "table", "commentPrefix"],
+      "properties": {
+        "family": {
+          "type": "string",
+          "enum": ["inet", "ip", "ip6"]
+        },
+        "table": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z][A-Za-z0-9_]*$"
+        },
+        "commentPrefix": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-z][a-z0-9-]*$"
+        }
+      }
+    },
+    "protectionClasses": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["directAllowed", "failMode", "quic", "firewallKillSwitch"],
+        "properties": {
+          "directAllowed": {
+            "type": "boolean"
+          },
+          "failMode": {
+            "type": "string",
+            "enum": ["reject", "allow"]
+          },
+          "quic": {
+            "type": "string",
+            "enum": ["proxy-or-reject", "allow", "reject"]
+          },
+          "firewallKillSwitch": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "services": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["protectionClass", "allowedRegions", "matchers", "dependencies"],
+        "properties": {
+          "protectionClass": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "allowedRegions": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*$"
+            }
+          },
+          "matchers": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["geosite", "domainSuffixes"],
+            "properties": {
+              "geosite": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "domainSuffixes": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          },
+          "dependencies": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["id", "host", "path", "role", "required", "routePolicy", "matcher"],
+              "properties": {
+                "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+                "host": { "type": "string", "minLength": 1 },
+                "path": { "type": "string", "pattern": "^/" },
+                "role": { "type": "string", "enum": ["control", "auth", "api", "media", "storage", "cdn", "websocket", "stream", "optional"] },
+                "required": { "type": "boolean" },
+                "routePolicy": { "type": "string", "enum": ["inherit", "direct", "explicit-route", "compatible-route", "reject"] },
+                "matcher": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["desiredGranularity", "availableGranularity", "scopeExpansion"],
+                  "properties": {
+                    "desiredGranularity": { "type": "string", "enum": ["path", "host"] },
+                    "availableGranularity": { "type": "string", "enum": ["path", "host"] },
+                    "scopeExpansion": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "gaming": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["udpSourcePorts", "udpDestinationPorts", "udpPorts", "tcpPorts", "protectedUdpPorts", "destinationCidrs"],
+    "properties": {
+      "udpSourcePorts": {
+        "$ref": "#/$defs/portList"
+      },
+      "udpDestinationPorts": {
+        "$ref": "#/$defs/portList"
+      },
+      "udpPorts": {
+        "$ref": "#/$defs/portList",
+        "description": "Deprecated schema-v1 compatibility projection of udpDestinationPorts."
+      },
+      "tcpPorts": {
+        "$ref": "#/$defs/portList"
+      },
+      "protectedUdpPorts": {
+        "type": "array",
+        "minItems": 1,
+        "uniqueItems": true,
+        "items": {
+          "$ref": "#/$defs/port"
+        }
+      },
+      "destinationCidrs": {
+        "type": "array",
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  },
+    "geoProviders": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "url", "timeoutSeconds", "cacheTtlSeconds", "fields"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "url": {
+            "type": "string",
+            "pattern": "^https://"
+          },
+          "timeoutSeconds": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 60
+          },
+          "cacheTtlSeconds": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 86400
+          },
+          "fields": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["ip", "country"],
+            "properties": {
+              "ip": {
+                "type": "string",
+                "minLength": 1
+              },
+              "country": {
+                "type": "string",
+                "minLength": 1
+              },
+              "asn": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "distributionSources": {
+      "type": "object",
+      "propertyNames": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type", "baseUrl", "priority", "enabled", "healthCheck", "immutableRevisionSupport"],
+        "properties": {
+          "type": { "type": "string", "enum": ["cdn", "github-raw", "mirror"] },
+          "baseUrl": { "type": "string", "pattern": "^https://" },
+          "priority": { "type": "integer", "minimum": 0 },
+          "enabled": { "type": "boolean" },
+          "healthCheck": { "type": ["string", "null"] },
+          "immutableRevisionSupport": { "type": "boolean" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535
+    },
+    "portList": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/port"
+      }
+    }
+  }
+}

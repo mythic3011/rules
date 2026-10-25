@@ -1,0 +1,160 @@
+schemaVersion: 1
+# This is a closed, exact delta contract. It is deliberately not a classifier:
+# unrelated AI-looking entries are preserved unless they occur in these exact sets.
+deltas:
+  proxy-groups:
+    surface: proxy-groups
+    operation: replace-set
+    remove:
+      - "🤖 ChatGPT"
+      - "🧑‍💻 Copilot"
+      - "🔐 Claude Account Guard"
+      - "🤖 Google AI"
+      - "🤖 Google AI Tools"
+      - "🤖 Perplexity"
+      - "🤖 Grok"
+      - "🤖 Poe"
+      - "🤖 OpenRouter"
+      - "🤖 Cursor"
+      - "🤗 Hugging Face"
+      - "🤖 Mirasim"
+      - "🎵 Flow Music"
+      - "🤖 OpenCode"
+      - "🤖 AI Other"
+      - "🤖 AI CN Other"
+      - "🇺🇸 US Stable"
+      - "🇯🇵 JP Stable"
+      - "🇸🇬 SG Stable"
+    add:
+      - "🇯🇵 JP Stable"
+      - "🇸🇬 SG Stable"
+      - "🇺🇸 US Stable"
+      - "@mode/hk"
+      - "@mode/jp"
+      - "@mode/sg"
+      - "@mode/us"
+      - "🌍 AI 存取模式"
+      - "@profile/chatgpt"
+      - "🤖 ChatGPT"
+      - "🔐 Claude Account Guard"
+      - "@profile/copilot"
+      - "🧑‍💻 Copilot"
+      - "@profile/flow-music"
+      - "🎵 Flow Music"
+      - "@profile/gemini"
+      - "🤖 Google AI"
+      - "@profile/grok"
+      - "🤖 Grok"
+      - "@profile/huggingface"
+      - "🤗 Hugging Face"
+      - "@profile/notebooklm"
+      - "🤖 Google AI Tools"
+      - "@profile/opencode"
+      - "🤖 OpenCode"
+      - "@profile/perplexity"
+      - "🤖 Perplexity"
+      - "@profile/poe"
+      - "🤖 Poe"
+      - "@profile/windsurf"
+      - "🌊 Windsurf"
+    reason: "Replace the closed legacy AI selector set with compiled selectors, shared Google policy groups, and stable routes."
+    policyReference: internal/config/ai-routing/core/30-services.yaml
+  rule-providers:
+    surface: rule-providers
+    operation: replace-key-set
+    remove:
+      [
+        AI_Copilot_Classical,
+        AI_Claude_Classical,
+        AI_Gemini_Classical,
+        AI_NotebookLM_Classical,
+        AI_Jules_Classical,
+        AI_OpenRouter_Classical,
+        AI_Cursor_Classical,
+        AI_HuggingFace_Classical,
+        AI_Mirasim_Classical,
+        AI_Antigravity_Classical,
+        AI_GoogleLabs_Classical,
+        AI_Stitch_Classical,
+        AI_AndroidStudioAI_Classical,
+        AI_GeminiCloud_Classical,
+        AI_VertexAI_Classical,
+        Flow_Music_Classical,
+        AI_OpenCode_Classical,
+      ]
+    add:
+      - AI_All_Classical
+      - AI_ChatGPT_Classical
+      - AI_Claude_Classical
+      - AI_Copilot_Classical
+      - AI_Gemini_Classical
+      - AI_Grok_Classical
+      - AI_HuggingFace_Classical
+      - AI_NotebookLM_Classical
+      - AI_OpenCode_Classical
+      - AI_Perplexity_Classical
+      - AI_Poe_Classical
+      - AI_Windsurf_Classical
+      - Flow_Music_Classical
+    reason: "Replace exactly the legacy local AI provider keys with all source-pinned compiled provider definitions."
+    policyReference: internal/config/ai-routing/projections/mihomo.yaml
+  rules:
+    surface: rules
+    operation: replace-contiguous-interval
+    before:
+      ["GEOSITE,private,🎯 全球直連", "GEOIP,private,🎯 全球直連,no-resolve"]
+    remove:
+      - "GEOSITE,openai,🤖 ChatGPT"
+      - "RULE-SET,AI_Copilot_Classical,🧑‍💻 Copilot"
+      - "GEOSITE,github-copilot,🧑‍💻 Copilot"
+      - "RULE-SET,AI_Claude_Classical,🔐 Claude Account Guard"
+      - "GEOSITE,anthropic,🔐 Claude Account Guard"
+      - "GEOSITE,category-ntp,🔐 Claude Account Guard"
+      - "RULE-SET,AI_Gemini_Classical,🤖 Google AI"
+      - "RULE-SET,AI_NotebookLM_Classical,🤖 Google AI Tools"
+      - "RULE-SET,AI_Jules_Classical,🤖 Google AI Tools"
+      - "GEOSITE,perplexity,🤖 Perplexity"
+      - "GEOSITE,xai,🤖 Grok"
+      - "GEOSITE,poe,🤖 Poe"
+      - "RULE-SET,AI_OpenRouter_Classical,🤖 OpenRouter"
+      - "RULE-SET,AI_Cursor_Classical,🤖 Cursor"
+      - "RULE-SET,AI_HuggingFace_Classical,🤗 Hugging Face"
+      - "RULE-SET,AI_Mirasim_Classical,🤖 Mirasim"
+      - "RULE-SET,AI_Antigravity_Classical,🤖 Google AI Tools"
+      - "RULE-SET,AI_GoogleLabs_Classical,🤖 Google AI Tools"
+      - "RULE-SET,AI_Stitch_Classical,🤖 Google AI Tools"
+      - "RULE-SET,AI_AndroidStudioAI_Classical,🤖 Google AI"
+      - "RULE-SET,AI_GeminiCloud_Classical,🤖 Google AI Tools"
+      - "RULE-SET,AI_VertexAI_Classical,🤖 Google AI"
+      - "RULE-SET,Flow_Music_Classical,🎵 Flow Music"
+      - "RULE-SET,AI_OpenCode_Classical,🤖 OpenCode"
+      - "GEOSITE,google-deepmind,🤖 AI Other"
+      - "GEOSITE,category-ai-!cn,🤖 AI Other"
+      - "GEOSITE,category-ai-cn,🤖 AI CN Other"
+    after: "RULE-SET,SSH_Direct_Classical,🎯 全球直連"
+    add:
+      - "RULE-SET,Flow_Music_Classical,🎵 Flow Music"
+      - "RULE-SET,AI_Claude_Classical,🔐 Claude Account Guard"
+      - "RULE-SET,AI_ChatGPT_Classical,🤖 ChatGPT"
+      - "RULE-SET,AI_Copilot_Classical,🧑‍💻 Copilot"
+      - "RULE-SET,AI_Gemini_Classical,🤖 Google AI"
+      - "RULE-SET,AI_Grok_Classical,🤖 Grok"
+      - "RULE-SET,AI_HuggingFace_Classical,🤗 Hugging Face"
+      - "RULE-SET,AI_NotebookLM_Classical,🤖 Google AI Tools"
+      - "RULE-SET,AI_OpenCode_Classical,🤖 OpenCode"
+      - "RULE-SET,AI_Perplexity_Classical,🤖 Perplexity"
+      - "RULE-SET,AI_Poe_Classical,🤖 Poe"
+      - "RULE-SET,AI_Windsurf_Classical,🌊 Windsurf"
+      - "RULE-SET,AI_All_Classical,DIRECT"
+      - "GEOSITE,google-deepmind,DIRECT"
+      - "GEOSITE,category-ai-!cn,DIRECT"
+    reason: "The exact AI interval becomes source-pinned service identities, Flow Music ownership-override before a single Claude Guard rule, and relaxed HK direct guards."
+    policyReference: internal/config/ai-routing/projections/mihomo.yaml#profiles.hk
+  dns:
+    surface: dns
+    operation: add-map-entry
+    map: nameserver-policy
+    key: rule-set:AI_Claude_Classical
+    value: ["https://1.1.1.1/dns-query#🔐 Claude Account Guard"]
+    reason: "Claude DNS is unavailable unless the same explicit account selector is armed."
+    policyReference: internal/config/ai-routing/core/20-protection-classes.yaml
