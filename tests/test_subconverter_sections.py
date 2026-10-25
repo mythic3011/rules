@@ -7,6 +7,7 @@ from dataclasses import fields, replace
 from ai_profiles.catalog import load_catalog
 from ai_profiles.compiler import compile_subconverter_plan
 from ai_profiles.models import IniProxyGroup, IniSection, SubconverterPlan
+from ai_profiles.profile_languages import PROFILE_COMMENT_COPY
 from ai_profiles.render.subconverter import _render_ini
 from ai_profiles_test_support import load_generator
 
@@ -76,13 +77,27 @@ class SubconverterSectionsTest(unittest.TestCase):
         self.assertEqual(other.kind, "select")
         self.assertIsNotNone(other.filter_pattern)
         self.assertIsNone(other.health_check_url)
-        self.assertEqual([group.kind for group in shared], ["fallback", "select", "select", "select"])
-        self.assertTrue(all(group.kind == "url-test" for group in automatic if group.name != "🌐 其他／未識別節點"))
+        self.assertTrue(all(group.kind == "select" for group in shared))
+        self.assertTrue(all(group.kind == "select" for group in automatic))
 
     def test_render_ini_does_not_reload_catalog(self) -> None:
         source = inspect.getsource(_render_ini)
         self.assertNotIn("load_catalog", source)
         self.assertNotIn("catalog.", source)
+
+    def test_localized_footer_comes_from_catalog_without_changing_default_bytes(self) -> None:
+        default = _render_ini(self.plan)
+        self.assertTrue(default.endswith("\n\n;下方参数请勿修改\nenable_rule_generator=true\noverwrite_original_rules=true\n"))
+        for language, copy in PROFILE_COMMENT_COPY.items():
+            rendered = _render_ini(self.plan, language)
+            localized_suffix = [
+                "",
+                "",
+                *copy["footer"],
+                "enable_rule_generator=true",
+                "overwrite_original_rules=true",
+            ]
+            self.assertTrue(rendered.endswith("\n".join(localized_suffix) + "\n"))
 
     def test_compiled_group_mutation_renders_without_catalog_rebuild(self) -> None:
         section = self.plan.section("automatic-region-groups")

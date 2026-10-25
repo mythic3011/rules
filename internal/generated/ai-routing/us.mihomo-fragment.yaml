@@ -130,7 +130,7 @@ proxy-groups:
       - 🇸🇬 SG Stable
       - 🇯🇵 JP Stable
       - REJECT
-  - name: 🤖 Gemini
+  - name: 🤖 Google AI
     type: select
     empty-fallback: REJECT
     proxies:
@@ -185,7 +185,7 @@ proxy-groups:
       - 🇸🇬 SG Stable
       - 🇯🇵 JP Stable
       - REJECT
-  - name: 🤖 NotebookLM
+  - name: 🤖 Google AI Tools
     type: select
     empty-fallback: REJECT
     proxies:
@@ -362,10 +362,10 @@ rules:
   - RULE-SET,AI_Claude_Classical,🔐 Claude Account Guard
   - RULE-SET,AI_ChatGPT_Classical,🤖 ChatGPT
   - RULE-SET,AI_Copilot_Classical,🧑‍💻 Copilot
-  - RULE-SET,AI_Gemini_Classical,🤖 Gemini
+  - RULE-SET,AI_Gemini_Classical,🤖 Google AI
   - RULE-SET,AI_Grok_Classical,🤖 Grok
   - RULE-SET,AI_HuggingFace_Classical,🤗 Hugging Face
-  - RULE-SET,AI_NotebookLM_Classical,🤖 NotebookLM
+  - RULE-SET,AI_NotebookLM_Classical,🤖 Google AI Tools
   - RULE-SET,AI_OpenCode_Classical,🤖 OpenCode
   - RULE-SET,AI_Perplexity_Classical,🤖 Perplexity
   - RULE-SET,AI_Poe_Classical,🤖 Poe

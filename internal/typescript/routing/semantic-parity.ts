@@ -1,12 +1,13 @@
 import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import YAML from "yaml";
-import { z } from "zod";
 
 import { formatIssues, type RoutingIssue } from "./issues.js";
 import type { RoutingProject } from "./project/schema.js";
 import type { RoutingConfig } from "./schema.js";
 import { isAccountSafeTarget } from "./semantic-validator.js";
+import { loadRegionsSource } from "./regions/compile.js";
+import { parseServiceCatalog, ServiceCatalogError } from "./shared-catalog.js";
 
 export const SEMANTIC_PARITY_REPORT_NAME = "semantic-parity-report.json";
 
@@ -15,14 +16,6 @@ const REJECT_GROUP = "⛔ 拒絕";
 const OTHER_GROUP = "🌐 其他／未識別節點";
 const FALLBACK_GROUP = "🐟 漏網之魚";
 const AUTO_SUFFIX = " · 自動";
-const PRIMARY_REGION_ORDER = ["us", "jp", "sg", "tw", "kr"] as const;
-const REGION_GROUPS: Readonly<Record<(typeof PRIMARY_REGION_ORDER)[number], string>> = {
-  us: "🇺🇸 美國節點",
-  jp: "🇯🇵 日本節點",
-  sg: "🇸🇬 新加坡節點",
-  tw: "🇹🇼 台灣節點",
-  kr: "🇰🇷 韓國節點",
-};
 
 export type FactDimension =
   | "group-name"
@@ -122,6 +115,10 @@ export interface LegacyParityArtifacts {
   readonly ini: string;
   readonly hostTxt: string;
   readonly catalog: ReadonlyMap<string, CatalogServiceFacts>;
+  readonly regionRegistry: {
+    readonly primaryOrder: readonly string[];
+    readonly idsByGroup: ReadonlyMap<string, string>;
+  };
 }
 
 interface CandidateShapeFact {
@@ -132,29 +129,6 @@ interface CandidateShapeFact {
   readonly explicitNode: boolean;
   readonly protectionClass: string | undefined;
 }
-
-const CatalogFileSchema = z
-  .object({
-    schemaVersion: z.literal(1),
-    services: z
-      .array(
-        z
-          .object({
-            id: z.string().min(1),
-            providerKey: z.string().min(1),
-            group: z.string().min(1),
-            file: z.string().min(1),
-            payload: z.array(z.string()).default([]),
-            directRelaxed: z.boolean().optional(),
-            projections: z.array(z.string()).optional(),
-            dnsPolicies: z.array(z.object({ selector: z.string().min(1) }).passthrough()).optional(),
-            upstreamRules: z.array(z.object({ kind: z.string().min(1) }).passthrough()).optional(),
-          })
-          .passthrough(),
-      )
-      .min(1),
-  })
-  .passthrough();
 
 /**
  * Frozen dual-model disagreements. They stay warnings so Phase 1 can land
@@ -252,24 +226,27 @@ function parseIniGroups(source: string): IniGroup[] {
 }
 
 function parseCatalog(value: unknown, path: string): Map<string, CatalogServiceFacts> {
-  const parsed = CatalogFileSchema.safeParse(value);
-  if (!parsed.success) {
-    throw new SemanticParityError(
-      parsed.error.issues.map((entry) => issue([path, ...entry.path.map(String)], entry.message)),
-    );
+  let resolved: ReturnType<typeof parseServiceCatalog>;
+  try {
+    resolved = parseServiceCatalog(value, path);
+  } catch (error: unknown) {
+    if (error instanceof ServiceCatalogError) {
+      throw new SemanticParityError(error.issues);
+    }
+    throw error;
   }
   const catalog = new Map<string, CatalogServiceFacts>();
-  for (const record of parsed.data.services) {
+  for (const record of resolved.values()) {
     catalog.set(record.id, {
       id: record.id,
       providerKey: record.providerKey,
       group: record.group,
       file: record.file,
       payload: record.payload,
-      projections: record.projections ?? ["mihomo", "subconverter"],
+      projections: record.projections,
       directRelaxed: record.directRelaxed,
-      dnsSelectors: (record.dnsPolicies ?? []).map((policy) => String(policy.selector)),
-      upstreamKinds: (record.upstreamRules ?? []).map((rule) => String(rule.kind)),
+      dnsSelectors: record.dnsPolicies.map((policy) => policy.selector),
+      upstreamKinds: record.upstreamRules.map((rule) => rule.kind),
     });
   }
   return catalog;
@@ -281,12 +258,13 @@ export async function loadLegacyParityArtifacts(project: RoutingProject): Promis
   const strictPath = join(dirname(relaxedPath), "Custom_Clash_AI_Strict.yaml");
   const iniPath = join(repoRoot, "cfg", "Custom_Clash_AI.ini");
   const hostPath = join(repoRoot, "rule", "host.txt");
-  const [relaxedYaml, strictYaml, ini, hostTxt, catalogRaw] = await Promise.all([
+  const [relaxedYaml, strictYaml, ini, hostTxt, catalogRaw, regions] = await Promise.all([
     readFile(relaxedPath, "utf8"),
     readFile(strictPath, "utf8"),
     readFile(iniPath, "utf8"),
     readFile(hostPath, "utf8"),
     readFile(project.serviceCatalog, "utf8"),
+    loadRegionsSource(project.regionsSource),
   ]);
   let catalogJson: unknown;
   try {
@@ -303,6 +281,10 @@ export async function loadLegacyParityArtifacts(project: RoutingProject): Promis
     ini,
     hostTxt,
     catalog: parseCatalog(catalogJson, project.serviceCatalog),
+    regionRegistry: {
+      primaryOrder: regions.routing.primaryOrder,
+      idsByGroup: new Map(regions.regions.map((region) => [region.group, region.id])),
+    },
   };
 }
 
@@ -310,19 +292,21 @@ function iniGroupNamed(groups: readonly IniGroup[], name: string): IniGroup | un
   return groups.find((group) => group.name === name);
 }
 
-function regionOrderFromProxies(proxies: readonly string[]): readonly string[] {
+function regionOrderFromProxies(
+  proxies: readonly string[],
+  regionRegistry: LegacyParityArtifacts["regionRegistry"],
+): readonly string[] {
   const order: string[] = [];
-  const regionByGroup = new Map(Object.entries(REGION_GROUPS).map(([id, group]) => [group, id]));
   for (const proxy of proxies) {
-    const region = regionByGroup.get(proxy);
+    const region = regionRegistry.idsByGroup.get(proxy);
     if (region !== undefined) order.push(region);
     if (proxy === OTHER_GROUP) order.push("other");
   }
   return order;
 }
 
-function expectedRegionOrder(): readonly string[] {
-  return [...PRIMARY_REGION_ORDER, "other"];
+function expectedRegionOrder(regionRegistry: LegacyParityArtifacts["regionRegistry"]): readonly string[] {
+  return [...regionRegistry.primaryOrder, "other"];
 }
 
 function autoHasDirect(groups: ReadonlyMap<string, ProxyGroup>, name: string | undefined): boolean {
@@ -379,6 +363,19 @@ function rightRegionOrder(config: RoutingConfig, serviceId: string): readonly st
     }
   }
   return order;
+}
+
+function rightAccountProtectedCandidates(config: RoutingConfig, serviceId: string): readonly string[] | undefined {
+  const service = config.services[serviceId];
+  if (service === undefined) return undefined;
+
+  const candidates: string[] = [];
+  for (const routeId of service.allowedRoutes) {
+    const target = config.routeTargets[routeId];
+    if (target === undefined) return undefined;
+    candidates.push(target.kind === "reject" ? REJECT_GROUP : target.group);
+  }
+  return candidates;
 }
 
 function sameJson(left: unknown, right: unknown): boolean {
@@ -634,53 +631,76 @@ export function compareSemanticParity(
       if (shapeFinding !== undefined) findings.push(shapeFinding);
     }
 
-    const yamlRegions = regionOrderFromProxies(relaxedGroup?.proxies ?? []);
-    if (relaxedGroup !== undefined && yamlRegions.length > 0 && !sameJson(yamlRegions, expectedRegionOrder())) {
+    if (protection?.kind === "account-protected" && relaxedGroup !== undefined) {
+      const expectedCandidates = rightAccountProtectedCandidates(config, serviceId);
+      if (expectedCandidates === undefined || !sameJson(relaxedGroup.proxies, expectedCandidates)) {
+        findings.push(
+          finding(
+            serviceId,
+            "candidate-shape",
+            "fail",
+            "account-protected YAML candidates must exactly match canonical allowedRoutes",
+            relaxedGroup.proxies,
+            expectedCandidates ?? null,
+          ),
+        );
+      }
+    }
+
+    const primaryOrder = artifacts.regionRegistry.primaryOrder;
+    const canonicalRegions = rightRegionOrder(config, serviceId);
+    const expectedYamlRegions = protection?.kind === "account-protected"
+      ? canonicalRegions
+      : expectedRegionOrder(artifacts.regionRegistry);
+    const yamlRegions = regionOrderFromProxies(relaxedGroup?.proxies ?? [], artifacts.regionRegistry);
+    if (relaxedGroup !== undefined && yamlRegions.length > 0 && !sameJson(yamlRegions, expectedYamlRegions)) {
       findings.push(
         finding(
           serviceId,
           "region-order",
           "fail",
-          "relaxed YAML region order must equal primaryOrder (us, jp, sg, tw, kr) then other",
+          `relaxed YAML region order must equal primaryOrder (${primaryOrder.join(", ")}) then other`,
           yamlRegions,
-          expectedRegionOrder(),
+          expectedYamlRegions,
         ),
       );
     }
-    const canonicalRegions = rightRegionOrder(config, serviceId);
-    if (canonicalRegions.length > 0 && canonicalRegions.some((region) => !PRIMARY_REGION_ORDER.includes(region as (typeof PRIMARY_REGION_ORDER)[number]))) {
-      findings.push(
-        finding(
-          serviceId,
-          "region-order",
-          "fail",
-          "canonical allowed regions must be drawn from primaryOrder (us, jp, sg, tw, kr)",
-          yamlRegions,
-          canonicalRegions,
-        ),
-      );
-    } else if (canonicalRegions.length > 0 && canonicalRegions.length < PRIMARY_REGION_ORDER.length) {
-      findings.push(
-        finding(
-          serviceId,
-          "region-order",
-          "warn",
-          "canonical region list is a subset of primaryOrder; full us,jp,sg,tw,kr,other coverage is a later phase",
-          yamlRegions,
-          canonicalRegions,
-        ),
-      );
-    } else if (canonicalRegions.length > 0 && !sameJson(canonicalRegions, [...PRIMARY_REGION_ORDER])) {
-      findings.push(
-        finding(
-          serviceId,
-          "region-order",
-          "fail",
-          "canonical allowed region order must equal primaryOrder (us, jp, sg, tw, kr)",
-          yamlRegions,
-          canonicalRegions,
-        ),
-      );
+    if (protection?.kind !== "account-protected") {
+      const primaryRegionIds = new Set(primaryOrder);
+      if (canonicalRegions.length > 0 && canonicalRegions.some((region) => !primaryRegionIds.has(region))) {
+        findings.push(
+          finding(
+            serviceId,
+            "region-order",
+            "fail",
+            `canonical allowed regions must be drawn from primaryOrder (${primaryOrder.join(", ")})`,
+            yamlRegions,
+            canonicalRegions,
+          ),
+        );
+      } else if (canonicalRegions.length > 0 && canonicalRegions.length < primaryOrder.length) {
+        findings.push(
+          finding(
+            serviceId,
+            "region-order",
+            "warn",
+            `canonical region list is a subset of primaryOrder; full ${primaryOrder.join(",")},other coverage is a later phase`,
+            yamlRegions,
+            canonicalRegions,
+          ),
+        );
+      } else if (canonicalRegions.length > 0 && !sameJson(canonicalRegions, primaryOrder)) {
+        findings.push(
+          finding(
+            serviceId,
+            "region-order",
+            "fail",
+            `canonical allowed region order must equal primaryOrder (${primaryOrder.join(", ")})`,
+            yamlRegions,
+            canonicalRegions,
+          ),
+        );
+      }
     }
 
     const dnsProfile = config.dns.profiles[config.dns.defaultProfile];

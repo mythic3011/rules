@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import worker from "../worker/index.mjs";
+import { runtimeData } from "../worker/solver.mjs";
 
 class FakeD1 {
   constructor() {
@@ -95,8 +96,28 @@ test("opaque read capability ignores query-string routing tampering", async () =
   assert.equal(response.headers.get("x-frame-options"), "DENY");
   assert.equal(response.headers.get("content-security-policy"), "default-src 'none'; frame-ancestors 'none'; base-uri 'none'");
   const ini = await response.text();
-  assert.doesNotMatch(ini, /custom_proxy_group=🇯🇵 日本節點/);
-  assert.match(ini, /custom_proxy_group=🇺🇸 美國節點/);
+  assert.ok(!ini.includes(`custom_proxy_group=${runtimeData.groups.jp}\``));
+  assert.ok(ini.includes(`custom_proxy_group=${runtimeData.groups.us}\``));
+});
+
+test("short subscription URL redirects to the INI endpoint without returning the INI body", async () => {
+  const environment = env();
+  const saved = await createSavedProfile(environment, { disabledNodeRegions: ["jp"] });
+  const response = await worker.fetch(new Request(`https://rules.example/p/${saved.readToken}?prefer=jp`), environment);
+  assert.equal(response.status, 302);
+  assert.equal(response.headers.get("cache-control"), "no-store");
+  assert.equal(response.headers.get("location"), `/p/${saved.readToken}.ini`);
+  assert.equal(await response.text(), "");
+
+  const followed = await worker.fetch(new Request(new URL(response.headers.get("location"), "https://rules.example")), environment);
+  assert.equal(followed.status, 200);
+  const ini = await followed.text();
+  assert.match(ini, /\[custom\]/);
+  assert.ok(!ini.includes(`custom_proxy_group=${runtimeData.groups.jp}\``));
+
+  const invalid = await worker.fetch(new Request("https://rules.example/p/short"), environment);
+  assert.equal(invalid.status, 404);
+  assert.equal(invalid.headers.get("location"), null);
 });
 
 test("subscription endpoint returns security headers on 404 responses", async () => {
@@ -106,6 +127,7 @@ test("subscription endpoint returns security headers on 404 responses", async ()
     environment,
   );
   assert.equal(response.status, 404);
+  assert.equal(response.headers.get("cache-control"), "no-store");
   assert.equal(response.headers.get("x-frame-options"), "DENY");
   assert.equal(response.headers.get("content-security-policy"), "default-src 'none'; frame-ancestors 'none'; base-uri 'none'");
 });
@@ -138,7 +160,7 @@ test("editing saved ProfileSpec keeps subscription URL stable", async () => {
   const url = `https://rules.example/p/${saved.readToken}.ini`;
 
   const before = await worker.fetch(new Request(url), environment);
-  assert.doesNotMatch(await before.text(), /custom_proxy_group=🇯🇵 日本節點/);
+  assert.ok(!(await before.text()).includes(`custom_proxy_group=${runtimeData.groups.jp}\``));
 
   const update = await worker.fetch(
     new Request(`https://rules.example/api/v1/profiles/${saved.id}`, {
@@ -156,6 +178,55 @@ test("editing saved ProfileSpec keeps subscription URL stable", async () => {
 
   const after = await worker.fetch(new Request(url), environment);
   const ini = await after.text();
-  assert.match(ini, /custom_proxy_group=🇯🇵 日本節點/);
-  assert.doesNotMatch(ini, /custom_proxy_group=🇺🇸 美國節點/);
+  assert.ok(ini.includes(`custom_proxy_group=${runtimeData.groups.jp}\``));
+  assert.ok(!ini.includes(`custom_proxy_group=${runtimeData.groups.us}\``));
+});
+
+test("registered static INI selections can be saved and updated through the same subscription", async () => {
+  const environment = env();
+  const initialSpec = { baseProfile: "standard", language: "en" };
+  const saved = await createSavedProfile(environment, initialSpec);
+  const url = `https://rules.example/p/${saved.readToken}.ini`;
+  const before = await worker.fetch(new Request(url), environment);
+  assert.equal(before.status, 200);
+  assert.match(await before.text(), /\[custom\]/);
+
+  const nextSpec = { baseProfile: "lite", language: "zh-Hant" };
+  const update = await worker.fetch(new Request(`https://rules.example/api/v1/profiles/${saved.id}`, {
+    method: "PUT",
+    headers: { "content-type": "application/json", authorization: `Bearer ${saved.manageToken}` },
+    body: JSON.stringify({ spec: nextSpec }),
+  }), environment);
+  assert.equal(update.status, 200);
+  assert.equal((await update.json()).revision, 2);
+
+  const after = await worker.fetch(new Request(url), environment);
+  assert.equal(after.status, 200);
+  assert.equal(after.headers.get("x-profile-revision"), "2");
+  const preview = await worker.fetch(new Request("https://rules.example/api/v1/resolve", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ spec: nextSpec }),
+  }), environment);
+  assert.equal(await after.text(), (await preview.json()).ini);
+
+  const managed = await worker.fetch(new Request(`https://rules.example/api/v1/profiles/${saved.id}`, {
+    headers: { authorization: `Bearer ${saved.manageToken}` },
+  }), environment);
+  assert.equal(managed.status, 200);
+  const { spec } = await managed.json();
+  assert.equal(spec.baseProfile, "lite");
+  assert.equal(spec.language, "zh-Hant");
+});
+
+test("unsupported static-template options are rejected before any profile is saved", async () => {
+  const environment = env();
+  const response = await worker.fetch(new Request("https://rules.example/api/v1/profiles", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ spec: { baseProfile: "standard", allowDirect: false } }),
+  }), environment);
+  assert.equal(response.status, 400);
+  assert.equal((await response.json()).error, "unsupported_profile_options");
+  assert.equal(environment.DB.rows.length, 0);
 });

@@ -7,14 +7,14 @@ Source-of-truth declarations live under `internal/config/`. Generated AI/service
 Before finishing a change, run:
 
 ```sh
-make check
+mise run check
 ```
 
 For TypeScript routing changes, install dependencies and run:
 
 ```sh
-npm ci
-make check-all
+make bootstrap
+mise run check-all
 ```
 
 Network-backed upstream refreshes are explicit (`make refresh`) and must not be folded into ordinary deterministic generation.

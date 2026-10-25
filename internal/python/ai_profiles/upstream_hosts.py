@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -10,12 +9,12 @@ from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 from .catalog import load_catalog
+from .domains import DOMAIN_PATTERN
 from .models import AdGuardDomainRule, AdGuardHomeSpec
 from .settings import AI_CATALOG_DIR
 
 SnapshotKind = Literal["exact", "suffix", "regex"]
 FetchText = Callable[[str], str]
-_DOMAIN = re.compile(r"^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,7 +59,7 @@ def _parse_domain_record(line: str) -> tuple[SnapshotKind, str] | None:
         return None
     if token.startswith("full:"):
         domain = token[5:].rstrip(".")
-        if not domain or not _DOMAIN.fullmatch(domain):
+        if not domain or not DOMAIN_PATTERN.fullmatch(domain):
             raise RuntimeError(f"Invalid upstream full domain: {token}")
         return "exact", domain
     if token.startswith("include:"):
@@ -68,7 +67,7 @@ def _parse_domain_record(line: str) -> tuple[SnapshotKind, str] | None:
     if ":" in token:
         raise RuntimeError(f"Unsupported upstream domain-list rule syntax: {token}")
     domain = token.rstrip(".")
-    if not domain or not _DOMAIN.fullmatch(domain):
+    if not domain or not DOMAIN_PATTERN.fullmatch(domain):
         raise RuntimeError(f"Invalid upstream domain-list domain: {token}")
     return "suffix", domain
 

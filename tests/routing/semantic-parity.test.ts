@@ -134,8 +134,8 @@ test("negative: reordering relaxed YAML regions fails region-order", async () =>
   const { config, artifacts } = await loadParityFixture();
   const chatgptBlock = artifacts.relaxedYaml.indexOf('  - name: "🤖 ChatGPT"');
   assert.ok(chatgptBlock >= 0);
-  const us = '"🇺🇸 美國節點"';
-  const jp = '"🇯🇵 日本節點"';
+  const us = '"🇺🇸 US Stable"';
+  const jp = '"🇯🇵 JP Stable"';
   const head = artifacts.relaxedYaml.slice(0, chatgptBlock);
   const rest = artifacts.relaxedYaml.slice(chatgptBlock);
   const autoMarker = '  - name: "🤖 ChatGPT · 自動"';
@@ -155,6 +155,51 @@ test("negative: reordering relaxed YAML regions fails region-order", async () =>
   );
   assert.ok(mismatch !== undefined, JSON.stringify(report.mismatches, null, 2));
   assert.match(mismatch.message, /primaryOrder/);
+});
+
+test("negative: account-protected YAML rejects unapproved regions and DIRECT", async () => {
+  const { project, config, projection } = await loadCanonicalInputs();
+  const artifacts = await loadLegacyParityArtifacts(project);
+  const protectedServiceEntry = Object.entries(config.services).find(
+    ([, service]) => config.protectionClasses[service.protectionClass]?.kind === "account-protected",
+  );
+  assert.ok(protectedServiceEntry !== undefined);
+  const [protectedServiceId, protectedService] = protectedServiceEntry;
+  const allowedRegions = new Set(
+    protectedService.allowedRoutes.flatMap((routeId) => {
+      const target = config.routeTargets[routeId];
+      return target?.kind === "region-stable" ? [target.region] : [];
+    }),
+  );
+  const unauthorizedRegionGroup = [...artifacts.regionRegistry.idsByGroup].find(
+    ([, regionId]) => artifacts.regionRegistry.primaryOrder.includes(regionId) && !allowedRegions.has(regionId),
+  )?.[0];
+  assert.ok(unauthorizedRegionGroup !== undefined);
+
+  const groupHeader = `  - name: ${JSON.stringify(protectedService.selector.visibleGroup)}`;
+  const addCandidate = (candidate: string): LegacyParityArtifacts => {
+    const groupStart = artifacts.relaxedYaml.indexOf(groupHeader);
+    assert.ok(groupStart >= 0);
+    const proxiesStart = artifacts.relaxedYaml.indexOf("    proxies:\n", groupStart);
+    assert.ok(proxiesStart >= groupStart);
+    const firstCandidateEnd = artifacts.relaxedYaml.indexOf("\n", proxiesStart + "    proxies:\n".length);
+    assert.ok(firstCandidateEnd >= 0);
+    return {
+      ...artifacts,
+      relaxedYaml: `${artifacts.relaxedYaml.slice(0, firstCandidateEnd)}\n      - ${JSON.stringify(candidate)}${artifacts.relaxedYaml.slice(firstCandidateEnd)}`,
+    };
+  };
+
+  for (const candidate of [unauthorizedRegionGroup, projection.iniMvp.presentation.directGroup]) {
+    const report = compareSemanticParity(config, addCandidate(candidate));
+    assert.equal(report.status, "fail");
+    assert.ok(
+      report.mismatches.some(
+        (entry) => entry.serviceId === protectedServiceId && entry.dimension === "candidate-shape",
+      ),
+      JSON.stringify(report.mismatches, null, 2),
+    );
+  }
 });
 
 test("sharedBackends validation rejects unknown consumer, duplicate domain, and consumer-missing legacyEffectiveConsumer", async () => {

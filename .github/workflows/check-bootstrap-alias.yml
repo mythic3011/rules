@@ -15,10 +15,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Set up Python
-        uses: actions/setup-python@v6
+      - name: Set up mise
+        uses: jdx/mise-action@v5
         with:
-          python-version: "3.x"
+          install: false
+
+      - name: Install pinned toolchain
+        run: mise install
 
       - name: Verify published bootstrap alias
         run: make check-bootstrap-alias

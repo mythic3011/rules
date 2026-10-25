@@ -100,11 +100,11 @@ matches are not used, so a name such as `Australia` cannot enter the US pool.
 ## Commands
 
 ```bash
-npm ci
-npm run routing:validate
-npm run test:routing
-npm run routing:generate
-npm run routing:check
+make bootstrap
+mise exec -- pnpm run routing:validate
+mise exec -- pnpm run test:routing
+mise exec -- pnpm run routing:generate
+mise exec -- pnpm run routing:check
 ```
 
 `routing:check` is read-only. It compares the exact expected profile

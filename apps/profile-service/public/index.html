@@ -1,78 +1,66 @@
 <!doctype html>
-<html lang="zh-HK">
+<html lang="en" data-i18n-ready="false">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
-  <title>OpenClash Profile Builder</title>
+  <title data-i18n="pageTitle">OpenClash Profile Builder</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <main class="shell">
+  <main class="shell tool-ini">
     <header>
       <p class="eyebrow">mythic3011/rules</p>
       <h1>OpenClash Profile Builder</h1>
-      <p class="lede">揀地區偏好，產生一條 opaque custom template <code>.ini</code> URL。唔使手改 generated config。</p>
+      <p class="lede" data-i18n="builderDescription">Choose routing preferences and create an opaque subscription URL that redirects to the `.ini` template.</p>
+      <label class="language-picker"><span data-i18n="language">Language</span>
+        <select id="language" autocomplete="off">
+          <option value="en" data-language-option="en">English</option>
+          <option value="zh-Hant" data-language-option="zh-Hant">繁體中文</option>
+          <option value="zh-Hans" data-language-option="zh-Hans">简体中文</option>
+        </select>
+      </label>
     </header>
 
-    <section class="panel" aria-labelledby="base-title">
-      <h2 id="base-title">Base profile</h2>
-      <label>Profile
-        <select id="base-profile"></select>
-      </label>
-    </section>
+    <div class="page-toolbar">
+      <nav class="tool-nav" data-i18n-aria-label="toolsNavigation" aria-label="Profile tools">
+        <a href="/" aria-current="page" data-i18n="iniBuilder">INI template builder</a>
+        <a href="/converter.html" data-i18n="yamlConverter">Online YAML converter</a>
+      </nav>
+      <section class="actions">
+        <button id="preview" type="button" data-i18n="preview">Preview</button>
+        <button id="save" type="button" class="primary" data-i18n="createSubscription">Create subscription</button>
+      </section>
+    </div>
 
-    <section class="panel" aria-labelledby="region-title">
-      <h2 id="region-title">Region routing</h2>
-      <div class="mode-row">
-        <label><input type="radio" name="region-mode" value="exclude" checked> 全部地區都可以用，排除我 tick 嘅</label>
-        <label><input type="radio" name="region-mode" value="only"> 只可以用我 tick 嘅地區</label>
-      </div>
-      <div id="region-list" class="region-grid" aria-live="polite"></div>
-      <p id="region-hint" class="hint"></p>
-    </section>
+    <section id="profile-options" class="panel" aria-labelledby="profile-options-title"></section>
 
-    <section class="panel" aria-labelledby="prefer-title">
-      <h2 id="prefer-title">Preferred order</h2>
-      <p class="hint">Optional。只影響仍然 active 嘅 routable regions。</p>
-      <div class="prefer-add">
-        <select id="prefer-picker"></select>
-        <button id="prefer-add" type="button">加入優先</button>
-      </div>
-      <ol id="prefer-list" class="prefer-list"></ol>
-    </section>
+    <p class="hint"><span data-i18n="intakeHint">Need a regional service that is not listed?</span> <a href="https://github.com/mythic3011/rules/issues/new?template=service_intake.yml" target="_blank" rel="noreferrer" data-i18n="submitIntake">Submit a regional service request</a>.</p>
 
-    <section class="actions">
-      <button id="preview" type="button">Preview</button>
-      <button id="save" type="button" class="primary">Create subscription</button>
-    </section>
-
-    <p class="hint">Service有地區限制但 registry 未收錄？<a href="https://github.com/mythic3011/rules/issues/new?template=service_intake.yml" target="_blank" rel="noreferrer">提交 Regional service intake</a>。</p>
-
-    <section id="status" class="panel status" hidden></section>
+    <section id="status" class="panel status" role="status" aria-live="polite" aria-atomic="true" hidden></section>
 
     <section id="result" class="panel" hidden>
-      <h2>OpenClash Custom Template URL</h2>
+      <h2 data-i18n="subscriptionTitle">OpenClash Custom Template URL</h2>
       <div class="copy-row">
         <input id="subscription-url" readonly>
-        <button data-copy="subscription-url" type="button">Copy</button>
+        <button data-copy="subscription-url" type="button" data-i18n="copy">Copy</button>
       </div>
-      <p class="hint">將呢條 URL 貼去 OpenClash subscription conversion 嘅 Custom Template URL。</p>
+      <p class="hint" data-i18n="subscriptionHint">Paste this URL into OpenClash subscription conversion as the Custom Template URL.</p>
       <details>
-        <summary>Management link</summary>
-        <p class="warning">Management link可以修改 routing preference；唔好分享。</p>
+        <summary data-i18n="managementLink">Management link</summary>
+        <p class="warning" data-i18n="managementWarning">This link can change routing preferences. Do not share it.</p>
         <div class="copy-row">
           <input id="manage-url" readonly>
-          <button data-copy="manage-url" type="button">Copy</button>
+          <button data-copy="manage-url" type="button" data-i18n="copy">Copy</button>
         </div>
       </details>
     </section>
 
     <section id="preview-result" class="panel" hidden>
-      <h2>Effective profile</h2>
+      <h2 data-i18n="effectiveProfile">Effective profile</h2>
       <pre id="summary"></pre>
       <details>
-        <summary>Generated INI</summary>
+        <summary data-i18n="generatedIni">Generated INI</summary>
         <pre id="ini-preview" class="ini"></pre>
       </details>
     </section>

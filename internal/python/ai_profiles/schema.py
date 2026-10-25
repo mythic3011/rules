@@ -6,6 +6,8 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Literal, Mapping
 
+from .paths import CatalogPaths
+
 SCHEMA_VERSION = 1
 _REQUIRED_CORE_GROUPS = frozenset({"manual", "auto", "direct", "reject", "fallback"})
 
@@ -145,6 +147,14 @@ class SubconverterServiceDecl:
 
 
 @dataclass(frozen=True, slots=True)
+class ServicePolicyDecl:
+    group: str
+    regions: tuple[str, ...]
+    direct_relaxed: bool
+    subconverter: SubconverterServiceDecl
+
+
+@dataclass(frozen=True, slots=True)
 class ServiceDecl:
     id: str
     provider_key: str
@@ -159,17 +169,19 @@ class ServiceDecl:
     subconverter: SubconverterServiceDecl
     projections: frozenset[Literal["mihomo", "subconverter"]]
     family: str | None = None
+    policy_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class ServicesDocument:
     services: tuple[ServiceDecl, ...]
+    policies: Mapping[str, ServicePolicyDecl]
 
 
 @dataclass(frozen=True, slots=True)
 class CompanionRuleDecl:
     id: str
-    category: Literal["ssh", "gaming", "finance", "other"]
+    category: Literal["ssh", "gaming", "finance", "privacy", "other"]
     provider_key: str
     group_key: str
     file: str
@@ -746,8 +758,49 @@ def _service_availability_decl(value: object, field: str) -> ServiceAvailability
     return ServiceAvailabilityDecl(working_regions=working, blocked_regions=blocked)
 
 
+def _service_policy_decl(value: object, field: str) -> ServicePolicyDecl:
+    expected_keys = {"group", "regions", "directRelaxed", "subconverter"}
+    if not isinstance(value, dict) or set(value) != expected_keys:
+        raise RuntimeError(f"AI service policy has invalid shape: {field}")
+    direct_relaxed = value.get("directRelaxed")
+    if not isinstance(direct_relaxed, bool):
+        raise RuntimeError(f"AI service policy directRelaxed must be boolean: {field}")
+    regions = _unique_string_list(value.get("regions"), f"{field}.regions")
+    if not regions:
+        raise RuntimeError(f"AI service policy must declare at least one routing region: {field}")
+    return ServicePolicyDecl(
+        group=_string(value.get("group"), f"{field}.group"),
+        regions=regions,
+        direct_relaxed=direct_relaxed,
+        subconverter=_subconverter_service_decl(
+            value.get("subconverter"), f"{field}.subconverter"
+        ),
+    )
+
+
+def resolve_service_policy(
+    policy_id: str,
+    policies: Mapping[str, ServicePolicyDecl],
+    field: str,
+) -> ServicePolicyDecl:
+    try:
+        return policies[policy_id]
+    except KeyError as exc:
+        raise RuntimeError(f"AI service references unknown policy: {field} ({policy_id})") from exc
+
+
 def load_services_document(path: Path) -> ServicesDocument:
-    value = _load_json(path, {"schemaVersion", "services"})
+    value = _load_json(path, {"schemaVersion", "services"}, {"policies"})
+    raw_policies = value.get("policies", {})
+    if not isinstance(raw_policies, dict):
+        raise RuntimeError("AI service policies must be an object")
+    policies = {
+        _string(policy_id, "policies key"): _service_policy_decl(
+            policy, f"policies.{policy_id}"
+        )
+        for policy_id, policy in raw_policies.items()
+    }
+
     raw_services = value.get("services")
     if not isinstance(raw_services, list):
         raise RuntimeError("AI services must be a list")
@@ -756,18 +809,42 @@ def load_services_document(path: Path) -> ServicesDocument:
     ids: set[str] = set()
     provider_keys: set[str] = set()
     files: set[str] = set()
-    required_keys = {
-        "id", "providerKey", "group", "file", "payload",
-        "directRelaxed", "dnsPolicies", "subconverter",
+    base_required_keys = {"id", "providerKey", "file", "payload", "dnsPolicies"}
+    routing_keys = {"group", "regions", "directRelaxed", "subconverter"}
+    optional_keys = {
+        "geosites", "upstreamRules", "projections", "availability", "family", "policy",
+        *routing_keys,
     }
-    optional_keys = {"geosites", "upstreamRules", "projections", "regions", "availability", "family"}
     for index, record in enumerate(raw_services):
         field = f"services[{index}]"
         if not isinstance(record, dict):
             raise RuntimeError(f"AI service record has invalid shape: {field}")
         keys = set(record)
-        if not required_keys.issubset(keys) or keys - required_keys - optional_keys:
+        if not base_required_keys.issubset(keys) or keys - base_required_keys - optional_keys:
             raise RuntimeError(f"AI service record has invalid shape: {field}")
+        policy_id: str | None = None
+        if "policy" in record:
+            if keys & routing_keys:
+                raise RuntimeError(
+                    f"AI service cannot combine policy reference with inline routing fields: {field}"
+                )
+            policy_id = _string(record.get("policy"), f"{field}.policy")
+            policy = resolve_service_policy(policy_id, policies, f"{field}.policy")
+            group = policy.group
+            regions = policy.regions
+            direct_relaxed = policy.direct_relaxed
+            subconverter = policy.subconverter
+        else:
+            if not routing_keys - {"regions"} <= keys:
+                raise RuntimeError(f"AI service record has invalid shape: {field}")
+            group = _string(record.get("group"), f"{field}.group")
+            regions = _unique_string_list(record.get("regions", []), f"{field}.regions")
+            direct_relaxed = record.get("directRelaxed")
+            if not isinstance(direct_relaxed, bool):
+                raise RuntimeError(f"AI service directRelaxed must be boolean: {field}")
+            subconverter = _subconverter_service_decl(
+                record.get("subconverter"), f"{field}.subconverter"
+            )
         if ("geosites" in record) == ("upstreamRules" in record):
             raise RuntimeError(f"AI service record must declare exactly one of geosites/upstreamRules: {field}")
 
@@ -776,9 +853,6 @@ def load_services_document(path: Path) -> ServicesDocument:
         file = _string(record.get("file"), f"{field}.file")
         if service_id in ids or provider_key in provider_keys or file in files:
             raise RuntimeError(f"Duplicate AI service id/provider/file: {service_id}")
-        direct_relaxed = record.get("directRelaxed")
-        if not isinstance(direct_relaxed, bool):
-            raise RuntimeError(f"AI service directRelaxed must be boolean: {service_id}")
         if "upstreamRules" in record:
             upstream_rules = _upstream_rule_list(record.get("upstreamRules"), f"{field}.upstreamRules")
         else:
@@ -795,20 +869,21 @@ def load_services_document(path: Path) -> ServicesDocument:
                 id=service_id,
                 family=family,
                 provider_key=provider_key,
-                group=_string(record.get("group"), f"{field}.group"),
+                group=group,
                 file=file,
                 upstream_rules=upstream_rules,
                 payload=_string_list(record.get("payload"), f"{field}.payload"),
-                regions=_unique_string_list(record.get("regions", []), f"{field}.regions"),
+                regions=regions,
                 direct_relaxed=direct_relaxed,
                 availability=_service_availability_decl(record.get("availability"), f"{field}.availability"),
                 dns_policies=_dns_policy_list(record.get("dnsPolicies"), f"{field}.dnsPolicies"),
-                subconverter=_subconverter_service_decl(record.get("subconverter"), f"{field}.subconverter"),
+                subconverter=subconverter,
                 projections=_projection_set(record.get("projections"), f"{field}.projections"),
+                policy_id=policy_id,
             )
         )
 
-    return ServicesDocument(services=tuple(services))
+    return ServicesDocument(services=tuple(services), policies=MappingProxyType(policies))
 
 
 def _companion_render_decl(
@@ -874,7 +949,7 @@ def load_companion_rules_document(path: Path) -> CompanionRulesDocument:
         files.add(file)
 
         category = record.get("category")
-        if category not in {"ssh", "gaming", "finance", "other"}:
+        if category not in {"ssh", "gaming", "finance", "privacy", "other"}:
             raise RuntimeError(f"Unknown companion rule category: {field}.category")
         mihomo = record.get("mihomo")
         if not isinstance(mihomo, bool):
@@ -1051,11 +1126,12 @@ def load_external_routing_document(path: Path) -> ExternalRoutingDocument:
 
 
 def load_catalog_documents(catalog_dir: Path) -> CatalogDocuments:
+    paths = CatalogPaths(catalog_dir)
     return CatalogDocuments(
         catalog_dir=catalog_dir,
-        profile=load_profile_document(catalog_dir / "profile.json"),
-        regions=load_regions_document(catalog_dir / "catalogs" / "regions.json"),
-        services=load_services_document(catalog_dir / "catalogs" / "services.json"),
-        companion_rules=load_companion_rules_document(catalog_dir / "catalogs" / "companion-rules.json"),
-        external_routing=load_external_routing_document(catalog_dir / "catalogs" / "external-routing.json"),
+        profile=load_profile_document(paths.resolve("profile")),
+        regions=load_regions_document(paths.resolve("regions")),
+        services=load_services_document(paths.resolve("services")),
+        companion_rules=load_companion_rules_document(paths.resolve("companion-rules")),
+        external_routing=load_external_routing_document(paths.resolve("external-routing")),
     )

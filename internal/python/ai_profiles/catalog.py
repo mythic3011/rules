@@ -33,6 +33,7 @@ from .schema import (
     ProfilePolicyGroupDecl,
     ProfileRouteDecl,
     ProcessRuleDecl,
+    ServiceDecl,
     SubconverterGroupDecl,
     load_catalog_documents,
 )
@@ -308,6 +309,8 @@ def _compile_regions(
 def _register_service_groups(services_doc, groups: dict[str, str], known_regions: set[str]) -> None:
     # Register every service group before resolving cross-service policy refs so
     # declaration order never changes which group keys are resolvable.
+    reserved_names = set(groups.values())
+    registered_names: dict[str, ServiceDecl] = {}
     for record in services_doc.services:
         declared_regions = (
             set(record.regions)
@@ -319,6 +322,30 @@ def _register_service_groups(services_doc, groups: dict[str, str], known_regions
             raise RuntimeError(
                 f"AI service {record.id} references unknown regions: {sorted(unknown_regions)}"
             )
+        if record.group in reserved_names:
+            raise RuntimeError(
+                f"AI service group name collides with an existing core or region group: {record.id}"
+            )
+        previous = registered_names.get(record.group)
+        if previous is not None:
+            if record.policy_id is None or record.policy_id != previous.policy_id:
+                raise RuntimeError(
+                    f"AI service group name is shared without a common policy: {record.group}"
+                )
+            if (
+                record.regions,
+                record.direct_relaxed,
+                record.subconverter,
+            ) != (
+                previous.regions,
+                previous.direct_relaxed,
+                previous.subconverter,
+            ):
+                raise RuntimeError(
+                    f"AI service shared policy has inconsistent routing eligibility: {record.policy_id}"
+                )
+        else:
+            registered_names[record.group] = record
         if record.id in groups and groups[record.id] != record.group:
             raise RuntimeError(f"AI service group collides with existing group key: {record.id}")
         groups[record.id] = record.group

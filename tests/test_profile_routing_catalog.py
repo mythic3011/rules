@@ -8,6 +8,7 @@ from ai_profiles_test_support import CATALOG_DIR, ROOT, copy_catalog, load_gener
 from ai_profiles.catalog import load_catalog
 from ai_profiles.compiler import compile_routing_entries, compile_subconverter_plan
 from ai_profiles.models import RoutingRule
+from ai_profiles.routing_ir import project_ini_rule, ruleset_rule
 from ai_profiles.schema import load_catalog_documents
 
 
@@ -64,9 +65,11 @@ class ProfileRoutingCatalogTest(unittest.TestCase):
             include_process_rules=False,
             catalog=self.catalog,
         )
-        foundation = [
-            entry for entry in routing[: len(self.catalog.foundation_routes)] if isinstance(entry, RoutingRule)
-        ]
+        privacy_count = sum(
+            rule.category == "privacy" and rule.mihomo
+            for rule in self.catalog.companion_rulesets
+        )
+        foundation = routing[privacy_count: privacy_count + len(self.catalog.foundation_routes)]
         self.assertEqual(
             [(rule.kind, rule.value, rule.target, rule.options) for rule in foundation],
             [
@@ -84,6 +87,11 @@ class ProfileRoutingCatalogTest(unittest.TestCase):
         self.assertEqual(
             [(rule.kind, rule.value, rule.target, rule.options) for rule in foundation_rules_section.rules],
             [
+                (projected.kind, projected.value, projected.target, projected.options)
+                for rule in self.catalog.companion_rulesets
+                if rule.category == "privacy"
+                for projected in (project_ini_rule(ruleset_rule(rule.provider_key, rule.group, rule.file)),)
+            ] + [
                 ("geosite", "private", self.catalog.group("direct"), ()),
                 ("geoip", "private", self.catalog.group("direct"), ("no-resolve",)),
             ],

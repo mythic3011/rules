@@ -40,6 +40,15 @@
       }
     },
     {
+      "path": "rule/AI_Claude_Classical.yaml",
+      "urls": {
+        "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_Claude_Classical.yaml",
+        "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_Claude_Classical.yaml",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/rule/AI_Claude_Classical.yaml",
+        "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/rule/AI_Claude_Classical.yaml"
+      }
+    },
+    {
       "path": "rule/AI_Gemini_Classical.yaml",
       "urls": {
         "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_Gemini_Classical.yaml",
@@ -172,6 +181,15 @@
         "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_OpenCode_Classical.yaml",
         "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/rule/AI_OpenCode_Classical.yaml",
         "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/rule/AI_OpenCode_Classical.yaml"
+      }
+    },
+    {
+      "path": "rule/Privacy_Guard_Classical.yaml",
+      "urls": {
+        "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/Privacy_Guard_Classical.yaml",
+        "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/rule/Privacy_Guard_Classical.yaml",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/rule/Privacy_Guard_Classical.yaml",
+        "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/rule/Privacy_Guard_Classical.yaml"
       }
     },
     {

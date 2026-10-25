@@ -8,6 +8,7 @@ import {
   expectedRoutingArtifacts,
   RoutingArtifactCheckError,
 } from "#routing/routing-artifacts.js";
+import { buildRoutingInputArtifacts } from "#routing/artifacts/build.js";
 import { compileRoutingProfile } from "#routing/compiler.js";
 import {
   compileMihomoFragment,
@@ -17,6 +18,30 @@ import YAML from "yaml";
 import { withTempDirectory } from "#routing-test/support/temp-dir.js";
 import { canonicalArtifactName, canonicalArtifactPath, loadCanonicalInputs } from "#routing-test/support/canonical-inputs.js";
 import { MIHOMO_PROJECTION, ROOT, VALID_DIRECTORY } from "#routing-test/support/paths.js";
+import { loadRoutingContext } from "#routing/project/loader.js";
+
+test("input artifact stage follows source region groups without reading legacy profiles", async () => {
+  const context = await loadRoutingContext();
+  const inputContext = {
+    ...context,
+    project: {
+      ...context.project,
+      legacyRelaxedBase: join(context.project.projectDirectory, "missing-legacy-base.yaml"),
+      shadowTemplate: join(context.project.projectDirectory, "missing-shadow-template.yaml"),
+    },
+  };
+
+  const artifacts = await buildRoutingInputArtifacts(inputContext);
+  const regionsV1 = artifacts.find((entry) => entry.path === context.project.regionsV1Output);
+  const compiledRegions = artifacts.find((entry) => entry.path.endsWith("regions.compiled.json"));
+
+  assert.ok(regionsV1 !== undefined);
+  assert.match(regionsV1.content, /🇺🇸 US Stable/);
+  assert.ok(compiledRegions !== undefined);
+  assert.match(compiledRegions.content, /🇺🇸 US Stable/);
+  assert.equal(artifacts.some((entry) => entry.path.includes("full-profile-candidate")), false);
+  assert.equal(artifacts.some((entry) => entry.path.endsWith("semantic-parity-report.json")), false);
+});
 
 test("all canonical profiles have deterministic plan and non-standalone fragment artifacts", async () => {
   const { project, config, projection } = await loadCanonicalInputs();

@@ -233,8 +233,8 @@ def cmd_check(args: argparse.Namespace) -> None:
     run([sys.executable, "-m", "compileall", "-q", *config["compilePaths"]])
     run_pipeline(config, "check")
     if args.node:
-        if not shutil.which("npm"):
-            raise SystemExit("npm is required for --node")
+        if not shutil.which("pnpm"):
+            raise SystemExit("pnpm is required for --node")
         run_pipeline(config, "checkNode")
 
 

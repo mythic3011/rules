@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from ai_profiles import intake
 from ai_profiles.catalog import load_catalog
+from ai_profiles.paths import CatalogPaths
 from ai_profiles.schema import load_catalog_documents
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -25,7 +26,7 @@ def issue_body(*, name="Example AI", service_id="", matcher_type="DOMAIN-SUFFIX"
         "Other / new region": "- [x] I need to add one or more unlisted regions." if additional else "- [ ] I need to add one or more unlisted regions.",
     }
     additional = additional or []
-    for slot in range(1, intake.MAX_ADDITIONAL_REGIONS + 1):
+    for slot in range(1, intake.INTAKE_LIMITS.additional_regions + 1):
         record = additional[slot - 1] if slot <= len(additional) else {}
         fields.update({
             f"Additional region {slot} status": record.get("status", "Not used"),
@@ -42,13 +43,14 @@ class ServiceIntakeTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         root = Path(self.tmp.name)
-        self.regions = root / "regions.json"
-        self.services = root / "services.json"
+        paths = CatalogPaths(root)
+        self.regions = paths.resolve("regions")
+        self.services = paths.resolve("services")
+        self.regions.parent.mkdir(parents=True)
         self.regions.write_text((CATALOG_DIR / "catalogs" / "regions.json").read_text(encoding="utf-8"), encoding="utf-8")
         self.services.write_text((CATALOG_DIR / "catalogs" / "services.json").read_text(encoding="utf-8"), encoding="utf-8")
         self.patchers = [
-            patch.object(intake, "REGIONS_PATH", self.regions),
-            patch.object(intake, "SERVICES_PATH", self.services),
+            patch.object(intake, "CATALOG_PATHS", paths),
         ]
         for item in self.patchers:
             item.start()
@@ -196,6 +198,30 @@ class ServiceIntakeTests(unittest.TestCase):
         self.assertEqual(service["availability"]["workingRegions"], ["jp"])
         self.assertEqual(service["availability"]["blockedRegions"], ["us"])
         self.assertEqual(service["regions"], ["jp"])
+
+    def test_shared_policy_update_keeps_the_policy_reference(self):
+        document = json.loads(self.services.read_text(encoding="utf-8"))
+        shared = next(service for service in document["services"] if "policy" in service)
+        policy_id = shared["policy"]
+        before_policy = document["policies"][policy_id]
+        region = before_policy["regions"][0]
+        intake.apply_issue(issue_body(service_id=shared["id"], working=region, blocked=""))
+        updated = json.loads(self.services.read_text(encoding="utf-8"))
+        service = next(service for service in updated["services"] if service["id"] == shared["id"])
+        self.assertEqual(service["policy"], policy_id)
+        self.assertNotIn("regions", service)
+        self.assertEqual(updated["policies"][policy_id], before_policy)
+
+    def test_intake_cannot_change_shared_policy_routing_for_other_services(self):
+        document = json.loads(self.services.read_text(encoding="utf-8"))
+        shared = next(service for service in document["services"] if "policy" in service)
+        region = document["policies"][shared["policy"]]["regions"][0]
+        before_services = self.services.read_bytes()
+        before_regions = self.regions.read_bytes()
+        with self.assertRaisesRegex(ValueError, "change its routing regions in the policy registry"):
+            intake.apply_issue(issue_body(service_id=shared["id"], working="", blocked=region))
+        self.assertEqual(self.services.read_bytes(), before_services)
+        self.assertEqual(self.regions.read_bytes(), before_regions)
 
 
 class RegionAvailabilitySchemaTests(unittest.TestCase):

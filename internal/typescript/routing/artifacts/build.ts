@@ -21,13 +21,41 @@ export interface BuiltRoutingArtifact {
   readonly content: string;
 }
 
-export async function buildRoutingArtifacts(
+function artifact(path: string, content: string): BuiltRoutingArtifact {
+  return { path, content };
+}
+
+export async function buildRoutingInputArtifacts(
   context: RoutingContext,
 ): Promise<readonly BuiltRoutingArtifact[]> {
   const artifacts: BuiltRoutingArtifact[] = [];
   for (const [name, content] of expectedRoutingArtifacts(context.config, context.projection, context.project)) {
-    artifacts.push({ path: join(context.project.generatedArtifactDirectory, name), content });
+    artifacts.push(artifact(join(context.project.generatedArtifactDirectory, name), content));
   }
+
+  const regionsSource = await loadRegionsSource(context.project.regionsSource);
+  const { compiled, legacy } = compileRegions(regionsSource);
+  artifacts.push(artifact(
+    context.project.schemaOutput,
+    `${JSON.stringify(z.toJSONSchema(RoutingConfigSchema), null, 2)}\n`,
+  ));
+  artifacts.push(artifact(
+    context.project.regionsSchemaOutput,
+    `${JSON.stringify(z.toJSONSchema(RegionsConfigSchema), null, 2)}\n`,
+  ));
+  artifacts.push(artifact(
+    join(context.project.generatedArtifactDirectory, routingArtifactName(context.project, "regions-compiled")),
+    renderJson(compiled),
+  ));
+  artifacts.push(artifact(context.project.regionsV1Output, renderJson(legacy)));
+
+  return artifacts.sort((left, right) => left.path.localeCompare(right.path));
+}
+
+export async function buildRoutingArtifacts(
+  context: RoutingContext,
+): Promise<readonly BuiltRoutingArtifact[]> {
+  const artifacts = [...await buildRoutingInputArtifacts(context)];
   const shadow = await composeShadowProfile(
     context.config,
     context.projection,
@@ -36,34 +64,16 @@ export async function buildRoutingArtifacts(
     context.project.shadowTemplate,
   );
   for (const [name, content] of expectedShadowArtifacts(shadow, context.project)) {
-    artifacts.push({ path: join(context.project.generatedArtifactDirectory, name), content });
+    artifacts.push(artifact(join(context.project.generatedArtifactDirectory, name), content));
   }
   const semanticParity = await buildSemanticParityReport(context.config, context.project);
-  artifacts.push({
-    path: join(
+  artifacts.push(artifact(
+    join(
       context.project.generatedArtifactDirectory,
       routingArtifactName(context.project, "semantic-parity-report"),
     ),
-    content: renderSemanticParityReport(semanticParity),
-  });
-  artifacts.push({
-    path: context.project.schemaOutput,
-    content: `${JSON.stringify(z.toJSONSchema(RoutingConfigSchema), null, 2)}\n`,
-  });
-  const regionsSource = await loadRegionsSource(context.project.regionsSource);
-  const { compiled, legacy } = compileRegions(regionsSource);
-  artifacts.push({
-    path: context.project.regionsSchemaOutput,
-    content: `${JSON.stringify(z.toJSONSchema(RegionsConfigSchema), null, 2)}\n`,
-  });
-  artifacts.push({
-    path: join(context.project.generatedArtifactDirectory, routingArtifactName(context.project, "regions-compiled")),
-    content: renderJson(compiled),
-  });
-  artifacts.push({
-    path: context.project.regionsV1Output,
-    content: renderJson(legacy),
-  });
+    renderSemanticParityReport(semanticParity),
+  ));
   return artifacts.sort((left, right) => left.path.localeCompare(right.path));
 }
 

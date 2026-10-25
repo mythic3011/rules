@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 
 from ai_profiles_test_support import load_generator
+from ai_profiles.catalog import load_catalog
 from ai_profiles.render.template import load_template, render_template
 from ai_profiles.settings import TEMPLATE_DIR
 
@@ -18,7 +19,7 @@ class MihomoTemplateTest(unittest.TestCase):
             "PROFILE_POLICY_NOTES",
             "PROVIDER_NOISE_EXCLUDE_PATTERN",
             "SECRET_LINES",
-            "DNS_POLICIES",
+            "DNS_CONFIG",
             "PROXY_GROUPS",
             "RULES",
             "RULE_PROVIDERS",
@@ -40,7 +41,9 @@ class MihomoTemplateTest(unittest.TestCase):
             rendered = MODULE.render_yaml(strict=strict)
             self.assertNotIn("{{", rendered)
             self.assertNotIn("}}", rendered)
-            self.assertIn('name: "🤖 Jules"', rendered)
+            for service in load_catalog().services:
+                if "mihomo" in service.projections:
+                    self.assertIn(f'name: "{service.group}"', rendered)
             self.assertIn('"jules.googleapis.com":', rendered)
 
 

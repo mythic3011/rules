@@ -20,7 +20,7 @@ geo-auto-update: true
 geo-update-interval: 24
 geodata-mode: true
 log-level: info
-ipv6: true
+ipv6: false
 external-controller: 0.0.0.0:9090
 secret: ""
 profile:
@@ -30,7 +30,8 @@ tun:
   enable: true
   stack: system
   dns-hijack:
-    - 0.0.0.0:53
+    - any:53
+    - tcp://any:53
   auto-detect-interface: false
   auto-route: false
   auto-redirect: false
@@ -57,114 +58,112 @@ proxy-providers:
 dns:
   enable: true
   listen: 0.0.0.0:7874
-  ipv6: true
+  ipv6: false
   enhanced-mode: fake-ip
   fake-ip-range: 198.18.0.1/16
   fake-ip-filter:
     - "*.lan"
     - localhost.ptlogin2.qq.com
   fake-ip-filter-mode: blacklist
-  respect-rules: true
+  use-system-hosts: false
+  respect-rules: false
   default-nameserver:
-    - 1.1.1.1
-    - 8.8.8.8
+    - https://1.1.1.1/dns-query#🛡️ DNS Proxy
+    - https://1.0.0.1/dns-query#🛡️ DNS Proxy
   nameserver:
-    - https://1.1.1.1/dns-query
-    - https://dns.google/dns-query
-    - https://dns.adguard-dns.com/dns-query
+    - https://1.1.1.1/dns-query#🛡️ DNS Proxy
+    - https://1.0.0.1/dns-query#🛡️ DNS Proxy
   proxy-server-nameserver:
-    - https://1.1.1.1/dns-query
-    - https://dns.google/dns-query
-    - https://dns.adguard-dns.com/dns-query
+    - https://8.8.8.8/dns-query#DIRECT
+    - https://8.8.4.4/dns-query#DIRECT
   direct-nameserver:
-    - https://127.0.0.1:5053/dns-query
+    - https://127.0.0.1:5053/dns-query#DIRECT
   direct-nameserver-follow-policy: false
   nameserver-policy:
     geosite:private:
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - https://1.1.1.1/dns-query#🛡️ DNS Proxy
+      - https://1.0.0.1/dns-query#🛡️ DNS Proxy
     geosite:cn:
-      - https://127.0.0.1:5053/dns-query
+      - https://127.0.0.1:5053/dns-query#DIRECT
     geosite:openai:
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - https://1.1.1.1/dns-query#🛡️ DNS Proxy
+      - https://1.0.0.1/dns-query#🛡️ DNS Proxy
     geosite:bing:
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - https://1.1.1.1/dns-query#🛡️ DNS Proxy
+      - https://1.0.0.1/dns-query#🛡️ DNS Proxy
     geosite:category-ads-all:
-      - https://dns.adguard-dns.com/dns-query
-      - https://1.1.1.1/dns-query
+      - https://dns.adguard-dns.com/dns-query#🛡️ DNS Proxy
     +.anthropic.com:
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - https://1.1.1.1/dns-query#🛡️ DNS Proxy
+      - https://1.0.0.1/dns-query#🛡️ DNS Proxy
     +.claude.ai:
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - https://1.1.1.1/dns-query#🛡️ DNS Proxy
+      - https://1.0.0.1/dns-query#🛡️ DNS Proxy
     +.perplexity.ai:
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - https://1.1.1.1/dns-query#🛡️ DNS Proxy
+      - https://1.0.0.1/dns-query#🛡️ DNS Proxy
     jules.google.com:
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - https://1.1.1.1/dns-query#🛡️ DNS Proxy
+      - https://1.0.0.1/dns-query#🛡️ DNS Proxy
     jules.googleapis.com:
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - https://1.1.1.1/dns-query#🛡️ DNS Proxy
+      - https://1.0.0.1/dns-query#🛡️ DNS Proxy
     +.x.ai:
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - https://1.1.1.1/dns-query#🛡️ DNS Proxy
+      - https://1.0.0.1/dns-query#🛡️ DNS Proxy
     +.poe.com:
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - https://1.1.1.1/dns-query#🛡️ DNS Proxy
+      - https://1.0.0.1/dns-query#🛡️ DNS Proxy
     +.openrouter.ai:
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - https://1.1.1.1/dns-query#🛡️ DNS Proxy
+      - https://1.0.0.1/dns-query#🛡️ DNS Proxy
     +.cursor.sh:
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - https://1.1.1.1/dns-query#🛡️ DNS Proxy
+      - https://1.0.0.1/dns-query#🛡️ DNS Proxy
     +.cursorapi.com:
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - https://1.1.1.1/dns-query#🛡️ DNS Proxy
+      - https://1.0.0.1/dns-query#🛡️ DNS Proxy
     +.cursorvm.com:
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - https://1.1.1.1/dns-query#🛡️ DNS Proxy
+      - https://1.0.0.1/dns-query#🛡️ DNS Proxy
     +.huggingface.co:
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - https://1.1.1.1/dns-query#🛡️ DNS Proxy
+      - https://1.0.0.1/dns-query#🛡️ DNS Proxy
     +.mirasim.ai:
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - https://1.1.1.1/dns-query#🛡️ DNS Proxy
+      - https://1.0.0.1/dns-query#🛡️ DNS Proxy
     +.antigravity.google:
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - https://1.1.1.1/dns-query#🛡️ DNS Proxy
+      - https://1.0.0.1/dns-query#🛡️ DNS Proxy
     +.labs.google:
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - https://1.1.1.1/dns-query#🛡️ DNS Proxy
+      - https://1.0.0.1/dns-query#🛡️ DNS Proxy
     cloudaicompanion.googleapis.com:
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - https://1.1.1.1/dns-query#🛡️ DNS Proxy
+      - https://1.0.0.1/dns-query#🛡️ DNS Proxy
     cloudcode-pa.googleapis.com:
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - https://1.1.1.1/dns-query#🛡️ DNS Proxy
+      - https://1.0.0.1/dns-query#🛡️ DNS Proxy
     geminicloudassist.googleapis.com:
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - https://1.1.1.1/dns-query#🛡️ DNS Proxy
+      - https://1.0.0.1/dns-query#🛡️ DNS Proxy
     aiplatform.googleapis.com:
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - https://1.1.1.1/dns-query#🛡️ DNS Proxy
+      - https://1.0.0.1/dns-query#🛡️ DNS Proxy
     stitch.withgoogle.com:
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - https://1.1.1.1/dns-query#🛡️ DNS Proxy
+      - https://1.0.0.1/dns-query#🛡️ DNS Proxy
     +.opencode.ai:
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - https://1.1.1.1/dns-query#🛡️ DNS Proxy
+      - https://1.0.0.1/dns-query#🛡️ DNS Proxy
     geosite:google-deepmind:
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - https://1.1.1.1/dns-query#🛡️ DNS Proxy
+      - https://1.0.0.1/dns-query#🛡️ DNS Proxy
     geosite:category-ai-!cn:
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - https://1.1.1.1/dns-query#🛡️ DNS Proxy
+      - https://1.0.0.1/dns-query#🛡️ DNS Proxy
     geosite:category-ai-cn:
-      - https://127.0.0.1:5053/dns-query
+      - https://127.0.0.1:5053/dns-query#DIRECT
     rule-set:AI_Claude_Classical:
       - https://1.1.1.1/dns-query#🔐 Claude Account Guard
 
@@ -172,11 +171,11 @@ proxy-groups:
   - name: 🚀 手動選擇
     type: select
     proxies:
-      - ♻️ 自動選擇
+      - 📌 固定節點
       - 🎯 全球直連
-      - 🇺🇸 美國節點
-      - 🇯🇵 日本節點
-      - 🇸🇬 新加坡節點
+      - 🇺🇸 US Stable
+      - 🇯🇵 JP Stable
+      - 🇸🇬 SG Stable
       - 🇹🇼 台灣節點
       - 🇰🇷 韓國節點
       - 🌐 其他／未識別節點
@@ -187,17 +186,22 @@ proxy-groups:
       el|Channel|Author|公告|通知|邀请|邀請|返利|教程|使用说明|使用說明)).*$"
     use:
       - provider1
-  - name: ♻️ 自動選擇
-    type: url-test
-    filter: "(?i)^(?!.*(?:🇭🇰|香港|Hong
-      Kong|Hong-Kong|\bHKG\b|\bHK\b|剩余流量|剩餘流量|套餐到期|到期|流量[:：]|Traffic|Expire|Subsc\
-      ription|官网|官方|客服|Telegram|TG群|网址|網站|更新|失效|Invalid|USE|USED|TOTAL|EXPIRE|Pan\
-      el|Channel|Author|公告|通知|邀请|邀請|返利|教程|使用说明|使用說明)).*$"
-    tolerance: 50
-    url: https://cp.cloudflare.com/generate_204
-    interval: 300
-    use:
-      - provider1
+  - name: 📌 固定節點
+    type: select
+    proxies:
+      - ⛔ 拒絕
+      - 🇺🇸 US Stable
+      - 🇯🇵 JP Stable
+      - 🇸🇬 SG Stable
+      - 🇹🇼 台灣節點
+      - 🇰🇷 韓國節點
+      - 🌐 其他／未識別節點
+  - name: 🛡️ DNS Proxy
+    type: select
+    proxies:
+      - 📌 固定節點
+      - REJECT
+    default-selected: 📌 固定節點
   - name: 💳 穩定會話
     type: select
     proxies:
@@ -220,52 +224,22 @@ proxy-groups:
     proxies:
       - 🎯 全球直連
       - 🚀 手動選擇
-      - ♻️ 自動選擇
+      - 📌 固定節點
       - ⛔ 拒絕
-  - name: 🇺🇸 美國節點
-    type: url-test
-    url: https://cp.cloudflare.com/generate_204
-    interval: 300
-    tolerance: 50
-    filter: (?i)(?:🇺🇸|美國|美国|波特蘭|波特兰|達拉斯|达拉斯|俄勒岡|俄勒冈|鳳凰城|凤凰城|費利蒙|费利蒙|硅谷|拉斯維加斯|拉斯维加斯|洛杉磯|洛杉矶|聖何塞|圣何塞|聖克拉拉|圣克拉拉|西雅圖|西雅图|芝加哥|紐約|纽约|亞特蘭大|亚特兰大|邁阿密|迈阿密|華盛頓|华盛顿|\bUS(?:[-_
-      ]?\d+(?:[-_ ]?[A-Za-z]{2,})?)?\b|United
-      States|UnitedStates|USA|America|JFK|EWR|IAD|ATL|ORD|MIA|NYC|LAX|SFO|SEA|DFW|SJC)
-    use:
-      - provider1
-  - name: 🇯🇵 日本節點
-    type: url-test
-    url: https://cp.cloudflare.com/generate_204
-    interval: 300
-    tolerance: 50
-    filter: (?i)(?:🇯🇵|日本|東京|东京|大阪|關西|关西|埼玉|川日|泉日|滬日|沪日|深日|\bJP(?:[-_ ]?\d+(?:[-_
-      ]?[A-Za-z]{2,})?)?\b|Japan|JPN|NRT|HND|KIX|TYO|OSA|Kansai)
-    use:
-      - provider1
-  - name: 🇸🇬 新加坡節點
-    type: url-test
-    url: https://cp.cloudflare.com/generate_204
-    interval: 300
-    tolerance: 50
-    filter: (?i)(?:🇸🇬|新加坡|獅城|狮城|\bSG(?:[-_ ]?\d+(?:[-_
-      ]?[A-Za-z]{2,})?)?\b|Singapore|SIN)
-    use:
-      - provider1
   - name: 🇹🇼 台灣節點
-    type: url-test
-    url: https://cp.cloudflare.com/generate_204
-    interval: 300
-    tolerance: 50
+    type: select
     filter: (?i)(?:🇹🇼|台灣|臺灣|台湾|台北|臺北|新北|台中|臺中|高雄|彰化|\bTW(?:[-_ ]?\d+(?:[-_
       ]?[A-Za-z]{2,})?)?\b|Taiwan|TWN|TPE|ROC)
+    proxies:
+      - REJECT
     use:
       - provider1
   - name: 🇰🇷 韓國節點
-    type: url-test
-    url: https://cp.cloudflare.com/generate_204
-    interval: 300
-    tolerance: 50
+    type: select
     filter: (?i)(?:🇰🇷|韓國|韩国|首爾|首尔|春川|\bKR(?:[-_ ]?\d+(?:[-_
       ]?[A-Za-z]{2,})?)?\b|Korea|KOR|Chuncheon|ICN)
+    proxies:
+      - REJECT
     use:
       - provider1
   - name: 🌐 其他／未識別節點
@@ -282,6 +256,8 @@ proxy-groups:
       ]?\d+(?:[-_
       ]?[A-Za-z]{2,})?)?\b|Taiwan|TWN|TPE|ROC)|(?:🇰🇷|韓國|韩国|首爾|首尔|春川|\bKR(?:[-_
       ]?\d+(?:[-_ ]?[A-Za-z]{2,})?)?\b|Korea|KOR|Chuncheon|ICN))
+    proxies:
+      - REJECT
     use:
       - provider1
   - name: 🎯 全球直連
@@ -413,7 +389,7 @@ proxy-groups:
       - 🇸🇬 SG Stable
       - 🇯🇵 JP Stable
       - REJECT
-  - name: 🤖 Gemini
+  - name: 🤖 Google AI
     type: select
     empty-fallback: REJECT
     proxies:
@@ -468,7 +444,7 @@ proxy-groups:
       - 🇸🇬 SG Stable
       - 🇯🇵 JP Stable
       - REJECT
-  - name: 🤖 NotebookLM
+  - name: 🤖 Google AI Tools
     type: select
     empty-fallback: REJECT
     proxies:
@@ -552,16 +528,17 @@ proxy-groups:
       - REJECT
 
 rules:
+  - RULE-SET,Privacy_Guard_Classical,⛔ 拒絕
   - GEOSITE,private,🎯 全球直連
   - GEOIP,private,🎯 全球直連,no-resolve
   - RULE-SET,Flow_Music_Classical,🎵 Flow Music
   - RULE-SET,AI_Claude_Classical,🔐 Claude Account Guard
   - RULE-SET,AI_ChatGPT_Classical,🤖 ChatGPT
   - RULE-SET,AI_Copilot_Classical,🧑‍💻 Copilot
-  - RULE-SET,AI_Gemini_Classical,🤖 Gemini
+  - RULE-SET,AI_Gemini_Classical,🤖 Google AI
   - RULE-SET,AI_Grok_Classical,🤖 Grok
   - RULE-SET,AI_HuggingFace_Classical,🤗 Hugging Face
-  - RULE-SET,AI_NotebookLM_Classical,🤖 NotebookLM
+  - RULE-SET,AI_NotebookLM_Classical,🤖 Google AI Tools
   - RULE-SET,AI_OpenCode_Classical,🤖 OpenCode
   - RULE-SET,AI_Perplexity_Classical,🤖 Perplexity
   - RULE-SET,AI_Poe_Classical,🤖 Poe
@@ -590,29 +567,11 @@ rules:
   - MATCH,🐟 漏網之魚
 
 rule-providers:
-  Custom_Direct_Domain:
-    behavior: domain
-    interval: 10800
-    type: http
-    url: https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/Custom_Direct_Domain.yaml
-    format: yaml
-  Custom_Direct_Classical_IP:
+  Privacy_Guard_Classical:
     behavior: classical
     interval: 10800
     type: http
-    url: https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/Custom_Direct_Classical_IP.yaml
-    format: yaml
-  Custom_Proxy_Domain:
-    behavior: domain
-    interval: 10800
-    type: http
-    url: https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/Custom_Proxy_Domain.yaml
-    format: yaml
-  Custom_Proxy_Classical_IP:
-    behavior: classical
-    interval: 10800
-    type: http
-    url: https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/Custom_Proxy_Classical_IP.yaml
+    url: https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/Privacy_Guard_Classical.yaml
     format: yaml
   SSH_Direct_Classical:
     behavior: classical
@@ -679,6 +638,30 @@ rule-providers:
     interval: 10800
     type: http
     url: https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/Finance_Alpaca_Classical.yaml
+    format: yaml
+  Custom_Direct_Domain:
+    behavior: domain
+    interval: 10800
+    type: http
+    url: https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/Custom_Direct_Domain.yaml
+    format: yaml
+  Custom_Direct_Classical_IP:
+    behavior: classical
+    interval: 10800
+    type: http
+    url: https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/Custom_Direct_Classical_IP.yaml
+    format: yaml
+  Custom_Proxy_Domain:
+    behavior: domain
+    interval: 10800
+    type: http
+    url: https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/Custom_Proxy_Domain.yaml
+    format: yaml
+  Custom_Proxy_Classical_IP:
+    behavior: classical
+    interval: 10800
+    type: http
+    url: https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/Custom_Proxy_Classical_IP.yaml
     format: yaml
   AI_All_Classical:
     type: http

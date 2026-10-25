@@ -2,9 +2,9 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/internal/python/generate_ai_profiles.py
 # RULE-PROVIDER: AI_AndroidStudioAI_Classical
-# GROUP: 🤖 Android Studio AI
+# GROUP: 🤖 Google AI
 # TOTAL: 2
-# SOURCE-DIGEST: 9a11b660019861812df6cb26a21080bcedd146b42afa947c322a3560130805bc
+# SOURCE-DIGEST: b5461c1db3293451530ba5b94c95f27831ca5de781e7563491c646f4b3e23486
 
 payload:
   - "DOMAIN,cloudaicompanion.googleapis.com"

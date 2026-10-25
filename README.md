@@ -43,9 +43,7 @@ openclash-guard refresh
 
 See the [OpenClash Guard guide](docs/openclash-guard.md) for installation, direct-source fallback, automation, and the complete CLI reference.
 
-The optional [Profile Builder](apps/profile-service/README.md) creates personalized subscription templates.
-
-[![Deploy Profile Builder](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/mythic3011/rules/tree/main/apps/profile-service)
+The optional [Profile Builder](apps/profile-service/README.md) creates personalized subscription templates. Its [deployment guide](apps/profile-service/README.md#deploy) uses the locked pnpm workspace from a full checkout.
 
 ## Generated Outputs
 

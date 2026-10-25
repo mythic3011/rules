@@ -18,6 +18,7 @@
     ]
   },
   "accountProtection": {
+    "serviceId": "claude",
     "protectedGroup": "🔐 Claude Account Guard",
     "rejectGroup": "⛔ 拒絕"
   },

@@ -22,8 +22,8 @@ class AccountSensitivePolicyTest(unittest.TestCase):
 
     def test_profile_declares_stable_session_and_high_risk_kill_switch_groups(self) -> None:
         documents = load_catalog_documents(CATALOG_DIR)
-        groups = documents.profile.policy_groups
-        self.assertEqual(len(groups), 2)
+        groups_by_key = {group.group_key: group for group in documents.profile.policy_groups}
+        groups = (groups_by_key["stable-session"], groups_by_key["high-risk-account"])
         stable, high_risk = groups
         self.assertEqual(stable.id, "account-sensitive")
         self.assertEqual(stable.group_key, "stable-session")
@@ -54,10 +54,11 @@ class AccountSensitivePolicyTest(unittest.TestCase):
             strict=True, include_process_rules=False, catalog=self.catalog
         )
         self.assertEqual(
-            [group.name for group in relaxed.policy_groups],
+            [group.name for group in relaxed.policy_groups if group.mihomo_when == "relaxed"],
             [self.catalog.group("stable-session"), self.catalog.group("high-risk-account")],
         )
-        self.assertEqual(strict.policy_groups, ())
+        self.assertNotIn(self.catalog.group("stable-session"), {group.name for group in strict.policy_groups})
+        self.assertNotIn(self.catalog.group("high-risk-account"), {group.name for group in strict.policy_groups})
 
         rendered = MODULE.render_yaml(strict=False)
         block = rendered.split(f'- name: "{self.catalog.group("stable-session")}"', 1)[1].split(
@@ -109,7 +110,8 @@ class AccountSensitivePolicyTest(unittest.TestCase):
             catalog_dir = copy_catalog(Path(raw_tmp))
             profile_path = catalog_dir / "profile.json"
             value = read_json(profile_path)
-            value["policyGroups"][0]["candidates"][0]["value"] = "MAGIC"
+            stable = next(group for group in value["policyGroups"] if group["groupKey"] == "stable-session")
+            stable["candidates"][0]["value"] = "MAGIC"
             write_json(profile_path, value)
             load_catalog_documents(catalog_dir)
             with self.assertRaisesRegex(RuntimeError, "Unknown profile policy builtin candidate"):

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import inspect
 import unittest
 from dataclasses import replace
 
@@ -53,17 +52,18 @@ class SubconverterSectionVariantsTest(unittest.TestCase):
         )
 
     def test_renderer_dispatch_does_not_depend_on_section_roles(self) -> None:
-        source = inspect.getsource(_emit_ini_section)
-        self.assertNotIn("section.role", source)
-        for role in (
-            "foundation-rules",
-            "service-rule-clusters",
-            "process-rules",
-            "foundation-groups",
-            "service-selectors",
-            "final-group",
-        ):
-            self.assertNotIn(role, source)
+        for section in self.plan.sections:
+            renamed = replace(section, role="presentation-only")
+            for localized_copy in (
+                None,
+                {"sections": {section.role: "Section title", renamed.role: "Section title"}},
+            ):
+                with self.subTest(section=section.role, localized=localized_copy is not None):
+                    original_lines: list[str] = []
+                    renamed_lines: list[str] = []
+                    _emit_ini_section(original_lines, section, localized_copy)
+                    _emit_ini_section(renamed_lines, renamed, localized_copy)
+                    self.assertEqual(renamed_lines, original_lines)
 
     def test_presentation_metadata_is_part_of_render_plan(self) -> None:
         section = self.plan.section("foundation-groups")

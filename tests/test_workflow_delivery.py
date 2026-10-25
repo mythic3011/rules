@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import unittest
 
+import yaml
+
 from ai_profiles_test_support import ROOT
 
 
@@ -37,6 +39,12 @@ class WorkflowDeliveryTest(unittest.TestCase):
         self.assertIn("make check-bootstrap-alias", workflow)
         self.assertNotIn("analytics.mythic3011.com", workflow)
         self.assertIn("catalog.bootstrap_alias", checker)
+        steps = yaml.safe_load(workflow)["jobs"]["smoke"]["steps"]
+        setup_index = next(index for index, step in enumerate(steps) if step.get("uses", "").startswith("jdx/mise-action@"))
+        install_index = next(index for index, step in enumerate(steps) if step.get("run") == "mise install")
+        check_index = next(index for index, step in enumerate(steps) if step.get("run") == "make check-bootstrap-alias")
+        self.assertLess(setup_index, install_index)
+        self.assertLess(install_index, check_index)
 
 
 if __name__ == "__main__":

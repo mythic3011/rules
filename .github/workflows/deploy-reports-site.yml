@@ -11,6 +11,10 @@ on:
       - "rule/**"
       - "internal/python/generate_adblock_outputs.py"
       - "docs/guides/openclash/RULE_ASSET_MATCHING_CONTRACT.md"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "mise.toml"
       - ".github/workflows/deploy-reports-site.yml"
   workflow_dispatch:
 
@@ -34,17 +38,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Set up mise
+        uses: jdx/mise-action@v5
         with:
-          node-version: "22"
-          cache: "npm"
+          install: false
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Install pinned toolchain
+        run: mise install
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Build frontend site
-        run: npm run web:build
+        run: pnpm run web:build
 
       - name: Configure Pages
         uses: actions/configure-pages@v5

@@ -2,9 +2,9 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/internal/python/generate_ai_profiles.py
 # RULE-PROVIDER: AI_Stitch_Classical
-# GROUP: 🤖 Stitch
+# GROUP: 🤖 Google AI Tools
 # TOTAL: 1
-# SOURCE-DIGEST: ef87546c9f14972a3f71db1123b1802583d6bcf3fdbdbabf7d679d28a4daa63c
+# SOURCE-DIGEST: 058fb561995bad3dd244ca44e77be0423467f998c45d21f73b9efd533ed9898c
 
 payload:
   - "DOMAIN,stitch.withgoogle.com"

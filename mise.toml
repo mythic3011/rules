@@ -1,0 +1,77 @@
+[tools]
+node = "24.20.0"
+python = "3.13.12"
+pnpm = "11.25.0"
+uv = "0.13.0"
+
+[tasks.bootstrap]
+description = "Install Python development and workspace dependencies"
+run = [
+  "uv pip install --system -r requirements-dev.txt",
+  "pnpm install --frozen-lockfile",
+]
+
+[tasks.doctor]
+description = "Check repository prerequisites"
+run = "./rulesctl doctor"
+
+[tasks.check]
+description = "Run core Python and profile-service checks"
+run = "./rulesctl check"
+
+[tasks.check-all]
+description = "Run Python, profile-service, and TypeScript routing checks"
+run = "./rulesctl check --node"
+
+[tasks.check-profile-service]
+description = "Run profile-service unit tests"
+run = "pnpm --filter mythic-rules-profile-service test"
+
+[tasks.check-bootstrap-alias]
+description = "Verify the OpenClash Guard bootstrap alias"
+run = "python internal/python/check_bootstrap_alias.py"
+
+[tasks.generate]
+description = "Generate repository artifacts"
+run = "./rulesctl generate"
+
+[tasks.build]
+description = "Build the standalone OpenClash Guard distribution"
+run = "python tools/shbundle.py build --all"
+
+[tasks.ci]
+description = "Run CI validation and generated-output drift checks"
+run = "./rulesctl ci"
+
+[tasks.refresh]
+description = "Refresh explicit network inputs and regenerate"
+run = "./rulesctl refresh --yes"
+
+[tasks."db:migrate:local"]
+description = "Apply profile-service D1 migrations to the local database"
+run = "pnpm --filter mythic-rules-profile-service db:migrate:local"
+
+[tasks.dev]
+description = "Migrate the local database and start profile-service"
+depends = ["db:migrate:local"]
+run = "pnpm --filter mythic-rules-profile-service dev"
+
+[tasks.e2e]
+description = "Run profile-service browser E2E against the configured local server"
+run = "pnpm run profile:e2e"
+
+[tasks."deploy:login"]
+description = "Authenticate the profile-service deployment tool with Cloudflare"
+run = "pnpm --filter mythic-rules-profile-service exec wrangler login"
+
+[tasks."deploy:check"]
+description = "Validate and bundle profile-service without remote changes"
+run = "pnpm --filter mythic-rules-profile-service deploy:check"
+
+[tasks."deploy:setup"]
+description = "Create or reuse profile-service D1 and apply migrations without publishing"
+run = "pnpm --filter mythic-rules-profile-service deploy:setup"
+
+[tasks.deploy]
+description = "Check, provision D1, migrate, and deploy profile-service"
+run = "pnpm --filter mythic-rules-profile-service deploy"

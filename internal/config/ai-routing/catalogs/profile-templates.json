@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "defaultByFormat": {
+    "ini": "ai-balanced",
+    "yaml": "ai-balanced"
+  },
+  "templates": [
+    {
+      "id": "ai-balanced",
+      "outputFormat": "ini",
+      "path": "cfg/Custom_Clash_AI.ini",
+      "name": "AI Balanced",
+      "description": "AI-aware subscription template with region controls.",
+      "supportsProfileOptions": true
+    },
+    {
+      "id": "standard",
+      "outputFormat": "ini",
+      "path": "cfg/Custom_Clash.ini",
+      "name": "Standard",
+      "description": "General-purpose subscription template.",
+      "supportsProfileOptions": false
+    },
+    {
+      "id": "lite",
+      "outputFormat": "ini",
+      "path": "cfg/Custom_Clash_Lite.ini",
+      "name": "Lite",
+      "description": "Smaller general-purpose subscription template.",
+      "supportsProfileOptions": false
+    },
+    {
+      "id": "gfw",
+      "outputFormat": "ini",
+      "path": "cfg/Custom_Clash_GFW.ini",
+      "name": "GFW",
+      "description": "Minimal GFW-oriented subscription template.",
+      "supportsProfileOptions": false
+    },
+    {
+      "id": "full",
+      "outputFormat": "ini",
+      "path": "cfg/Custom_Clash_Full.ini",
+      "name": "Full",
+      "description": "Full-rule subscription template.",
+      "supportsProfileOptions": false
+    },
+    {
+      "id": "mainland",
+      "outputFormat": "ini",
+      "path": "cfg/Custom_Clash_Mainland.ini",
+      "name": "Mainland",
+      "description": "Mainland-oriented subscription template.",
+      "supportsProfileOptions": false
+    },
+    {
+      "id": "ai-balanced",
+      "outputFormat": "yaml",
+      "path": "cfg/yaml/Custom_Clash_AI.yaml",
+      "name": "AI Balanced",
+      "description": "AI-aware profile with region and service controls.",
+      "supportsProfileOptions": true
+    },
+    {
+      "id": "ai-strict",
+      "outputFormat": "yaml",
+      "path": "cfg/yaml/Custom_Clash_AI_Strict.yaml",
+      "name": "AI Strict",
+      "description": "Fail-closed AI profile with account protections.",
+      "supportsProfileOptions": true
+    },
+    {
+      "id": "standard",
+      "outputFormat": "yaml",
+      "path": "cfg/yaml/Custom_Clash.yaml",
+      "name": "Standard",
+      "description": "General-purpose Mihomo profile.",
+      "dnsEgressGroup": "🚀 手动选择",
+      "supportsProfileOptions": false
+    }
+  ]
+}

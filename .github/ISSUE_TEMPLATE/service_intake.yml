@@ -100,7 +100,7 @@ body:
     attributes:
       value: |
         ### Additional / unlisted regions
-        You can add up to three regions in the same ticket. The canonical region ID, flag, group name and regex are generated automatically.
+        You can add up to 3 regions in the same ticket. The canonical region ID, flag, group name and regex are generated automatically.
         Use the code field for short codes such as `IS`; do not repeat two-letter codes as loose node keywords.
   - type: dropdown
     id: additional_region_1_status

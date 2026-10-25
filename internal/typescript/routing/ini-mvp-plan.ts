@@ -34,6 +34,7 @@ const MigrationSchema = z.object({
   legacyReplacementIds: z.array(IdSchema).min(1),
 }).strict();
 const AccountProtectionSchema = z.object({
+  serviceId: IdSchema,
   protectedGroup: z.string().min(1),
   rejectGroup: z.string().min(1),
 }).strict();
@@ -74,6 +75,9 @@ export const IniMvpPlanSchema = z.object({
   }
   if (!value.migration.legacyReplacementIds.every((serviceId) => value.migration.migratedServiceIds.includes(serviceId))) {
     add(["migration", "legacyReplacementIds"], "legacy replacement IDs must be migrated service IDs");
+  }
+  if (!value.migration.migratedServiceIds.includes(value.accountProtection.serviceId)) {
+    add(["accountProtection", "serviceId"], "account-protected service ID must be migrated");
   }
   const remoteUrls = [...value.rules.beforeLegacy, ...value.rules.afterLegacy]
     .filter((rule): rule is z.infer<typeof RemoteClassicalRuleSchema> => rule.kind === "remote-classical")
@@ -199,6 +203,7 @@ export function compileIniMvpPlan(config: RoutingConfig, projection: MihomoProje
   const compiled = compileRoutingProfile(config, ini.profile);
   const overrideRules: z.infer<typeof RemoteClassicalRuleSchema>[] = [];
   const afterLegacy: z.infer<typeof IniRuleSchema>[] = [];
+  let protectedServiceId: string | undefined;
   let protectedGroup: string | undefined;
   let protectedRule: z.infer<typeof RemoteClassicalRuleSchema> | undefined;
   const groups: z.infer<typeof SelectGroupSchema>[] = Object.entries(projection.regions)
@@ -237,7 +242,8 @@ export function compileIniMvpPlan(config: RoutingConfig, projection: MihomoProje
     if (protection === undefined) throw new Error(`INI MVP service protection is missing: ${serviceId}`);
     const rule = remoteRule(projection, endpoint.ruleset, effective.selector.visibleGroup);
     if (protection.kind === "account-protected") {
-      if (protectedGroup !== undefined) throw new Error("INI MVP supports exactly one account-protected service");
+      if (protectedServiceId !== undefined) throw new Error("INI MVP supports exactly one account-protected service");
+      protectedServiceId = serviceId;
       protectedGroup = effective.selector.visibleGroup;
       protectedRule = rule;
       groups.push({
@@ -268,7 +274,9 @@ export function compileIniMvpPlan(config: RoutingConfig, projection: MihomoProje
     name: ini.aiOtherGroup,
     candidates: orderedRouteCandidates(config, projection, profile.aiAllRoute, ini.aiOtherAllowedRoutes),
   });
-  if (protectedGroup === undefined || protectedRule === undefined) throw new Error("INI MVP requires one account-protected service");
+  if (protectedServiceId === undefined || protectedGroup === undefined || protectedRule === undefined) {
+    throw new Error("INI MVP requires one account-protected service");
+  }
 
   return IniMvpPlanSchema.parse({
     schemaVersion: 1,
@@ -276,7 +284,7 @@ export function compileIniMvpPlan(config: RoutingConfig, projection: MihomoProje
     profile: ini.profile,
     externalGroups: [...new Set([ini.presentation.directGroup, ini.presentation.rejectGroup])],
     migration: { migratedServiceIds: ini.migratedServices, legacyReplacementIds: ini.legacyReplacementIds },
-    accountProtection: { protectedGroup, rejectGroup: ini.presentation.rejectGroup },
+    accountProtection: { serviceId: protectedServiceId, protectedGroup, rejectGroup: ini.presentation.rejectGroup },
     rules: { beforeLegacy: [...overrideRules, protectedRule], afterLegacy },
     groups,
   });

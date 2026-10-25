@@ -1,5 +1,23 @@
 {
   "schemaVersion": 1,
+  "policies": {
+    "google-ai-proxy": {
+      "group": "🤖 Google AI",
+      "regions": ["us", "sg", "jp", "tw", "kr"],
+      "directRelaxed": false,
+      "subconverter": {
+        "ruleCluster": "legacy-ai-merged"
+      }
+    },
+    "google-ai-tools": {
+      "group": "🤖 Google AI Tools",
+      "regions": ["us", "sg", "jp", "tw", "kr"],
+      "directRelaxed": true,
+      "subconverter": {
+        "ruleCluster": "legacy-ai-merged"
+      }
+    }
+  },
   "services": [
     {
       "id": "chatgpt",
@@ -55,9 +73,32 @@
     {
       "id": "claude",
       "providerKey": "AI_Claude_Classical",
-      "group": "🤖 Claude",
+      "group": "🔐 Claude Account Guard",
       "file": "AI_Claude_Classical.yaml",
-      "payload": [],
+      "payload": [
+        "DOMAIN-SUFFIX,anthropic.com",
+        "DOMAIN-SUFFIX,claude.ai",
+        "DOMAIN-SUFFIX,claude.com",
+        "DOMAIN-SUFFIX,clau.de",
+        "DOMAIN-SUFFIX,claudemcpclient.com",
+        "DOMAIN-SUFFIX,claudemcpcontent.com",
+        "DOMAIN-SUFFIX,claudeusercontent.com",
+        "DOMAIN-SUFFIX,sentry.io",
+        "DOMAIN-SUFFIX,statsigapi.net",
+        "DOMAIN-SUFFIX,intercom.io",
+        "DOMAIN-SUFFIX,intercomcdn.com",
+        "DOMAIN,servd-anthropic-website.b-cdn.net",
+        "DOMAIN,anthropic.com.cdn.cloudflare.net",
+        "DOMAIN,anthropic.auth0.com",
+        "DOMAIN,anthropic-com.ghost.io",
+        "DOMAIN,browser-intake-us5-datadoghq.com",
+        "DOMAIN,cdn.usefathom.com",
+        "DOMAIN-KEYWORD,datadog",
+        "DOMAIN-KEYWORD,sentry",
+        "DOMAIN-KEYWORD,sift",
+        "IP-CIDR,160.79.104.0/21",
+        "IP-CIDR6,2607:6bc0::/32"
+      ],
       "regions": ["sg", "us", "jp", "tw", "kr"],
       "directRelaxed": false,
       "dnsPolicies": [
@@ -77,6 +118,10 @@
         {
           "kind": "geosite",
           "value": "anthropic"
+        },
+        {
+          "kind": "geosite",
+          "value": "category-ntp"
         }
       ],
       "projections": ["mihomo", "subconverter"]
@@ -84,8 +129,8 @@
     {
       "id": "gemini",
       "providerKey": "AI_Gemini_Classical",
-      "group": "🤖 Gemini",
       "file": "AI_Gemini_Classical.yaml",
+      "policy": "google-ai-proxy",
       "payload": [
         "DOMAIN-SUFFIX,gemini.google",
         "DOMAIN-SUFFIX,ai.google.dev",
@@ -100,20 +145,15 @@
         "DOMAIN,proactivebackend-pa.googleapis.com",
         "DOMAIN,robinfrontend-pa.googleapis.com"
       ],
-      "regions": ["sg", "us", "jp", "tw", "kr"],
-      "directRelaxed": false,
       "dnsPolicies": [],
-      "subconverter": {
-        "ruleCluster": "legacy-ai-merged"
-      },
       "upstreamRules": [],
       "projections": ["mihomo", "subconverter"]
     },
     {
       "id": "notebooklm",
       "providerKey": "AI_NotebookLM_Classical",
-      "group": "🤖 NotebookLM",
       "file": "AI_NotebookLM_Classical.yaml",
+      "policy": "google-ai-tools",
       "payload": [
         "DOMAIN-SUFFIX,notebook.google",
         "DOMAIN-SUFFIX,notebook.google.com",
@@ -123,23 +163,16 @@
         "DOMAIN,notebooklm-pa.googleapis.com",
         "DOMAIN,notebooklm.googleapis.com"
       ],
-      "regions": ["sg", "us", "jp", "tw", "kr"],
-      "directRelaxed": true,
       "dnsPolicies": [],
-      "subconverter": {
-        "ruleCluster": "legacy-ai-merged"
-      },
       "upstreamRules": [],
       "projections": ["mihomo", "subconverter"]
     },
     {
       "id": "jules",
       "providerKey": "AI_Jules_Classical",
-      "group": "🤖 Jules",
       "file": "AI_Jules_Classical.yaml",
+      "policy": "google-ai-tools",
       "payload": ["DOMAIN,jules.google.com", "DOMAIN,jules.googleapis.com"],
-      "regions": ["us", "sg", "jp", "tw", "kr"],
-      "directRelaxed": true,
       "dnsPolicies": [
         {
           "order": 75,
@@ -152,9 +185,6 @@
           "resolverSet": "global-ai"
         }
       ],
-      "subconverter": {
-        "ruleCluster": "legacy-ai-merged"
-      },
       "upstreamRules": [],
       "projections": ["mihomo", "subconverter"]
     },
@@ -337,16 +367,14 @@
     {
       "id": "antigravity",
       "providerKey": "AI_Antigravity_Classical",
-      "group": "🤖 Antigravity",
       "file": "AI_Antigravity_Classical.yaml",
+      "policy": "google-ai-tools",
       "payload": [
         "DOMAIN-SUFFIX,antigravity.google",
         "DOMAIN-SUFFIX,antigravity-unleash.goog",
         "DOMAIN-SUFFIX,daily-cloudcode-pa.googleapis.com",
         "DOMAIN-SUFFIX,cloudcode-pa.googleapis.com"
       ],
-      "regions": ["us", "sg", "jp", "tw", "kr"],
-      "directRelaxed": true,
       "dnsPolicies": [
         {
           "order": 120,
@@ -354,9 +382,6 @@
           "resolverSet": "global-ai"
         }
       ],
-      "subconverter": {
-        "ruleCluster": "legacy-ai-merged"
-      },
       "upstreamRules": [],
       "projections": ["mihomo", "subconverter"],
       "family": "google-ai"
@@ -364,11 +389,9 @@
     {
       "id": "google-labs",
       "providerKey": "AI_GoogleLabs_Classical",
-      "group": "🤖 Google Labs",
       "file": "AI_GoogleLabs_Classical.yaml",
+      "policy": "google-ai-tools",
       "payload": ["DOMAIN-SUFFIX,labs.google"],
-      "regions": ["us", "sg", "jp", "tw", "kr"],
-      "directRelaxed": true,
       "dnsPolicies": [
         {
           "order": 121,
@@ -376,9 +399,6 @@
           "resolverSet": "global-ai"
         }
       ],
-      "subconverter": {
-        "ruleCluster": "legacy-ai-merged"
-      },
       "upstreamRules": [],
       "projections": ["mihomo", "subconverter"],
       "family": "google-ai"
@@ -386,11 +406,9 @@
     {
       "id": "stitch",
       "providerKey": "AI_Stitch_Classical",
-      "group": "🤖 Stitch",
       "file": "AI_Stitch_Classical.yaml",
+      "policy": "google-ai-tools",
       "payload": ["DOMAIN,stitch.withgoogle.com"],
-      "regions": ["sg", "us", "jp", "tw", "kr"],
-      "directRelaxed": true,
       "dnsPolicies": [
         {
           "order": 126,
@@ -398,9 +416,6 @@
           "resolverSet": "global-ai"
         }
       ],
-      "subconverter": {
-        "ruleCluster": "legacy-ai-merged"
-      },
       "upstreamRules": [],
       "projections": ["mihomo", "subconverter"],
       "family": "google-ai"
@@ -408,14 +423,12 @@
     {
       "id": "android-studio-ai",
       "providerKey": "AI_AndroidStudioAI_Classical",
-      "group": "🤖 Android Studio AI",
       "file": "AI_AndroidStudioAI_Classical.yaml",
+      "policy": "google-ai-proxy",
       "payload": [
         "DOMAIN,cloudaicompanion.googleapis.com",
         "DOMAIN,cloudcode-pa.googleapis.com"
       ],
-      "regions": ["us", "sg", "jp", "tw", "kr"],
-      "directRelaxed": false,
       "dnsPolicies": [
         {
           "order": 122,
@@ -428,9 +441,6 @@
           "resolverSet": "global-ai"
         }
       ],
-      "subconverter": {
-        "ruleCluster": "legacy-ai-merged"
-      },
       "upstreamRules": [],
       "projections": ["mihomo", "subconverter"],
       "family": "google-ai"
@@ -438,11 +448,9 @@
     {
       "id": "gemini-cloud",
       "providerKey": "AI_GeminiCloud_Classical",
-      "group": "🤖 Gemini Cloud",
       "file": "AI_GeminiCloud_Classical.yaml",
+      "policy": "google-ai-tools",
       "payload": ["DOMAIN,geminicloudassist.googleapis.com"],
-      "regions": ["us", "sg", "jp", "tw", "kr"],
-      "directRelaxed": true,
       "dnsPolicies": [
         {
           "order": 124,
@@ -450,9 +458,6 @@
           "resolverSet": "global-ai"
         }
       ],
-      "subconverter": {
-        "ruleCluster": "legacy-ai-merged"
-      },
       "upstreamRules": [],
       "projections": ["mihomo", "subconverter"],
       "family": "google-ai"
@@ -460,14 +465,12 @@
     {
       "id": "vertex-ai",
       "providerKey": "AI_VertexAI_Classical",
-      "group": "🤖 Vertex AI",
       "file": "AI_VertexAI_Classical.yaml",
+      "policy": "google-ai-proxy",
       "payload": [
         "DOMAIN,aiplatform.googleapis.com",
         "DOMAIN-KEYWORD,-aiplatform.googleapis.com"
       ],
-      "regions": ["us", "sg", "jp", "tw", "kr"],
-      "directRelaxed": false,
       "dnsPolicies": [
         {
           "order": 125,
@@ -475,9 +478,6 @@
           "resolverSet": "global-ai"
         }
       ],
-      "subconverter": {
-        "ruleCluster": "legacy-ai-merged"
-      },
       "upstreamRules": [],
       "projections": ["mihomo", "subconverter"],
       "family": "google-ai"

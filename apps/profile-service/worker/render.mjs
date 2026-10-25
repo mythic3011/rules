@@ -35,7 +35,8 @@ function renderGroup(group) {
     if (!group.filterPattern || !group.healthCheckUrl || group.interval == null || group.tolerance == null) {
       throw new Error(`Incomplete url-test group: ${group.name}`);
     }
-    return `${prefix}${group.filterPattern}\`${group.healthCheckUrl}\`${group.interval},,${group.tolerance}`;
+    const filters = candidates ? `${candidates}\`${group.filterPattern}` : group.filterPattern;
+    return `${prefix}${filters}\`${group.healthCheckUrl}\`${group.interval},,${group.tolerance}`;
   }
   if (group.kind === "fallback") {
     if (!group.healthCheckUrl || group.interval == null || group.tolerance == null) {
@@ -54,11 +55,16 @@ function banner(title, subtitle) {
   return lines;
 }
 
-function emitSection(lines, section) {
+function emitSection(lines, section, localizedCopy) {
   if (section.type === "rules") {
     if (!section.rules.length && !section.emitIfEmpty) return;
     if (section.leadingBlank) lines.push("");
-    lines.push(...section.comments, ...section.rules.map(renderRule));
+    if (localizedCopy && section.comments.length) {
+      lines.push(`; ${localizedCopy.sections[section.role] ?? "Routing rules"}`);
+    } else {
+      lines.push(...section.comments);
+    }
+    lines.push(...section.rules.map(renderRule));
     return;
   }
   if (section.type === "clusters") {
@@ -72,7 +78,8 @@ function emitSection(lines, section) {
     return;
   }
   if (section.type === "groups") {
-    lines.push("", "", ...banner(section.title, section.subtitle));
+    const title = localizedCopy?.sections[section.role] ?? section.title;
+    lines.push("", "", ...banner(title, localizedCopy ? null : section.subtitle));
     section.groups.forEach((group, index) => {
       if (index && section.blankBetweenGroups) lines.push("");
       lines.push(renderGroup(group));
@@ -80,19 +87,48 @@ function emitSection(lines, section) {
     return;
   }
   if (section.type === "selectors") {
-    lines.push("", "", ...banner(section.title, section.subtitle));
+    const title = localizedCopy?.sections[section.role] ?? section.title;
+    lines.push("", "", ...banner(title, localizedCopy ? null : section.subtitle));
     section.selectors.forEach((selector, index) => {
       if (index && section.blankBetweenSelectors) lines.push("");
-      lines.push(...selector.comments, renderGroup(selector.group));
+      if (localizedCopy && selector.comments.length) {
+        lines.push(`; ${localizedCopy.sections[section.role] ?? "Service choices"}`);
+      } else {
+        lines.push(...selector.comments);
+      }
+      lines.push(renderGroup(selector.group));
     });
     return;
   }
   throw new Error(`Unsupported INI section type: ${section.type}`);
 }
 
-export function renderIni(plan, data) {
-  const lines = [...data.render.preamble];
-  for (const section of plan.sections) emitSection(lines, section);
-  lines.push(...data.render.suffix);
+export function renderIni(plan, data, { language } = {}) {
+  const localizedCopy = language === undefined ? null : data.render.localized?.[language];
+  if (language !== undefined && !localizedCopy) {
+    throw new Error(`Unsupported profile language: ${language}`);
+  }
+  const preamble = localizedCopy
+    ? [...localizedCopy.header, "", "[custom]", ""]
+    : data.render.preamble;
+  const lines = [...preamble];
+  for (const section of plan.sections) emitSection(lines, section, localizedCopy);
+  const suffix = localizedCopy
+    ? ["", "", ...localizedCopy.footer, ...data.render.suffix.filter((line) => line && !line.trimStart().startsWith(";"))]
+    : data.render.suffix;
+  lines.push(...suffix);
   return `${lines.join("\n")}\n`;
+}
+
+export function renderIniTemplate(template, language, data) {
+  const localizedCopy = language === undefined ? null : data?.render?.localized?.[language];
+  if (language !== undefined && !localizedCopy) {
+    throw new Error(`Unsupported profile language: ${language}`);
+  }
+  if (!localizedCopy) return template;
+  const body = template
+    .split(/\r?\n/u)
+    .filter((line) => !line.trimStart().startsWith(";"))
+    .join("\n");
+  return `${localizedCopy.header.join("\n")}\n\n${body}`;
 }

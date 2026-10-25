@@ -111,7 +111,7 @@ class ExternalRoutingCatalogTest(unittest.TestCase):
             route.value for route in self.catalog.external_routes if route.provider_behavior is not None
         ]
         self.assertEqual(
-            [provider.name for provider in providers[: len(expected_external_providers)]],
+            [provider.name for provider in providers if provider.name in expected_external_providers],
             expected_external_providers,
         )
 

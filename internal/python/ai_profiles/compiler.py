@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import re
 from typing import cast
 
 from .catalog import load_catalog, service_from_legacy
+from .domains import DOMAIN_PATTERN
 from .models import (
     AdGuardDomainRule,
     AdGuardHomePlan,
@@ -40,14 +40,8 @@ from .models import (
 from .plans.ini_mvp import IniMvpPlan
 from .routing_ir import cluster_ini_rules, project_ini_rule, project_rule_provider, ruleset_rule
 
-_DOMAIN_PATTERN = re.compile(
-    r"^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+"
-    r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$"
-)
-
-
 def service_auto_group_name(service_group: str) -> str:
-    return f"{service_group} · 自動"
+    return f"{service_group} · 固定節點"
 
 
 def service_region_groups(service: ServiceSpec, catalog: Catalog | None = None) -> tuple[str, ...]:
@@ -73,17 +67,25 @@ def compile_service_routing(
 ) -> ServiceRoutingPlan:
     catalog = catalog or load_catalog()
     region_groups = service_region_groups(service, catalog)
-    auto_group = service_auto_group_name(service.group)
+    auto_group = (
+        catalog.group("auto")
+        if region_groups == catalog.all_region_groups
+        else service_auto_group_name(service.group)
+    )
 
-    ui_proxies = [auto_group, catalog.group("manual"), catalog.group("auto")]
+    ui_proxies = [auto_group]
     if service.direct_relaxed and not strict:
+        # The relaxed manual selector can select DIRECT or nodes outside a
+        # service's regional policy. Only expose it when both are permitted.
+        if region_groups == catalog.all_region_groups:
+            ui_proxies.append(catalog.group("manual"))
         ui_proxies.append(catalog.group("direct"))
     ui_proxies.extend(region_groups)
     ui_proxies.append(catalog.group("reject"))
 
-    # Availability fallback deliberately excludes DIRECT. A generic HTTP
-    # health check only validates proxy reachability, not regional AI usability.
-    auto_proxies = [*region_groups, catalog.group("reject")]
+    # Compatibility field names are retained; these are now manual, reject-first
+    # selectors so latency and health changes cannot change the selected exit IP.
+    auto_proxies = [catalog.group("reject"), *region_groups]
 
     return ServiceRoutingPlan(
         service=service,
@@ -159,7 +161,7 @@ def compile_adguard_home_plan(catalog: Catalog | None = None) -> AdGuardHomePlan
             if not separator or rule_type not in {"DOMAIN", "DOMAIN-SUFFIX"}:
                 continue
             domain = value.strip().rstrip(".")
-            if not _DOMAIN_PATTERN.fullmatch(domain):
+            if not DOMAIN_PATTERN.fullmatch(domain):
                 raise RuntimeError(
                     f"AI service {service.id} has an invalid domain rule for AdGuard projection: {source_rule}"
                 )
@@ -217,6 +219,27 @@ def _process_routing_rule(spec: ProcessRuleSpec) -> RoutingRule:
     return ruleset_rule(spec.provider_key, spec.group, spec.file)
 
 
+def _compile_foundation_routing_rules(
+    catalog: Catalog,
+    *,
+    subconverter: bool = False,
+) -> tuple[RoutingRule, ...]:
+    # Privacy guards precede even private/direct rules, including in strict
+    # profiles. A later gaming or client bypass must never override a guard.
+    return (
+        *(
+            _companion_routing_rule(rule)
+            for rule in catalog.companion_rulesets
+            if rule.category == "privacy" and (subconverter or rule.mihomo)
+        ),
+        *(
+            _profile_routing_rule(route)
+            for route in catalog.foundation_routes
+            if not subconverter or route.subconverter
+        ),
+    )
+
+
 def _compile_external_routing_entries(
     catalog: Catalog,
     *,
@@ -237,7 +260,7 @@ def _compile_routing_entries(
     ai_rules: tuple[RoutingRule, ...],
 ) -> tuple[RoutingEntry, ...]:
     entries: list[RoutingEntry] = [
-        *(_profile_routing_rule(route) for route in catalog.foundation_routes),
+        *_compile_foundation_routing_rules(catalog),
         *ai_rules,
     ]
 
@@ -245,7 +268,7 @@ def _compile_routing_entries(
         entries.extend(
             _companion_routing_rule(rule)
             for rule in catalog.companion_rulesets
-            if rule.mihomo
+            if rule.mihomo and rule.category != "privacy"
         )
 
         if include_process_rules:
@@ -277,33 +300,26 @@ def compile_rule_providers(
     include_process_rules: bool,
     catalog: Catalog | None = None,
 ) -> tuple[RuleProviderPlan, ...]:
-    catalog = catalog or load_catalog()
-    provider_rules: list[RoutingRule] = [
-        _external_routing_rule(route, strict=strict)
-        for route in catalog.external_routes
-        if route.provider_behavior is not None
-        and route.provider_file is not None
-        and _external_route_enabled(route, strict=strict)
-    ]
-
-    if not strict:
-        provider_rules.extend(
-            _companion_routing_rule(rule)
-            for rule in catalog.companion_rulesets
-            if rule.mihomo
+    return _compile_rule_providers(
+        compile_routing_entries(
+            strict=strict,
+            include_process_rules=include_process_rules,
+            catalog=catalog,
         )
-
-    if include_process_rules and not strict:
-        provider_rules.extend(_process_routing_rule(spec) for spec in catalog.process_rulesets)
-
-    provider_rules.extend(
-        rule
-        for service in catalog.services
-        if "mihomo" in service.projections
-        for rule in _service_routing_rules(service)
-        if rule.kind == "RULE-SET"
     )
-    return tuple(project_rule_provider(rule) for rule in provider_rules)
+
+
+def _compile_rule_providers(entries: tuple[RoutingEntry, ...]) -> tuple[RuleProviderPlan, ...]:
+    """Derive providers from the selected routes instead of re-evaluating policy."""
+    providers: dict[str, RuleProviderPlan] = {}
+    for entry in entries:
+        if not isinstance(entry, RoutingRule) or entry.kind != "RULE-SET":
+            continue
+        provider = project_rule_provider(entry)
+        if provider.name in providers and providers[provider.name] != provider:
+            raise RuntimeError(f"Conflicting routing provider metadata: {provider.name}")
+        providers[provider.name] = provider
+    return tuple(providers.values())
 
 
 def _profile_policy_group_enabled(
@@ -331,13 +347,23 @@ def compile_mihomo_profile(
         fallback_group_proxies.insert(0, catalog.group("direct"))
 
     ai_routing_entries = compile_ai_routing_rules(catalog)
+    routing_entries = _compile_routing_entries(
+        strict=strict,
+        include_process_rules=include_process_rules,
+        catalog=catalog,
+        ai_rules=ai_routing_entries,
+    )
+    # Multiple service identities can intentionally share a catalog policy.
+    services_by_group: dict[str, ServiceSpec] = {}
+    for service in catalog.services:
+        if "mihomo" in service.projections:
+            services_by_group.setdefault(service.group, service)
 
     return MihomoProfilePlan(
         strict=strict,
         services=tuple(
             compile_service_routing(service, strict=strict, catalog=catalog)
-            for service in catalog.services
-            if "mihomo" in service.projections
+            for service in services_by_group.values()
         ),
         manual_group_proxies=tuple(manual_group_proxies),
         fallback_group_proxies=tuple(fallback_group_proxies),
@@ -348,18 +374,9 @@ def compile_mihomo_profile(
             for group in catalog.profile_policy_groups
             if _profile_policy_group_enabled(group, strict=strict)
         ),
-        routing_entries=_compile_routing_entries(
-            strict=strict,
-            include_process_rules=include_process_rules,
-            catalog=catalog,
-            ai_rules=ai_routing_entries,
-        ),
+        routing_entries=routing_entries,
         ai_routing_entries=ai_routing_entries,
-        rule_providers=compile_rule_providers(
-            strict=strict,
-            include_process_rules=include_process_rules,
-            catalog=catalog,
-        ),
+        rule_providers=_compile_rule_providers(routing_entries),
         dns_policies=compile_dns_policies(catalog),
     )
 
@@ -421,6 +438,7 @@ def _compile_companion_rule_clusters(catalog: Catalog) -> tuple[IniRuleCluster, 
             [
                 (rule.subconverter_cluster, (_companion_routing_rule(rule),))
                 for rule in catalog.companion_rulesets
+                if rule.category != "privacy"
             ],
             emit_unclustered=False,
         ),
@@ -457,25 +475,25 @@ def _compile_profile_ini_group(spec: SubconverterGroupSpec) -> IniSelectGroup:
     )
 
 
-_HEALTH_CHECK_URL = "https://cp.cloudflare.com/generate_204"
-
-
-def _compile_automatic_region_groups(catalog: Catalog) -> tuple[IniProxyGroup, ...]:
+def _compile_region_groups(
+    catalog: Catalog,
+    reserved_group_names: set[str],
+) -> tuple[IniProxyGroup, ...]:
     groups = [
         IniProxyGroup(
             name=region.group,
-            kind="url-test",
+            kind="select",
+            candidates=_group_refs([catalog.group("reject")]),
             filter_pattern=region.filter_pattern,
-            health_check_url=_HEALTH_CHECK_URL,
-            interval=300,
-            tolerance=50,
         )
         for region in catalog.primary_regions
+        if region.group not in reserved_group_names
     ]
     groups.append(
         IniProxyGroup(
             name=catalog.group("other"),
             kind="select",
+            candidates=_group_refs([catalog.group("reject")]),
             filter_pattern=catalog.other_region_filter,
         )
     )
@@ -483,13 +501,10 @@ def _compile_automatic_region_groups(catalog: Catalog) -> tuple[IniProxyGroup, .
 
 
 def _compile_shared_routing_groups(catalog: Catalog) -> tuple[IniProxyGroup, ...]:
-    global_auto = IniProxyGroup(
+    pinned = IniProxyGroup(
         name=catalog.group("auto"),
-        kind="fallback",
-        candidates=_group_refs([*catalog.all_region_groups, catalog.group("reject")]),
-        health_check_url=_HEALTH_CHECK_URL,
-        interval=300,
-        tolerance=50,
+        kind="select",
+        candidates=_group_refs([catalog.group("reject"), *catalog.all_region_groups]),
     )
     manual = IniProxyGroup(
         name=catalog.group("manual"),
@@ -522,14 +537,13 @@ def _compile_shared_routing_groups(catalog: Catalog) -> tuple[IniProxyGroup, ...
         for group in catalog.profile_policy_groups
         if group.subconverter
     )
-    return (global_auto, manual, *policy_groups)
+    return (pinned, manual, *policy_groups)
 
 
 def _compile_foundation_ini_rules(catalog: Catalog) -> tuple[IniRule, ...]:
     return tuple(
-        project_ini_rule(_profile_routing_rule(route))
-        for route in catalog.foundation_routes
-        if route.subconverter
+        project_ini_rule(rule)
+        for rule in _compile_foundation_routing_rules(catalog, subconverter=True)
     )
 
 
@@ -559,6 +573,7 @@ def _compile_service_selectors(
     reserved_group_names: set[str] | frozenset[str] = frozenset(),
 ) -> tuple[IniServiceSelector, ...]:
     selectors: list[IniServiceSelector] = []
+    emitted_groups = set(reserved_group_names)
     for service in catalog.services:
         if "subconverter" not in service.projections:
             continue
@@ -567,7 +582,7 @@ def _compile_service_selectors(
             and not service.subconverter.emit_selector_when_legacy_replaced
         ):
             continue
-        if service.group in reserved_group_names:
+        if service.group in emitted_groups:
             continue
         candidates, comments = _service_selector_candidates(service, catalog)
         selectors.append(
@@ -576,6 +591,7 @@ def _compile_service_selectors(
                 group=IniSelectGroup(service.group, _group_refs(candidates)),
             )
         )
+        emitted_groups.add(service.group)
     return tuple(selectors)
 
 
@@ -646,8 +662,8 @@ def _build_subconverter_sections(
         ),
         IniGroupsSection(
             "automatic-region-groups",
-            groups=_compile_automatic_region_groups(catalog),
-            title="Level 1 — Automatic region groups",
+            groups=_compile_region_groups(catalog, {group.name for group in region_stable_groups}),
+            title="Level 1 — Regional node selectors",
             blank_between_groups=True,
         ),
         IniGroupsSection(
@@ -697,12 +713,29 @@ def compile_subconverter_plan(
     catalog = catalog or load_catalog()
     legacy_replacement_ids = set(ini_mvp["migration"]["legacyReplacementIds"])
     before_legacy = tuple(_normalize_ini_rule(record) for record in ini_mvp["rules"]["beforeLegacy"])
+    account_protection = ini_mvp["accountProtection"]
+    protected_group = account_protection["protectedGroup"]
+    protected_service = next(
+        (service for service in catalog.services if service.id == account_protection["serviceId"]),
+        None,
+    )
+    if protected_service is None or "subconverter" not in protected_service.projections:
+        raise RuntimeError("INI MVP account-protected service is missing its subconverter projection")
+    if protected_service.group != protected_group:
+        raise RuntimeError("INI MVP account-protected service group does not match its canonical service")
+    if not before_legacy or before_legacy[-1].target != protected_group:
+        raise RuntimeError("INI MVP legacy account rule must remain last in beforeLegacy")
+    protected_legacy_rule = before_legacy[-1]
+    protected_service_rules = tuple(
+        project_ini_rule(rule) for rule in _service_routing_rules(protected_service)
+    )
+    before_legacy = (*before_legacy[:-1], *protected_service_rules, protected_legacy_rule)
     after_legacy = tuple(_normalize_ini_rule(record) for record in ini_mvp["rules"]["afterLegacy"])
     mvp_groups = tuple(_normalize_ini_group(group) for group in ini_mvp["groups"])
     region_stable_groups, account_group, session_groups = _partition_ini_mvp_groups(
         catalog,
         mvp_groups,
-        ini_mvp["accountProtection"]["protectedGroup"],
+        protected_group,
     )
 
     plan = SubconverterPlan(
@@ -732,8 +765,19 @@ def compile_subconverter_plan(
     if profile_spec is not None:
         from .profile_spec import apply_profile_spec_to_subconverter_plan, resolve_profile_spec
 
-        resolved = resolve_profile_spec(profile_spec, catalog)
-        plan = apply_profile_spec_to_subconverter_plan(plan, resolved, catalog)
+        resolved = resolve_profile_spec(
+            profile_spec,
+            catalog,
+            service_group_plan=plan,
+            ini_mvp_plan=ini_mvp,
+        )
+        plan = apply_profile_spec_to_subconverter_plan(
+            plan,
+            resolved,
+            catalog,
+            protected_service_id=ini_mvp["accountProtection"]["serviceId"],
+            protected_group_name=protected_group,
+        )
     return plan
 
 

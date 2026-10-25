@@ -14,7 +14,26 @@
 ||copilot.microsoft.com^
 ||copilot.cloud.microsoft^
 
-! 🤖 Gemini (gemini)
+! 🔐 Claude Account Guard (claude)
+||anthropic.com^
+||claude.ai^
+||claude.com^
+||clau.de^
+||claudemcpclient.com^
+||claudemcpcontent.com^
+||claudeusercontent.com^
+||sentry.io^
+||statsigapi.net^
+||intercom.io^
+||intercomcdn.com^
+servd-anthropic-website.b-cdn.net
+anthropic.com.cdn.cloudflare.net
+anthropic.auth0.com
+anthropic-com.ghost.io
+browser-intake-us5-datadoghq.com
+cdn.usefathom.com
+
+! 🤖 Google AI (gemini)
 ||gemini.google^
 ||ai.google.dev^
 ||ai.studio^
@@ -28,7 +47,7 @@ geller-pa.googleapis.com
 proactivebackend-pa.googleapis.com
 robinfrontend-pa.googleapis.com
 
-! 🤖 NotebookLM (notebooklm)
+! 🤖 Google AI Tools (notebooklm)
 ||notebook.google^
 ||notebook.google.com^
 ||notebooklm.google^
@@ -37,7 +56,7 @@ robinfrontend-pa.googleapis.com
 notebooklm-pa.googleapis.com
 notebooklm.googleapis.com
 
-! 🤖 Jules (jules)
+! 🤖 Google AI Tools (jules)
 jules.google.com
 jules.googleapis.com
 
@@ -55,26 +74,26 @@ jules.googleapis.com
 ! 🤖 Mirasim (mirasim)
 ||mirasim.ai^
 
-! 🤖 Antigravity (antigravity)
+! 🤖 Google AI Tools (antigravity)
 ||antigravity.google^
 ||antigravity-unleash.goog^
 ||daily-cloudcode-pa.googleapis.com^
 ||cloudcode-pa.googleapis.com^
 
-! 🤖 Google Labs (google-labs)
+! 🤖 Google AI Tools (google-labs)
 ||labs.google^
 
-! 🤖 Stitch (stitch)
+! 🤖 Google AI Tools (stitch)
 stitch.withgoogle.com
 
-! 🤖 Android Studio AI (android-studio-ai)
+! 🤖 Google AI (android-studio-ai)
 cloudaicompanion.googleapis.com
 cloudcode-pa.googleapis.com
 
-! 🤖 Gemini Cloud (gemini-cloud)
+! 🤖 Google AI Tools (gemini-cloud)
 geminicloudassist.googleapis.com
 
-! 🤖 Vertex AI (vertex-ai)
+! 🤖 Google AI (vertex-ai)
 aiplatform.googleapis.com
 
 ! 🎵 Flow Music (flow-music)

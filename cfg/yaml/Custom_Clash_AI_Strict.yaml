@@ -50,7 +50,7 @@ geodata-mode: true
 
 # ==================== 日志与控制 ====================
 log-level: info
-ipv6: true
+ipv6: false
 external-controller: 0.0.0.0:9090
 # WARNING: Set OPENCLASH_SECRET before deploying. Do not commit real secrets.
 secret: ""
@@ -65,135 +65,133 @@ tun:
   enable: true
   stack: system
   dns-hijack:
-    - 0.0.0.0:53
+    - "any:53"
+    - "tcp://any:53"
   auto-detect-interface: false
   auto-route: false
   auto-redirect: false
   strict-route: false
   endpoint-independent-nat: true
 
-# ==================== DNS 配置 ====================
 dns:
   enable: true
-  listen: 0.0.0.0:7874
-  ipv6: true
-  enhanced-mode: fake-ip
-  fake-ip-range: 198.18.0.1/16
+  listen: "0.0.0.0:7874"
+  ipv6: false
+  enhanced-mode: "fake-ip"
+  fake-ip-range: "198.18.0.1/16"
   fake-ip-filter:
     - "*.lan"
-    - localhost.ptlogin2.qq.com
-  fake-ip-filter-mode: blacklist
-  respect-rules: true
+    - "localhost.ptlogin2.qq.com"
+  fake-ip-filter-mode: "blacklist"
+  use-system-hosts: false
+  respect-rules: false
   default-nameserver:
-    - 1.1.1.1
-    - 8.8.8.8
+    - "https://1.1.1.1/dns-query#🛡️ DNS Proxy"
+    - "https://1.0.0.1/dns-query#🛡️ DNS Proxy"
   nameserver:
-    - https://1.1.1.1/dns-query
-    - https://dns.google/dns-query
-    - https://dns.adguard-dns.com/dns-query
+    - "https://1.1.1.1/dns-query#🛡️ DNS Proxy"
+    - "https://1.0.0.1/dns-query#🛡️ DNS Proxy"
   proxy-server-nameserver:
-    - https://1.1.1.1/dns-query
-    - https://dns.google/dns-query
-    - https://dns.adguard-dns.com/dns-query
+    - "https://8.8.8.8/dns-query#DIRECT"
+    - "https://8.8.4.4/dns-query#DIRECT"
   direct-nameserver:
-    - https://127.0.0.1:5053/dns-query
+    - "https://127.0.0.1:5053/dns-query#DIRECT"
   direct-nameserver-follow-policy: false
   nameserver-policy:
     "geosite:private":
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - "https://1.1.1.1/dns-query#🛡️ DNS Proxy"
+      - "https://1.0.0.1/dns-query#🛡️ DNS Proxy"
     "geosite:cn":
-      - https://127.0.0.1:5053/dns-query
+      - "https://127.0.0.1:5053/dns-query#DIRECT"
     "geosite:openai":
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - "https://1.1.1.1/dns-query#🛡️ DNS Proxy"
+      - "https://1.0.0.1/dns-query#🛡️ DNS Proxy"
     "geosite:bing":
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - "https://1.1.1.1/dns-query#🛡️ DNS Proxy"
+      - "https://1.0.0.1/dns-query#🛡️ DNS Proxy"
     "geosite:category-ads-all":
-      - https://dns.adguard-dns.com/dns-query
-      - https://1.1.1.1/dns-query
+      - "https://dns.adguard-dns.com/dns-query#🛡️ DNS Proxy"
     "+.anthropic.com":
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - "https://1.1.1.1/dns-query#🛡️ DNS Proxy"
+      - "https://1.0.0.1/dns-query#🛡️ DNS Proxy"
     "+.claude.ai":
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - "https://1.1.1.1/dns-query#🛡️ DNS Proxy"
+      - "https://1.0.0.1/dns-query#🛡️ DNS Proxy"
     "+.perplexity.ai":
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - "https://1.1.1.1/dns-query#🛡️ DNS Proxy"
+      - "https://1.0.0.1/dns-query#🛡️ DNS Proxy"
     "jules.google.com":
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - "https://1.1.1.1/dns-query#🛡️ DNS Proxy"
+      - "https://1.0.0.1/dns-query#🛡️ DNS Proxy"
     "jules.googleapis.com":
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - "https://1.1.1.1/dns-query#🛡️ DNS Proxy"
+      - "https://1.0.0.1/dns-query#🛡️ DNS Proxy"
     "+.x.ai":
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - "https://1.1.1.1/dns-query#🛡️ DNS Proxy"
+      - "https://1.0.0.1/dns-query#🛡️ DNS Proxy"
     "+.poe.com":
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - "https://1.1.1.1/dns-query#🛡️ DNS Proxy"
+      - "https://1.0.0.1/dns-query#🛡️ DNS Proxy"
     "+.openrouter.ai":
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - "https://1.1.1.1/dns-query#🛡️ DNS Proxy"
+      - "https://1.0.0.1/dns-query#🛡️ DNS Proxy"
     "+.cursor.sh":
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - "https://1.1.1.1/dns-query#🛡️ DNS Proxy"
+      - "https://1.0.0.1/dns-query#🛡️ DNS Proxy"
     "+.cursorapi.com":
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - "https://1.1.1.1/dns-query#🛡️ DNS Proxy"
+      - "https://1.0.0.1/dns-query#🛡️ DNS Proxy"
     "+.cursorvm.com":
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - "https://1.1.1.1/dns-query#🛡️ DNS Proxy"
+      - "https://1.0.0.1/dns-query#🛡️ DNS Proxy"
     "+.huggingface.co":
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - "https://1.1.1.1/dns-query#🛡️ DNS Proxy"
+      - "https://1.0.0.1/dns-query#🛡️ DNS Proxy"
     "+.mirasim.ai":
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - "https://1.1.1.1/dns-query#🛡️ DNS Proxy"
+      - "https://1.0.0.1/dns-query#🛡️ DNS Proxy"
     "+.antigravity.google":
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - "https://1.1.1.1/dns-query#🛡️ DNS Proxy"
+      - "https://1.0.0.1/dns-query#🛡️ DNS Proxy"
     "+.labs.google":
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - "https://1.1.1.1/dns-query#🛡️ DNS Proxy"
+      - "https://1.0.0.1/dns-query#🛡️ DNS Proxy"
     "cloudaicompanion.googleapis.com":
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - "https://1.1.1.1/dns-query#🛡️ DNS Proxy"
+      - "https://1.0.0.1/dns-query#🛡️ DNS Proxy"
     "cloudcode-pa.googleapis.com":
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - "https://1.1.1.1/dns-query#🛡️ DNS Proxy"
+      - "https://1.0.0.1/dns-query#🛡️ DNS Proxy"
     "geminicloudassist.googleapis.com":
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - "https://1.1.1.1/dns-query#🛡️ DNS Proxy"
+      - "https://1.0.0.1/dns-query#🛡️ DNS Proxy"
     "aiplatform.googleapis.com":
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - "https://1.1.1.1/dns-query#🛡️ DNS Proxy"
+      - "https://1.0.0.1/dns-query#🛡️ DNS Proxy"
     "stitch.withgoogle.com":
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - "https://1.1.1.1/dns-query#🛡️ DNS Proxy"
+      - "https://1.0.0.1/dns-query#🛡️ DNS Proxy"
     "+.opencode.ai":
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - "https://1.1.1.1/dns-query#🛡️ DNS Proxy"
+      - "https://1.0.0.1/dns-query#🛡️ DNS Proxy"
     "geosite:google-deepmind":
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - "https://1.1.1.1/dns-query#🛡️ DNS Proxy"
+      - "https://1.0.0.1/dns-query#🛡️ DNS Proxy"
     "geosite:category-ai-!cn":
-      - https://1.1.1.1/dns-query
-      - https://dns.google/dns-query
+      - "https://1.1.1.1/dns-query#🛡️ DNS Proxy"
+      - "https://1.0.0.1/dns-query#🛡️ DNS Proxy"
     "geosite:category-ai-cn":
-      - https://127.0.0.1:5053/dns-query
+      - "https://127.0.0.1:5053/dns-query#DIRECT"
 
 # ==================== 代理策略组 Proxy Groups ====================
 proxy-groups:
   - name: "🚀 手動選擇"
     type: select
     proxies:
-      - "♻️ 自動選擇"
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
+      - "📌 固定節點"
+      - "🇺🇸 US Stable"
+      - "🇯🇵 JP Stable"
+      - "🇸🇬 SG Stable"
       - "🇹🇼 台灣節點"
       - "🇰🇷 韓國節點"
       - "🌐 其他／未識別節點"
@@ -201,35 +199,29 @@ proxy-groups:
     filter: "(?i)^(?!.*(?:🇭🇰|香港|Hong Kong|Hong-Kong|\bHKG\b|\bHK\b|剩余流量|剩餘流量|套餐到期|到期|流量[:：]|Traffic|Expire|Subscription|官网|官方|客服|Telegram|TG群|网址|網站|更新|失效|Invalid|USE|USED|TOTAL|EXPIRE|Panel|Channel|Author|公告|通知|邀请|邀請|返利|教程|使用说明|使用說明)).*$"
     use:
       - provider1
-  - name: "♻️ 自動選擇"
-    type: url-test
-    filter: "(?i)^(?!.*(?:🇭🇰|香港|Hong Kong|Hong-Kong|\bHKG\b|\bHK\b|剩余流量|剩餘流量|套餐到期|到期|流量[:：]|Traffic|Expire|Subscription|官网|官方|客服|Telegram|TG群|网址|網站|更新|失效|Invalid|USE|USED|TOTAL|EXPIRE|Panel|Channel|Author|公告|通知|邀请|邀請|返利|教程|使用说明|使用說明)).*$"
-    tolerance: 50
-    url: "https://cp.cloudflare.com/generate_204"
-    interval: 300
-    use:
-      - provider1
+  - name: "📌 固定節點"
+    type: select
+    proxies:
+      - "⛔ 拒絕"
+      - "🇺🇸 US Stable"
+      - "🇯🇵 JP Stable"
+      - "🇸🇬 SG Stable"
+      - "🇹🇼 台灣節點"
+      - "🇰🇷 韓國節點"
+      - "🌐 其他／未識別節點"
+  - name: "🛡️ DNS Proxy"
+    type: select
+    proxies:
+      - "📌 固定節點"
+      - "REJECT"
+    default-selected: "📌 固定節點"
   - name: "🤖 ChatGPT"
     type: select
     proxies:
-      - "🤖 ChatGPT · 自動"
-      - "🚀 手動選擇"
-      - "♻️ 自動選擇"
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
-      - "🇹🇼 台灣節點"
-      - "🇰🇷 韓國節點"
-      - "🌐 其他／未識別節點"
-      - "⛔ 拒絕"
-  - name: "🤖 ChatGPT · 自動"
-    type: fallback
-    url: "https://cp.cloudflare.com/generate_204"
-    interval: 300
-    proxies:
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
+      - "📌 固定節點"
+      - "🇺🇸 US Stable"
+      - "🇯🇵 JP Stable"
+      - "🇸🇬 SG Stable"
       - "🇹🇼 台灣節點"
       - "🇰🇷 韓國節點"
       - "🌐 其他／未識別節點"
@@ -237,124 +229,39 @@ proxy-groups:
   - name: "🧑‍💻 Copilot"
     type: select
     proxies:
-      - "🧑‍💻 Copilot · 自動"
-      - "🚀 手動選擇"
-      - "♻️ 自動選擇"
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
+      - "📌 固定節點"
+      - "🇺🇸 US Stable"
+      - "🇯🇵 JP Stable"
+      - "🇸🇬 SG Stable"
       - "🇹🇼 台灣節點"
       - "🇰🇷 韓國節點"
       - "🌐 其他／未識別節點"
       - "⛔ 拒絕"
-  - name: "🧑‍💻 Copilot · 自動"
-    type: fallback
-    url: "https://cp.cloudflare.com/generate_204"
-    interval: 300
-    proxies:
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
-      - "🇹🇼 台灣節點"
-      - "🇰🇷 韓國節點"
-      - "🌐 其他／未識別節點"
-      - "⛔ 拒絕"
-  - name: "🤖 Claude"
+  - name: "🔐 Claude Account Guard"
     type: select
     proxies:
-      - "🤖 Claude · 自動"
-      - "🚀 手動選擇"
-      - "♻️ 自動選擇"
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
-      - "🇹🇼 台灣節點"
-      - "🇰🇷 韓國節點"
-      - "🌐 其他／未識別節點"
       - "⛔ 拒絕"
-  - name: "🤖 Claude · 自動"
-    type: fallback
-    url: "https://cp.cloudflare.com/generate_204"
-    interval: 300
-    proxies:
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
-      - "🇹🇼 台灣節點"
-      - "🇰🇷 韓國節點"
-      - "🌐 其他／未識別節點"
-      - "⛔ 拒絕"
-  - name: "🤖 Gemini"
+      - "🇺🇸 US Stable"
+      - "🇸🇬 SG Stable"
+      - "🇯🇵 JP Stable"
+  - name: "🤖 Google AI"
     type: select
     proxies:
-      - "🤖 Gemini · 自動"
-      - "🚀 手動選擇"
-      - "♻️ 自動選擇"
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
+      - "📌 固定節點"
+      - "🇺🇸 US Stable"
+      - "🇯🇵 JP Stable"
+      - "🇸🇬 SG Stable"
       - "🇹🇼 台灣節點"
       - "🇰🇷 韓國節點"
       - "🌐 其他／未識別節點"
       - "⛔ 拒絕"
-  - name: "🤖 Gemini · 自動"
-    type: fallback
-    url: "https://cp.cloudflare.com/generate_204"
-    interval: 300
-    proxies:
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
-      - "🇹🇼 台灣節點"
-      - "🇰🇷 韓國節點"
-      - "🌐 其他／未識別節點"
-      - "⛔ 拒絕"
-  - name: "🤖 NotebookLM"
+  - name: "🤖 Google AI Tools"
     type: select
     proxies:
-      - "🤖 NotebookLM · 自動"
-      - "🚀 手動選擇"
-      - "♻️ 自動選擇"
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
-      - "🇹🇼 台灣節點"
-      - "🇰🇷 韓國節點"
-      - "🌐 其他／未識別節點"
-      - "⛔ 拒絕"
-  - name: "🤖 NotebookLM · 自動"
-    type: fallback
-    url: "https://cp.cloudflare.com/generate_204"
-    interval: 300
-    proxies:
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
-      - "🇹🇼 台灣節點"
-      - "🇰🇷 韓國節點"
-      - "🌐 其他／未識別節點"
-      - "⛔ 拒絕"
-  - name: "🤖 Jules"
-    type: select
-    proxies:
-      - "🤖 Jules · 自動"
-      - "🚀 手動選擇"
-      - "♻️ 自動選擇"
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
-      - "🇹🇼 台灣節點"
-      - "🇰🇷 韓國節點"
-      - "🌐 其他／未識別節點"
-      - "⛔ 拒絕"
-  - name: "🤖 Jules · 自動"
-    type: fallback
-    url: "https://cp.cloudflare.com/generate_204"
-    interval: 300
-    proxies:
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
+      - "📌 固定節點"
+      - "🇺🇸 US Stable"
+      - "🇯🇵 JP Stable"
+      - "🇸🇬 SG Stable"
       - "🇹🇼 台灣節點"
       - "🇰🇷 韓國節點"
       - "🌐 其他／未識別節點"
@@ -362,24 +269,10 @@ proxy-groups:
   - name: "🤖 Perplexity"
     type: select
     proxies:
-      - "🤖 Perplexity · 自動"
-      - "🚀 手動選擇"
-      - "♻️ 自動選擇"
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
-      - "🇹🇼 台灣節點"
-      - "🇰🇷 韓國節點"
-      - "🌐 其他／未識別節點"
-      - "⛔ 拒絕"
-  - name: "🤖 Perplexity · 自動"
-    type: fallback
-    url: "https://cp.cloudflare.com/generate_204"
-    interval: 300
-    proxies:
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
+      - "📌 固定節點"
+      - "🇺🇸 US Stable"
+      - "🇯🇵 JP Stable"
+      - "🇸🇬 SG Stable"
       - "🇹🇼 台灣節點"
       - "🇰🇷 韓國節點"
       - "🌐 其他／未識別節點"
@@ -387,24 +280,10 @@ proxy-groups:
   - name: "🤖 Grok"
     type: select
     proxies:
-      - "🤖 Grok · 自動"
-      - "🚀 手動選擇"
-      - "♻️ 自動選擇"
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
-      - "🇹🇼 台灣節點"
-      - "🇰🇷 韓國節點"
-      - "🌐 其他／未識別節點"
-      - "⛔ 拒絕"
-  - name: "🤖 Grok · 自動"
-    type: fallback
-    url: "https://cp.cloudflare.com/generate_204"
-    interval: 300
-    proxies:
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
+      - "📌 固定節點"
+      - "🇺🇸 US Stable"
+      - "🇯🇵 JP Stable"
+      - "🇸🇬 SG Stable"
       - "🇹🇼 台灣節點"
       - "🇰🇷 韓國節點"
       - "🌐 其他／未識別節點"
@@ -412,24 +291,10 @@ proxy-groups:
   - name: "🤖 Poe"
     type: select
     proxies:
-      - "🤖 Poe · 自動"
-      - "🚀 手動選擇"
-      - "♻️ 自動選擇"
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
-      - "🇹🇼 台灣節點"
-      - "🇰🇷 韓國節點"
-      - "🌐 其他／未識別節點"
-      - "⛔ 拒絕"
-  - name: "🤖 Poe · 自動"
-    type: fallback
-    url: "https://cp.cloudflare.com/generate_204"
-    interval: 300
-    proxies:
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
+      - "📌 固定節點"
+      - "🇺🇸 US Stable"
+      - "🇯🇵 JP Stable"
+      - "🇸🇬 SG Stable"
       - "🇹🇼 台灣節點"
       - "🇰🇷 韓國節點"
       - "🌐 其他／未識別節點"
@@ -437,24 +302,10 @@ proxy-groups:
   - name: "🤖 OpenRouter"
     type: select
     proxies:
-      - "🤖 OpenRouter · 自動"
-      - "🚀 手動選擇"
-      - "♻️ 自動選擇"
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
-      - "🇹🇼 台灣節點"
-      - "🇰🇷 韓國節點"
-      - "🌐 其他／未識別節點"
-      - "⛔ 拒絕"
-  - name: "🤖 OpenRouter · 自動"
-    type: fallback
-    url: "https://cp.cloudflare.com/generate_204"
-    interval: 300
-    proxies:
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
+      - "📌 固定節點"
+      - "🇺🇸 US Stable"
+      - "🇯🇵 JP Stable"
+      - "🇸🇬 SG Stable"
       - "🇹🇼 台灣節點"
       - "🇰🇷 韓國節點"
       - "🌐 其他／未識別節點"
@@ -462,24 +313,10 @@ proxy-groups:
   - name: "🤖 Cursor"
     type: select
     proxies:
-      - "🤖 Cursor · 自動"
-      - "🚀 手動選擇"
-      - "♻️ 自動選擇"
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
-      - "🇹🇼 台灣節點"
-      - "🇰🇷 韓國節點"
-      - "🌐 其他／未識別節點"
-      - "⛔ 拒絕"
-  - name: "🤖 Cursor · 自動"
-    type: fallback
-    url: "https://cp.cloudflare.com/generate_204"
-    interval: 300
-    proxies:
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
+      - "📌 固定節點"
+      - "🇺🇸 US Stable"
+      - "🇯🇵 JP Stable"
+      - "🇸🇬 SG Stable"
       - "🇹🇼 台灣節點"
       - "🇰🇷 韓國節點"
       - "🌐 其他／未識別節點"
@@ -487,24 +324,10 @@ proxy-groups:
   - name: "🤗 Hugging Face"
     type: select
     proxies:
-      - "🤗 Hugging Face · 自動"
-      - "🚀 手動選擇"
-      - "♻️ 自動選擇"
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
-      - "🇹🇼 台灣節點"
-      - "🇰🇷 韓國節點"
-      - "🌐 其他／未識別節點"
-      - "⛔ 拒絕"
-  - name: "🤗 Hugging Face · 自動"
-    type: fallback
-    url: "https://cp.cloudflare.com/generate_204"
-    interval: 300
-    proxies:
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
+      - "📌 固定節點"
+      - "🇺🇸 US Stable"
+      - "🇯🇵 JP Stable"
+      - "🇸🇬 SG Stable"
       - "🇹🇼 台灣節點"
       - "🇰🇷 韓國節點"
       - "🌐 其他／未識別節點"
@@ -512,174 +335,10 @@ proxy-groups:
   - name: "🤖 Mirasim"
     type: select
     proxies:
-      - "🤖 Mirasim · 自動"
-      - "🚀 手動選擇"
-      - "♻️ 自動選擇"
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
-      - "🇹🇼 台灣節點"
-      - "🇰🇷 韓國節點"
-      - "🌐 其他／未識別節點"
-      - "⛔ 拒絕"
-  - name: "🤖 Mirasim · 自動"
-    type: fallback
-    url: "https://cp.cloudflare.com/generate_204"
-    interval: 300
-    proxies:
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
-      - "🇹🇼 台灣節點"
-      - "🇰🇷 韓國節點"
-      - "🌐 其他／未識別節點"
-      - "⛔ 拒絕"
-  - name: "🤖 Antigravity"
-    type: select
-    proxies:
-      - "🤖 Antigravity · 自動"
-      - "🚀 手動選擇"
-      - "♻️ 自動選擇"
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
-      - "🇹🇼 台灣節點"
-      - "🇰🇷 韓國節點"
-      - "🌐 其他／未識別節點"
-      - "⛔ 拒絕"
-  - name: "🤖 Antigravity · 自動"
-    type: fallback
-    url: "https://cp.cloudflare.com/generate_204"
-    interval: 300
-    proxies:
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
-      - "🇹🇼 台灣節點"
-      - "🇰🇷 韓國節點"
-      - "🌐 其他／未識別節點"
-      - "⛔ 拒絕"
-  - name: "🤖 Google Labs"
-    type: select
-    proxies:
-      - "🤖 Google Labs · 自動"
-      - "🚀 手動選擇"
-      - "♻️ 自動選擇"
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
-      - "🇹🇼 台灣節點"
-      - "🇰🇷 韓國節點"
-      - "🌐 其他／未識別節點"
-      - "⛔ 拒絕"
-  - name: "🤖 Google Labs · 自動"
-    type: fallback
-    url: "https://cp.cloudflare.com/generate_204"
-    interval: 300
-    proxies:
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
-      - "🇹🇼 台灣節點"
-      - "🇰🇷 韓國節點"
-      - "🌐 其他／未識別節點"
-      - "⛔ 拒絕"
-  - name: "🤖 Stitch"
-    type: select
-    proxies:
-      - "🤖 Stitch · 自動"
-      - "🚀 手動選擇"
-      - "♻️ 自動選擇"
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
-      - "🇹🇼 台灣節點"
-      - "🇰🇷 韓國節點"
-      - "🌐 其他／未識別節點"
-      - "⛔ 拒絕"
-  - name: "🤖 Stitch · 自動"
-    type: fallback
-    url: "https://cp.cloudflare.com/generate_204"
-    interval: 300
-    proxies:
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
-      - "🇹🇼 台灣節點"
-      - "🇰🇷 韓國節點"
-      - "🌐 其他／未識別節點"
-      - "⛔ 拒絕"
-  - name: "🤖 Android Studio AI"
-    type: select
-    proxies:
-      - "🤖 Android Studio AI · 自動"
-      - "🚀 手動選擇"
-      - "♻️ 自動選擇"
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
-      - "🇹🇼 台灣節點"
-      - "🇰🇷 韓國節點"
-      - "🌐 其他／未識別節點"
-      - "⛔ 拒絕"
-  - name: "🤖 Android Studio AI · 自動"
-    type: fallback
-    url: "https://cp.cloudflare.com/generate_204"
-    interval: 300
-    proxies:
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
-      - "🇹🇼 台灣節點"
-      - "🇰🇷 韓國節點"
-      - "🌐 其他／未識別節點"
-      - "⛔ 拒絕"
-  - name: "🤖 Gemini Cloud"
-    type: select
-    proxies:
-      - "🤖 Gemini Cloud · 自動"
-      - "🚀 手動選擇"
-      - "♻️ 自動選擇"
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
-      - "🇹🇼 台灣節點"
-      - "🇰🇷 韓國節點"
-      - "🌐 其他／未識別節點"
-      - "⛔ 拒絕"
-  - name: "🤖 Gemini Cloud · 自動"
-    type: fallback
-    url: "https://cp.cloudflare.com/generate_204"
-    interval: 300
-    proxies:
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
-      - "🇹🇼 台灣節點"
-      - "🇰🇷 韓國節點"
-      - "🌐 其他／未識別節點"
-      - "⛔ 拒絕"
-  - name: "🤖 Vertex AI"
-    type: select
-    proxies:
-      - "🤖 Vertex AI · 自動"
-      - "🚀 手動選擇"
-      - "♻️ 自動選擇"
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
-      - "🇹🇼 台灣節點"
-      - "🇰🇷 韓國節點"
-      - "🌐 其他／未識別節點"
-      - "⛔ 拒絕"
-  - name: "🤖 Vertex AI · 自動"
-    type: fallback
-    url: "https://cp.cloudflare.com/generate_204"
-    interval: 300
-    proxies:
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
+      - "📌 固定節點"
+      - "🇺🇸 US Stable"
+      - "🇯🇵 JP Stable"
+      - "🇸🇬 SG Stable"
       - "🇹🇼 台灣節點"
       - "🇰🇷 韓國節點"
       - "🌐 其他／未識別節點"
@@ -687,24 +346,10 @@ proxy-groups:
   - name: "🎵 Flow Music"
     type: select
     proxies:
-      - "🎵 Flow Music · 自動"
-      - "🚀 手動選擇"
-      - "♻️ 自動選擇"
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
-      - "🇹🇼 台灣節點"
-      - "🇰🇷 韓國節點"
-      - "🌐 其他／未識別節點"
-      - "⛔ 拒絕"
-  - name: "🎵 Flow Music · 自動"
-    type: fallback
-    url: "https://cp.cloudflare.com/generate_204"
-    interval: 300
-    proxies:
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
+      - "📌 固定節點"
+      - "🇺🇸 US Stable"
+      - "🇯🇵 JP Stable"
+      - "🇸🇬 SG Stable"
       - "🇹🇼 台灣節點"
       - "🇰🇷 韓國節點"
       - "🌐 其他／未識別節點"
@@ -712,24 +357,10 @@ proxy-groups:
   - name: "🤖 OpenCode"
     type: select
     proxies:
-      - "🤖 OpenCode · 自動"
-      - "🚀 手動選擇"
-      - "♻️ 自動選擇"
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
-      - "🇹🇼 台灣節點"
-      - "🇰🇷 韓國節點"
-      - "🌐 其他／未識別節點"
-      - "⛔ 拒絕"
-  - name: "🤖 OpenCode · 自動"
-    type: fallback
-    url: "https://cp.cloudflare.com/generate_204"
-    interval: 300
-    proxies:
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
+      - "📌 固定節點"
+      - "🇺🇸 US Stable"
+      - "🇯🇵 JP Stable"
+      - "🇸🇬 SG Stable"
       - "🇹🇼 台灣節點"
       - "🇰🇷 韓國節點"
       - "🌐 其他／未識別節點"
@@ -737,24 +368,10 @@ proxy-groups:
   - name: "🤖 AI Other"
     type: select
     proxies:
-      - "🤖 AI Other · 自動"
-      - "🚀 手動選擇"
-      - "♻️ 自動選擇"
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
-      - "🇹🇼 台灣節點"
-      - "🇰🇷 韓國節點"
-      - "🌐 其他／未識別節點"
-      - "⛔ 拒絕"
-  - name: "🤖 AI Other · 自動"
-    type: fallback
-    url: "https://cp.cloudflare.com/generate_204"
-    interval: 300
-    proxies:
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
+      - "📌 固定節點"
+      - "🇺🇸 US Stable"
+      - "🇯🇵 JP Stable"
+      - "🇸🇬 SG Stable"
       - "🇹🇼 台灣節點"
       - "🇰🇷 韓國節點"
       - "🌐 其他／未識別節點"
@@ -762,24 +379,10 @@ proxy-groups:
   - name: "🤖 AI CN Other"
     type: select
     proxies:
-      - "🤖 AI CN Other · 自動"
-      - "🚀 手動選擇"
-      - "♻️ 自動選擇"
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
-      - "🇹🇼 台灣節點"
-      - "🇰🇷 韓國節點"
-      - "🌐 其他／未識別節點"
-      - "⛔ 拒絕"
-  - name: "🤖 AI CN Other · 自動"
-    type: fallback
-    url: "https://cp.cloudflare.com/generate_204"
-    interval: 300
-    proxies:
-      - "🇺🇸 美國節點"
-      - "🇯🇵 日本節點"
-      - "🇸🇬 新加坡節點"
+      - "📌 固定節點"
+      - "🇺🇸 US Stable"
+      - "🇯🇵 JP Stable"
+      - "🇸🇬 SG Stable"
       - "🇹🇼 台灣節點"
       - "🇰🇷 韓國節點"
       - "🌐 其他／未識別節點"
@@ -792,52 +395,49 @@ proxy-groups:
     type: select
     proxies:
       - "🚀 手動選擇"
-      - "♻️ 自動選擇"
+      - "📌 固定節點"
       - "⛔ 拒絕"
-  - name: "🇺🇸 美國節點"
-    type: url-test
-    url: "https://cp.cloudflare.com/generate_204"
-    interval: 300
-    tolerance: 50
+  - name: "🇺🇸 US Stable"
+    type: select
     filter: '(?i)(?:🇺🇸|美國|美国|波特蘭|波特兰|達拉斯|达拉斯|俄勒岡|俄勒冈|鳳凰城|凤凰城|費利蒙|费利蒙|硅谷|拉斯維加斯|拉斯维加斯|洛杉磯|洛杉矶|聖何塞|圣何塞|聖克拉拉|圣克拉拉|西雅圖|西雅图|芝加哥|紐約|纽约|亞特蘭大|亚特兰大|邁阿密|迈阿密|華盛頓|华盛顿|\bUS(?:[-_ ]?\d+(?:[-_ ]?[A-Za-z]{2,})?)?\b|United States|UnitedStates|USA|America|JFK|EWR|IAD|ATL|ORD|MIA|NYC|LAX|SFO|SEA|DFW|SJC)'
+    proxies:
+      - REJECT
     use:
       - provider1
-  - name: "🇯🇵 日本節點"
-    type: url-test
-    url: "https://cp.cloudflare.com/generate_204"
-    interval: 300
-    tolerance: 50
+  - name: "🇯🇵 JP Stable"
+    type: select
     filter: '(?i)(?:🇯🇵|日本|東京|东京|大阪|關西|关西|埼玉|川日|泉日|滬日|沪日|深日|\bJP(?:[-_ ]?\d+(?:[-_ ]?[A-Za-z]{2,})?)?\b|Japan|JPN|NRT|HND|KIX|TYO|OSA|Kansai)'
+    proxies:
+      - REJECT
     use:
       - provider1
-  - name: "🇸🇬 新加坡節點"
-    type: url-test
-    url: "https://cp.cloudflare.com/generate_204"
-    interval: 300
-    tolerance: 50
+  - name: "🇸🇬 SG Stable"
+    type: select
     filter: '(?i)(?:🇸🇬|新加坡|獅城|狮城|\bSG(?:[-_ ]?\d+(?:[-_ ]?[A-Za-z]{2,})?)?\b|Singapore|SIN)'
+    proxies:
+      - REJECT
     use:
       - provider1
   - name: "🇹🇼 台灣節點"
-    type: url-test
-    url: "https://cp.cloudflare.com/generate_204"
-    interval: 300
-    tolerance: 50
+    type: select
     filter: '(?i)(?:🇹🇼|台灣|臺灣|台湾|台北|臺北|新北|台中|臺中|高雄|彰化|\bTW(?:[-_ ]?\d+(?:[-_ ]?[A-Za-z]{2,})?)?\b|Taiwan|TWN|TPE|ROC)'
+    proxies:
+      - REJECT
     use:
       - provider1
   - name: "🇰🇷 韓國節點"
-    type: url-test
-    url: "https://cp.cloudflare.com/generate_204"
-    interval: 300
-    tolerance: 50
+    type: select
     filter: '(?i)(?:🇰🇷|韓國|韩国|首爾|首尔|春川|\bKR(?:[-_ ]?\d+(?:[-_ ]?[A-Za-z]{2,})?)?\b|Korea|KOR|Chuncheon|ICN)'
+    proxies:
+      - REJECT
     use:
       - provider1
   - name: "🌐 其他／未識別節點"
     type: select
     filter: "(?i)^(?!.*(?:🇭🇰|香港|Hong Kong|Hong-Kong|\\bHKG\\b|\\bHK\\b|剩余流量|剩餘流量|套餐到期|到期|流量[:：]|Traffic|Expire|Subscription|官网|官方|客服|Telegram|TG群|网址|網站|更新|失效|Invalid|USE|USED|TOTAL|EXPIRE|Panel|Channel|Author|公告|通知|邀请|邀請|返利|教程|使用说明|使用說明)).*$"
     exclude-filter: "(?i)(?:(?:🇺🇸|美國|美国|波特蘭|波特兰|達拉斯|达拉斯|俄勒岡|俄勒冈|鳳凰城|凤凰城|費利蒙|费利蒙|硅谷|拉斯維加斯|拉斯维加斯|洛杉磯|洛杉矶|聖何塞|圣何塞|聖克拉拉|圣克拉拉|西雅圖|西雅图|芝加哥|紐約|纽约|亞特蘭大|亚特兰大|邁阿密|迈阿密|華盛頓|华盛顿|\\bUS(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|United States|UnitedStates|USA|America|JFK|EWR|IAD|ATL|ORD|MIA|NYC|LAX|SFO|SEA|DFW|SJC)|(?:🇯🇵|日本|東京|东京|大阪|關西|关西|埼玉|川日|泉日|滬日|沪日|深日|\\bJP(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|Japan|JPN|NRT|HND|KIX|TYO|OSA|Kansai)|(?:🇸🇬|新加坡|獅城|狮城|\\bSG(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|Singapore|SIN)|(?:🇹🇼|台灣|臺灣|台湾|台北|臺北|新北|台中|臺中|高雄|彰化|\\bTW(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|Taiwan|TWN|TPE|ROC)|(?:🇰🇷|韓國|韩国|首爾|首尔|春川|\\bKR(?:[-_ ]?\\d+(?:[-_ ]?[A-Za-z]{2,})?)?\\b|Korea|KOR|Chuncheon|ICN))"
+    proxies:
+      - REJECT
     use:
       - provider1
   - name: "🎯 全球直連"
@@ -847,15 +447,18 @@ proxy-groups:
 
 # ==================== 分流规则 Rules ====================
 rules:
+    - "RULE-SET,Privacy_Guard_Classical,⛔ 拒絕"
     - "GEOSITE,private,🎯 全球直連"
     - "GEOIP,private,🎯 全球直連,no-resolve"
     - "GEOSITE,openai,🤖 ChatGPT"
     - "RULE-SET,AI_Copilot_Classical,🧑‍💻 Copilot"
     - "GEOSITE,github-copilot,🧑‍💻 Copilot"
-    - "GEOSITE,anthropic,🤖 Claude"
-    - "RULE-SET,AI_Gemini_Classical,🤖 Gemini"
-    - "RULE-SET,AI_NotebookLM_Classical,🤖 NotebookLM"
-    - "RULE-SET,AI_Jules_Classical,🤖 Jules"
+    - "RULE-SET,AI_Claude_Classical,🔐 Claude Account Guard"
+    - "GEOSITE,anthropic,🔐 Claude Account Guard"
+    - "GEOSITE,category-ntp,🔐 Claude Account Guard"
+    - "RULE-SET,AI_Gemini_Classical,🤖 Google AI"
+    - "RULE-SET,AI_NotebookLM_Classical,🤖 Google AI Tools"
+    - "RULE-SET,AI_Jules_Classical,🤖 Google AI Tools"
     - "GEOSITE,perplexity,🤖 Perplexity"
     - "GEOSITE,xai,🤖 Grok"
     - "GEOSITE,poe,🤖 Poe"
@@ -863,12 +466,12 @@ rules:
     - "RULE-SET,AI_Cursor_Classical,🤖 Cursor"
     - "RULE-SET,AI_HuggingFace_Classical,🤗 Hugging Face"
     - "RULE-SET,AI_Mirasim_Classical,🤖 Mirasim"
-    - "RULE-SET,AI_Antigravity_Classical,🤖 Antigravity"
-    - "RULE-SET,AI_GoogleLabs_Classical,🤖 Google Labs"
-    - "RULE-SET,AI_Stitch_Classical,🤖 Stitch"
-    - "RULE-SET,AI_AndroidStudioAI_Classical,🤖 Android Studio AI"
-    - "RULE-SET,AI_GeminiCloud_Classical,🤖 Gemini Cloud"
-    - "RULE-SET,AI_VertexAI_Classical,🤖 Vertex AI"
+    - "RULE-SET,AI_Antigravity_Classical,🤖 Google AI Tools"
+    - "RULE-SET,AI_GoogleLabs_Classical,🤖 Google AI Tools"
+    - "RULE-SET,AI_Stitch_Classical,🤖 Google AI Tools"
+    - "RULE-SET,AI_AndroidStudioAI_Classical,🤖 Google AI"
+    - "RULE-SET,AI_GeminiCloud_Classical,🤖 Google AI Tools"
+    - "RULE-SET,AI_VertexAI_Classical,🤖 Google AI"
     - "RULE-SET,Flow_Music_Classical,🎵 Flow Music"
     - "RULE-SET,AI_OpenCode_Classical,🤖 OpenCode"
     - "GEOSITE,google-deepmind,🤖 AI Other"
@@ -878,11 +481,25 @@ rules:
 
 # ==================== 规则提供者 Rule Providers ====================
 rule-providers:
+  Privacy_Guard_Classical:
+    behavior: classical
+    interval: 10800
+    type: http
+    url: "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/Privacy_Guard_Classical.yaml"
+    format: yaml
+
   AI_Copilot_Classical:
     behavior: classical
     interval: 10800
     type: http
     url: "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_Copilot_Classical.yaml"
+    format: yaml
+
+  AI_Claude_Classical:
+    behavior: classical
+    interval: 10800
+    type: http
+    url: "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_Claude_Classical.yaml"
     format: yaml
 
   AI_Gemini_Classical:

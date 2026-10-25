@@ -2,9 +2,9 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/internal/python/generate_ai_profiles.py
 # RULE-PROVIDER: AI_VertexAI_Classical
-# GROUP: 🤖 Vertex AI
+# GROUP: 🤖 Google AI
 # TOTAL: 2
-# SOURCE-DIGEST: d14a5dfbb6718db76b68a42a06f880b07fee0ca424986ee5f6596f45c8d92b82
+# SOURCE-DIGEST: 83000da3d2ca3806e503d50daea10fda6910c158dc8255f2b5f931a495e09304
 
 payload:
   - "DOMAIN,aiplatform.googleapis.com"

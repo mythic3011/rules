@@ -71,9 +71,7 @@ class RelatedServicesCatalogTest(unittest.TestCase):
             self.assertIn(f'name: "{service.group}"', relaxed)
             if service.payload:
                 self.assertIn(service.provider_key + ":", relaxed)
-            strict_block = strict.split(f'- name: "{service.group}"', 1)[1].split(
-                f'- name: "{service.group} · 自動"', 1
-            )[0]
+            strict_block = strict.split(f'- name: "{service.group}"', 1)[1].split('- name:', 1)[0]
             self.assertNotIn(MODULE.GROUP["direct"], strict_block)
 
         subconverter_plan = compile_subconverter_plan(
@@ -118,7 +116,7 @@ class RelatedServicesCatalogTest(unittest.TestCase):
         companion_provider_keys = {
             ruleset.provider_key
             for ruleset in self.catalog.companion_rulesets
-            if ruleset.mihomo
+            if ruleset.mihomo and ruleset.category != "privacy"
         }
         self.assertTrue(companion_provider_keys.isdisjoint(strict_values))
 

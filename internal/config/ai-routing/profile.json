@@ -2,7 +2,8 @@
   "schemaVersion": 1,
   "coreGroups": {
     "manual": "🚀 手動選擇",
-    "auto": "♻️ 自動選擇",
+    "auto": "📌 固定節點",
+    "dns": "🛡️ DNS Proxy",
     "direct": "🎯 全球直連",
     "reject": "⛔ 拒絕",
     "us-stable": "🇺🇸 US Stable",
@@ -19,14 +20,17 @@
   "dnsResolverSets": {
     "global-ai": [
       "https://1.1.1.1/dns-query",
-      "https://dns.google/dns-query"
+      "https://1.0.0.1/dns-query"
+    ],
+    "bootstrap": [
+      "https://8.8.8.8/dns-query",
+      "https://8.8.4.4/dns-query"
     ],
     "cn-direct": [
       "https://127.0.0.1:5053/dns-query"
     ],
     "ads": [
-      "https://dns.adguard-dns.com/dns-query",
-      "https://1.1.1.1/dns-query"
+      "https://dns.adguard-dns.com/dns-query"
     ]
   },
   "dnsPolicies": [
@@ -70,6 +74,28 @@
     }
   ],
   "policyGroups": [
+    {
+      "id": "dns-egress",
+      "groupKey": "dns",
+      "kind": "select",
+      "candidates": [
+        {
+          "kind": "group-ref",
+          "value": "auto"
+        },
+        {
+          "kind": "builtin",
+          "value": "REJECT"
+        }
+      ],
+      "includeProviderNodes": false,
+      "mihomoWhen": "always",
+      "subconverter": false,
+      "defaultSelected": {
+        "kind": "group-ref",
+        "value": "auto"
+      }
+    },
     {
       "id": "account-sensitive",
       "groupKey": "stable-session",

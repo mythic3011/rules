@@ -51,11 +51,11 @@ class ProfileSpecTest(unittest.TestCase):
             )
         )
         auto = next(
-            line for line in text.splitlines() if line.startswith("custom_proxy_group=♻️ 自動選擇")
+            line for line in text.splitlines() if line.startswith(f"custom_proxy_group={self.catalog.group('auto')}`")
         )
-        self.assertIn("[]🇸🇬 新加坡節點`[]🇺🇸 美國節點", auto)
+        self.assertIn(f"[]{self.catalog.group('sg')}`[]{self.catalog.group('us')}", auto)
         self.assertNotIn("🌐 其他／未識別節點", auto)
-        self.assertNotIn("🇯🇵 日本節點", text)
+        self.assertNotIn(self.catalog.group("jp"), text)
         self.assertNotIn("🇹🇼 台灣節點", text)
         self.assertNotIn("🇰🇷 韓國節點", text)
         manual = next(
@@ -68,10 +68,22 @@ class ProfileSpecTest(unittest.TestCase):
     def test_prefer_reorders_without_removing(self) -> None:
         text = render_ini(ProfileSpec(preferred_node_regions=("sg", "jp")))
         auto = next(
-            line for line in text.splitlines() if line.startswith("custom_proxy_group=♻️ 自動選擇")
+            line for line in text.splitlines() if line.startswith(f"custom_proxy_group={self.catalog.group('auto')}`")
         )
-        self.assertLess(auto.index("🇸🇬 新加坡節點"), auto.index("🇯🇵 日本節點"))
-        self.assertLess(auto.index("🇯🇵 日本節點"), auto.index("🇺🇸 美國節點"))
+        self.assertLess(auto.index(self.catalog.group("sg")), auto.index(self.catalog.group("jp")))
+        self.assertLess(auto.index(self.catalog.group("jp")), auto.index(self.catalog.group("us")))
+
+    def test_region_filtering_keeps_reference_only_account_groups_closed(self) -> None:
+        for spec in (ProfileSpec(disabled_node_regions=("jp",)), ProfileSpec(only_node_regions=("us",))):
+            text = render_ini(spec)
+            line = next(
+                line for line in text.splitlines()
+                if line.startswith(f"custom_proxy_group={self.catalog.group('high-risk-account')}`")
+            )
+            self.assertEqual(
+                line.split("`")[2:],
+                ["[]REJECT", f"[]{self.catalog.group('stable-session')}"],
+            )
 
     def test_preferred_region_must_be_active(self) -> None:
         with self.assertRaises(ProfileSpecError):

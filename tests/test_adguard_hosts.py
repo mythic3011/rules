@@ -31,14 +31,42 @@ class AdGuardHostsTest(unittest.TestCase):
         self.assertIn("generativelanguage.googleapis.com", lines)
 
     def test_projection_is_blocking_and_warns_when_snapshot_is_missing(self) -> None:
-        rendered = render_adguard_home()
+        with tempfile.TemporaryDirectory() as temp:
+            catalog_dir = Path(temp) / "ai-routing"
+            shutil.copytree(ROOT / "internal" / "config" / "ai-routing", catalog_dir)
+            snapshot_path = catalog_dir / "sources" / "adguard-upstream.json"
+            snapshot_path.unlink()
+
+            catalog = load_catalog(catalog_dir)
+            plan = compile_adguard_home_plan(catalog)
+            rendered = render_adguard_home(plan)
+
         self.assertIn("This file BLOCKS DNS names; it does not proxy or route traffic.", rendered)
-        self.assertIn("checked-in upstream DLC snapshot", rendered)
         self.assertIn("WARNING: upstream snapshot is missing", rendered)
-        # Missing snapshot must degrade to deterministic local deltas, not guess.
-        self.assertNotIn("openai.com", rendered)
-        self.assertNotIn("anthropic.com", rendered)
-        self.assertNotIn("perplexity.ai", rendered)
+        self.assertIsNone(plan.snapshot_refreshed_at)
+
+        service_ids = {service.id for service in catalog.services}
+        local_rules = [rule for rule in plan.rules if rule.service_id in service_ids]
+        snapshot_rules = [rule for rule in plan.rules if rule.service_id not in service_ids]
+        expected_local = set()
+        for service in catalog.services:
+            for source_rule in service.payload:
+                kind, separator, value = source_rule.partition(",")
+                if not separator:
+                    continue
+                domain = value.strip().rstrip(".")
+                if kind == "DOMAIN":
+                    expected_local.add(domain)
+                elif kind == "DOMAIN-SUFFIX":
+                    expected_local.add(f"||{domain}^")
+
+        rendered_domains = {
+            line for line in rendered.splitlines()
+            if line and not line.startswith("!")
+        }
+        self.assertEqual(rendered_domains, expected_local)
+        self.assertTrue(local_rules)
+        self.assertEqual(snapshot_rules, [])
 
     def test_filter_url_is_repo_hosted(self) -> None:
         rendered = render_adguard_home()

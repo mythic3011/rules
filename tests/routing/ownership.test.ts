@@ -34,7 +34,8 @@ test("shared GCS backend is owned by Flow Music, not the Anthropic dump", async 
   const gemini = catalog.get("gemini");
   assert.ok(flowMusic !== undefined && claude !== undefined && gemini !== undefined);
   assert.deepEqual(flowMusic.payload, [GCS_RULE]);
-  assert.deepEqual(claude.payload, []);
+  assert.equal(claude.payload.includes(GCS_RULE), false);
+  assert.equal(claude.payload.includes("DOMAIN-SUFFIX,googleapis.com"), false);
   assert.equal(
     flowMusic.payload.some((entry) => entry === "DOMAIN-SUFFIX,googleapis.com"),
     false,

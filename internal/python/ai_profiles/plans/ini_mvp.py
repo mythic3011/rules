@@ -21,6 +21,11 @@ IniMvpRuleRecord = TypedDict(
     {"kind": str, "target": str, "url": str, "interval": int, "value": str},
 )
 
+class IniMvpAccountProtection(TypedDict):
+    serviceId: str
+    protectedGroup: str
+    rejectGroup: str
+
 class IniMvpPlan(TypedDict):
     """Declared shape of internal/generated/ai-routing/hk.ini-mvp-plan.json (validated at load)."""
 
@@ -29,9 +34,19 @@ class IniMvpPlan(TypedDict):
     profile: str
     externalGroups: list[str]
     migration: dict[str, list[str]]
-    accountProtection: dict[str, str]
+    accountProtection: IniMvpAccountProtection
     rules: dict[str, list[dict[str, object]]]
     groups: list[dict[str, object]]
+
+
+def account_protection_group_candidates(plan: IniMvpPlan) -> tuple[str, ...]:
+    """Return the canonical reject-first route choices for the protected service."""
+    protected_name = plan["accountProtection"]["protectedGroup"]
+    group = next((item for item in plan["groups"] if item.get("name") == protected_name), None)
+    if group is None:
+        raise RuntimeError("INI MVP account-protected group is missing")
+    candidates = cast(list[dict[str, object]], group["candidates"])
+    return tuple(cast(str, candidate["value"]) for candidate in candidates)
 
 def load_ini_mvp_plan() -> IniMvpPlan:
     """Load the TypeScript-owned plan; Python only renders its declared shape."""
@@ -56,8 +71,10 @@ def load_ini_mvp_plan() -> IniMvpPlan:
     if not isinstance(replacement_ids, list) or not replacement_ids or any(not isinstance(item, str) or not item for item in replacement_ids) or len(set(replacement_ids)) != len(replacement_ids) or not set(replacement_ids).issubset(migrated_ids):
         raise RuntimeError("INI MVP plan has invalid legacy replacement IDs")
     account = value["accountProtection"]
-    if not isinstance(account, dict) or set(account) != {"protectedGroup", "rejectGroup"} or any(not isinstance(account.get(key), str) or not account[key] for key in ("protectedGroup", "rejectGroup")):
+    if not isinstance(account, dict) or set(account) != {"serviceId", "protectedGroup", "rejectGroup"} or any(not isinstance(account.get(key), str) or not account[key] for key in ("serviceId", "protectedGroup", "rejectGroup")):
         raise RuntimeError("INI MVP plan has invalid account protection metadata")
+    if account["serviceId"] not in migrated_ids:
+        raise RuntimeError("INI MVP protected service must be among migrated services")
     if account["rejectGroup"] not in external_groups:
         raise RuntimeError("INI MVP external groups must include the account reject group")
     rules = value["rules"]

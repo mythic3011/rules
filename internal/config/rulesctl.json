@@ -11,12 +11,16 @@
       "internal/python",
       "tests",
       "tools",
-      "shell"
+      "shell",
+      "mise.toml",
+      "pnpm-workspace.yaml"
     ],
     "tools": [
+      "mise",
       "python3",
       "node",
-      "npm"
+      "pnpm",
+      "uv"
     ]
   },
   "compilePaths": [
@@ -49,40 +53,58 @@
         "kind": "node-test-glob",
         "glob": "apps/profile-service/test/*.test.mjs",
         "requiredWhich": "node",
-        "missingMessage": "node is required for the zero-dependency profile-service contract suite"
+        "missingMessage": "node is required for the profile-service contract suite"
       }
     ],
     "checkNode": [
       {
         "argv": [
-          "npm",
+          "pnpm",
           "run",
           "routing:validate"
         ]
       },
       {
         "argv": [
-          "npm",
+          "pnpm",
           "run",
           "typecheck"
         ]
       },
       {
         "argv": [
-          "npm",
+          "pnpm",
           "run",
           "test:routing"
         ]
       },
       {
         "argv": [
-          "npm",
+          "pnpm",
           "run",
           "routing:check"
         ]
       }
     ],
     "generate": [
+      {
+        "when": {
+          "which": "pnpm",
+          "exists": "node_modules/.bin/tsx"
+        },
+        "otherwise": "skip",
+        "skipMessage": "note: Node dependencies are not installed; checked-in routing inputs will be used",
+        "steps": [
+          {
+            "argv": [
+              "pnpm",
+              "run",
+              "routing",
+              "generate-inputs"
+            ]
+          }
+        ]
+      },
       {
         "argv": [
           "{python}",
@@ -136,7 +158,7 @@
       },
       {
         "when": {
-          "which": "npm",
+          "which": "pnpm",
           "exists": "node_modules/.bin/tsx"
         },
         "otherwise": "skip",
@@ -144,7 +166,7 @@
         "steps": [
           {
             "argv": [
-              "npm",
+              "pnpm",
               "run",
               "routing:generate"
             ]
@@ -176,62 +198,14 @@
       {
         "argv": [
           "{python}",
-          "internal/python/generate_ai_profiles.py"
-        ]
-      },
-      {
-        "argv": [
-          "{python}",
-          "internal/python/generate_openclash_guard_runtime.py"
-        ]
-      },
-      {
-        "argv": [
-          "{python}",
-          "internal/python/generate_openclash_guard_resolver_sync_data.py"
-        ]
-      },
-      {
-        "argv": [
-          "{python}",
           "internal/python/generate_adblock_outputs.py"
         ]
       },
       {
         "argv": [
           "{python}",
-          "tools/shbundle.py",
-          "build",
-          "--all"
-        ]
-      },
-      {
-        "argv": [
-          "{python}",
-          "internal/python/generate_openclash_guard_release.py"
-        ]
-      },
-      {
-        "when": {
-          "which": "npm",
-          "exists": "node_modules/.bin/tsx"
-        },
-        "otherwise": "skip",
-        "skipMessage": "note: Node dependencies are not installed; TypeScript-owned generated artifacts were skipped",
-        "steps": [
-          {
-            "argv": [
-              "npm",
-              "run",
-              "routing:generate"
-            ]
-          }
-        ]
-      },
-      {
-        "argv": [
-          "{python}",
-          "internal/python/generate_profile_service_runtime.py"
+          "internal/python/rulesctl.py",
+          "generate"
         ]
       }
     ]
