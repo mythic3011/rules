@@ -2,30 +2,146 @@ name: Dependabot auto-merge
 
 on:
   pull_request_target:
-    types: [opened, reopened, synchronize, ready_for_review, labeled]
+    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft, labeled, unlabeled, edited]
 
-permissions:
-  contents: write
-  pull-requests: write
+permissions: {}
 
 jobs:
-  enable-automerge:
-    if: github.event.pull_request.user.login == 'dependabot[bot]' && contains(github.event.pull_request.labels.*.name, 'automerge')
+  dependabot-metadata:
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      update_type: ${{ steps.dependabot-metadata.outputs.update-type }}
     steps:
-      - name: Enable auto-merge
-        uses: actions/github-script@v8
+      - name: Read Dependabot update metadata
+        id: dependabot-metadata
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+        with:
+          github-token: ${{ github.token }}
+
+  # Run even after metadata failure so stale bot-enabled requests are revoked.
+  # The script preserves auto-merge requests enabled by humans or other actors.
+  reconcile-automerge:
+    needs: dependabot-metadata
+    if: always() && github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    # GitHub's auto-merge mutation requires both repository write permissions.
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      DEPENDABOT_METADATA_RESULT: ${{ needs.dependabot-metadata.result }}
+      DEPENDABOT_UPDATE_TYPE: ${{ needs.dependabot-metadata.outputs.update_type || '' }}
+      EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Reconcile auto-merge eligibility
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           script: |
-            const pr = context.payload.pull_request;
+            const eventPr = context.payload.pull_request;
+            const query = `query($owner: String!, $repo: String!, $number: Int!) {
+              repository(owner: $owner, name: $repo) {
+                pullRequest(number: $number) {
+                  id
+                  headRefOid
+                  isDraft
+                  autoMergeRequest { enabledBy { login } }
+                  labels(first: 100) { nodes { name } }
+                }
+              }
+            }`;
+            const readCurrentPullRequest = async () => {
+              const response = await github.graphql(query, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                number: eventPr.number,
+              });
+              return response.repository.pullRequest;
+            };
+            const disableAutomationMerge = async (pullRequest) => {
+              await github.graphql(
+                `mutation($pullRequestId: ID!) {
+                  disablePullRequestAutoMerge(input: {pullRequestId: $pullRequestId}) {
+                    pullRequest { number }
+                  }
+                }`,
+                { pullRequestId: pullRequest.id },
+              );
+            };
+            const isAutomationMerge = (pullRequest) =>
+              pullRequest.autoMergeRequest?.enabledBy?.login === "github-actions[bot]";
+
+            // Preserve auto-merge explicitly enabled by a human or another actor.
+            // This workflow only reconciles requests that it enabled itself.
+            const pullRequest = await readCurrentPullRequest();
+            if (!pullRequest) {
+              core.warning("Dependabot pull request no longer exists; no auto-merge change was made.");
+              return;
+            }
+
+            const eventHeadSha = process.env.EVENT_HEAD_SHA;
+            const metadataVerified = process.env.DEPENDABOT_METADATA_RESULT === "success";
+            const updateType = process.env.DEPENDABOT_UPDATE_TYPE;
+            const minorOrPatch = [
+              "version-update:semver-minor",
+              "version-update:semver-patch",
+            ].includes(updateType);
+            const hasAutoMergeLabel = pullRequest.labels.nodes.some(({name}) => name === "automerge");
+            const eventHeadMatchesCurrent = Boolean(eventHeadSha) && pullRequest.headRefOid === eventHeadSha;
+            const eligible =
+              metadataVerified &&
+              minorOrPatch &&
+              hasAutoMergeLabel &&
+              !pullRequest.isDraft &&
+              eventHeadMatchesCurrent;
+
+            if (!eligible) {
+              if (isAutomationMerge(pullRequest)) {
+                await disableAutomationMerge(pullRequest);
+                core.info("Disabled this workflow's auto-merge request because current eligibility is not verified.");
+              } else {
+                core.info("Auto-merge is ineligible; no request owned by this workflow needs removal.");
+              }
+              return;
+            }
+
+            if (pullRequest.autoMergeRequest) {
+              core.info(isAutomationMerge(pullRequest)
+                ? "This workflow's auto-merge request is already enabled for the eligible head."
+                : "Preserving an auto-merge request enabled by another actor.");
+              return;
+            }
+
             await github.graphql(
-              `mutation($pullRequestId: ID!, $mergeMethod: PullRequestMergeMethod!) {
-                enablePullRequestAutoMerge(input: {pullRequestId: $pullRequestId, mergeMethod: $mergeMethod}) {
+              `mutation($pullRequestId: ID!, $mergeMethod: PullRequestMergeMethod!, $expectedHeadOid: GitObjectID!) {
+                enablePullRequestAutoMerge(input: {
+                  pullRequestId: $pullRequestId,
+                  mergeMethod: $mergeMethod,
+                  expectedHeadOid: $expectedHeadOid
+                }) {
                   pullRequest { number }
                 }
               }`,
               {
-                pullRequestId: pr.node_id,
+                pullRequestId: pullRequest.id,
                 mergeMethod: "SQUASH",
-              }
+                expectedHeadOid: eventHeadSha,
+              },
             );
+
+            // Labels and draft state cannot be supplied as GraphQL preconditions.
+            // Re-read after enabling and roll back this workflow's request if either changed.
+            const latestPullRequest = await readCurrentPullRequest();
+            const stillEligible =
+              metadataVerified &&
+              minorOrPatch &&
+              latestPullRequest &&
+              latestPullRequest.headRefOid === eventHeadSha &&
+              !latestPullRequest.isDraft &&
+              latestPullRequest.labels.nodes.some(({name}) => name === "automerge");
+            if (!stillEligible && latestPullRequest && isAutomationMerge(latestPullRequest)) {
+              await disableAutomationMerge(latestPullRequest);
+              core.info("Disabled auto-merge after eligibility changed during reconciliation.");
+            }
