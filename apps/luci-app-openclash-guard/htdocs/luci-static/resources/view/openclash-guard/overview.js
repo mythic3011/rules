@@ -30,9 +30,9 @@ function stateClass(ok) {
 
 function card(title, value, detail, klass) {
 	return E('div', { 'class': 'ocg-card ' + (klass || '') }, [
-		E('div', { 'class': 'ocg-card-title' }, title),
-		E('div', { 'class': 'ocg-card-value' }, value),
-		E('div', { 'class': 'ocg-card-detail' }, detail || '')
+		E('div', { 'class': 'ocg-card-title' }, [ title ]),
+		E('div', { 'class': 'ocg-card-value' }, [ value ]),
+		E('div', { 'class': 'ocg-card-detail' }, [ detail || '' ])
 	]);
 }
 
@@ -95,9 +95,9 @@ function serviceCard(name, id, mode, status, records, regions) {
 	var last = latestFor(records, id);
 	var observed = last ? (last.ok ? [ last.country || '-', last.colo || '-', last.ip || '-' ].join(' · ') : _('Last probe failed')) : _('Not tested yet');
 	return E('div', { 'class': 'ocg-service' }, [
-		E('div', { 'class': 'ocg-service-name' }, name),
-		E('div', { 'class': 'ocg-service-route ' + (configured ? 'ocg-ok-text' : 'ocg-muted') }, routeTarget(mode, status)),
-		E('div', { 'class': 'ocg-service-observed' }, observed),
+		E('div', { 'class': 'ocg-service-name' }, [ name ]),
+		E('div', { 'class': 'ocg-service-route ' + (configured ? 'ocg-ok-text' : 'ocg-muted') }, [ routeTarget(mode, status) ]),
+		E('div', { 'class': 'ocg-service-observed' }, [ observed ]),
 		serviceTrend(records, id, regions)
 	]);
 }
@@ -146,21 +146,21 @@ function recentEvents(records, regions) {
 		return E('div', { 'class': 'ocg-empty' }, _('No egress observations yet. Run the service tests to populate this dashboard.'));
 	return E('table', { 'class': 'table ocg-events' }, [
 		E('tr', { 'class': 'tr table-titles' }, [
-			E('th', {}, _('Time')),
-			E('th', {}, _('Service')),
-			E('th', {}, _('Observed')),
-			E('th', {}, _('Expected')),
-			E('th', {}, _('Result'))
+			E('th', {}, [ _('Time') ]),
+			E('th', {}, [ _('Service') ]),
+			E('th', {}, [ _('Observed') ]),
+			E('th', {}, [ _('Expected') ]),
+			E('th', {}, [ _('Result') ])
 		])
 	].concat(records.slice(0, 8).map(function(record) {
 		var status = eventStatus(record, regions);
 		var observed = record.ok ? [ record.country || '-', record.colo || '-', record.ip || '-' ].join(' · ') : (record.error || _('Probe failed'));
 		return E('tr', {}, [
-			E('td', {}, formatTime(record.epoch)),
-			E('td', {}, record.service || '-'),
-			E('td', {}, observed),
-			E('td', {}, expectedText(record, regions)),
-			E('td', {}, E('span', { 'class': 'ocg-event-badge ' + status.klass }, status.text))
+			E('td', {}, [ formatTime(record.epoch) ]),
+			E('td', {}, [ record.service || '-' ]),
+			E('td', {}, [ observed ]),
+			E('td', {}, [ expectedText(record, regions) ]),
+			E('td', {}, E('span', { 'class': 'ocg-event-badge ' + status.klass }, [ status.text ]))
 		]);
 	})));
 }
@@ -251,11 +251,11 @@ return view.extend({
 					E('div', { 'class': 'ocg-route-summary' }, [
 						E('div', { 'class': 'ocg-route-box' }, [
 							E('div', { 'class': 'ocg-route-label' }, _('Direct region')),
-							E('div', { 'class': 'ocg-route-value' }, (status.directRegion || '-').toUpperCase())
+							E('div', { 'class': 'ocg-route-value' }, [ (status.directRegion || '-').toUpperCase() ])
 						]),
 						E('div', { 'class': 'ocg-route-box' }, [
 							E('div', { 'class': 'ocg-route-label' }, _('Proxy region')),
-							E('div', { 'class': 'ocg-route-value' }, (status.proxyRegion || '-').toUpperCase())
+							E('div', { 'class': 'ocg-route-value' }, [ (status.proxyRegion || '-').toUpperCase() ])
 						])
 					]),
 					E('div', { 'class': 'ocg-services' }, [
@@ -273,10 +273,10 @@ return view.extend({
 				E('div', { 'class': 'ocg-panel' }, [
 					E('h3', {}, _('Profile & distribution')),
 					E('table', { 'class': 'table ocg-profile-table' }, [
-						E('tr', {}, [E('td', {}, _('Profile mode')), E('td', {}, status.profileMode || '-')]),
-						E('tr', {}, [E('td', {}, _('Profile URL')), E('td', { 'style': 'word-break:break-all' }, status.profileUrl || _('Not configured'))]),
-						E('tr', {}, [E('td', {}, _('Distribution source')), E('td', {}, status.distributionSource || 'auto')]),
-						E('tr', {}, [E('td', {}, _('Automatic refresh')), E('td', {}, yesNo(status.autoRefresh))])
+						E('tr', {}, [E('td', {}, _('Profile mode')), E('td', {}, [ status.profileMode || '-' ])]),
+						E('tr', {}, [E('td', {}, _('Profile URL')), E('td', { 'style': 'word-break:break-all' }, [ status.profileUrl || _('Not configured') ])]),
+						E('tr', {}, [E('td', {}, _('Distribution source')), E('td', {}, [ status.distributionSource || 'auto' ])]),
+						E('tr', {}, [E('td', {}, _('Automatic refresh')), E('td', {}, [ yesNo(status.autoRefresh) ])])
 					]),
 					E('div', { 'class': 'ocg-actions' }, [
 						E('a', { 'class': 'btn cbi-button cbi-button-action', 'href': L.url('admin/services/openclash-guard/tests') }, _('Run egress tests')),

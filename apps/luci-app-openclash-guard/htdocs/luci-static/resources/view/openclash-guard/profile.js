@@ -52,13 +52,13 @@ return view.extend({
 			var value = url.formvalue(section_id) || '';
 			return callProbeProfile(value).then(function(result) {
 				if (!result.ok)
-					return ui.addNotification(null, E('p', {}, result.error || _('Profile probe failed.')), 'error');
+					return ui.addNotification(null, E('p', {}, [ result.error || _('Profile probe failed.') ]), 'error');
 				var message = '%s: %d bytes, %d INI sections%s'.format(
 					result.looksLikeIni ? _('Looks valid') : _('Unexpected format'),
 					result.bytes || 0,
 					result.sections || 0,
 					result.firstSection ? ', first=[' + result.firstSection + ']' : '');
-				ui.addNotification(null, E('p', {}, message), result.looksLikeIni ? 'info' : 'warning');
+				ui.addNotification(null, E('p', {}, [ message ]), result.looksLikeIni ? 'info' : 'warning');
 			});
 		};
 
