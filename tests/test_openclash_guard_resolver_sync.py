@@ -66,10 +66,15 @@ if args[:3] == ["-a", "list", "chain"] and len(args) == 6:
     print("table inet openclash_guard {")
     print("\tchain forward {")
     iface = "lan0" if mode == "wrong-direct-iface" else "wan"
+    v4_set = "resolver_sync_v4_shadow" if mode == "suffix-v4-consumer" else "resolver_sync_v4"
+    v6_set = "resolver_sync_v6_shadow" if mode == "suffix-v6-consumer" else "resolver_sync_v6"
     if mode != "missing-v4-consumer":
-        print(f'\t\toifname "{iface}" ip daddr @resolver_sync_v4 reject comment "openclash-guard:resolver-sync-v4" # handle 10')
+        if mode == "nonreject-log-prefix-v4":
+            print(f'\t\toifname "{iface}" ip daddr @{v4_set} log prefix "reject" accept comment "openclash-guard:resolver-sync-v4" # handle 10')
+        else:
+            print(f'\t\toifname "{iface}" ip daddr @{v4_set} reject comment "openclash-guard:resolver-sync-v4" # handle 10')
     if mode != "missing-v6-consumer":
-        print(f'\t\toifname "{iface}" ip6 daddr @resolver_sync_v6 reject comment "openclash-guard:resolver-sync-v6" # handle 11')
+        print(f'\t\toifname "{iface}" ip6 daddr @{v6_set} reject comment "openclash-guard:resolver-sync-v6" # handle 11')
     print("\t}")
     print("}")
     sys.exit(0)
@@ -85,6 +90,8 @@ class ResolverSyncCapabilityTests(unittest.TestCase):
         self.bin = self.work / "bin"
         self.bin.mkdir()
         self.state = self.work / "resolver-sync.json"
+        self.cache = self.work / "resolver-sync.cache"
+        self.cursor = self.work / "resolver-sync.cursor"
         self.nft_log = self.work / "nft.log"
         nft = self.bin / "nft"
         nft.write_text(FAKE_NFT, encoding="utf-8")
@@ -99,6 +106,8 @@ class ResolverSyncCapabilityTests(unittest.TestCase):
             {
                 "PATH": f"{self.bin}{os.pathsep}{env.get('PATH', '')}",
                 "GUARD_RESOLVER_SYNC_STATE_FILE": str(self.state),
+                "GUARD_RESOLVER_SYNC_CACHE_FILE": str(self.cache),
+                "GUARD_RESOLVER_SYNC_CURSOR_FILE": str(self.cursor),
                 "GUARD_RESOLVER_SYNC_NOW_EPOCH": str(now),
                 "GUARD_RESOLVER_SYNC_MAX_AGE": "120",
                 "GUARD_DIRECT_WAN_IFACE": "wan",
@@ -158,9 +167,27 @@ class ResolverSyncCapabilityTests(unittest.TestCase):
     def test_missing_state_stays_unavailable(self) -> None:
         self.assertEqual(self.backend(), "unavailable")
 
+    def test_malformed_state_json_stays_unavailable_without_nft_access(self) -> None:
+        self.state.write_text('{"schemaVersion":1,\n', encoding="utf-8")
+        self.assertEqual(self.backend(), "unavailable")
+        self.assertFalse(self.nft_log.exists(), "invalid state must be rejected before nft inspection")
+
     def test_valid_fresh_contract_is_promoted(self) -> None:
         self.write_state()
+        state_before = self.state.read_bytes()
         self.assertEqual(self.backend(), "adguardhome-resolver-sync")
+        self.assertEqual(
+            self.nft_log.read_text(encoding="utf-8").splitlines(),
+            [
+                "list set inet openclash_guard resolver_sync_v4",
+                "list set inet openclash_guard resolver_sync_v6",
+                "-a list chain inet openclash_guard forward",
+            ],
+            "positive capability verification must only read nft state",
+        )
+        self.assertEqual(self.state.read_bytes(), state_before, "capability verification must not rewrite producer state")
+        self.assertFalse(self.cache.exists(), "capability verification must not create producer cache")
+        self.assertFalse(self.cursor.exists(), "capability verification must not create producer cursor")
 
     def test_degraded_state_is_rejected_before_nft_lookup(self) -> None:
         self.write_state(status="degraded")
@@ -226,6 +253,15 @@ class ResolverSyncCapabilityTests(unittest.TestCase):
         self.assertEqual(self.backend(mode="missing-v4-consumer"), "unavailable")
         self.assertEqual(self.backend(mode="missing-v6-consumer"), "unavailable")
         self.assertEqual(self.backend(mode="wrong-direct-iface"), "unavailable")
+
+    def test_consumer_set_names_must_match_complete_nft_tokens(self) -> None:
+        self.write_state()
+        self.assertEqual(self.backend(mode="suffix-v4-consumer"), "unavailable")
+        self.assertEqual(self.backend(mode="suffix-v6-consumer"), "unavailable")
+
+    def test_reject_text_inside_log_prefix_is_not_a_reject_verdict(self) -> None:
+        self.write_state()
+        self.assertEqual(self.backend(mode="nonreject-log-prefix-v4"), "unavailable")
 
     def test_dns_backend_keeps_dnsmasq_contract_and_gates_adguardhome(self) -> None:
         dnsmasq = self.run_shell("guard_dns_domain_set_backend dnsmasq")

@@ -352,14 +352,28 @@ guard_cmd_doctor() {
     fi
     _guard_doctor_dns_bypass_available=$(guard_env_get dns.clientBypass.available)
     if [ "$_guard_doctor_dns_bypass_available" = 1 ]; then
-        _guard_doctor_dns_bypass_count=$(guard_env_get dns.clientBypass.count)
-        if [ "${_guard_doctor_dns_bypass_count:-0}" -gt 0 ] 2>/dev/null; then
-            _guard_doctor_dns_bypass_clients=$(guard_env_get dns.clientBypass.clients)
-            _guard_doctor_dns_bypass_port53=$(guard_env_get dns.clientBypass.port53)
-            _guard_doctor_dns_bypass_dot853=$(guard_env_get dns.clientBypass.dot853)
-            _guard_doctor_dns_bypass_hijack53=$(guard_env_get dns.clientBypass.hijack53)
-            cli_warn "client DNS firewall bypass detected: clients=${_guard_doctor_dns_bypass_clients:-unknown} port53=$_guard_doctor_dns_bypass_port53 dot853=$_guard_doctor_dns_bypass_dot853 hijack53=$_guard_doctor_dns_bypass_hijack53"
+        _guard_doctor_dns_bypass_detected=$(guard_env_get dns.clientBypass.detected)
+        _guard_doctor_dns_bypass_rules=$(guard_env_get dns.clientBypass.rules)
+        _guard_doctor_dns_bypass_port53_rules=$(guard_env_get dns.clientBypass.port53Rules)
+        _guard_doctor_dns_bypass_dot853_rules=$(guard_env_get dns.clientBypass.dot853Rules)
+        _guard_doctor_dns_bypass_hijack_rules=$(guard_env_get dns.clientBypass.hijackBypassRules)
+        _guard_doctor_dns_bypass_unknown_sources=$(guard_env_get dns.clientBypass.unknownSourceRules)
+        _guard_doctor_dns_bypass_unknown_dports=$(guard_env_get dns.clientBypass.unknownDportRules)
+        _guard_doctor_dns_bypass_count=$(guard_env_get dns.clientBypass.clients.count)
+        _guard_doctor_dns_bypass_clients=$(guard_env_get dns.clientBypass.clients.items)
+        cli_kv dns.clientBypass.rules "$_guard_doctor_dns_bypass_rules"
+        cli_kv dns.clientBypass.port53Rules "$_guard_doctor_dns_bypass_port53_rules"
+        cli_kv dns.clientBypass.dot853Rules "$_guard_doctor_dns_bypass_dot853_rules"
+        cli_kv dns.clientBypass.hijackBypassRules "$_guard_doctor_dns_bypass_hijack_rules"
+        cli_kv dns.clientBypass.unknownSourceRules "$_guard_doctor_dns_bypass_unknown_sources"
+        cli_kv dns.clientBypass.unknownDportRules "$_guard_doctor_dns_bypass_unknown_dports"
+        cli_kv dns.clientBypass.clients.count "$_guard_doctor_dns_bypass_count"
+        [ -z "$_guard_doctor_dns_bypass_clients" ] || cli_kv dns.clientBypass.clients.items "$_guard_doctor_dns_bypass_clients"
+        if [ "$_guard_doctor_dns_bypass_detected" = 1 ]; then
+            cli_warn "client DNS firewall bypass detected: rules=$_guard_doctor_dns_bypass_rules clients=$_guard_doctor_dns_bypass_count unknownSourceRules=$_guard_doctor_dns_bypass_unknown_sources unknownDportRules=$_guard_doctor_dns_bypass_unknown_dports port53Rules=$_guard_doctor_dns_bypass_port53_rules dot853Rules=$_guard_doctor_dns_bypass_dot853_rules hijackBypassRules=$_guard_doctor_dns_bypass_hijack_rules"
             cli_info "DNS bypass diagnostics are observation-only; firewall policy was not modified"
+        elif [ "$_guard_doctor_dns_bypass_unknown_dports" -gt 0 ] 2>/dev/null; then
+            cli_warn "DNS bypass scan incomplete: unknownDportRules=$_guard_doctor_dns_bypass_unknown_dports; unsupported destination-port selectors may include port 53 or 853"
         fi
     elif [ "$_guard_doctor_dns_bypass_available" = 0 ]; then
         cli_warn "client DNS firewall bypass diagnostics unavailable; required fw4 chains could not be observed"

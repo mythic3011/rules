@@ -658,9 +658,38 @@ _guard_resolver_sync_consumer_ready() {
         -v direct_iface="$_guard_rs_cr_direct" \
         -v set_name="$_GUARD_RESOLVER_SYNC_V4_SET" \
         -v comment="$_GUARD_RESOLVER_SYNC_V4_RULE_COMMENT" '
-        index($0, "oifname \"" direct_iface "\"") &&
-        index($0, "ip daddr @" set_name) && index($0, "reject") &&
-        index($0, "comment \"" comment "\"") { found = 1 }
+        function has_iface(wanted,    i) {
+            for (i = 1; i + 1 <= NF; i++) {
+                if ($i == "comment" || $i == "#") break
+                if ($i == "oifname" && $(i + 1) == "\"" wanted "\"") return 1
+            }
+            return 0
+        }
+        function has_set_token(address_family, wanted,    i, token) {
+            for (i = 1; i + 2 <= NF; i++) {
+                if ($i == "comment" || $i == "#") break
+                if ($i != address_family || $(i + 1) != "daddr") continue
+                token = $(i + 2)
+                if (token == "@" wanted) return 1
+            }
+            return 0
+        }
+        function has_reject_verdict(    i) {
+            for (i = 1; i <= NF; i++) {
+                if ($i == "comment" || $i == "#") break
+                if ($i == "reject") return 1
+            }
+            return 0
+        }
+        function has_owner_comment(wanted,    i) {
+            for (i = 1; i + 1 <= NF; i++) {
+                if ($i == "#") break
+                if ($i == "comment" && $(i + 1) == "\"" wanted "\"") return 1
+            }
+            return 0
+        }
+        has_iface(direct_iface) && has_set_token("ip", set_name) &&
+        has_reject_verdict() && has_owner_comment(comment) { found = 1 }
         END { exit !found }
     ' || return 1
 
@@ -668,9 +697,38 @@ _guard_resolver_sync_consumer_ready() {
         -v direct_iface="$_guard_rs_cr_direct" \
         -v set_name="$_GUARD_RESOLVER_SYNC_V6_SET" \
         -v comment="$_GUARD_RESOLVER_SYNC_V6_RULE_COMMENT" '
-        index($0, "oifname \"" direct_iface "\"") &&
-        index($0, "ip6 daddr @" set_name) && index($0, "reject") &&
-        index($0, "comment \"" comment "\"") { found = 1 }
+        function has_iface(wanted,    i) {
+            for (i = 1; i + 1 <= NF; i++) {
+                if ($i == "comment" || $i == "#") break
+                if ($i == "oifname" && $(i + 1) == "\"" wanted "\"") return 1
+            }
+            return 0
+        }
+        function has_set_token(address_family, wanted,    i, token) {
+            for (i = 1; i + 2 <= NF; i++) {
+                if ($i == "comment" || $i == "#") break
+                if ($i != address_family || $(i + 1) != "daddr") continue
+                token = $(i + 2)
+                if (token == "@" wanted) return 1
+            }
+            return 0
+        }
+        function has_reject_verdict(    i) {
+            for (i = 1; i <= NF; i++) {
+                if ($i == "comment" || $i == "#") break
+                if ($i == "reject") return 1
+            }
+            return 0
+        }
+        function has_owner_comment(wanted,    i) {
+            for (i = 1; i + 1 <= NF; i++) {
+                if ($i == "#") break
+                if ($i == "comment" && $(i + 1) == "\"" wanted "\"") return 1
+            }
+            return 0
+        }
+        has_iface(direct_iface) && has_set_token("ip6", set_name) &&
+        has_reject_verdict() && has_owner_comment(comment) { found = 1 }
         END { exit !found }
     '
 }

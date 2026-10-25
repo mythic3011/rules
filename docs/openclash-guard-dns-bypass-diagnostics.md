@@ -2,13 +2,12 @@
 
 OpenClash Guard treats DNS firewall exceptions as observable runtime facts. It does not delete, rewrite, or reconcile third-party firewall rules.
 
-The detector reads the live `inet fw4` ruleset and reports only explicit client-scoped DNS escape paths:
+The detector reads the live `inet fw4` ruleset and reports explicit DNS escape paths:
 
-- a source IPv4 address with destination port 53 accepted directly to WAN;
-- a source IPv4 address with destination port 853 accepted directly to WAN;
-- a source IPv4 address whose destination-port-53 traffic returns from `dstnat` before normal DNS hijack processing.
+- a port-53 and/or port-853 rule in `forward_lan` that jumps to `accept_to_wan`;
+- a port-53 rule in `dstnat` that returns before normal DNS hijack processing.
 
-A generic LAN-to-WAN accept rule is not enough to trigger the detector. The rule must contain both a concrete `ip saddr` selector and the relevant DNS destination port.
+A generic LAN-to-WAN accept rule is not enough to trigger the detector. Each reported rule must contain the relevant destination port and action. A literal IPv4 address, IPv6 address, or valid CIDR is included in the unique client list. Set references such as `ip saddr @dns_bypass_clients`, missing source selectors, and other complex expressions are not guessed or expanded; each such rule increments `unknownSourceRules`.
 
 `openclash-guard status --json` exposes the observation under `dns.clientBypass`:
 
@@ -28,6 +27,21 @@ A generic LAN-to-WAN accept rule is not enough to trigger the detector. The rule
 ```
 
 `available: false` means Guard could not read both required fw4 chains. It must not be interpreted as proof that no bypass exists.
+
+`openclash-guard doctor` reports rule counts separately from the compatible status JSON fields:
+
+| Doctor field | Meaning |
+| --- | --- |
+| `dns.clientBypass.rules` | Direct-WAN forward rules matching port 53 and/or 853 |
+| `dns.clientBypass.port53Rules` | Matching direct-WAN rules for port 53 |
+| `dns.clientBypass.dot853Rules` | Matching direct-WAN rules for port 853 |
+| `dns.clientBypass.hijackBypassRules` | Port-53 `dstnat` return rules |
+| `dns.clientBypass.unknownSourceRules` | Matching rules whose client selector is missing or not a literal address/CIDR |
+| `dns.clientBypass.unknownDportRules` | Forward or `dstnat` rules whose destination-port selector is unsupported or ambiguous |
+| `dns.clientBypass.clients.count` | Number of unique literal client addresses/CIDRs |
+| `dns.clientBypass.clients.items` | The unique literal client list, when non-empty |
+
+The detector understands numeric ports, nft brace lists, numeric ranges, and numeric equality/inequality comparisons. It reports unsupported selectors through `unknownDportRules` and warns that it cannot rule out port 53/853. The scan can be available while `unknownSourceRules` is non-zero. In that case, the listed clients are only the literal sources Guard could identify; they are not a complete list of clients covered by the matching rules.
 
 ## Non-goals
 

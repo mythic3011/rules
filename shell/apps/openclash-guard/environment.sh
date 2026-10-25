@@ -14,6 +14,13 @@ _GUARD_DNS_AGH_ENABLED=0
 _GUARD_DNS_AGH_RUNNING=0
 _GUARD_DNS_DOMAIN_SET=unavailable
 _GUARD_DNS_BYPASS_AVAILABLE=0
+_GUARD_DNS_BYPASS_DETECTED=0
+_GUARD_DNS_BYPASS_RULES=0
+_GUARD_DNS_BYPASS_PORT53_RULES=0
+_GUARD_DNS_BYPASS_DOT853_RULES=0
+_GUARD_DNS_HIJACK_BYPASS_RULES=0
+_GUARD_DNS_BYPASS_UNKNOWN_SOURCE_RULES=0
+_GUARD_DNS_BYPASS_UNKNOWN_DPORT_RULES=0
 _GUARD_DNS_BYPASS_CLIENTS=
 _GUARD_DNS_BYPASS_CLIENT_COUNT=0
 _GUARD_DNS_BYPASS_PORT53=0
@@ -247,8 +254,18 @@ guard_env_get() {
         dns.adguardhomeRunning) printf '%s\n' "$_GUARD_DNS_AGH_RUNNING" ;;
         dns.domainSetBackend) printf '%s\n' "$_GUARD_DNS_DOMAIN_SET" ;;
         dns.clientBypass.available) printf '%s\n' "$_GUARD_DNS_BYPASS_AVAILABLE" ;;
+        dns.clientBypass.scanAvailable) printf '%s\n' "$_GUARD_DNS_BYPASS_AVAILABLE" ;;
+        dns.clientBypass.detected) printf '%s\n' "$_GUARD_DNS_BYPASS_DETECTED" ;;
+        dns.clientBypass.rules) printf '%s\n' "$_GUARD_DNS_BYPASS_RULES" ;;
+        dns.clientBypass.port53Rules) printf '%s\n' "$_GUARD_DNS_BYPASS_PORT53_RULES" ;;
+        dns.clientBypass.dot853Rules) printf '%s\n' "$_GUARD_DNS_BYPASS_DOT853_RULES" ;;
+        dns.clientBypass.hijackBypassRules) printf '%s\n' "$_GUARD_DNS_HIJACK_BYPASS_RULES" ;;
+        dns.clientBypass.unknownSourceRules) printf '%s\n' "$_GUARD_DNS_BYPASS_UNKNOWN_SOURCE_RULES" ;;
+        dns.clientBypass.unknownDportRules) printf '%s\n' "$_GUARD_DNS_BYPASS_UNKNOWN_DPORT_RULES" ;;
         dns.clientBypass.count) printf '%s\n' "$_GUARD_DNS_BYPASS_CLIENT_COUNT" ;;
+        dns.clientBypass.clients.count) printf '%s\n' "$_GUARD_DNS_BYPASS_CLIENT_COUNT" ;;
         dns.clientBypass.clients) printf '%s\n' "$_GUARD_DNS_BYPASS_CLIENTS" ;;
+        dns.clientBypass.clients.items) printf '%s\n' "$_GUARD_DNS_BYPASS_CLIENTS" ;;
         dns.clientBypass.port53) printf '%s\n' "$_GUARD_DNS_BYPASS_PORT53" ;;
         dns.clientBypass.dot853) printf '%s\n' "$_GUARD_DNS_BYPASS_DOT853" ;;
         dns.clientBypass.hijack53) printf '%s\n' "$_GUARD_DNS_HIJACK_BYPASS" ;;

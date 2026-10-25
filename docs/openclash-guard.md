@@ -121,28 +121,13 @@ The terminal `openclash-guard:kill-switch` forward reject is intentionally narro
 
 ## AdGuard Home Domain-Set Backend
 
-Guard currently reports `dns.domainSetBackend: unavailable` whenever AdGuard Home owns DNS. That is intentional. Resolver-sync is not implemented, so dest-set protection is not claimed, and fail-closed policy stays `state: degraded` / `enforcement: reject` when protection classes require it.
+Guard includes a bounded AdGuard Home resolver-sync producer. It reads query-log records through the structured control API, validates IPv4 and IPv6 answers, applies TTL-bounded timeouts, and updates Guard-owned nft sets. The producer runs through `openclash-guard rules sync watch`; it does not depend on OpenClash's process lifecycle.
 
-`enforcement: reject` in this state is service-policy fail-closed state. While OpenClash itself is healthy it does **not** install the table-wide terminal forward reject. This distinction allows ordinary OpenClash-managed or intentionally bypassed traffic to continue while Guard accurately reports that domain-derived destination-set enforcement is unavailable.
+Guard reports `adguardhome-resolver-sync` only when the producer state is fresh and matches the running selector revision, both owned timeout sets are present, and both exact direct-WAN consumer rules are visible. Missing or incomplete evidence keeps the backend `unavailable`; policies that require the backend remain degraded and fail closed. Capability verification is read-only.
 
-Do not treat this degraded state as a display bug.
+The dnsmasq path continues to report `dnsmasq-nftset` when dnsmasq owns DNS. Guard does not edit dnsmasq configuration itself.
 
-The dnsmasq path only claims `dnsmasq-nftset` because OpenWrt dnsmasq can populate nft sets with `nftset=/domain/...` as DNS answers arrive. Guard does not currently write those dnsmasq lines itself; it refuses to pretend AdGuard Home has the same capability.
-
-A correct AdGuard Home backend would need a dedicated resolver-sync helper, not a shell-only hook:
-
-1. **Data to synchronize:** destination IPs for domains that Guard fail-closed classes protect.
-2. **nft sets that need DNS-derived addresses:** per-family dest sets owned by Guard (`inet openclash_guard`), not OpenClash disposable chains.
-3. **Set ownership:** Guard must create, replace, and delete only its own sets/comments.
-4. **Create/refresh/expire:** insert on a validated resolved answer; refresh on later answers; expire on TTL or an explicit bounded timeout. Permanent entries are forbidden.
-5. **IPv4 and IPv6:** separate sets and validation. Never coerce families.
-6. **AdGuard Home restart:** helper must resubscribe/rebuild from a known-empty or last-good snapshot and keep affected service protection fail-closed until sets are functional again.
-7. **OpenClash restart:** Guard nft table is independent; helper must not assume OpenClash chains still exist.
-8. **Stale DNS results:** TTL/timeout eviction; never leave addresses that outlive the answer that created them.
-9. **Existing AGH mechanism:** AdGuard Home has query-log/API surfaces, not a dnsmasq-equivalent `nftset=` injector. Using the API from POSIX `sh` as the live datapath is unsafe (injection, races, unbounded logs).
-10. **Where it should live:** a separate daemon/helper with structured parsing, IP validation, atomic nft updates, and fail-closed health. Shell-only sync is not acceptable.
-
-Until that helper exists, keep `domain-set-backend-unavailable`. Never mark the backend healthy unless dest-set protection is actually functional.
+See [the resolver-sync capability contract](openclash-guard-resolver-sync-contract.md) for the state schema, set ownership, health checks, and read-only verification boundary.
 
 ## Public Surfaces
 
