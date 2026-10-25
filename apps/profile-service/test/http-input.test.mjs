@@ -37,6 +37,19 @@ test("JSON media type accepts complete parameters and rejects lookalikes", async
   }
 });
 
+test("malformed JSON returns invalid_json with a client error status", async () => {
+  for (const body of ["{\"spec\":", "not-json", "{\"spec\": {}} trailing"]) {
+    const response = await worker.fetch(requestWith(body), env);
+    assert.equal(response.status, 400);
+    assert.equal((await response.json()).error, "invalid_json");
+  }
+
+  const invalidUtf8 = requestWith(new Uint8Array([0xff]));
+  const response = await worker.fetch(invalidUtf8, env);
+  assert.equal(response.status, 400);
+  assert.equal((await response.json()).error, "invalid_json");
+});
+
 test("declared body size accepts decimal octets and rejects invalid or excessive lengths", async () => {
   const body = JSON.stringify({ spec: {} });
   const accepted = requestWith(body, { "content-length": String(new TextEncoder().encode(body).byteLength) });

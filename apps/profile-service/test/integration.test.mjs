@@ -154,6 +154,43 @@ test("read capability cannot manage profile; manage capability can", async () =>
   assert.deepEqual((await allowed.json()).spec.disabledNodeRegions, ["hk"]);
 });
 
+test("read-token rotation requires manage authorization and revokes the previous subscription URL", async () => {
+  const environment = env();
+  const saved = await createSavedProfile(environment, { disabledNodeRegions: ["jp"] });
+  const rotateUrl = `https://rules.example/api/v1/profiles/${saved.id}/rotate-read-token`;
+
+  const unauthenticated = await worker.fetch(new Request(rotateUrl, { method: "POST" }), environment);
+  assert.equal(unauthenticated.status, 401);
+  assert.equal((await unauthenticated.json()).error, "unauthorized");
+
+  const readCapability = await worker.fetch(new Request(rotateUrl, {
+    method: "POST",
+    headers: { authorization: `Bearer ${saved.readToken}` },
+  }), environment);
+  assert.equal(readCapability.status, 404);
+  assert.equal((await readCapability.json()).error, "not_found");
+
+  const rotated = await worker.fetch(new Request(rotateUrl, {
+    method: "POST",
+    headers: { authorization: `Bearer ${saved.manageToken}` },
+  }), environment);
+  assert.equal(rotated.status, 200);
+  const body = await rotated.json();
+  assert.match(body.readToken, /^[A-Za-z0-9_-]{43}$/);
+  assert.notEqual(body.readToken, saved.readToken);
+  assert.equal(Object.hasOwn(body, "manageToken"), false);
+
+  const oldUrl = `https://rules.example/p/${saved.readToken}.ini`;
+  const oldSubscription = await worker.fetch(new Request(oldUrl), environment);
+  assert.equal(oldSubscription.status, 404);
+  assert.equal(await oldSubscription.text(), "Not found\n");
+
+  const newSubscription = await worker.fetch(new Request(`https://rules.example/p/${body.readToken}.ini`), environment);
+  assert.equal(newSubscription.status, 200);
+  assert.equal(newSubscription.headers.get("x-profile-revision"), "2");
+  assert.match(await newSubscription.text(), /\[custom\]/);
+});
+
 test("editing saved ProfileSpec keeps subscription URL stable", async () => {
   const environment = env();
   const saved = await createSavedProfile(environment, { disabledNodeRegions: ["jp"] });
