@@ -9,8 +9,12 @@ from ai_profiles_test_support import ROOT
 
 class WorkflowDeliveryTest(unittest.TestCase):
     def test_ai_workflow_watches_refactored_python_package(self) -> None:
-        workflow = (ROOT / ".github/workflows/auto-generate-ai-profiles.yml").read_text(encoding="utf-8")
-        self.assertGreaterEqual(workflow.count('"internal/python/ai_profiles/**"'), 2)
+        path = ROOT / ".github/workflows/auto-generate-ai-profiles.yml"
+        workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+        triggers = workflow.get("on", workflow.get(True, {}))
+        self.assertIn("internal/python/ai_profiles/**", triggers["pull_request"]["paths"])
+        self.assertEqual(triggers["push"]["branches"], ["**"])
+        self.assertNotIn("paths", triggers["push"])
 
     def test_ai_workflow_asks_generator_for_managed_pathspecs(self) -> None:
         workflow = (ROOT / ".github/workflows/auto-generate-ai-profiles.yml").read_text(encoding="utf-8")

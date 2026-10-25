@@ -1,42 +1,7 @@
 name: Auto generate AI profiles
 on:
   push:
-    paths:
-      - "internal/python/generate_ai_profiles.py"
-      - "internal/python/generate_profile_service_runtime.py"
-      - "internal/python/generate_openclash_guard_release.py"
-      - "internal/python/generate_openclash_guard_runtime.py"
-      - "apps/profile-service/**"
-      - "internal/python/ai_profiles/**"
-      - "internal/python/local_profile_compose.py"
-      - "internal/python/validate_generated_profiles.py"
-      - "internal/typescript/routing/**"
-      - "internal/config/ai-routing/**"
-      - "internal/templates/ai-routing/**"
-      - "internal/generated/ai-routing/**"
-      - "internal/examples/ai-routing/**"
-      - "setup/openclash/install.sh"
-      - "setup/openclash/scripts/ai-routing-controller.sh"
-      - "shell/**"
-      - "dist/openclash-guard.release.json"
-      - "tests/routing/**"
-      - "tests/fixtures/routing/**"
-      - "tests/test_*.py"
-      - "internal/schemas/routing-config.schema.json"
-      - "docs/ai-routing-schema-foundation.md"
-      - "docs/ai-routing-firewall-proof.md"
-      - "docs/ai-profile-generator.md"
-      - "docs/kill-switch.md"
-      - "package.json"
-      - "pnpm-lock.yaml"
-      - "pnpm-workspace.yaml"
-      - "mise.toml"
-      - "Makefile"
-      - "internal/config/rulesctl.json"
-      - "internal/python/rulesctl.py"
-      - "requirements*.txt"
-      - "tsconfig.json"
-      - ".github/workflows/**"
+    branches: ["**"]
   pull_request:
     paths:
       - "internal/python/generate_ai_profiles.py"
@@ -81,6 +46,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: auto-generate-ai-profiles-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate-ai-profiles:
     runs-on: ubuntu-latest
@@ -91,12 +60,12 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           fetch-depth: 0
 
       - name: Set up mise
-        uses: jdx/mise-action@v5
+        uses: jdx/mise-action@82a612c5ab8bcda7cc5db6b7e81a8e7584c3dc6e # v5.2.3
         with:
           install: false
 
@@ -191,14 +160,14 @@ jobs:
       TARGET_REF: ${{ github.ref }}
 
     steps:
-      - name: Checkout pushed revision
-        uses: actions/checkout@v6
+      - name: Checkout validated revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
 
       - name: Set up mise
-        uses: jdx/mise-action@v5
+        uses: jdx/mise-action@82a612c5ab8bcda7cc5db6b7e81a8e7584c3dc6e # v5.2.3
         with:
           install: false
 
@@ -219,17 +188,24 @@ jobs:
         if: github.event_name == 'schedule'
         run: python3 internal/python/generate_ai_profiles.py --refresh-upstream-hosts
 
+      # Schedule inputs are refreshed independently from the read-only job, so
+      # validate this writer's generated snapshot before auditing or pushing it.
       - name: Regenerate repository outputs
         run: make generate
 
-      - name: Test profile service solver
-        run: pnpm run test:profile-service
+      - name: Validate generated outputs before write
+        run: python3 internal/python/validate_generated_profiles.py
+
+      - name: Revalidate source tree before write
+        run: make check-all
 
       - name: Audit generated upstream ownership
         run: python3 internal/python/generate_ai_profiles.py --audit-rule-coverage
 
       - name: Commit generated changes
+        shell: bash
         run: |
+          set -euo pipefail
           case "$TARGET_REF" in
             refs/heads/*) ;;
             *) echo "Refusing to push a non-branch ref: $TARGET_REF" >&2; exit 1 ;;
@@ -238,9 +214,24 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           mapfile -t managed_paths < <(./rulesctl managed-paths)
           git add -A -- "${managed_paths[@]}"
-          if ! git diff --cached --quiet; then
-            git commit -m "chore(ai): auto generate AI profiles"
-            git push origin "HEAD:${TARGET_REF}"
-          else
+          if git diff --cached --quiet; then
             echo "No generated changes."
+            exit 0
           fi
+
+          git commit -m "chore(generated): refresh managed outputs"
+          if git push origin "HEAD:${TARGET_REF}"; then
+            exit 0
+          fi
+
+          # Never execute or rewrite a newer revision in this write-capable job.
+          # Every branch push has its own workflow run to repair the newer tip.
+          git fetch --no-tags origin "$TARGET_REF"
+          remote_tip=$(git rev-parse FETCH_HEAD)
+          if [ "${{ github.event_name }}" = push ] && [ "$remote_tip" != "${{ github.sha }}" ]; then
+            echo "Writer superseded by newer target $remote_tip; its push workflow will repair managed outputs."
+            exit 0
+          fi
+
+          echo "Managed-output push failed without a superseding trusted push." >&2
+          exit 1
