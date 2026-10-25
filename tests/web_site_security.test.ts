@@ -69,6 +69,74 @@ test('safeUrl rejects control chars, enforces max length, and returns the canoni
   assert.equal(safeUrl(null as unknown as string), null);
 });
 
+test('rule asset URLs stay within the site dns/ or rule/ directories', async () => {
+  const { resolveRuleAssetUrl } = await import('../web/site/assets/common.js');
+  const pageUrl = 'https://example.test/project/ip-lookup.html';
+
+  assert.equal(
+    resolveRuleAssetUrl('dns/adblock.hosts.txt', pageUrl),
+    'https://example.test/project/dns/adblock.hosts.txt'
+  );
+  assert.equal(
+    resolveRuleAssetUrl('rule/Custom_Direct_Classical_IP.yaml', pageUrl),
+    'https://example.test/project/rule/Custom_Direct_Classical_IP.yaml'
+  );
+
+  for (const assetPath of [
+    '../secrets.txt',
+    'dns/../rule/secret.yaml',
+    'dns/%2e%2e/secret.txt',
+    'dns/%252e%252e/secret.txt',
+    '/dns/absolute.txt',
+    '\\\\evil.test\\asset.txt',
+    'https://evil.test/asset.txt',
+    '//evil.test/asset.txt',
+    'dns/file.txt?next=//evil.test',
+    'dns/file.txt#fragment',
+    'reports/file.json',
+    'dns//file.txt',
+    'dns/./file.txt',
+    'dns/file name.txt',
+    'dns/file.txt\u0000',
+    'dns/file.txt\n',
+  ]) {
+    assert.equal(resolveRuleAssetUrl(assetPath, pageUrl), null, `Rejected ${JSON.stringify(assetPath)}`);
+  }
+
+  assert.equal(resolveRuleAssetUrl('dns/file.txt', 'javascript:alert(1)'), null);
+});
+
+test('report summary URLs validate category slugs before resolving a local report path', async () => {
+  const { resolveReportSummaryUrl } = await import('../web/site/assets/common.js');
+  const pageUrl = 'https://example.test/project/report.html?category=adblock';
+
+  assert.equal(
+    resolveReportSummaryUrl('adblock', pageUrl),
+    'https://example.test/project/reports/adblock.summary.json'
+  );
+  assert.equal(
+    resolveReportSummaryUrl('tracking-v2_1', pageUrl),
+    'https://example.test/project/reports/tracking-v2_1.summary.json'
+  );
+
+  for (const category of [
+    '../secrets',
+    '..%2fsecrets',
+    'adblock/../../secrets',
+    'https://evil.test/adblock',
+    'adblock?next=//evil.test',
+    'adblock#fragment',
+    ' adblock',
+    'adblock\n',
+    '',
+    'x'.repeat(64),
+  ]) {
+    assert.equal(resolveReportSummaryUrl(category, pageUrl), null, `Rejected ${JSON.stringify(category)}`);
+  }
+
+  assert.equal(resolveReportSummaryUrl('adblock', 'file:///project/report.html'), null);
+});
+
 test('web/site report page sanitizes dynamic URL schemes before setting href', () => {
   const htmlContent = fs.readFileSync(path.join(SITE_DIR, 'report.html'), 'utf8');
   let jsContent = '';

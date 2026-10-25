@@ -1,4 +1,12 @@
-import { fmt, isIPv4, ipv4ToInt, parseCidrLine, cidrContains, buildSkippedReason } from './common.js';
+import {
+  fmt,
+  isIPv4,
+  ipv4ToInt,
+  parseCidrLine,
+  cidrContains,
+  buildSkippedReason,
+  resolveRuleAssetUrl,
+} from './common.js';
 
 export function initIpLookupPage() {
   const queryEl = document.getElementById('query');
@@ -16,7 +24,9 @@ export function initIpLookupPage() {
   }
 
   async function loadCidrEntries(assetPath) {
-    const response = await fetch(`./${assetPath}`);
+    const assetUrl = resolveRuleAssetUrl(assetPath, window.location.href);
+    if (!assetUrl) throw new Error('Invalid asset path');
+    const response = await fetch(assetUrl);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const text = await response.text();
     return text

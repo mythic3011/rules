@@ -1,5 +1,7 @@
 export function fmt(value?: number | bigint | null): string;
 export function safeUrl(value: unknown): string | null;
+export function resolveRuleAssetUrl(assetPath: unknown, pageUrl: string): string | null;
+export function resolveReportSummaryUrl(category: unknown, pageUrl: string): string | null;
 export function isIPv4(value: unknown): value is string;
 export function ipv4ToInt(ip: string): number;
 export function parseCidrLine(line: string): string | null;

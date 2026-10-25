@@ -1,4 +1,4 @@
-import { fmt, safeUrl } from './common.js';
+import { fmt, safeUrl, resolveReportSummaryUrl } from './common.js';
 
 export function initReportPage() {
   const params = new URLSearchParams(window.location.search);
@@ -34,7 +34,13 @@ export function initReportPage() {
     return;
   }
 
-  fetch(`./reports/${encodeURIComponent(category)}.summary.json`)
+  const summaryUrl = resolveReportSummaryUrl(category, window.location.href);
+  if (!summaryUrl) {
+    fail('Invalid category query parameter.');
+    return;
+  }
+
+  fetch(summaryUrl)
     .then((response) => {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       return response.json();
