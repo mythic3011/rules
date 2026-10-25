@@ -2,9 +2,9 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/internal/python/generate_ai_profiles.py
 # RULE-PROVIDER: AI_Jules_Classical
-# GROUP: 🤖 Jules
+# GROUP: 🤖 Google AI Tools
 # TOTAL: 2
-# SOURCE-DIGEST: f782b7d555497cd8b3e0281a0919b2fc396b89844e6ff1e9bcdf99735b34323f
+# SOURCE-DIGEST: 22e6e6d762f7a3e9803d54a083cc6f884d29992443373adbbcf38d2d8700bd03
 
 payload:
   - "DOMAIN,jules.google.com"

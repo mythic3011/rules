@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from ..catalog import load_catalog
 from ..common import indent, yaml_string, zh_hk
+from ..dns import render_dns_config
 from ..compiler import (
     compile_mihomo_profile,
     compile_rule_providers,
@@ -11,7 +12,12 @@ from ..compiler import (
     service_auto_group_name,
     service_region_groups as compiled_service_region_groups,
 )
-from ..models import DnsPolicySpec, MihomoProfilePlan, RoutingComment, RoutingRule, RuleProviderPlan
+from ..models import Catalog, MihomoProfilePlan, RoutingComment, RoutingRule, RuleProviderPlan
+from ..plans.ini_mvp import (
+    IniMvpPlan,
+    account_protection_group_candidates,
+    load_ini_mvp_plan,
+)
 from ..settings import ENABLE_PROCESS_RULES, OPENCLASH_SECRET, TEMPLATE_DIR
 from .template import load_template, render_template
 
@@ -45,11 +51,30 @@ def _group_block(name: str, group_type: str, lines: list[str]) -> str:
     return "\n".join([f'- name: "{name}"', f"  type: {group_type}", *lines])
 
 
-def _render_proxy_groups(plan: MihomoProfilePlan) -> str:
-    catalog = load_catalog()
+def _render_proxy_groups(
+    plan: MihomoProfilePlan,
+    catalog: Catalog | None = None,
+    account_plan: IniMvpPlan | None = None,
+) -> str:
+    catalog = catalog or load_catalog()
+    account_plan = account_plan or load_ini_mvp_plan()
+    account_protection = account_plan["accountProtection"]
+    protected_service = next(
+        (
+            service
+            for service in plan.services
+            if service.service.id == account_protection["serviceId"]
+        ),
+        None,
+    )
+    if protected_service is None:
+        raise RuntimeError("Mihomo profile is missing its account-protected service")
+    if protected_service.service.group != account_protection["protectedGroup"]:
+        raise RuntimeError("Mihomo account-protected group does not match the INI MVP plan")
+    protected_candidates = account_protection_group_candidates(account_plan)
     blocks = [
         _group_block(catalog.group("manual"), "select", ["  proxies:", *yaml_proxy_list(plan.manual_group_proxies), f'  filter: "{catalog.ai_pool_filter}"', "  use:", "    - provider1"]),
-        _group_block(catalog.group("auto"), "url-test", [f'  filter: "{catalog.ai_pool_filter}"', "  tolerance: 50", '  url: "https://cp.cloudflare.com/generate_204"', "  interval: 300", "  use:", "    - provider1"]),
+        _group_block(catalog.group("auto"), "select", ["  proxies:", *yaml_proxy_list((catalog.group("reject"), *catalog.all_region_groups))]),
     ]
     for policy_group in plan.policy_groups:
         lines = [
@@ -62,19 +87,28 @@ def _render_proxy_groups(plan: MihomoProfilePlan) -> str:
             lines.extend(["  use:", "    - provider1"])
         blocks.append(_group_block(policy_group.name, policy_group.kind, lines))
     for service in plan.services:
-        blocks.append(_group_block(service.service.group, "select", ["  proxies:", *yaml_proxy_list(service.ui_proxies)]))
-        blocks.append(_group_block(service.auto_group, "fallback", ['  url: "https://cp.cloudflare.com/generate_204"', "  interval: 300", "  proxies:", *yaml_proxy_list(service.auto_proxies)]))
+        proxies = (
+            protected_candidates
+            if service.service.id == account_protection["serviceId"]
+            else service.ui_proxies
+        )
+        blocks.append(_group_block(service.service.group, "select", ["  proxies:", *yaml_proxy_list(proxies)]))
+        if service.auto_group != catalog.group("auto"):
+            blocks.append(_group_block(service.auto_group, "select", ["  proxies:", *yaml_proxy_list((catalog.group("reject"), *service.region_groups))]))
     blocks.append(_group_block(catalog.group("reject"), "select", ["  proxies:", "    - REJECT"]))
     blocks.append(_group_block(catalog.group("fallback"), "select", ["  proxies:", *(f'    - "{proxy}"' for proxy in plan.fallback_group_proxies)]))
     for region in plan.primary_regions:
-        blocks.append(_group_block(region.group, "url-test", ['  url: "https://cp.cloudflare.com/generate_204"', "  interval: 300", "  tolerance: 50", f"  filter: '{region.filter_pattern}'", "  use:", "    - provider1"]))
-    blocks.append(_group_block(plan.other_region_group, "select", [f"  filter: {yaml_string(catalog.ai_pool_filter)}", f"  exclude-filter: {yaml_string(catalog.known_region_exclude_pattern)}", "  use:", "    - provider1"]))
+        blocks.append(_group_block(region.group, "select", [f"  filter: '{region.filter_pattern}'", "  proxies:", "    - REJECT", "  use:", "    - provider1"]))
+    blocks.append(_group_block(plan.other_region_group, "select", [f"  filter: {yaml_string(catalog.ai_pool_filter)}", f"  exclude-filter: {yaml_string(catalog.known_region_exclude_pattern)}", "  proxies:", "    - REJECT", "  use:", "    - provider1"]))
     blocks.append(_group_block(catalog.group("direct"), "select", ["  proxies:", "    - DIRECT"]))
     return "\n".join(blocks).rstrip()
 
 
 def render_proxy_groups(strict: bool) -> str:
-    return _render_proxy_groups(compile_mihomo_profile(strict=strict, include_process_rules=ENABLE_PROCESS_RULES))
+    return _render_proxy_groups(
+        compile_mihomo_profile(strict=strict, include_process_rules=ENABLE_PROCESS_RULES),
+        account_plan=load_ini_mvp_plan(),
+    )
 
 
 def _render_routing_rule(rule: RoutingRule) -> str:
@@ -114,14 +148,6 @@ def render_rule_providers(include_process_rules: bool, strict: bool) -> str:
         compile_rule_providers(strict=strict, include_process_rules=include_process_rules)
     )
 
-def _render_dns_policies(policies: tuple[DnsPolicySpec, ...]) -> list[str]:
-    lines: list[str] = []
-    for policy in policies:
-        lines.append(f"    {yaml_string(policy.selector)}:")
-        lines.extend(f"      - {nameserver}" for nameserver in policy.nameservers)
-    return lines
-
-
 def render_secret_lines() -> list[str]:
     if OPENCLASH_SECRET:
         return [f"secret: {yaml_string(OPENCLASH_SECRET)}"]
@@ -145,6 +171,7 @@ def _profile_policy_notes(strict: bool) -> str:
 
 def render_yaml(strict: bool) -> str:
     catalog = load_catalog()
+    account_plan = load_ini_mvp_plan()
     plan = compile_mihomo_profile(strict=strict, include_process_rules=ENABLE_PROCESS_RULES, catalog=catalog)
     template = load_template(TEMPLATE_DIR / "Custom_Clash_AI.yaml.tpl")
     return render_template(
@@ -154,8 +181,8 @@ def render_yaml(strict: bool) -> str:
             "PROFILE_POLICY_NOTES": _profile_policy_notes(strict),
             "PROVIDER_NOISE_EXCLUDE_PATTERN": yaml_string(catalog.provider_noise_exclude_pattern),
             "SECRET_LINES": "\n".join(render_secret_lines()),
-            "DNS_POLICIES": "\n".join(_render_dns_policies(plan.dns_policies)),
-            "PROXY_GROUPS": indent(_render_proxy_groups(plan), 2),
+            "DNS_CONFIG": render_dns_config(catalog, plan.dns_policies),
+            "PROXY_GROUPS": indent(_render_proxy_groups(plan, catalog, account_plan), 2),
             "RULES": indent(_render_routing_entries(plan.routing_entries), 2),
             "RULE_PROVIDERS": indent(_render_rule_provider_plans(plan.rule_providers), 2),
         },

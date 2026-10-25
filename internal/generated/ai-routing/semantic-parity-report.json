@@ -174,38 +174,6 @@
       "warnings": [
         {
           "serviceId": "claude",
-          "dimension": "group-name",
-          "severity": "warn",
-          "message": "phase1 known divergence: mihomo proxy-group still uses the catalog group while INI/canonical use the account-guard name",
-          "left": {
-            "mihomo": "🤖 Claude",
-            "ini": "🔐 Claude Account Guard"
-          },
-          "right": {
-            "canonical": "🔐 Claude Account Guard"
-          }
-        },
-        {
-          "serviceId": "claude",
-          "dimension": "region-order",
-          "severity": "warn",
-          "message": "canonical region list is a subset of primaryOrder; full us,jp,sg,tw,kr,other coverage is a later phase",
-          "left": [
-            "us",
-            "jp",
-            "sg",
-            "tw",
-            "kr",
-            "other"
-          ],
-          "right": [
-            "us",
-            "sg",
-            "jp"
-          ]
-        },
-        {
-          "serviceId": "claude",
           "dimension": "dns-policy",
           "severity": "warn",
           "message": "phase1 known divergence: canonical DNS is refuse/fallback-none but generated YAML still uses global-ai resolvers",
@@ -742,38 +710,6 @@
         "geosite:openai"
       ],
       "right": null
-    },
-    {
-      "serviceId": "claude",
-      "dimension": "group-name",
-      "severity": "warn",
-      "message": "phase1 known divergence: mihomo proxy-group still uses the catalog group while INI/canonical use the account-guard name",
-      "left": {
-        "mihomo": "🤖 Claude",
-        "ini": "🔐 Claude Account Guard"
-      },
-      "right": {
-        "canonical": "🔐 Claude Account Guard"
-      }
-    },
-    {
-      "serviceId": "claude",
-      "dimension": "region-order",
-      "severity": "warn",
-      "message": "canonical region list is a subset of primaryOrder; full us,jp,sg,tw,kr,other coverage is a later phase",
-      "left": [
-        "us",
-        "jp",
-        "sg",
-        "tw",
-        "kr",
-        "other"
-      ],
-      "right": [
-        "us",
-        "sg",
-        "jp"
-      ]
     },
     {
       "serviceId": "claude",

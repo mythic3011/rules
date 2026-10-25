@@ -1,136 +1,31 @@
-# AI routing catalog
+# AI routing configuration
 
-## Manifest ownership
+This directory is the source for AI service and profile routing policy. Python compiles these declarations into the published Mihomo/OpenClash and subconverter outputs. Use the [policy maintenance guide](../../../docs/policy-maintenance.md) for routine add, edit, remove, and group changes.
 
-The directory intentionally contains multiple YAML dialects. They are not one
-combined schema.
+## Source ownership
 
-- `core/NN-*.yaml` (`00-base.yaml` through `60-shared-backends.yaml`) are canonical
-  `RoutingConfig` fragments consumed by `loadRoutingConfig()`.
-- `projections/mihomo.yaml` is the Mihomo projection manifest and is validated by its own
-  projection schema/loader.
-- `projections/parity.yaml` is the shadow-profile parity contract.
-- `catalogs/process-rules.yaml` is the process-rule catalog.
-- `catalogs/regions.source.json` is the v2 authored region catalog. `catalogs/regions.json` is the generated v1 projection consumed by the frozen Python loader.
+| Files | Owns |
+| --- | --- |
+| `core/00-*.yaml` through `core/60-*.yaml` | Canonical typed routing configuration loaded by the core TypeScript schema. |
+| `profile.json` | Python profile groups, DNS policy, account selectors, and foundation routes. |
+| `dns.json` | DNS resolver routing and output settings. |
+| `catalogs/services.json` | Service identities, service-specific rules, and reusable routing policies. |
+| `catalogs/companion-rules.json` | SSH, gaming, finance, privacy, and process companion rules. |
+| `catalogs/regions.source.json` | Authored region definitions. |
+| `catalogs/regions.json` | Generated v1 region projection for the Python loader; do not hand-edit it. |
+| `projections/mihomo.yaml`, `projections/parity.yaml` | Mihomo projection and shadow-profile parity contract. |
+| `project.yaml` | Validated project entrypoint binding manifests, projections, generated artifacts, and supported profiles. |
 
-The core routing loader selects only numbered fragments in `core/`. Do not make the core
-Zod schema permissive merely to accept sibling manifests; that would erase the
-schema boundary and hide configuration mistakes.
+The core loader reads only numbered files under `core/`. Keep sibling catalog and projection schemas separate; do not loosen the core schema to accept them. After `make bootstrap`, run routing validation, generation, and checks through `project.yaml` with `mise exec -- pnpm run routing:validate`, `mise exec -- pnpm run routing:generate`, and `mise exec -- pnpm run routing:check`.
 
-`project.yaml` is the validated routing-project entrypoint. It binds the core
-manifest, projections, shadow inputs, generated artifact directory, schema
-output, supported profiles, and semantic artifact roles. Use `npm run
-routing:validate`, `npm run routing:generate`, and `npm run routing:check`
-through that project context rather than invoking individual artifact steps.
+## Service and upstream policy
 
+A service can reference a shared `policy` alongside its own identity, local `payload`, DNS settings, and `upstreamRules`. Shared policies define common routing behavior; services that need different groups, regions, direct access, or INI clustering need separate policies. Local payload rules precede upstream rules so narrow service-specific behavior can take precedence.
 
-The catalog declares routing policy; Python compiles it into Mihomo/OpenClash and
-subconverter outputs.
+Use upstream sources only when their match scope fits the destination group. For example, a broad Google AI category belongs in a shared fail-closed guard, not in one narrower service group. Remote providers must use HTTPS and declare `classical` or `domain` behavior.
 
-## Rule ownership
+`sources/upstream-sources.json` is the single revision lock for external rule repositories referenced by the TypeScript projection. Normal generation uses the pinned revision and remains offline. `make refresh` explicitly follows the configured tracking ref, updates the lock or snapshot, and should be followed by generation and checks. Repository-local sources stay inline because refreshing a self-reference creates a provenance loop.
 
-Each service may combine two layers:
+## DNS output
 
-1. `payload` — repository-owned local delta rules. These are emitted to the
-   service's `AI_*_Classical.yaml` provider and are always matched first.
-2. `upstreamRules` — externally maintained sources consumed after the local
-   delta.
-
-Local-first ordering is intentional: a narrow service rule can carve out an
-endpoint before a broader upstream category or provider is evaluated.
-
-### GEOSITE upstream
-
-```json
-{
-  "kind": "geosite",
-  "value": "openai"
-}
-```
-
-The active `geosite.dat` configured by the generated Mihomo profile owns the
-actual domain list.
-
-### Remote upstream rule-provider
-
-```json
-{
-  "kind": "remote",
-  "providerKey": "Upstream_Example",
-  "url": "https://example.com/rules.yaml",
-  "behavior": "classical",
-  "format": "yaml",
-  "interval": 10800,
-  "iniInterval": 28800
-}
-```
-
-Remote URLs must use HTTPS. P7 intentionally accepts YAML only because the same
-source must be consumable by both Mihomo `rule-providers` and subconverter.
-`behavior` may be `classical` or `domain`.
-
-## Scope rule
-
-Do not attach a broad upstream category to a narrower service group merely
-because it contains that service. The upstream source's match scope must be no
-broader than the policy target.
-
-For example, upstream `google-deepmind` includes Jules, Gemini, NotebookLM,
-Google AI Studio and other Google AI endpoints. It therefore remains a shared
-fail-closed guard instead of being routed directly to `🤖 Jules`. Jules keeps
-exact local delta rules for `jules.google.com` and `jules.googleapis.com`.
-
-## AdGuard Home projection
-
-`profile.json#adguardHome.outputFile` declares the generated AdGuard Home DNS
-blocklist output (currently `rule/host.txt`). Local `DOMAIN` / `DOMAIN-SUFFIX`
-deltas are combined with the checked-in `adguard-upstream.json` snapshot. The
-snapshot is refreshed explicitly from configured v2fly domain-list-community
-roots; normal profile generation remains deterministic and offline.
-
-The output uses AdGuard DNS filtering syntax rather than literal `/etc/hosts`
-syntax so suffix and regular-expression semantics can be preserved. Subscribing
-to this URL blocks matching DNS names; it does not reproduce OpenClash proxy
-routing.
-
-## Shared upstream source lock
-
-External rule repositories that are consumed by the TypeScript routing projection
-must not carry independent commit pins in `internal/config/ai-routing/projections/mihomo.yaml`.
-`upstream-sources.json` is the single reproducibility lock for those sources.
-The Mihomo projection references a source by `manifestSource`; its loader resolves
-that reference before compiling rule-provider URLs.
-
-The lock keeps two concepts separate:
-
-- `trackingRef` says which upstream branch/ref scheduled maintenance follows.
-- `revision` is the exact 40-hex commit used by production artifacts.
-
-Normal generation never follows a moving branch. A scheduled refresh explicitly
-runs `python internal/python/generate_ai_profiles.py --refresh-upstream-sources`, updates only
-the locked revision when upstream moves, then regenerates the TypeScript routing
-artifacts. Coverage audit treats a pinned URL as healthy when it matches the
-shared lock and reports `ini-upstream-drift` only when materialized TS artifacts
-and the lock disagree.
-
-Repository-local rule sources remain inline because refreshing a self-reference
-to the commit being generated is a separate bootstrapping/provenance problem.
-
-Python `upstreamRules` can consume the same lock without copying a full URL:
-
-```json
-{
-  "kind": "remote",
-  "providerKey": "Upstream_OpenAI",
-  "source": "vpsdance",
-  "path": "rules/clash/openai.yaml",
-  "behavior": "classical",
-  "format": "yaml",
-  "interval": 10800,
-  "iniInterval": 28800
-}
-```
-
-The catalog resolves this to `rawBaseUrl/revision/path`. The legacy explicit
-`url` form remains accepted for independent sources that are not managed by the
-shared lock.
+`profile.json#adguardHome.outputFile` declares the generated AdGuard Home list (`rule/host.txt`). It combines local domain rules with the checked-in upstream snapshot. The output uses AdGuard DNS filtering syntax and blocks matching names at resolution time; it does not reproduce proxy routing. Snapshot refresh is separate from deterministic generation.

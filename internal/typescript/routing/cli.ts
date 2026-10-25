@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { formatIssues } from "./issues.js";
 import {
+  buildRoutingInputArtifacts,
   buildRoutingArtifacts,
   checkRoutingBuild,
   writeRoutingArtifacts,
@@ -30,7 +31,7 @@ import { compileControllerPlan } from "./runtime-plan.js";
 
 function usage(): string {
   return [
-    "Usage: routing <validate|generate|check> [--config project.yaml]",
+    "Usage: routing <validate|generate-inputs|generate|check> [--config project.yaml]",
     "       routing materialize-private [--config project.yaml] <deployment.json> <approved-egress.json> <output.yaml>",
   ].join("\n");
 }
@@ -118,7 +119,7 @@ async function main(args: readonly string[]): Promise<void> {
     await runMaterializePrivate(configPath, positional);
     return;
   }
-  if (command !== "validate" && command !== "generate" && command !== "check") {
+  if (command !== "validate" && command !== "generate-inputs" && command !== "generate" && command !== "check") {
     throw new Error(usage());
   }
   if (command === "validate" && positional.length === 1) {
@@ -133,6 +134,14 @@ async function main(args: readonly string[]): Promise<void> {
   if (positional.length > 0) throw new Error(usage());
 
   const context = await loadRoutingContext(configPath);
+  if (command === "generate-inputs") {
+    const artifacts = await buildRoutingInputArtifacts(context);
+    await writeRoutingArtifacts(artifacts);
+    process.stdout.write(
+      `Routing source-input artifacts generated from ${context.project.projectFile}\n`,
+    );
+    return;
+  }
   if (command === "validate") {
     const issues = validateRoutingSemantics(context.config);
     if (issues.length > 0) throw new Error(formatIssues(issues));

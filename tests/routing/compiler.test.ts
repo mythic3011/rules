@@ -53,6 +53,12 @@ test("INI MVP plan owns ordered rules/groups, pins providers, and keeps Claude r
     "huggingface",
   ]);
   assert.deepEqual(plan.migration.legacyReplacementIds, ["claude"]);
+  const protectedServiceId = plan.migration.migratedServiceIds.find((serviceId) => {
+    const service = config.services[serviceId];
+    return service !== undefined && config.protectionClasses[service.protectionClass]?.kind === "account-protected";
+  });
+  assert.ok(protectedServiceId !== undefined);
+  assert.equal(plan.accountProtection.serviceId, protectedServiceId);
   assert.equal(plan.profile, "hk");
   assert.deepEqual(plan.externalGroups, ["🎯 全球直連", "⛔ 拒絕"]);
   const [flowMusicRule, claudeRule] = plan.rules.beforeLegacy;
@@ -179,6 +185,10 @@ test("INI MVP plan owns ordered rules/groups, pins providers, and keeps Claude r
   missingProtectedGroup.accountProtection.protectedGroup =
     "Missing Claude Guard";
   mustReject(missingProtectedGroup);
+
+  const unmigratedProtectedService = structuredClone(plan);
+  unmigratedProtectedService.accountProtection.serviceId = "unmigrated-service";
+  mustReject(unmigratedProtectedService);
 
   const filteredGroupNotRejectFirst = structuredClone(plan);
   const stableGroup = filteredGroupNotRejectFirst.groups.find((group) =>

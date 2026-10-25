@@ -7,25 +7,20 @@ Generated cfg/rule artifacts remain owned by the normal generators.
 from __future__ import annotations
 
 import argparse
-import ipaddress
 import json
 import re
+import sys
 import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[3]
-CONFIG_DIR = ROOT / "internal/config/ai-routing"
-REGIONS_PATH = CONFIG_DIR / "catalogs" / "regions.json"
-SERVICES_PATH = CONFIG_DIR / "catalogs" / "services.json"
+# The issue workflow also invokes this file directly.
+_PACKAGE_ROOT = Path(__file__).resolve().parents[1]
+if str(_PACKAGE_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PACKAGE_ROOT))
 
-MATCHER_TYPES = {"DOMAIN", "DOMAIN-SUFFIX", "DOMAIN-KEYWORD", "IP-CIDR", "PROCESS-NAME", "PROCESS-PATH"}
-DOMAIN_RE = re.compile(r"^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$")
-SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
-REGION_CODE_RE = re.compile(r"^[A-Z]{2,3}$")
-RESERVED_HOSTS = {"localhost", "localhost.localdomain"}
-MAX_ADDITIONAL_REGIONS = 3
-MAX_REGION_TERMS = 40
+from ai_profiles.intake_contract import INTAKE_LIMITS, REGION_CODE_PATTERN, SLUG_PATTERN, parse_matcher_values
+from ai_profiles.settings import CATALOG_PATHS
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,7 +36,7 @@ class RegionProposal:
 
 def slugify(value: str) -> str:
     value = re.sub(r"[^a-z0-9]+", "-", value.casefold()).strip("-")
-    if not value or not SLUG_RE.fullmatch(value):
+    if not value or not SLUG_PATTERN.fullmatch(value):
         raise ValueError("service id must resolve to 1-63 lowercase letters/digits/hyphens")
     return value
 
@@ -75,46 +70,16 @@ def _selected_ids(text: str) -> list[str]:
 
 
 def _matcher_values(kind: str, raw: str) -> list[str]:
-    kind = kind.strip().upper()
-    if kind not in MATCHER_TYPES:
-        raise ValueError(f"unsupported matcher type: {kind}")
-    values = [line.strip() for line in raw.splitlines() if line.strip() and not line.strip().startswith("#")]
-    if not values:
-        raise ValueError("at least one matcher value is required")
-    if len(values) > 100:
-        raise ValueError("at most 100 matcher values per intake")
-    result: list[str] = []
-    for value in values:
-        if kind in {"DOMAIN", "DOMAIN-SUFFIX"}:
-            value = value.casefold().rstrip(".")
-            if value in RESERVED_HOSTS or not DOMAIN_RE.fullmatch(value):
-                raise ValueError(f"invalid public domain matcher: {value}")
-        elif kind == "DOMAIN-KEYWORD":
-            if len(value) < 3 or len(value) > 80 or any(ch in value for ch in "*/\\"):
-                raise ValueError(f"unsafe/broad domain keyword: {value!r}")
-        elif kind == "IP-CIDR":
-            network = ipaddress.ip_network(value, strict=False)
-            if network.is_private or network.is_loopback or network.is_link_local or network.is_reserved:
-                raise ValueError(f"private/reserved CIDR is not accepted from public intake: {value}")
-            value = str(network)
-        elif kind == "PROCESS-NAME":
-            if "/" in value or "\\" in value or len(value) > 120:
-                raise ValueError(f"invalid process name: {value!r}")
-        elif kind == "PROCESS-PATH":
-            if "\x00" in value or len(value) > 300:
-                raise ValueError("invalid process path")
-        if value not in result:
-            result.append(value)
-    return result
+    return parse_matcher_values(kind, raw)
 
 
-def _unique_lines(raw: str, *, field: str, max_items: int = MAX_REGION_TERMS) -> list[str]:
+def _unique_lines(raw: str, *, field: str, max_items: int = INTAKE_LIMITS.region_terms) -> list[str]:
     values: list[str] = []
     for line in raw.splitlines():
         value = line.strip()
         if not value or value.startswith("#"):
             continue
-        if len(value) > 80:
+        if len(value) > INTAKE_LIMITS.region_text_length:
             raise ValueError(f"{field} entry is too long: {value[:32]!r}")
         if value not in values:
             values.append(value)
@@ -147,7 +112,7 @@ def _region_terms(country_codes: list[str], aliases: list[str], keywords: list[s
     parts: list[str] = []
     codes = [code.strip().upper() for code in country_codes if code.strip()]
     for code in codes:
-        if not REGION_CODE_RE.fullmatch(code):
+        if not REGION_CODE_PATTERN.fullmatch(code):
             raise ValueError(f"invalid country/region code: {code}")
     for value in [*aliases, *keywords]:
         value = value.strip()
@@ -165,7 +130,7 @@ def _region_terms(country_codes: list[str], aliases: list[str], keywords: list[s
 
 def _parse_region_proposals(body: str) -> list[RegionProposal]:
     proposals: list[RegionProposal] = []
-    for slot in range(1, MAX_ADDITIONAL_REGIONS + 1):
+    for slot in range(1, INTAKE_LIMITS.additional_regions + 1):
         prefix = f"Additional region {slot}"
         status = _section(body, f"{prefix} status").strip().casefold()
         code = _section(body, f"{prefix} code").strip().upper()
@@ -181,10 +146,10 @@ def _parse_region_proposals(body: str) -> list[RegionProposal]:
             continue
         if not (status.startswith("works") or status.startswith("blocked")):
             raise ValueError(f"{prefix} has unsupported status: {status!r}")
-        if not code or not REGION_CODE_RE.fullmatch(code):
+        if not code or not REGION_CODE_PATTERN.fullmatch(code):
             raise ValueError(f"{prefix} needs a 2-3 letter country/region code")
-        if not name or len(name) > 80 or any(ord(ch) < 32 for ch in name):
-            raise ValueError(f"{prefix} needs a single-line region name up to 80 characters")
+        if not name or len(name) > INTAKE_LIMITS.region_text_length or any(ord(ch) < 32 for ch in name):
+            raise ValueError(f"{prefix} needs a single-line region name up to {INTAKE_LIMITS.region_text_length} characters")
         for keyword in keywords:
             _validate_region_keyword(keyword)
         proposals.append(
@@ -268,7 +233,7 @@ def _apply_region_proposal(
         return region_id, "updated" if changed else "reused", changed
 
     region_id = proposal.code.casefold()
-    if not SLUG_RE.fullmatch(region_id):
+    if not SLUG_PATTERN.fullmatch(region_id):
         region_id = slugify(proposal.name)
     if any(str(record.get("id")) == region_id for record in regions):
         raise ValueError(f"new region id collides with existing region: {region_id}")
@@ -316,7 +281,9 @@ def apply_issue(body: str) -> dict[str, object]:
     working = _selected_ids(_section(body, "Confirmed working regions"))
     blocked = _selected_ids(_section(body, "Confirmed blocked regions"))
 
-    regions_doc = json.loads(REGIONS_PATH.read_text(encoding="utf-8"))
+    regions_path = CATALOG_PATHS.resolve("regions")
+    services_path = CATALOG_PATHS.resolve("services")
+    regions_doc = json.loads(regions_path.read_text(encoding="utf-8"))
     known = {item["id"] for item in regions_doc["regions"]}
     unknown = (set(working) | set(blocked)) - known
     if unknown:
@@ -357,7 +324,7 @@ def apply_issue(body: str) -> dict[str, object]:
             }
         )
 
-    services_doc = json.loads(SERVICES_PATH.read_text(encoding="utf-8"))
+    services_doc = json.loads(services_path.read_text(encoding="utf-8"))
     existing = next((item for item in services_doc["services"] if item["id"] == service_id), None)
     payload = [f"{matcher_kind},{value}" for value in values]
     routable = set(regions_doc["primaryOrder"])
@@ -389,12 +356,23 @@ def apply_issue(body: str) -> dict[str, object]:
         _merge_observation(existing, working, blocked)
         # Preserve legacy explicit region candidates, but remove any region the
         # intake now explicitly marks blocked and add newly confirmed exits.
-        existing_regions = [region for region in existing.get("regions", []) if region not in blocked]
-        existing["regions"] = list(dict.fromkeys([*existing_regions, *(r for r in working if r in routable)]))
+        if "policy" in existing:
+            policy_id = existing["policy"]
+            policy = services_doc.get("policies", {}).get(policy_id)
+            if policy is None:
+                raise ValueError(f"unknown shared service policy: {policy_id}")
+            policy_regions = set(policy["regions"])
+            if (set(working) & routable) - policy_regions or set(blocked) & policy_regions:
+                raise ValueError(
+                    f"service uses shared policy {policy_id}; change its routing regions in the policy registry"
+                )
+        else:
+            existing_regions = [region for region in existing.get("regions", []) if region not in blocked]
+            existing["regions"] = list(dict.fromkeys([*existing_regions, *(r for r in working if r in routable)]))
         action = "updated"
 
-    REGIONS_PATH.write_text(json.dumps(regions_doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    SERVICES_PATH.write_text(json.dumps(services_doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    regions_path.write_text(json.dumps(regions_doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    services_path.write_text(json.dumps(services_doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return {
         "action": action,
         "service": service_id,

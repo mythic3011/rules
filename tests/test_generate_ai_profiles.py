@@ -198,7 +198,7 @@ class GenerateAiProfilesTest(unittest.TestCase):
             group = self.extract_yaml_group_block(rendered_yaml, service.group)
             auto_group = self.extract_yaml_group_block(
                 rendered_yaml,
-                MODULE.service_auto_group_name(service.group),
+                MODULE.compile_service_routing(service, strict=True, catalog=CATALOG).auto_group,
             )
             self.assertNotIn(MODULE.GROUP["direct"], group)
             self.assertNotIn(MODULE.GROUP["direct"], auto_group)
@@ -210,32 +210,58 @@ class GenerateAiProfilesTest(unittest.TestCase):
             include_process_rules=False,
             catalog=CATALOG,
         )
+        account_plan = MODULE.load_ini_mvp_plan()
+        account = account_plan["accountProtection"]
+        protected_group_plan = next(
+            group
+            for group in account_plan["groups"]
+            if group["name"] == account["protectedGroup"]
+        )
 
         for service_plan in profile.services:
             group = self.extract_yaml_group_block(rendered_yaml, service_plan.service.group)
-            auto_name = MODULE.service_auto_group_name(service_plan.service.group)
+            auto_name = service_plan.auto_group
             auto_group = self.extract_yaml_group_block(rendered_yaml, auto_name)
 
             self.assertIn("    type: select", group)
+            if service_plan.service.id == account["serviceId"]:
+                self.assertEqual(service_plan.service.group, account["protectedGroup"])
+                proxies = []
+                in_proxies = False
+                for line in group.splitlines():
+                    if line == "    proxies:":
+                        in_proxies = True
+                        continue
+                    if in_proxies and line.startswith("    ") and not line.startswith("      "):
+                        break
+                    if in_proxies and line.startswith("      - "):
+                        proxies.append(line.strip()[2:].strip('"'))
+                expected = [candidate["value"] for candidate in protected_group_plan["candidates"]]
+                self.assertEqual(proxies, expected)
+                self.assertEqual(proxies[0], account["rejectGroup"])
+                self.assertNotIn("DIRECT", proxies)
+                self.assertNotIn(auto_name, proxies)
+                continue
+
             self.assertIn(f'      - "{auto_name}"', group)
             for proxy in service_plan.ui_proxies:
                 self.assertIn(f'      - "{proxy}"', group)
 
-            self.assertIn("    type: fallback", auto_group)
+            self.assertIn("    type: select", auto_group)
             self.assertNotIn(MODULE.GROUP["manual"], auto_group)
             self.assertNotIn(f'      - "{MODULE.GROUP["auto"]}"', auto_group)
             for proxy in service_plan.auto_proxies:
                 self.assertIn(f'      - "{proxy}"', auto_group)
-            self.assertTrue(auto_group.rstrip().endswith(f'- "{MODULE.GROUP["reject"]}"'))
+            self.assertTrue(auto_group.split("    proxies:\n", 1)[1].startswith(f'      - "{MODULE.GROUP["reject"]}"'))
 
-    def test_should_keep_global_region_groups_provider_only(self) -> None:
+    def test_should_keep_global_region_groups_fail_closed_when_provider_is_empty(self) -> None:
         rendered_yaml = MODULE.render_yaml(strict=False)
 
         for group_name in CATALOG.all_region_groups:
             block = self.extract_yaml_group_block(rendered_yaml, group_name)
             self.assertIn("    use:", block)
             self.assertIn("      - provider1", block)
-            self.assertNotIn("    proxies:", block)
+            self.assertIn("    proxies:\n      - REJECT", block)
 
     def test_should_fix_taiwan_group_label_and_filters(self) -> None:
         rendered_yaml = MODULE.render_yaml(strict=False)
@@ -301,8 +327,36 @@ class GenerateAiProfilesTest(unittest.TestCase):
         migration = plan.get("migration")
         self.assertIsInstance(migration, dict)
         replacement_ids = set(migration["legacyReplacementIds"])
+        account = plan.get("accountProtection")
+        self.assertIsInstance(account, dict)
+        protected_service_id = account["serviceId"]
+        protected_group = account["protectedGroup"]
+        protected_group_plan = next(
+            group for group in plan["groups"] if group["name"] == protected_group
+        )
+        protected_selector = self.extract_ini_group_lines(rendered_ini, protected_group)
+        self.assertEqual(len(protected_selector), 1)
+        self.assertEqual(
+            protected_selector[0],
+            f"custom_proxy_group={protected_group}`select`" + "`".join(
+                candidate_fragment(candidate)
+                for candidate in protected_group_plan["candidates"]
+            ),
+        )
+        self.assertEqual(
+            protected_group_plan["candidates"][0]["value"],
+            account["rejectGroup"],
+        )
         for service in CATALOG.services:
             if service.id not in replacement_ids:
+                continue
+            if service.id == protected_service_id:
+                self.assertEqual(service.group, protected_group)
+                for geosite in service.geosites:
+                    self.assertIn(
+                        f"ruleset={protected_group},[]GEOSITE,{geosite}",
+                        rendered_ini,
+                    )
                 continue
             self.assertNotIn(f"custom_proxy_group={service.group}`", rendered_ini)
             for geosite in service.geosites:

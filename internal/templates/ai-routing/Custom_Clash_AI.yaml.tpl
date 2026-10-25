@@ -47,7 +47,7 @@ geodata-mode: true
 
 # ==================== 日志与控制 ====================
 log-level: info
-ipv6: true
+ipv6: false
 external-controller: 0.0.0.0:9090
 {{SECRET_LINES}}
 
@@ -61,41 +61,15 @@ tun:
   enable: true
   stack: system
   dns-hijack:
-    - 0.0.0.0:53
+    - "any:53"
+    - "tcp://any:53"
   auto-detect-interface: false
   auto-route: false
   auto-redirect: false
   strict-route: false
   endpoint-independent-nat: true
 
-# ==================== DNS 配置 ====================
-dns:
-  enable: true
-  listen: 0.0.0.0:7874
-  ipv6: true
-  enhanced-mode: fake-ip
-  fake-ip-range: 198.18.0.1/16
-  fake-ip-filter:
-    - "*.lan"
-    - localhost.ptlogin2.qq.com
-  fake-ip-filter-mode: blacklist
-  respect-rules: true
-  default-nameserver:
-    - 1.1.1.1
-    - 8.8.8.8
-  nameserver:
-    - https://1.1.1.1/dns-query
-    - https://dns.google/dns-query
-    - https://dns.adguard-dns.com/dns-query
-  proxy-server-nameserver:
-    - https://1.1.1.1/dns-query
-    - https://dns.google/dns-query
-    - https://dns.adguard-dns.com/dns-query
-  direct-nameserver:
-    - https://127.0.0.1:5053/dns-query
-  direct-nameserver-follow-policy: false
-  nameserver-policy:
-{{DNS_POLICIES}}
+{{DNS_CONFIG}}
 
 # ==================== 代理策略组 Proxy Groups ====================
 proxy-groups:

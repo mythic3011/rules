@@ -22,6 +22,7 @@ class CompanionRulesCatalogTest(unittest.TestCase):
         self.assertEqual(
             [rule.provider_key for rule in rules],
             [
+                "Privacy_Guard_Classical",
                 "SSH_Direct_Classical",
                 "SSH_Proxy_Classical",
                 "SSH_Process_Classical",
@@ -38,11 +39,11 @@ class CompanionRulesCatalogTest(unittest.TestCase):
         )
         self.assertEqual(
             [rule.mihomo for rule in rules],
-            [True, True, False, True, True, True, True, True, True, True, True, True],
+            [True, True, True, False, True, True, True, True, True, True, True, True, True],
         )
         self.assertEqual(
             [rule.subconverter_cluster for rule in rules],
-            ["ssh", "ssh", None, "gaming", "downloads", "downloads", "finance", "finance", "finance", "finance", "finance", "finance"],
+            [None, "ssh", "ssh", None, "gaming", "downloads", "downloads", "finance", "finance", "finance", "finance", "finance", "finance"],
         )
         self.assertEqual(len(documents.companion_rules.process_rulesets), 4)
         self.assertTrue(documents.companion_rules.process_warning_lines)

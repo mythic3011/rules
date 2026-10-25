@@ -3,6 +3,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from .paths import CatalogPaths
+
 ROOT = Path(__file__).resolve().parents[3]
 
 RULE_DIR = ROOT / "rule"
@@ -16,12 +18,13 @@ DOCS_DIR = ROOT / "docs"
 DATA_DIR = ROOT / "internal" / "config"
 
 AI_CATALOG_DIR = DATA_DIR / "ai-routing"
+CATALOG_PATHS = CatalogPaths(AI_CATALOG_DIR)
 AI_CORE_DIR = AI_CATALOG_DIR / "core"
 AI_PROJECTIONS_DIR = AI_CATALOG_DIR / "projections"
 AI_CATALOGS_DIR = AI_CATALOG_DIR / "catalogs"
 AI_SOURCES_DIR = AI_CATALOG_DIR / "sources"
 
-AI_DISTRIBUTION_PATH = AI_CATALOGS_DIR / "distribution.json"
+AI_DISTRIBUTION_PATH = CATALOG_PATHS.resolve("distribution")
 
 TEMPLATE_DIR = ROOT / "internal" / "templates" / "ai-routing"
 

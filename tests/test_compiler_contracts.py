@@ -7,6 +7,9 @@ from ai_profiles.catalog import load_catalog
 from ai_profiles.compiler import (
     compile_ai_routing_rules,
     compile_dns_policies,
+    compile_mihomo_profile,
+    compile_routing_entries,
+    compile_rule_providers,
     compile_service_routing,
     compile_subconverter_plan,
 )
@@ -27,6 +30,35 @@ class CompilerContractsTest(unittest.TestCase):
         self.assertNotIn(self.catalog.group("direct"), strict.ui_proxies)
         self.assertNotIn(self.catalog.group("direct"), relaxed.auto_proxies)
         self.assertNotIn(self.catalog.group("direct"), strict.auto_proxies)
+
+    def test_full_region_services_share_one_pinned_pool(self) -> None:
+        plan = compile_mihomo_profile(strict=False, include_process_rules=False, catalog=self.catalog)
+        self.assertEqual(len({service.service.group for service in plan.services}), len(plan.services))
+        full_region_services = [
+            service for service in plan.services
+            if service.region_groups == self.catalog.all_region_groups
+        ]
+        self.assertTrue(full_region_services)
+        self.assertTrue(all(service.auto_group == self.catalog.group("auto") for service in full_region_services))
+        for service in plan.services:
+            if not service.service.direct_relaxed:
+                self.assertNotIn(self.catalog.group("manual"), service.ui_proxies)
+                self.assertNotIn(self.catalog.group("direct"), service.ui_proxies)
+
+    def test_provider_inventory_follows_the_selected_routes(self) -> None:
+        for strict in (False, True):
+            for include_process in (False, True):
+                with self.subTest(strict=strict, include_process=include_process):
+                    routes = compile_routing_entries(
+                        strict=strict, include_process_rules=include_process, catalog=self.catalog
+                    )
+                    providers = compile_rule_providers(
+                        strict=strict, include_process_rules=include_process, catalog=self.catalog
+                    )
+                    expected = list(dict.fromkeys(
+                        rule.value for rule in routes if getattr(rule, "kind", None) == "RULE-SET"
+                    ))
+                    self.assertEqual([provider.name for provider in providers], expected)
 
     def test_jules_local_rule_is_compiled_before_global_ai_aggregates(self) -> None:
         rules = compile_ai_routing_rules(self.catalog)
@@ -87,11 +119,11 @@ class CompilerContractsTest(unittest.TestCase):
         jules = next(service for service in self.catalog.services if service.id == "jules")
         cluster_key = jules.subconverter.rule_cluster
         self.assertIsNotNone(cluster_key)
-        expected_groups = [
+        expected_groups = list(dict.fromkeys(
             service.group
             for service in self.catalog.services
             if service.subconverter.rule_cluster == cluster_key
-        ]
+        ))
         actual_cluster = next(
             cluster
             for cluster in plan.service_rule_clusters

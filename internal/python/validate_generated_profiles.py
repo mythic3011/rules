@@ -20,9 +20,11 @@ from ai_profiles.compiler import (
     compile_routing_entries,
     compile_rule_providers,
 )
-from ai_profiles.models import RuleProviderPlan
-from ai_profiles.plans.ini_mvp import load_ini_mvp_plan
+from ai_profiles.models import RoutingRule, RuleProviderPlan
+from ai_profiles.plans.ini_mvp import account_protection_group_candidates, load_ini_mvp_plan
 from ai_profiles.process_rules import load_process_rule_source
+from ai_profiles.render.subconverter import _render_ini_rule
+from ai_profiles.routing_ir import project_ini_rule
 from ai_profiles.settings import CFG_DIR, DOCS_DIR, RULE_DIR
 
 
@@ -172,6 +174,9 @@ def validate_service_groups(
     proxy_groups: list[dict[str, object]] | dict[str, dict[str, object]],
     strict: bool,
 ) -> None:
+    account_plan = load_ini_mvp_plan()
+    account = account_plan["accountProtection"]
+    protected_candidates = list(account_protection_group_candidates(account_plan))
     for service in CATALOG.services:
         if "mihomo" not in service.projections:
             continue
@@ -179,6 +184,16 @@ def validate_service_groups(
         group = find_group(proxy_groups, name)
         proxies = group.get("proxies") or []
         ensure(isinstance(proxies, list) and proxies, f"{name} proxies must be a non-empty list")
+        if service.id == account["serviceId"]:
+            ensure(
+                proxies == protected_candidates,
+                f"{name} must match the typed account-protection group choices",
+            )
+            ensure(
+                proxies[0] == account["rejectGroup"] and GROUP["direct"] not in proxies,
+                f"{name} must be reject-first and must not include DIRECT",
+            )
+            continue
         ensure(proxies[-1] == GROUP["reject"], f"{name} must end with {GROUP['reject']}")
         if strict:
             ensure(GROUP["direct"] not in proxies, f"{name} must not include DIRECT in strict profile")
@@ -296,15 +311,9 @@ def validate_yaml_profile(path: Path, strict: bool) -> None:
         ensure(isinstance(health_check.get("url"), str) and health_check["url"], f"{provider_name} health-check.url must be explicit")
         ensure(provider.get("exclude-filter"), f"{provider_name} exclude-filter missing")
 
-    health_check_urls: set[str] = set()
-    health_check_intervals: set[int] = set()
     for group in proxy_groups:
         ensure(isinstance(group, dict), f"{path.name} proxy group must be a mapping")
-        if group.get("type") in {"url-test", "fallback"}:
-            ensure(isinstance(group.get("url"), str) and group["url"], f"{group.get('name')} missing explicit health-check URL")
-            ensure(isinstance(group.get("interval"), int) and group["interval"] > 0, f"{group.get('name')} missing positive health-check interval")
-            health_check_urls.add(group["url"])
-            health_check_intervals.add(group["interval"])
+        ensure(group.get("type") == "select", f"{group.get('name')} must pin its selected exit")
 
     other = find_group(proxy_groups, GROUP["other"])
     ensure(other.get("type") == "select", f"{GROUP['other']} must be a select group")
@@ -312,11 +321,14 @@ def validate_yaml_profile(path: Path, strict: bool) -> None:
     ensure(other.get("filter") and other.get("exclude-filter"), f"{GROUP['other']} must keep membership filters")
     ensure(other.get("use") == ["provider1"], f"{GROUP['other']} must keep provider membership")
 
-    ensure(len(health_check_urls) == 1, "Generated proxy groups must share one health-check URL")
-    ensure(len(health_check_intervals) == 1, "Generated proxy groups must share one health-check interval")
+    health_check_urls = {
+        provider["health-check"]["url"]
+        for provider in providers.values()
+        if isinstance(provider, dict)
+    }
     ensure(
-        all(provider["health-check"]["url"] in health_check_urls for provider in providers.values() if isinstance(provider, dict)),
-        "Proxy-provider health-check URL must match generated group health checks",
+        len(health_check_urls) == 1,
+        "Proxy-provider health checks must share one explicit URL",
     )
 
     proxy_groups_map = {
@@ -445,6 +457,13 @@ def validate_ini(text: str) -> None:
     expected_after = [render_ini_mvp_rule(record) for record in after_legacy]
     ensure(all(line in text for line in [*expected_before, *expected_after]), "INI is missing a normalized MVP rule record")
     for replaced_service in (s for s in CATALOG.services if s.id in replaced_service_ids and "subconverter" in s.projections):
+        if replaced_service.id == account["serviceId"]:
+            for geosite in replaced_service.geosites:
+                ensure(
+                    f"ruleset={replaced_service.group},[]GEOSITE,{geosite}" in text,
+                    f"INI is missing account-protected service GEOSITE rule: {geosite}",
+                )
+            continue
         for geosite in replaced_service.geosites:
             ensure(f"ruleset={replaced_service.group},[]GEOSITE,{geosite}" not in text, f"INI must not retain legacy {replaced_service.id} geosite ruleset")
         ensure(f"custom_proxy_group={replaced_service.group}`" not in text and f"custom_proxy_group={replaced_service.group} ·" not in text, f"INI must not retain legacy {replaced_service.id} proxy group")
@@ -479,7 +498,10 @@ def validate_ini(text: str) -> None:
     private_ip = ini_rule_index(rulesets, ini_route_fragment(foundation_routes[1]))
     before_indices = [rulesets.index(line) for line in expected_before]
     after_indices = [rulesets.index(line) for line in expected_after]
-    first_companion = next(rule for rule in CATALOG.companion_rulesets if rule.mihomo)
+    first_companion = next(
+        rule for rule in CATALOG.companion_rulesets
+        if rule.mihomo and rule.category != "privacy"
+    )
     first_external_provider = next(
         route
         for route in CATALOG.external_routes
@@ -499,7 +521,25 @@ def validate_ini(text: str) -> None:
     )
     final_route = next(route for route in CATALOG.external_routes if route.kind == "MATCH")
     final_rule = ini_rule_index(rulesets, ini_route_fragment(final_route))
-    ensure(before_indices == list(range(before_indices[0], before_indices[0] + len(before_indices))), "INI protected rule records must remain adjacent")
+    protected_service_rules = [
+        _render_ini_rule(project_ini_rule(rule))
+        for rule in compile_ai_routing_rules(CATALOG)
+        if isinstance(rule, RoutingRule) and rule.target == account["protectedGroup"]
+    ]
+    protected_service_indices = [ini_rule_index(rulesets, rule) for rule in protected_service_rules]
+    if protected_service_indices:
+        ownership_indices = before_indices[:-1]
+        ensure(
+            ownership_indices == list(range(ownership_indices[0], ownership_indices[0] + len(ownership_indices))),
+            "INI ownership-override records must remain adjacent",
+        )
+        ensure(
+            protected_service_indices == sorted(protected_service_indices)
+            and all(ownership_indices[-1] < index < before_indices[-1] for index in protected_service_indices),
+            "INI account service rules must precede the legacy protected rule",
+        )
+    else:
+        ensure(before_indices == list(range(before_indices[0], before_indices[0] + len(before_indices))), "INI protected rule records must remain adjacent")
     ensure(after_indices == list(range(after_indices[0], after_indices[0] + len(after_indices))), "INI post-legacy rule records must remain adjacent")
     ensure(private_ip < before_indices[0] < legacy_identity_index < after_indices[0] < first_companion_index < first_external_provider_index < final_rule, "INI MVP rule ordering is wrong")
 

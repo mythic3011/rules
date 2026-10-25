@@ -29,7 +29,7 @@ IniSectionRole = Literal[
     "final-group",
 ]
 IniRuleClusterSource = Literal["service", "companion", "external"]
-CompanionRuleCategory = Literal["ssh", "gaming", "finance", "other"]
+CompanionRuleCategory = Literal["ssh", "gaming", "finance", "other", "privacy"]
 RuleFileRenderMode = Literal["classical", "comment"]
 ExternalRouteWhen = Literal["relaxed", "always"]
 ProfileRouteKind = Literal["GEOSITE", "GEOIP"]

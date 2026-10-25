@@ -188,6 +188,71 @@ test("routing loader hydrates catalog-owned service identity and endpoint metada
   assert.equal(config.services["flow-music"]?.displayName, "🎵 Flow Music");
   assert.equal(config.services["flow-music"]?.selector.visibleGroup, "🎵 Flow Music");
   assert.equal(config.services["flow-music"]?.endpoints.service?.ruleset, "Flow_Music_Classical");
+  assert.equal(config.services.gemini?.displayName, "🤖 Google AI");
+  assert.equal(config.services.notebooklm?.displayName, "🤖 Google AI Tools");
+});
+
+test("service catalog resolves shared policy metadata and rejects overrides", async () => {
+  await withTempDirectory("routing-service-policy-", async (directory) => {
+    const path = join(directory, "services.json");
+    const sharedPolicy = {
+      group: "🤖 Google AI",
+      regions: ["us", "sg"],
+      directRelaxed: false,
+      subconverter: { ruleCluster: "shared-google" },
+    };
+    const service = {
+      id: "gemini",
+      providerKey: "AI_Gemini_Classical",
+      file: "AI_Gemini_Classical.yaml",
+      payload: [],
+      policy: "google-ai-proxy",
+      dnsPolicies: [],
+      upstreamRules: [],
+    };
+    await writeFile(
+      path,
+      JSON.stringify({ schemaVersion: 1, policies: { "google-ai-proxy": sharedPolicy }, services: [service] }),
+      "utf8",
+    );
+
+    const catalog = await loadServiceCatalog(path);
+    const gemini = catalog.get("gemini");
+    assert.ok(gemini !== undefined);
+    assert.equal(gemini.group, sharedPolicy.group);
+    assert.deepEqual(gemini.regions, sharedPolicy.regions);
+    assert.equal(gemini.directRelaxed, false);
+    assert.equal(gemini.subconverter.ruleCluster, "shared-google");
+    assert.equal(gemini.policyId, "google-ai-proxy");
+
+    await writeFile(
+      path,
+      JSON.stringify({ schemaVersion: 1, policies: {}, services: [service] }),
+      "utf8",
+    );
+    await assert.rejects(
+      () => loadServiceCatalog(path),
+      (error: unknown) =>
+        error instanceof ServiceCatalogError &&
+        error.issues.some((entry) => entry.code === "missing-reference" && entry.path.at(-1) === "policy"),
+    );
+
+    await writeFile(
+      path,
+      JSON.stringify({
+        schemaVersion: 1,
+        policies: { "google-ai-proxy": sharedPolicy },
+        services: [{ ...service, group: "🤖 Gemini" }],
+      }),
+      "utf8",
+    );
+    await assert.rejects(
+      () => loadServiceCatalog(path),
+      (error: unknown) =>
+        error instanceof ServiceCatalogError &&
+        error.issues.some((entry) => entry.message.includes("cannot be combined")),
+    );
+  });
 });
 
 test("service catalog validation fails closed for malformed and duplicate identities", async () => {
@@ -198,8 +263,8 @@ test("service catalog validation fails closed for malformed and duplicate identi
       JSON.stringify({
         schemaVersion: 1,
         services: [
-          { id: "chatgpt", providerKey: "AI_ChatGPT_Classical", group: "ChatGPT", file: "chatgpt.yaml", payload: [] },
-          { id: "chatgpt", providerKey: "AI_ChatGPT_Classical_2", group: "ChatGPT 2", file: "chatgpt-2.yaml", payload: [] },
+          { id: "chatgpt", providerKey: "AI_ChatGPT_Classical", group: "ChatGPT", file: "chatgpt.yaml", payload: [], directRelaxed: false, subconverter: {}, dnsPolicies: [], upstreamRules: [] },
+          { id: "chatgpt", providerKey: "AI_ChatGPT_Classical_2", group: "ChatGPT 2", file: "chatgpt-2.yaml", payload: [], directRelaxed: false, subconverter: {}, dnsPolicies: [], upstreamRules: [] },
         ],
       }),
       "utf8",

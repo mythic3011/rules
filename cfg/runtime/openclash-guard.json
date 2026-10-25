@@ -809,7 +809,7 @@
       "quic": "proxy-or-reject"
     }
   },
-  "revision": "c59a69ce2b648853ed87ae78117ab7b269239925d1a45da0117f7d056bf5fbed",
+  "revision": "cbb76792bf988b658f7d6e19d65e1981eefce094949ad7efeda19ee239bc49f1",
   "schemaVersion": 1,
   "services": {
     "chatgpt": {
@@ -835,9 +835,22 @@
       ],
       "dependencies": [],
       "matchers": {
-        "domainSuffixes": [],
+        "domainSuffixes": [
+          "anthropic.com",
+          "claude.ai",
+          "claude.com",
+          "clau.de",
+          "claudemcpclient.com",
+          "claudemcpcontent.com",
+          "claudeusercontent.com",
+          "sentry.io",
+          "statsigapi.net",
+          "intercom.io",
+          "intercomcdn.com"
+        ],
         "geosite": [
-          "anthropic"
+          "anthropic",
+          "category-ntp"
         ]
       },
       "protectionClass": "account-protected"

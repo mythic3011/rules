@@ -284,7 +284,7 @@
     },
     {
       "id": "gemini",
-      "displayName": "🤖 Gemini",
+      "displayName": "🤖 Google AI",
       "protectionClass": "direct-capable",
       "effectiveRoute": {
         "id": "sg-stable",
@@ -294,7 +294,7 @@
       },
       "selector": {
         "kind": "profile-aware",
-        "visibleGroup": "🤖 Gemini",
+        "visibleGroup": "🤖 Google AI",
         "hiddenProfileTarget": "@profile/gemini",
         "choices": [
           {
@@ -461,7 +461,7 @@
     },
     {
       "id": "notebooklm",
-      "displayName": "🤖 NotebookLM",
+      "displayName": "🤖 Google AI Tools",
       "protectionClass": "direct-capable",
       "effectiveRoute": {
         "id": "sg-stable",
@@ -471,7 +471,7 @@
       },
       "selector": {
         "kind": "profile-aware",
-        "visibleGroup": "🤖 NotebookLM",
+        "visibleGroup": "🤖 Google AI Tools",
         "hiddenProfileTarget": "@profile/notebooklm",
         "choices": [
           {

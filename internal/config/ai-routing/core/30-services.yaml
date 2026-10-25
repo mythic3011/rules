@@ -22,13 +22,11 @@ services:
     endpoints:
       service: { session: stateless }
   claude:
-    displayName: "🔐 Claude Account Guard"
     protectionClass: account-protected
     defaultRoute: reject
     allowedRoutes: [reject, us-stable, sg-stable, jp-stable]
     selector:
       kind: explicit-node
-      visibleGroup: "🔐 Claude Account Guard"
       initialRoute: reject
       allowedRouteRefs: [reject, us-stable, sg-stable, jp-stable]
     upstream: { source: vpsdance, provider: anthropic }

@@ -4,6 +4,10 @@ import subprocess
 import unittest
 from pathlib import Path
 
+import yaml
+
+from ai_profiles.intake_contract import INTAKE_LIMITS, MATCHER_REGISTRY
+
 ROOT = Path(__file__).resolve().parents[1]
 FORM = ROOT / ".github/ISSUE_TEMPLATE/service_intake.yml"
 LEGACY_FORM = ROOT / ".github/ISSUE_TEMPLATE/rule_add_request.yml"
@@ -16,12 +20,14 @@ class ServiceIntakeFormTests(unittest.TestCase):
         self.assertIn("hk — Hong Kong", text)
         self.assertIn("us — United States", text)
         self.assertIn("Other / new region", text)
-        self.assertIn("Additional region 1 code", text)
-        self.assertIn("Additional region 2 code", text)
-        self.assertIn("Additional region 3 code", text)
+        for slot in range(1, INTAKE_LIMITS.additional_regions + 1):
+            self.assertIn(f"Additional region {slot} code", text)
         self.assertIn("canonical region ID, flag, group name and regex are generated automatically", text)
         self.assertIn("Matcher type", text)
         self.assertTrue(text.startswith("# GENERATED"))
+        form = yaml.safe_load(text)
+        matcher = next(item for item in form["body"] if item.get("id") == "matcher_type")
+        self.assertEqual(matcher["attributes"]["options"], list(MATCHER_REGISTRY))
 
     def test_known_region_dropdown_does_not_use_ambiguous_other_identity(self):
         subprocess.run(["python3", "internal/python/generate_service_intake_form.py"], cwd=ROOT, check=True)

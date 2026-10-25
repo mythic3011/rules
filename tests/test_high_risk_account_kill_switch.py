@@ -80,7 +80,7 @@ class HighRiskAccountKillSwitchTest(unittest.TestCase):
             include_process_rules=False,
             catalog=self.catalog,
         )
-        self.assertEqual(strict.policy_groups, ())
+        self.assertTrue(all(group.mihomo_when == "always" for group in strict.policy_groups))
         rendered = MODULE.render_yaml(strict=True)
         self.assertNotIn(self.catalog.group("high-risk-account"), rendered)
         self.assertNotIn(self.catalog.group("stable-session"), rendered)

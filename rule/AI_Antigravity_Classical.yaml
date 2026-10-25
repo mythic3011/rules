@@ -2,9 +2,9 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/internal/python/generate_ai_profiles.py
 # RULE-PROVIDER: AI_Antigravity_Classical
-# GROUP: 🤖 Antigravity
+# GROUP: 🤖 Google AI Tools
 # TOTAL: 4
-# SOURCE-DIGEST: 106c7e94e54d25c1c94167723d235ecc47022d0b23ef215d9addf7443fc7121d
+# SOURCE-DIGEST: 217623d6113c573249f53f1210827eb4276669d0bef358dd3f9365b23d3c4744
 
 payload:
   - "DOMAIN-SUFFIX,antigravity.google"

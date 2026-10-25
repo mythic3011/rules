@@ -1,13 +1,22 @@
 # Python implementation
 
-Python generators, renderers, audits, and local composition helpers live here.
+This directory contains generators, renderers, audits, and local composition helpers. The canonical policy declarations live under `internal/config/ai-routing/`; Python loads and compiles them into generated artifacts. Start with the [policy maintenance guide](../../docs/policy-maintenance.md) for ordinary changes.
 
-Normal repository consumers do not need this directory. Maintainers should use the root commands instead of memorizing individual entrypoints:
+| Area | Responsibility |
+| --- | --- |
+| `ai_profiles/schema.py` and `catalog.py` | Validate and load typed policy declarations. |
+| `ai_profiles/compiler.py` and `routing_ir.py` | Compile routing and projection plans. |
+| `ai_profiles/render/` | Render the plans as YAML and INI. |
+| `generate_ai_profiles.py` | Write the generated AI profile family. |
+| Other `generate_*.py` entrypoints | Generate their separately owned repository artifacts. |
+
+`ai_profiles/paths.py` owns catalog document paths; `ai_profiles/domains.py` owns the shared authored-hostname validator. Reuse those owners instead of copying paths or hostname syntax into loaders and forms.
+
+After `make bootstrap`, use the pinned root commands for routine work:
 
 ```sh
-make check
-make generate
-make refresh
+mise run generate
+mise run check
 ```
 
-`ai_profiles/` owns the generated AI profile family. `generate_adblock_outputs.py` owns filtering outputs. Direct invocation remains supported for CI and targeted debugging.
+`mise exec -- make refresh` is a separate network-backed update. Keep it out of ordinary deterministic generation.

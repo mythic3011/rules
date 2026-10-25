@@ -2,9 +2,9 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/internal/python/generate_ai_profiles.py
 # RULE-PROVIDER: AI_NotebookLM_Classical
-# GROUP: 🤖 NotebookLM
+# GROUP: 🤖 Google AI Tools
 # TOTAL: 7
-# SOURCE-DIGEST: 86b7f9868a36aba8f8e7cfc5001979b829ef8135fe06b7d28459a533151ca8b2
+# SOURCE-DIGEST: 743887e86df2bc2d025b0dfcb18d7fdff256f0beea464bd2648ac2bdcb324c92
 
 payload:
   - "DOMAIN-SUFFIX,notebook.google"

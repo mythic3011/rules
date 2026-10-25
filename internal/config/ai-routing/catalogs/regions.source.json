@@ -7,7 +7,7 @@
     {
       "id": "us",
       "name": "United States",
-      "group": "🇺🇸 美國節點",
+      "group": "🇺🇸 US Stable",
       "roles": ["exit"],
       "match": {
         "flags": ["🇺🇸"],
@@ -21,7 +21,7 @@
     {
       "id": "jp",
       "name": "Japan",
-      "group": "🇯🇵 日本節點",
+      "group": "🇯🇵 JP Stable",
       "roles": ["exit"],
       "match": {
         "flags": ["🇯🇵"],
@@ -35,7 +35,7 @@
     {
       "id": "sg",
       "name": "Singapore",
-      "group": "🇸🇬 新加坡節點",
+      "group": "🇸🇬 SG Stable",
       "roles": ["exit"],
       "match": {
         "flags": ["🇸🇬"],

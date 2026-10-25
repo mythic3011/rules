@@ -1,12 +1,13 @@
-# SSH Routing
+# SSH and Tailscale routing
 
-The AI profile generator creates three SSH companion rule files:
-- `rule/SSH_Direct_Classical.yaml`
-- `rule/SSH_Proxy_Classical.yaml`
-- `rule/SSH_Process_Classical.yaml`
+The generator creates these SSH companion rule files:
 
-`SSH_Direct_Classical.yaml` is for exact, intentional direct routing only. Use a narrow `/32` endpoint after testing and do not add global `DST-PORT,22`. Broad provider subnets are intentionally excluded. `Cloudflare generate_204` checks proxy reachability only; it does not prove SSH-to-VPS path quality.
+- `rule/SSH_Direct_Classical.yaml` for exact intentional direct routes. Use a tested `/32`; do not add broad provider subnets or global `DST-PORT,22`.
+- `rule/SSH_Proxy_Classical.yaml` for narrow destinations that should use the proxy.
+- `rule/SSH_Process_Classical.yaml` for desktop-only compatibility. `PROCESS-NAME` cannot identify LAN client processes when OpenClash runs on the router.
 
-`SSH_Proxy_Classical.yaml` is for intentionally proxied SSH destinations. Keep entries narrow and explicit. `SSH_Process_Classical.yaml` exists only as a desktop compatibility surface. `PROCESS-NAME` only works when Mihomo or Clash runs on the same host as the process. OpenClash router TProxy mode normally cannot attribute LAN traffic back to a client process name.
+Cloudflare `generate_204` checks proxy reachability only; it does not prove SSH-to-VPS path quality.
 
-Tailscale exit-node traffic needs more than rule-level `DIRECT`. Rule-level routing is not enough for WireGuard UDP encapsulation. Router deployments need firewall or `iptables`/`nftables`-level TProxy bypass for the Tailscale interface as well. Tailscale direct connectivity commonly uses UDP 41641. Tailscale STUN commonly uses UDP 3478. DERP relay sets change over time, so do not hardcode unverified Tailscale CIDR or DERP IP ranges into generated rules.
+Tailscale exit-node traffic needs a router firewall or `iptables`/`nftables` TProxy bypass for the Tailscale interface. Rule-level `DIRECT` cannot inspect WireGuard UDP encapsulation. Tailscale direct connectivity commonly uses UDP 41641; DERP relay addresses change, so do not hardcode unverified ranges.
+
+The privacy guard rejects captured traffic on UDP 3478 and TCP 3478, including STUN used for Tailscale discovery. This can reduce NAT traversal and affect peer discovery. The profile has no Tailscale STUN exception. Any interface-level firewall bypass is an explicit operator choice and changes the blocking guarantee for traffic covered by that bypass.

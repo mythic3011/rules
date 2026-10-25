@@ -2,9 +2,9 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/internal/python/generate_ai_profiles.py
 # RULE-PROVIDER: AI_Gemini_Classical
-# GROUP: 🤖 Gemini
+# GROUP: 🤖 Google AI
 # TOTAL: 12
-# SOURCE-DIGEST: 0d6f400419262778fa487ff451496740008d0117f18e927117e84583e9477a56
+# SOURCE-DIGEST: 7e167ac5aa3f263247d930797432043677918bad3c16a8325c4eaa40fbda8ffa
 
 payload:
   - "DOMAIN-SUFFIX,gemini.google"
