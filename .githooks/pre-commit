@@ -6,4 +6,4 @@ cd "$repo_root"
 
 make generate
 
-git add -u -- rule cfg dns dist apps/profile-service/worker/generated
+printf '%s\n' 'Generated files refreshed; review and stage them explicitly.'
