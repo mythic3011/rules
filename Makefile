@@ -15,26 +15,25 @@ help:
 	  'make refresh    - refresh upstream network inputs + regenerate'
 
 bootstrap:
-	python3 -m pip install -r requirements-dev.txt
-	npm ci
+	mise install
+	mise run bootstrap
 install-hooks:
 	git config core.hooksPath .githooks
 doctor:
-	./rulesctl doctor
+	mise run doctor
 check:
-	./rulesctl check
+	mise run check
 check-all:
-	./rulesctl check --node
+	mise run check-all
 check-profile-service:
-	npm run test:profile-service
+	mise run check-profile-service
 check-bootstrap-alias:
-	python3 internal/python/check_bootstrap_alias.py
+	mise run check-bootstrap-alias
 generate:
-	./rulesctl generate
-	python3 tools/shbundle.py build --all
+	mise run generate
 build:
-	python3 tools/shbundle.py build --all
+	mise run build
 ci:
-	./rulesctl ci
+	mise run ci
 refresh:
-	./rulesctl refresh --yes
+	mise run refresh

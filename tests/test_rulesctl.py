@@ -75,7 +75,7 @@ class RulesctlConfigTest(unittest.TestCase):
                                     },
                                     "otherwise": "skip",
                                     "skipMessage": "skipped optional tools",
-                                    "steps": [{"argv": ["npm", "run", "never"]}],
+                                    "steps": [{"argv": ["pnpm", "run", "never"]}],
                                 },
                                 {"argv": ["{python}", "-c", "pass"]},
                             ]

@@ -7,19 +7,20 @@
     "#routing/*": "./internal/typescript/routing/*",
     "#routing-test/*": "./tests/routing/*"
   },
-  "packageManager": "npm@11.17.0",
+  "packageManager": "pnpm@11.25.0",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
     "routing": "node --import tsx internal/typescript/routing/cli.ts",
-    "routing:validate": "npm run routing -- validate",
-    "routing:generate": "npm run routing -- generate",
-    "routing:check": "npm run routing -- check",
+    "routing:validate": "pnpm run routing validate",
+    "routing:generate": "pnpm run routing generate",
+    "routing:check": "pnpm run routing check",
     "typecheck": "tsc --noEmit",
     "test:routing": "node --import tsx --test tests/routing/*.test.ts",
     "generate:profile-service-runtime": "python3 internal/python/generate_profile_service_runtime.py",
-    "test:profile-service": "node --test apps/profile-service/test/*.test.mjs",
+    "test:profile-service": "pnpm --filter mythic-rules-profile-service test",
+    "profile:e2e": "pnpm --filter mythic-rules-profile-service test:e2e",
     "web:build": "vite build",
     "web:dev": "vite",
     "web:preview": "vite preview",

@@ -7,26 +7,32 @@ Everything used to build those artifacts lives under `internal/`.
 make bootstrap
 make install-hooks
 make doctor
-make check
+mise run check
 ```
+
+Install mise first using the [official getting-started guide](https://mise.jdx.dev/getting-started.html). `make bootstrap` then installs the pinned project tools and dependencies.
 
 For TypeScript routing changes:
 
 ```sh
-npm ci
-make check-all
+make bootstrap
+mise run check-all
 ```
+
+`make bootstrap` installs the versions declared in `mise.toml`, the Python
+development requirements, and the complete pnpm workspace from its frozen
+lockfile. The workspace install covers the repository and profile-service.
 
 Regenerate deterministic outputs with:
 
 ```sh
-make generate
+mise run generate
 ```
 
 Network-backed upstream pin/list changes are explicit:
 
 ```sh
-make refresh
+mise exec -- make refresh
 ```
 
 Do not hand-edit generated AI profiles or generated provider files. Change the declarative config under `internal/config/` and regenerate instead.
@@ -47,17 +53,18 @@ Maintainers should review:
 - whether a newly submitted region should be routable or observation-only;
 - generated diff size and CI results.
 
-`internal/config/ai-routing/catalogs/regions.json` is the Region Registry. `regions` may
-contain observation-only regions, while `primaryOrder` is the explicit set/order
-of routable exits.
+`internal/config/ai-routing/catalogs/regions.source.json` is the authored Region
+Registry; `regions.json` is its generated v1 projection. `regions` may contain
+observation-only regions, while `primaryOrder` is the explicit set/order of
+routable exits.
 
 ## Profile service
 
-`apps/profile-service/` is an application surface, not a fourth published artifact root. Its Worker runtime projection is generated from the canonical Python `SubconverterPlan`:
+`apps/profile-service/` is an application surface, not a fourth published artifact root. Its Worker runtime projection is generated from the Python Mihomo profile and canonical `SubconverterPlan`:
 
 ```sh
-python3 internal/python/generate_profile_service_runtime.py
-npm run test:profile-service
+mise run generate
+mise exec -- pnpm --filter mythic-rules-profile-service test
 ```
 
 Do not hand-edit `apps/profile-service/worker/generated/runtime-data.mjs`. Change the catalog/compiler and regenerate it. Any change to Python `ProfileSpec` solving must retain Worker parity fixtures.

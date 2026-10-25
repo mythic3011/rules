@@ -23,9 +23,15 @@ on:
       - "docs/ai-profile-generator.md"
       - "docs/kill-switch.md"
       - "package.json"
-      - "package-lock.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "mise.toml"
+      - "Makefile"
+      - "internal/config/rulesctl.json"
+      - "internal/python/rulesctl.py"
+      - "requirements*.txt"
       - "tsconfig.json"
-      - ".github/workflows/auto-generate-ai-profiles.yml"
+      - ".github/workflows/**"
   pull_request:
     paths:
       - "internal/python/generate_ai_profiles.py"
@@ -49,9 +55,15 @@ on:
       - "docs/ai-profile-generator.md"
       - "docs/kill-switch.md"
       - "package.json"
-      - "package-lock.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "mise.toml"
+      - "Makefile"
+      - "internal/config/rulesctl.json"
+      - "internal/python/rulesctl.py"
+      - "requirements*.txt"
       - "tsconfig.json"
-      - ".github/workflows/auto-generate-ai-profiles.yml"
+      - ".github/workflows/**"
   schedule:
     - cron: "17 3 * * *"
   workflow_dispatch:
@@ -73,25 +85,19 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Python
-        uses: actions/setup-python@v6
+      - name: Set up mise
+        uses: jdx/mise-action@v5
         with:
-          python-version: "3.x"
+          install: false
 
-      - name: Set up uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+      - name: Install pinned toolchain
+        run: mise install
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Install Python dependencies
         run: uv pip install --system -r requirements-dev.txt
-
-      - name: Set up Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: "24"
-          cache: npm
-
-      - name: Install Node dependencies
-        run: npm ci
 
       - name: Refresh shared upstream source lock on schedule
         if: github.event_name == 'schedule'
@@ -122,6 +128,43 @@ jobs:
             exit 1
           fi
 
+      - name: Check profile service packaging
+        run: mise run deploy:check
+
+      - name: Install Chromium for profile service E2E
+        run: pnpm --filter mythic-rules-profile-service exec playwright install --with-deps chromium
+
+      - name: Test profile service in Chromium
+        timeout-minutes: 5
+        env:
+          PROFILE_SERVICE_E2E_BASE_URL: http://127.0.0.1:8787
+        run: |
+          server_log="$RUNNER_TEMP/profile-service-dev.log"
+          server_port="$(node -p 'new URL(process.env.PROFILE_SERVICE_E2E_BASE_URL).port')"
+          mise run dev --ip 127.0.0.1 --port "$server_port" --log-level error --show-interactive-dev-session=false >"$server_log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+
+          ready=false
+          for _ in {1..40}; do
+            if ! kill -0 "$server_pid" 2>/dev/null; then
+              echo "Local profile service exited before becoming ready." >&2
+              cat "$server_log"
+              exit 1
+            fi
+            if curl --fail --silent --connect-timeout 1 --max-time 2 --output /dev/null "${PROFILE_SERVICE_E2E_BASE_URL}/api/v1/catalog"; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" != true ]; then
+            echo "Local profile service did not become ready." >&2
+            cat "$server_log"
+            exit 1
+          fi
+          mise run e2e
+
   commit-managed-python-outputs:
     # PR code is validated with a read-only token above. Only trusted push/schedule
     # events may reach this separate write-capable job.
@@ -141,25 +184,19 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
 
-      - name: Set up Python
-        uses: actions/setup-python@v6
+      - name: Set up mise
+        uses: jdx/mise-action@v5
         with:
-          python-version: "3.x"
+          install: false
 
-      - name: Set up uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+      - name: Install pinned toolchain
+        run: mise install
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Install Python dependencies
         run: uv pip install --system -r requirements-dev.txt
-
-      - name: Set up Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: "24"
-          cache: npm
-
-      - name: Install Node dependencies
-        run: npm ci
 
       - name: Refresh shared upstream source lock on schedule
         if: github.event_name == 'schedule'
@@ -173,7 +210,7 @@ jobs:
         run: make generate
 
       - name: Test profile service solver
-        run: npm run test:profile-service
+        run: pnpm run test:profile-service
 
       - name: Audit generated upstream ownership
         run: python3 internal/python/generate_ai_profiles.py --audit-rule-coverage

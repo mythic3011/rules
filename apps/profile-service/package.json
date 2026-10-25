@@ -3,15 +3,19 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Cloudflare Worker and Web Builder for opaque OpenClash subconverter INI profiles.",
+  "description": "Cloudflare Worker for OpenClash policy profiles and Mihomo YAML conversion.",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
     "test": "node --test test/*.test.mjs",
-    "dev": "npx wrangler@latest dev",
-    "db:migrate": "npx wrangler@latest d1 migrations apply DB --remote",
-    "deploy": "npm run db:migrate && npx wrangler@latest deploy"
+    "dev": "wrangler dev --local",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "db:migrate": "wrangler d1 migrations apply DB --remote",
+    "deploy": "node tools/deploy.mjs",
+    "deploy:check": "node tools/deploy.mjs --dry-run",
+    "deploy:setup": "node tools/deploy.mjs --setup-only",
+    "test:e2e": "playwright test"
   },
   "cloudflare": {
     "bindings": {
@@ -19,8 +23,15 @@
         "description": "D1 stores saved ProfileSpec records and hashed read/manage capabilities."
       },
       "PROFILE_WRITE_LIMITER": {
-        "description": "Rate-limits anonymous profile create/update/rotate operations."
+        "description": "Rate-limits anonymous profile writes and conversions."
       }
     }
+  },
+  "dependencies": {
+    "yaml": "2.9.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "wrangler": "4.152.0"
   }
 }

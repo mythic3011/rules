@@ -1,10 +1,11 @@
 # GitHub Actions
 
-Active automation is intentionally limited to generation, publishing, security, and dependency maintenance.
+Automation validates changes, generates public assets, and publishes them. Profile-service deployment is a separate manual action.
 
 | Workflow | Responsibility |
 | --- | --- |
-| `auto-generate-ai-profiles.yml` | validate/generate AI routing artifacts and scheduled upstream locks |
+| `auto-generate-ai-profiles.yml` | validate/generate AI routing artifacts, check Worker packaging, run Chromium E2E, and refresh scheduled upstream locks |
+| `deploy-profile-service.yml` | manually validate and deploy the default-branch profile service using the `profile-service-production` environment |
 | `service-intake.yml` | validate labeled service-intake issues and propose canonical registry changes by pull request |
 | `auto-generate-adblock.yml` | refresh filtering sources and publish DNS/Clash outputs |
 | `auto-generate-rules.yml` | derive YAML/MRS files from public `.list` rules |
@@ -16,4 +17,4 @@ Active automation is intentionally limited to generation, publishing, security, 
 | `codeql.yml` | CodeQL security analysis |
 | `dependabot-auto-merge.yml` | labeled Dependabot automation |
 
-Repository consumers do not need to understand these workflows. Maintainers should prefer `make check`, `make generate`, and `make refresh` locally so CI and local commands exercise the same entrypoints.
+Maintainers use `mise run check`, `mise run generate`, and the explicit `mise run refresh` locally. The Make targets remain compatible aliases. Profile-service deployment setup is documented in [its guide](../../apps/profile-service/README.md#github-actions).

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import unittest
+from urllib.parse import urlsplit
 
 import yaml
 
@@ -13,6 +14,47 @@ WORKFLOW_PATH = ROOT / ".github" / "workflows" / "auto-generate-ai-profiles.yml"
 
 
 class AiProfileWorkflowTests(unittest.TestCase):
+    def test_validation_watches_workspace_and_runner_inputs(self) -> None:
+        workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
+        events = workflow.get("on", workflow.get(True))
+        for event in ("push", "pull_request"):
+            with self.subTest(event=event):
+                paths = events[event]["paths"]
+                for dependency in (
+                    "apps/profile-service/**", "pnpm-lock.yaml", "pnpm-workspace.yaml",
+                    "mise.toml", "Makefile", "requirements*.txt",
+                    "internal/config/rulesctl.json", "internal/python/rulesctl.py",
+                    ".github/workflows/**",
+                ):
+                    self.assertIn(dependency, paths)
+
+    def test_browser_validation_uses_local_wranger_and_stops_its_server(self) -> None:
+        workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
+        job = workflow["jobs"]["validate-ai-profiles"]
+        steps = job["steps"]
+        commands = [step.get("run", "") for step in steps]
+        package_index = commands.index("mise run deploy:check")
+        browser_index = next(index for index, command in enumerate(commands) if "playwright install" in command)
+        test_index = next(index for index, command in enumerate(commands) if "mise run e2e" in command)
+        self.assertLess(package_index, browser_index)
+        self.assertLess(browser_index, test_index)
+        self.assertIn("--with-deps chromium", commands[browser_index])
+
+        browser_step = steps[test_index]
+        target = urlsplit(browser_step["env"]["PROFILE_SERVICE_E2E_BASE_URL"])
+        self.assertEqual(target.scheme, "http")
+        self.assertIn(target.hostname, {"127.0.0.1", "localhost", "::1"})
+        self.assertFalse(target.username or target.password or target.query or target.fragment)
+        command = commands[test_index]
+        self.assertIn("mise run dev", command)
+        self.assertIn("--log-level error", command)
+        self.assertIn("/api/v1/catalog", command)
+        self.assertIn("kill -0", command)
+        self.assertIn("trap '", command)
+        self.assertIn('kill "$server_pid"', command)
+        self.assertNotIn("--remote", command)
+        self.assertNotIn("secrets.", str(job))
+
     def test_pr_validation_is_read_only_and_commit_is_trusted_event_only(self) -> None:
         workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
 
