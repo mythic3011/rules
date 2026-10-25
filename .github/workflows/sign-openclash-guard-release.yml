@@ -40,6 +40,16 @@ jobs:
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up pinned Python for trusted regeneration
+        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version: "3.12.3"
+
+      - name: Install pinned trusted YAML parser
+        run: >-
+          python -m pip install --disable-pip-version-check --no-input --no-deps --only-binary=:all: PyYAML==6.0.3
 
       - name: Qualify immutable release candidate
         id: candidate
@@ -53,9 +63,11 @@ jobs:
           set -euo pipefail
 
           emit_skip() {
-            printf 'should_sign=false\n' >> "$GITHUB_OUTPUT"
-            printf 'target_branch=%s\n' "$requested_branch" >> "$GITHUB_OUTPUT"
-            printf 'candidate_sha=%s\n' "${candidate_sha:-}" >> "$GITHUB_OUTPUT"
+            {
+              printf 'should_sign=false\n'
+              printf 'target_branch=%s\n' "$requested_branch"
+              printf 'candidate_sha=%s\n' "${candidate_sha:-}"
+            } >> "$GITHUB_OUTPUT"
             exit 0
           }
 
@@ -153,6 +165,7 @@ jobs:
 
           python3 internal/python/verify_openclash_guard_release_candidate.py \
             --candidate-sha "$candidate_sha" \
+            --trusted-sha "$GITHUB_SHA" \
             --output "$RUNNER_TEMP/release-candidate.json"
           sequence="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["sequence"])' "$RUNNER_TEMP/release-candidate.json")"
           trusted_sequence="$(python3 -c 'import json; print(json.load(open("internal/config/ai-routing/catalogs/distribution.json", encoding="utf-8"))["releaseSequence"])')"
@@ -170,9 +183,22 @@ jobs:
             fi
           fi
 
-          printf 'should_sign=true\n' >> "$GITHUB_OUTPUT"
-          printf 'target_branch=%s\n' "$requested_branch" >> "$GITHUB_OUTPUT"
-          printf 'candidate_sha=%s\n' "$candidate_sha" >> "$GITHUB_OUTPUT"
+          {
+            printf 'should_sign=true\n'
+            printf 'target_branch=%s\n' "$requested_branch"
+            printf 'candidate_sha=%s\n' "$candidate_sha"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Regenerate complete distribution with trusted code
+        if: steps.candidate.outputs.should_sign == 'true'
+        env:
+          CANDIDATE_SHA: ${{ steps.candidate.outputs.candidate_sha }}
+        run: |
+          set -euo pipefail
+          python3 internal/python/verify_openclash_guard_release_candidate.py \
+            --candidate-sha "$CANDIDATE_SHA" \
+            --trusted-sha "$GITHUB_SHA" \
+            --regenerate
 
   sign-release:
     needs: qualify-release
@@ -194,6 +220,7 @@ jobs:
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Reconfirm immutable candidate head
         run: |
@@ -244,6 +271,7 @@ jobs:
           set -euo pipefail
           python3 internal/python/verify_openclash_guard_release_candidate.py \
             --candidate-sha "$CANDIDATE_SHA" \
+            --trusted-sha "$GITHUB_SHA" \
             --output "$RUNNER_TEMP/release-candidate.json"
           sequence="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["sequence"])' "$RUNNER_TEMP/release-candidate.json")"
           printf 'RELEASE_SEQUENCE=%s\n' "$sequence" >> "$GITHUB_ENV"
@@ -273,6 +301,8 @@ jobs:
           }
 
       - name: Publish signature-only commit to unchanged candidate head
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           remote_sha="$(git ls-remote --heads origin "refs/heads/${TARGET_BRANCH}" | awk '{print $1}')"
@@ -281,9 +311,23 @@ jobs:
             exit 1
           }
 
+          signature_entry="$(git ls-tree "$CANDIDATE_SHA" -- dist/openclash-guard.release.json.sig)"
+          if [ -n "$signature_entry" ]; then
+            signature_mode="${signature_entry%% *}"
+            case "$signature_mode" in
+              100644|100755) ;;
+              *) echo "Candidate signature path is not a regular file" >&2; exit 1 ;;
+            esac
+          fi
+
           git checkout --detach "$CANDIDATE_SHA"
-          cp "$RUNNER_TEMP/openclash-guard.release.json.sig" dist/openclash-guard.release.json.sig
-          git add -- dist/openclash-guard.release.json.sig
+          signature_path=dist/openclash-guard.release.json.sig
+          if [ -L "$signature_path" ] || { [ -e "$signature_path" ] && [ ! -f "$signature_path" ]; }; then
+            echo "Checked-out candidate signature path is not a regular file" >&2
+            exit 1
+          fi
+          cp "$RUNNER_TEMP/openclash-guard.release.json.sig" "$signature_path"
+          git add -- "$signature_path"
 
           if git diff --cached --quiet; then
             echo "Candidate already carries this exact verified signature."
@@ -304,4 +348,4 @@ jobs:
             echo "Candidate moved before publication; refusing non-fast-forward release write" >&2
             exit 1
           }
-          git push origin "HEAD:refs/heads/${TARGET_BRANCH}"
+          git -c credential.helper= -c credential.helper='!gh auth git-credential' push origin "HEAD:refs/heads/${TARGET_BRANCH}"

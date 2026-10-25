@@ -16,12 +16,30 @@ Automatic signing only enters the protected release environment when all of thes
 - the target is not `main`;
 - the candidate contains the current trusted `main` signer revision;
 - the candidate still uses the same `auto-generate-ai-profiles.yml` bytes as trusted `main`;
+- every tracked file under `internal/python/` and `tools/`, plus the generator workflow, build controls, dependency declaration, and Guard runtime schema, has the same path set, mode, and bytes as trusted `main`;
 - any post-generator branch movement is a descendant consisting only of managed-output paths and has no newer generator run of its own;
 - trusted candidate verification succeeds without executing candidate code;
+- trusted regeneration from candidate data reproduces every artifact role in the distribution catalog and the release metadata byte-for-byte;
 - the candidate sequence is exactly `trusted sequence + 1`;
 - the candidate does not already contain a detached release signature.
 
 The protected signing job then rechecks the exact branch head, signs and verifies the metadata, and publishes a signature-only fast-forward commit. It never auto-merges the pull request.
+
+The qualifier first checks that generator code matches trusted `main`:
+
+| Checked implementation | Required match |
+| --- | --- |
+| All tracked files under `internal/python/` and `tools/` | File set, modes, and bytes |
+| `Makefile`, `mise.toml`, `rulesctl`, `requirements-dev.txt` | Modes and bytes |
+| Generator workflow and `internal/schemas/openclash-guard-runtime.schema.json` | Modes and bytes |
+
+Additions, deletions, and symlinks reject the candidate. Generator or renderer changes must land on trusted `main` first; manual dispatch does not bypass this gate.
+
+Regeneration then runs in the read-only qualifier:
+
+1. Copy code from the trusted signer revision. Overlay only regular candidate files from `shell/`, `internal/config/ai-routing/`, and `internal/config/openclash-guard/`, plus `setup/openclash/install.sh` as an inert signed artifact. Candidate build controls, Python modules, workflows, schemas, dependencies, and toolchain configuration are not copied or run.
+2. Generate the runtime policy, resolver data, shell bundle, and release metadata in that order. Use explicit candidate-data paths, the trusted runtime schema, and role paths checked against the trusted distribution catalog.
+3. Compare all six published catalog roles, including `dist/manifest.json` and `dist/openclash-guard.sha256`, then compare release metadata. Symlinks, unsupported input types, changed role paths, or any byte mismatch reject the candidate.
 
 `workflow_dispatch` remains available as a break-glass path. A manual dispatch must still run from `main` and may be used for controlled same-sequence signature recovery or for an explicitly reviewed next-sequence candidate.
 
@@ -33,6 +51,7 @@ The signer rejects or skips:
 - `target_branch=main` so signatures remain reviewable on a branch/PR;
 - automatic triggers from fork repositories, failed generator runs, or non-push generator events;
 - candidate branches that do not contain the exact trusted `main` signer revision;
+- published artifacts, metadata, or an existing signature path that is a symlink or another non-regular Git entry;
 - automatic candidates that changed the generator workflow relative to trusted `main`;
 - branch movement that is not descended from the completed generator SHA;
 - post-generator branch movement containing any non-managed path;

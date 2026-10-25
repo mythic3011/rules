@@ -20,6 +20,27 @@ class ReleaseSignerWorkflowTests(unittest.TestCase):
 
         qualifier = workflow["jobs"]["qualify-release"]
         self.assertNotIn("environment", qualifier)
+        for steps_job in workflow["jobs"].values():
+            for step in steps_job["steps"]:
+                if "uses" in step:
+                    self.assertRegex(step["uses"], r"^[^@]+@[0-9a-f]{40}$")
+
+        setup_python = next(
+            step for step in qualifier["steps"]
+            if step.get("name") == "Set up pinned Python for trusted regeneration"
+        )
+        self.assertEqual(
+            setup_python["uses"],
+            "actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c",
+        )
+        self.assertEqual(setup_python["with"]["python-version"], "3.12.3")
+        dependency = next(
+            step for step in qualifier["steps"]
+            if step.get("name") == "Install pinned trusted YAML parser"
+        )
+        self.assertIn("--only-binary=:all:", dependency["run"])
+        self.assertIn("PyYAML==6.0.3", dependency["run"])
+
         qualify = next(
             step for step in qualifier["steps"]
             if step["name"] == "Qualify immutable release candidate"
@@ -27,6 +48,7 @@ class ReleaseSignerWorkflowTests(unittest.TestCase):
         qualify_run = qualify["run"]
         self.assertIn("git merge-base --is-ancestor \"$GITHUB_SHA\" \"$candidate_sha\"", qualify_run)
         self.assertIn("verify_openclash_guard_release_candidate.py", qualify_run)
+        self.assertIn('--trusted-sha "$GITHUB_SHA"', qualify_run)
         self.assertIn("expected_sequence=$((trusted_sequence + 1))", qualify_run)
         self.assertIn("candidate already contains a detached signature", qualify_run)
         self.assertIn("trusted_generator_blob", qualify_run)
@@ -34,6 +56,19 @@ class ReleaseSignerWorkflowTests(unittest.TestCase):
         self.assertIn("auto-generate-ai-profiles.yml/runs?head_sha=${candidate_sha}&event=push", qualify_run)
         self.assertIn("./rulesctl managed-paths", qualify_run)
         self.assertIn("Unexpected post-generator paths", qualify_run)
+
+        regeneration = next(
+            step for step in qualifier["steps"]
+            if step.get("name") == "Regenerate complete distribution with trusted code"
+        )
+        self.assertEqual(regeneration["if"], "steps.candidate.outputs.should_sign == 'true'")
+        self.assertIn('--candidate-sha "$CANDIDATE_SHA"', regeneration["run"])
+        self.assertIn('--trusted-sha "$GITHUB_SHA"', regeneration["run"])
+        self.assertIn("--regenerate", regeneration["run"])
+        self.assertNotIn("make generate", regeneration["run"])
+        self.assertNotIn("rulesctl", regeneration["run"])
+        self.assertNotIn("mise", regeneration["run"])
+        self.assertNotIn("USIGN_PRIVATE_KEY", regeneration.get("env", {}))
 
         job = workflow["jobs"]["sign-release"]
         self.assertEqual(
@@ -46,6 +81,7 @@ class ReleaseSignerWorkflowTests(unittest.TestCase):
 
         checkout = next(step for step in job["steps"] if step["name"] == "Checkout trusted signer code")
         self.assertEqual(checkout["with"]["ref"], "${{ github.sha }}")
+        self.assertIs(checkout["with"]["persist-credentials"], False)
         self.assertRegex(checkout["uses"], r"^actions/checkout@[0-9a-f]{40}$")
 
         reconfirm = next(
@@ -62,6 +98,7 @@ class ReleaseSignerWorkflowTests(unittest.TestCase):
         )
         self.assertIn("verify_openclash_guard_release_candidate.py", verify["run"])
         self.assertIn('--candidate-sha "$CANDIDATE_SHA"', verify["run"])
+        self.assertIn('--trusted-sha "$GITHUB_SHA"', verify["run"])
 
         sign = next(step for step in job["steps"] if step["name"] == "Sign and verify detached metadata signature")
         self.assertEqual(
@@ -115,10 +152,20 @@ class ReleaseSignerWorkflowTests(unittest.TestCase):
             if step["name"] == "Publish signature-only commit to unchanged candidate head"
         )
         run = publish["run"]
+        self.assertEqual(publish["env"]["GH_TOKEN"], "${{ github.token }}")
+        self.assertEqual(
+            [step["name"] for step in job["steps"] if "GH_TOKEN" in step.get("env", {})],
+            [publish["name"]],
+        )
         self.assertGreaterEqual(run.count("git ls-remote --heads origin"), 2)
         self.assertIn('changed="$(git diff --cached --name-only)"', run)
         self.assertIn('[ "$changed" = "dist/openclash-guard.release.json.sig" ]', run)
-        self.assertIn('git push origin "HEAD:refs/heads/${TARGET_BRANCH}"', run)
+        self.assertIn('git ls-tree "$CANDIDATE_SHA" -- dist/openclash-guard.release.json.sig', run)
+        self.assertIn('case "$signature_mode" in', run)
+        self.assertIn('if [ -L "$signature_path" ]', run)
+        self.assertIn("credential.helper='!gh auth git-credential'", run)
+        self.assertNotIn("x-access-token:", run)
+        self.assertIn('push origin "HEAD:refs/heads/${TARGET_BRANCH}"', run)
         self.assertNotIn("--force", run)
 
 
