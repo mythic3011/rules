@@ -383,90 +383,303 @@ file_atomic_replace() {
 # END MODULE: file
 
 # BEGIN MODULE: fetch
-# HTTP fetch with temp + optional validate + atomic replace.
-# Failed fetches leave the last-known-good destination untouched.
+# HTTP fetch with bounded temp downloads and atomic publication.
+# Failed or oversized fetches leave the last-known-good destination untouched.
 # Prefix: fetch_
 set -eu
 
+_FETCH_TIMEOUT_DEFAULT=30
+_FETCH_TIMEOUT_MAX=3600
+_FETCH_MAX_BYTES_DEFAULT=16777216
+_FETCH_MAX_BYTES_MAX=67108864
+
 _fetch_timeout_secs() {
-    _fetch_to=${1:-${FETCH_TIMEOUT:-30}}
+    _fetch_to=${1:-${FETCH_TIMEOUT:-$_FETCH_TIMEOUT_DEFAULT}}
     case $_fetch_to in
         ''|*[!0-9]*)
-            printf '%s\n' "fetch: invalid timeout: $_fetch_to" >&2
+            printf '%s\n' "fetch: invalid timeout" >&2
             return 2
             ;;
     esac
+    while [ "${_fetch_to#0}" != "$_fetch_to" ]; do
+        _fetch_to=${_fetch_to#0}
+    done
+    [ -n "$_fetch_to" ] || _fetch_to=0
+    if [ "${#_fetch_to}" -gt 4 ] || [ "$_fetch_to" -gt "$_FETCH_TIMEOUT_MAX" ] 2>/dev/null; then
+        _fetch_to=$_FETCH_TIMEOUT_MAX
+        printf 'fetch: timeout capped at %s seconds\n' "$_FETCH_TIMEOUT_MAX" >&2
+    fi
+    if [ "$_fetch_to" -eq 0 ] 2>/dev/null; then
+        printf '%s\n' "fetch: timeout must be greater than zero" >&2
+        return 2
+    fi
     printf '%s\n' "$_fetch_to"
 }
 
-_fetch_http_curl() {
+_fetch_max_bytes() {
+    _fetch_mb=${1:-$_FETCH_MAX_BYTES_DEFAULT}
+    case $_fetch_mb in
+        ''|*[!0-9]*)
+            printf '%s\n' "fetch: response-size limit must be a positive integer" >&2
+            return 2
+            ;;
+    esac
+    while [ "${_fetch_mb#0}" != "$_fetch_mb" ]; do
+        _fetch_mb=${_fetch_mb#0}
+    done
+    [ -n "$_fetch_mb" ] || _fetch_mb=0
+    if [ "$_fetch_mb" -eq 0 ] 2>/dev/null || \
+       [ "${#_fetch_mb}" -gt 8 ] || \
+       [ "$_fetch_mb" -gt "$_FETCH_MAX_BYTES_MAX" ] 2>/dev/null; then
+        printf 'fetch: response-size limit must be between 1 and %s bytes\n' "$_FETCH_MAX_BYTES_MAX" >&2
+        return 2
+    fi
+    printf '%s\n' "$_fetch_mb"
+}
+
+_fetch_validate_http_options() {
+    _fetch_vo_https=${1:-}
+    _fetch_vo_max=$(_fetch_max_bytes "${2:-}") || return $?
+    _fetch_vo_allow=${3:-}
+    case $_fetch_vo_allow in
+        '') ;;
+        allow_insecure=1) ;;
+        *)
+            printf '%s\n' "fetch: insecure opt-out must be exactly allow_insecure=1" >&2
+            return 2
+            ;;
+    esac
+    case $_fetch_vo_https in
+        ''|1)
+            if [ "$_fetch_vo_allow" = allow_insecure=1 ]; then
+                if [ "$_fetch_vo_https" = 1 ]; then
+                    printf '%s\n' "fetch: HTTPS-only mode conflicts with allow_insecure=1" >&2
+                    return 2
+                fi
+                _FETCH_HTTP_HTTPS_ONLY=0
+            else
+                _FETCH_HTTP_HTTPS_ONLY=1
+            fi
+            ;;
+        0)
+            if [ "$_fetch_vo_allow" != allow_insecure=1 ]; then
+                printf '%s\n' "fetch: pass allow_insecure=1 to opt out of HTTPS-only mode" >&2
+                return 2
+            fi
+            _FETCH_HTTP_HTTPS_ONLY=0
+            ;;
+        *)
+            printf '%s\n' "fetch: HTTPS-only mode must be 0 or 1" >&2
+            return 2
+            ;;
+    esac
+    _FETCH_HTTP_MAX_BYTES=$_fetch_vo_max
+}
+
+_fetch_validate_url() {
+    _fetch_vu_url=${1:-}
+    _fetch_vu_https=${2:-1}
+    case $_fetch_vu_https:$_fetch_vu_url in
+        1:https://*) return 0 ;;
+        0:https://*|0:http://*) return 0 ;;
+        1:*)
+            printf '%s\n' "fetch: secure fetch requires an HTTPS URL" >&2
+            return 2
+            ;;
+        *)
+            printf '%s\n' "fetch: URL must use HTTP or HTTPS" >&2
+            return 2
+            ;;
+    esac
+}
+
+_fetch_run_capped() {
+    _fetch_rc_bytes=$1
+    shift
+    _fetch_rc_blocks=$(((_fetch_rc_bytes + 511) / 512))
+    (
+        if ! ulimit -f "$_fetch_rc_blocks" 2>/dev/null; then
+            printf '%s\n' "fetch: unable to enforce response-size limit" >&2
+            exit 125
+        fi
+        "$@"
+    )
+}
+
+_fetch_file_size() {
+    _fetch_fs_path=$1
+    _fetch_fs_size=$(LC_ALL=C wc -c < "$_fetch_fs_path" | tr -d '[:space:]') || return 1
+    case $_fetch_fs_size in
+        ''|*[!0-9]*) return 1 ;;
+    esac
+    while [ "${_fetch_fs_size#0}" != "$_fetch_fs_size" ]; do
+        _fetch_fs_size=${_fetch_fs_size#0}
+    done
+    [ -n "$_fetch_fs_size" ] || _fetch_fs_size=0
+    printf '%s\n' "$_fetch_fs_size"
+}
+
+_fetch_check_file_size() {
+    _fetch_cf_path=$1
+    _fetch_cf_max=$2
+    _fetch_cf_size=$(_fetch_file_size "$_fetch_cf_path") || {
+        printf '%s\n' "fetch: unable to verify downloaded response size" >&2
+        return 1
+    }
+    if [ "${#_fetch_cf_size}" -gt "${#_fetch_cf_max}" ] || \
+       { [ "${#_fetch_cf_size}" -eq "${#_fetch_cf_max}" ] && [ "$_fetch_cf_size" -gt "$_fetch_cf_max" ]; }; then
+        printf '%s\n' "fetch: response exceeded its byte limit" >&2
+        return 1
+    fi
+}
+
+_fetch_curl_config_escape() {
+    _fetch_ce_value=${1:-}
+    _fetch_ce_clean=$(printf '%s' "$_fetch_ce_value" | LC_ALL=C tr -d '\001-\037\177') || return 1
+    if [ "$_fetch_ce_clean" != "$_fetch_ce_value" ]; then
+        printf '%s\n' "fetch: curl config values cannot contain control characters" >&2
+        return 2
+    fi
+    printf '%s' "$_fetch_ce_value" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
+}
+
+_fetch_curl_config_write() {
+    _fetch_cw_path=$1
+    _fetch_cw_url=$2
+    _fetch_cw_proxy=${3:-}
+    _fetch_cw_auth=${4:-}
+    _fetch_cw_url_q=$(_fetch_curl_config_escape "$_fetch_cw_url") || return $?
+    _fetch_cw_proxy_q=
+    _fetch_cw_auth_q=
+    if [ -n "$_fetch_cw_proxy" ]; then
+        _fetch_cw_proxy_q=$(_fetch_curl_config_escape "$_fetch_cw_proxy") || return $?
+    fi
+    if [ -n "$_fetch_cw_auth" ]; then
+        _fetch_cw_auth_q=$(_fetch_curl_config_escape "$_fetch_cw_auth") || return $?
+    fi
+    if ! printf 'url = "%s"\n' "$_fetch_cw_url_q" > "$_fetch_cw_path"; then
+        return 1
+    fi
+    if [ -n "$_fetch_cw_proxy" ] && ! printf 'proxy = "%s"\n' "$_fetch_cw_proxy_q" >> "$_fetch_cw_path"; then
+        return 1
+    fi
+    if [ -n "$_fetch_cw_auth" ] && ! printf 'proxy-user = "%s"\n' "$_fetch_cw_auth_q" >> "$_fetch_cw_path"; then
+        return 1
+    fi
+}
+
+_fetch_http_curl() (
     _fetch_c_url=$1
     _fetch_c_out=$2
     _fetch_c_timeout=$3
-    _fetch_c_https_only=${4:-0}
-    _fetch_c_max_bytes=${5:-}
-    if [ "$_fetch_c_https_only" = 1 ]; then
-        case $_fetch_c_url in
-            https://*) ;;
-            *) printf '%s\n' "fetch: secure fetch requires an HTTPS URL" >&2; return 2 ;;
+    _fetch_c_https_only=$4
+    _fetch_c_max_bytes=$5
+    _fetch_c_mode=$6
+    _fetch_c_proxy=${7:-}
+    _fetch_c_auth=${8:-}
+    _fetch_c_config=
+    trap '[ -z "$_fetch_c_config" ] || rm -f "$_fetch_c_config"' 0
+    trap 'exit 129' HUP
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+
+    _fetch_validate_url "$_fetch_c_url" "$_fetch_c_https_only" || return $?
+    if [ -n "$_fetch_c_proxy" ] && [ -n "$_fetch_c_auth" ]; then
+        _fetch_c_authority=${_fetch_c_proxy#*://}
+        _fetch_c_authority=${_fetch_c_authority%%[/?#]*}
+        case $_fetch_c_authority in
+            *@*)
+                printf '%s\n' "fetch: provide proxy credentials either in the proxy URL or AUTH, not both" >&2
+                return 2
+                ;;
         esac
-        _fetch_c_blocks=$(((_fetch_c_max_bytes + 511) / 512))
-        (
-            ulimit -f "$_fetch_c_blocks"
-            curl -fLSs --max-redirs 0 --proto '=https' --proto-redir '=https' \
-                --max-filesize "$_fetch_c_max_bytes" \
-                --connect-timeout "$_fetch_c_timeout" --max-time "$_fetch_c_timeout" \
-                -o "$_fetch_c_out" "$_fetch_c_url"
-        )
-        return $?
     fi
-    curl -fLSs --connect-timeout "$_fetch_c_timeout" --max-time "$_fetch_c_timeout" -o "$_fetch_c_out" "$_fetch_c_url"
-}
+    _fetch_c_config=$(umask 077; file_mktemp "${TMPDIR:-/tmp}") || {
+        printf '%s\n' "fetch: unable to create private curl config" >&2
+        return 1
+    }
+    if [ ! -f "$_fetch_c_config" ] || [ -L "$_fetch_c_config" ] || ! chmod 600 "$_fetch_c_config"; then
+        printf '%s\n' "fetch: unable to secure private curl config" >&2
+        return 1
+    fi
+    _fetch_curl_config_write "$_fetch_c_config" "$_fetch_c_url" "$_fetch_c_proxy" "$_fetch_c_auth" || return $?
+
+    case $_fetch_c_mode in
+        generic) ;;
+        direct)
+            _fetch_c_direct=1
+            ;;
+        proxy)
+            _fetch_c_direct=0
+            ;;
+        *)
+            printf '%s\n' "fetch: unknown HTTP mode" >&2
+            return 2
+            ;;
+    esac
+    if [ "${_fetch_c_direct:-0}" = 1 ]; then
+        if [ "$_fetch_c_https_only" = 1 ]; then
+            _fetch_run_capped "$_fetch_c_max_bytes" curl -q -fLSs --config "$_fetch_c_config" \
+                --noproxy '*' --proxy '' --max-redirs 0 --proto '=https' --proto-redir '=https' \
+                --max-filesize "$_fetch_c_max_bytes" --connect-timeout "$_fetch_c_timeout" \
+                --max-time "$_fetch_c_timeout" -o "$_fetch_c_out" 2>/dev/null
+        else
+            _fetch_run_capped "$_fetch_c_max_bytes" curl -q -fLSs --config "$_fetch_c_config" \
+                --noproxy '*' --proxy '' --max-redirs 5 --max-filesize "$_fetch_c_max_bytes" \
+                --connect-timeout "$_fetch_c_timeout" --max-time "$_fetch_c_timeout" \
+                -o "$_fetch_c_out" 2>/dev/null
+        fi
+    elif [ "$_fetch_c_https_only" = 1 ]; then
+        _fetch_run_capped "$_fetch_c_max_bytes" curl -q -fLSs --config "$_fetch_c_config" \
+            --max-redirs 0 --proto '=https' --proto-redir '=https' --max-filesize "$_fetch_c_max_bytes" \
+            --connect-timeout "$_fetch_c_timeout" --max-time "$_fetch_c_timeout" \
+            -o "$_fetch_c_out" 2>/dev/null
+    else
+        _fetch_run_capped "$_fetch_c_max_bytes" curl -q -fLSs --config "$_fetch_c_config" \
+            --max-redirs 5 --max-filesize "$_fetch_c_max_bytes" \
+            --connect-timeout "$_fetch_c_timeout" --max-time "$_fetch_c_timeout" \
+            -o "$_fetch_c_out" 2>/dev/null
+    fi
+)
 
 _fetch_http_wget() {
     _fetch_w_url=$1
     _fetch_w_out=$2
     _fetch_w_timeout=$3
-    _fetch_w_https_only=${4:-0}
+    _fetch_w_https_only=$4
+    _fetch_w_max_bytes=$5
+    _fetch_w_mode=$6
     if [ "$_fetch_w_https_only" = 1 ]; then
-        printf '%s\n' "fetch: HTTPS-only redirect enforcement requires curl" >&2
+        printf '%s\n' "fetch: HTTPS-only fetch requires curl to constrain redirect protocols" >&2
         return 127
     fi
-    wget -q -O "$_fetch_w_out" -T "$_fetch_w_timeout" "$_fetch_w_url"
-}
-
-_fetch_http_direct_curl() {
-    _fetch_dc_url=$1
-    _fetch_dc_out=$2
-    _fetch_dc_timeout=$3
-    curl -fLSs --noproxy '*' --proxy '' \
-        --connect-timeout "$_fetch_dc_timeout" --max-time "$_fetch_dc_timeout" \
-        -o "$_fetch_dc_out" "$_fetch_dc_url"
-}
-
-_fetch_http_direct_wget() {
-    _fetch_dw_url=$1
-    _fetch_dw_out=$2
-    _fetch_dw_timeout=$3
-    http_proxy= https_proxy= HTTP_PROXY= HTTPS_PROXY= ALL_PROXY= all_proxy= \
-        wget -q -O "$_fetch_dw_out" -T "$_fetch_dw_timeout" "$_fetch_dw_url"
-}
-
-_fetch_http_proxy_curl() {
-    _fetch_pc_url=$1
-    _fetch_pc_out=$2
-    _fetch_pc_timeout=$3
-    _fetch_pc_proxy=$4
-    _fetch_pc_auth=${5:-}
-    if [ -n "$_fetch_pc_auth" ]; then
-        curl -fLSs --proxy "$_fetch_pc_proxy" --proxy-user "$_fetch_pc_auth" \
-            --connect-timeout "$_fetch_pc_timeout" --max-time "$_fetch_pc_timeout" \
-            -o "$_fetch_pc_out" "$_fetch_pc_url"
-        return $?
-    fi
-    curl -fLSs --proxy "$_fetch_pc_proxy" \
-        --connect-timeout "$_fetch_pc_timeout" --max-time "$_fetch_pc_timeout" \
-        -o "$_fetch_pc_out" "$_fetch_pc_url"
+    _fetch_w_authority=${_fetch_w_url#*://}
+    _fetch_w_authority=${_fetch_w_authority%%[/?#]*}
+    case $_fetch_w_authority in
+        *@*)
+            printf '%s\n' "fetch: credential-bearing URLs require curl" >&2
+            return 127
+            ;;
+    esac
+    case $_fetch_w_url in
+        *\?*)
+            printf '%s\n' "fetch: credential-bearing URLs require curl" >&2
+            return 127
+            ;;
+    esac
+    case $_fetch_w_mode in
+        direct)
+            _fetch_run_capped "$_fetch_w_max_bytes" env http_proxy= https_proxy= HTTP_PROXY= HTTPS_PROXY= ALL_PROXY= all_proxy= \
+                wget -q -O "$_fetch_w_out" -T "$_fetch_w_timeout" "$_fetch_w_url" 2>/dev/null
+            ;;
+        generic)
+            _fetch_run_capped "$_fetch_w_max_bytes" wget -q -O "$_fetch_w_out" -T "$_fetch_w_timeout" "$_fetch_w_url" 2>/dev/null
+            ;;
+        *)
+            printf '%s\n' "fetch: authenticated proxy requests require curl" >&2
+            return 127
+            ;;
+    esac
 }
 
 _fetch_http_with_mode() {
@@ -474,121 +687,115 @@ _fetch_http_with_mode() {
     _fetch_hm_url=$2
     _fetch_hm_out=$3
     _fetch_hm_timeout=$4
-    _fetch_hm_proxy=${5:-}
-    _fetch_hm_auth=${6:-}
+    _fetch_hm_https=${5:-1}
+    _fetch_hm_max=${6:-$_FETCH_MAX_BYTES_DEFAULT}
+    _fetch_hm_proxy=${7:-}
+    _fetch_hm_auth=${8:-}
+    _fetch_validate_url "$_fetch_hm_url" "$_fetch_hm_https" || return $?
     case $_fetch_hm_mode in
-        direct)
-            if command -v curl >/dev/null 2>&1; then
-                _fetch_http_direct_curl "$_fetch_hm_url" "$_fetch_hm_out" "$_fetch_hm_timeout"
-            elif command -v wget >/dev/null 2>&1; then
-                _fetch_http_direct_wget "$_fetch_hm_url" "$_fetch_hm_out" "$_fetch_hm_timeout"
-            else
-                printf '%s\n' "fetch: curl or wget is required" >&2
-                return 127
-            fi
-            ;;
-        proxy)
-            if ! command -v curl >/dev/null 2>&1; then
-                printf '%s\n' "fetch: proxy probe requires curl" >&2
-                return 127
-            fi
-            _fetch_http_proxy_curl "$_fetch_hm_url" "$_fetch_hm_out" "$_fetch_hm_timeout" "$_fetch_hm_proxy" "$_fetch_hm_auth"
-            ;;
-        *)
-            printf '%s\n' "fetch: unknown HTTP mode: $_fetch_hm_mode" >&2
-            return 2
-            ;;
+        generic|direct|proxy) ;;
+        *) printf '%s\n' "fetch: unknown HTTP mode" >&2; return 2 ;;
     esac
+    if command -v curl >/dev/null 2>&1; then
+        _fetch_http_curl "$_fetch_hm_url" "$_fetch_hm_out" "$_fetch_hm_timeout" \
+            "$_fetch_hm_https" "$_fetch_hm_max" "$_fetch_hm_mode" "$_fetch_hm_proxy" "$_fetch_hm_auth"
+    elif [ "$_fetch_hm_mode" = proxy ]; then
+        printf '%s\n' "fetch: proxy fetch requires curl" >&2
+        return 127
+    elif command -v wget >/dev/null 2>&1; then
+        _fetch_http_wget "$_fetch_hm_url" "$_fetch_hm_out" "$_fetch_hm_timeout" \
+            "$_fetch_hm_https" "$_fetch_hm_max" "$_fetch_hm_mode"
+    else
+        printf '%s\n' "fetch: curl or wget is required" >&2
+        return 127
+    fi
+}
+
+_fetch_http_download() {
+    _fetch_hd_mode=$1
+    _fetch_hd_url=$2
+    _fetch_hd_out=$3
+    _fetch_hd_timeout=$4
+    _fetch_hd_https=$5
+    _fetch_hd_max=$6
+    _fetch_hd_proxy=${7:-}
+    _fetch_hd_auth=${8:-}
+    _fetch_hd_dir=$(dirname "$_fetch_hd_out")
+    _fetch_hd_tmp=$(file_mktemp "$_fetch_hd_dir") || return 1
+    _fetch_hd_rc=0
+    _fetch_http_with_mode "$_fetch_hd_mode" "$_fetch_hd_url" "$_fetch_hd_tmp" \
+        "$_fetch_hd_timeout" "$_fetch_hd_https" "$_fetch_hd_max" \
+        "$_fetch_hd_proxy" "$_fetch_hd_auth" || _fetch_hd_rc=$?
+    if [ "$_fetch_hd_rc" -ne 0 ]; then
+        rm -f "$_fetch_hd_tmp"
+        printf '%s\n' "fetch: download failed" >&2
+        return "$_fetch_hd_rc"
+    fi
+    if [ ! -s "$_fetch_hd_tmp" ] || ! _fetch_check_file_size "$_fetch_hd_tmp" "$_fetch_hd_max"; then
+        rm -f "$_fetch_hd_tmp"
+        printf '%s\n' "fetch: empty or oversized response rejected" >&2
+        return 1
+    fi
+    if ! mv -f "$_fetch_hd_tmp" "$_fetch_hd_out"; then
+        rm -f "$_fetch_hd_tmp"
+        printf '%s\n' "fetch: unable to publish response" >&2
+        return 1
+    fi
 }
 
 fetch_http_direct() {
-    _fetch_hd_url=${1:-}
-    _fetch_hd_out=${2:-}
-    [ -n "$_fetch_hd_url" ] && [ -n "$_fetch_hd_out" ] || {
-        printf '%s\n' "fetch_http_direct: usage: fetch_http_direct URL OUTPUT [TIMEOUT]" >&2
+    _fetch_direct_url=${1:-}
+    _fetch_direct_out=${2:-}
+    [ -n "$_fetch_direct_url" ] && [ -n "$_fetch_direct_out" ] || {
+        printf '%s\n' "fetch_http_direct: usage: fetch_http_direct URL OUTPUT [TIMEOUT [MAX_BYTES [ALLOW_INSECURE]]]" >&2
         return 2
     }
-    _fetch_hd_timeout=$(_fetch_timeout_secs "${3:-}") || return $?
-    _fetch_hd_tmp=$(file_mktemp "$(dirname "$_fetch_hd_out")") || return 1
-    _fetch_hd_rc=0
-    _fetch_http_with_mode direct "$_fetch_hd_url" "$_fetch_hd_tmp" "$_fetch_hd_timeout" || _fetch_hd_rc=$?
-    if [ "$_fetch_hd_rc" -ne 0 ]; then
-        rm -f "$_fetch_hd_tmp"
-        return "$_fetch_hd_rc"
-    fi
-    if [ ! -s "$_fetch_hd_tmp" ] || ! mv -f "$_fetch_hd_tmp" "$_fetch_hd_out"; then
-        rm -f "$_fetch_hd_tmp"
-        return 1
-    fi
+    _fetch_direct_timeout=$(_fetch_timeout_secs "${3:-}") || return $?
+    _fetch_direct_max=$(_fetch_max_bytes "${4:-}") || return $?
+    _fetch_direct_allow=${5:-}
+    _fetch_validate_http_options '' "$_fetch_direct_max" "$_fetch_direct_allow" || return $?
+    _fetch_validate_url "$_fetch_direct_url" "$_FETCH_HTTP_HTTPS_ONLY" || return $?
+    _fetch_http_download direct "$_fetch_direct_url" "$_fetch_direct_out" "$_fetch_direct_timeout" \
+        "$_FETCH_HTTP_HTTPS_ONLY" "$_FETCH_HTTP_MAX_BYTES"
 }
 
 fetch_http_proxy() {
-    _fetch_hp_url=${1:-}
-    _fetch_hp_out=${2:-}
-    _fetch_hp_proxy=${3:-}
-    [ -n "$_fetch_hp_url" ] && [ -n "$_fetch_hp_out" ] && [ -n "$_fetch_hp_proxy" ] || {
-        printf '%s\n' "fetch_http_proxy: usage: fetch_http_proxy URL OUTPUT PROXY [TIMEOUT] [AUTH]" >&2
+    _fetch_proxy_url=${1:-}
+    _fetch_proxy_out=${2:-}
+    _fetch_proxy_endpoint=${3:-}
+    [ -n "$_fetch_proxy_url" ] && [ -n "$_fetch_proxy_out" ] && [ -n "$_fetch_proxy_endpoint" ] || {
+        printf '%s\n' "fetch_http_proxy: usage: fetch_http_proxy URL OUTPUT PROXY [TIMEOUT [AUTH [MAX_BYTES [ALLOW_INSECURE]]]]" >&2
         return 2
     }
-    _fetch_hp_timeout=$(_fetch_timeout_secs "${4:-}") || return $?
-    _fetch_hp_tmp=$(file_mktemp "$(dirname "$_fetch_hp_out")") || return 1
-    _fetch_hp_rc=0
-    _fetch_http_with_mode proxy "$_fetch_hp_url" "$_fetch_hp_tmp" "$_fetch_hp_timeout" "$_fetch_hp_proxy" "${5:-}" || _fetch_hp_rc=$?
-    if [ "$_fetch_hp_rc" -ne 0 ]; then
-        rm -f "$_fetch_hp_tmp"
-        return "$_fetch_hp_rc"
-    fi
-    if [ ! -s "$_fetch_hp_tmp" ] || ! mv -f "$_fetch_hp_tmp" "$_fetch_hp_out"; then
-        rm -f "$_fetch_hp_tmp"
-        return 1
-    fi
+    _fetch_proxy_timeout=$(_fetch_timeout_secs "${4:-}") || return $?
+    _fetch_proxy_auth=${5:-}
+    _fetch_proxy_max=$(_fetch_max_bytes "${6:-}") || return $?
+    _fetch_proxy_allow=${7:-}
+    _fetch_validate_http_options '' "$_fetch_proxy_max" "$_fetch_proxy_allow" || return $?
+    _fetch_validate_url "$_fetch_proxy_url" "$_FETCH_HTTP_HTTPS_ONLY" || return $?
+    _fetch_http_download proxy "$_fetch_proxy_url" "$_fetch_proxy_out" "$_fetch_proxy_timeout" \
+        "$_FETCH_HTTP_HTTPS_ONLY" "$_FETCH_HTTP_MAX_BYTES" "$_fetch_proxy_endpoint" "$_fetch_proxy_auth"
 }
 
 fetch_http() {
     _fetch_http_url=${1:-}
     _fetch_http_out=${2:-}
     if [ -z "$_fetch_http_url" ] || [ -z "$_fetch_http_out" ]; then
-        printf '%s\n' "fetch_http: usage: fetch_http URL OUTPUT [TIMEOUT [HTTPS_ONLY [MAX_BYTES]]]" >&2
+        printf '%s\n' "fetch_http: usage: fetch_http URL OUTPUT [TIMEOUT [HTTPS_ONLY [MAX_BYTES [ALLOW_INSECURE]]]]" >&2
         return 2
     fi
     _fetch_http_timeout=$(_fetch_timeout_secs "${3:-}") || return $?
-    _fetch_http_https_only=${4:-0}
-    _fetch_http_max_bytes=${5:-}
-    case $_fetch_http_https_only in
-        0|1) ;;
-        *) printf '%s\n' "fetch_http: HTTPS-only mode must be 0 or 1" >&2; return 2 ;;
-    esac
-    if [ "$_fetch_http_https_only" = 1 ]; then
-        case $_fetch_http_max_bytes in
-            ''|*[!0-9]*|0) printf '%s\n' "fetch_http: secure fetch requires a positive byte limit" >&2; return 2 ;;
-        esac
-    fi
-    _fetch_http_dir=$(dirname "$_fetch_http_out")
-    _fetch_http_tmp=$(file_mktemp "$_fetch_http_dir") || return 1
-    _fetch_http_rc=0
-    if command -v curl >/dev/null 2>&1; then
-        _fetch_http_curl "$_fetch_http_url" "$_fetch_http_tmp" "$_fetch_http_timeout" "$_fetch_http_https_only" "$_fetch_http_max_bytes" || _fetch_http_rc=$?
-    elif command -v wget >/dev/null 2>&1; then
-        _fetch_http_wget "$_fetch_http_url" "$_fetch_http_tmp" "$_fetch_http_timeout" "$_fetch_http_https_only" || _fetch_http_rc=$?
+    if [ "$#" -ge 4 ]; then
+        _fetch_http_https=${4:-}
     else
-        rm -f "$_fetch_http_tmp"
-        printf '%s\n' "fetch_http: curl or wget is required" >&2
-        return 127
+        _fetch_http_https=
     fi
-    if [ "$_fetch_http_rc" -ne 0 ]; then
-        rm -f "$_fetch_http_tmp"
-        printf '%s\n' "fetch_http: download failed: $_fetch_http_url" >&2
-        return "$_fetch_http_rc"
-    fi
-    if [ ! -s "$_fetch_http_tmp" ]; then
-        rm -f "$_fetch_http_tmp"
-        printf '%s\n' "fetch_http: empty response: $_fetch_http_url" >&2
-        return 1
-    fi
-    if ! mv -f "$_fetch_http_tmp" "$_fetch_http_out"; then
-        rm -f "$_fetch_http_tmp"
-        return 1
-    fi
+    _fetch_http_max=$(_fetch_max_bytes "${5:-}") || return $?
+    _fetch_http_allow=${6:-}
+    _fetch_validate_http_options "$_fetch_http_https" "$_fetch_http_max" "$_fetch_http_allow" || return $?
+    _fetch_validate_url "$_fetch_http_url" "$_FETCH_HTTP_HTTPS_ONLY" || return $?
+    _fetch_http_download generic "$_fetch_http_url" "$_fetch_http_out" "$_fetch_http_timeout" \
+        "$_FETCH_HTTP_HTTPS_ONLY" "$_FETCH_HTTP_MAX_BYTES"
 }
 
 fetch_to_temp() {
@@ -597,8 +804,13 @@ fetch_to_temp() {
         printf '%s\n' "fetch_to_temp: missing URL" >&2
         return 2
     fi
+    _fetch_tt_timeout=$(_fetch_timeout_secs "${2:-}") || return $?
+    _fetch_tt_max=$(_fetch_max_bytes "${3:-}") || return $?
+    _fetch_tt_allow=${4:-}
+    _fetch_validate_http_options '' "$_fetch_tt_max" "$_fetch_tt_allow" || return $?
     _fetch_tt_tmp=$(file_mktemp) || return 1
-    if fetch_http "$_fetch_tt_url" "$_fetch_tt_tmp" "${2:-}"; then
+    if _fetch_http_download generic "$_fetch_tt_url" "$_fetch_tt_tmp" "$_fetch_tt_timeout" \
+        "$_FETCH_HTTP_HTTPS_ONLY" "$_FETCH_HTTP_MAX_BYTES"; then
         printf '%s\n' "$_fetch_tt_tmp"
         return 0
     fi
@@ -611,16 +823,23 @@ fetch_atomic() {
     _fetch_at_dest=${2:-}
     _fetch_at_validator=${3:-}
     if [ -z "$_fetch_at_url" ] || [ -z "$_fetch_at_dest" ]; then
-        printf '%s\n' "fetch_atomic: usage: fetch_atomic URL DEST [VALIDATOR [TIMEOUT [MAX_BYTES [HTTPS_ONLY]]]]" >&2
+        printf '%s\n' "fetch_atomic: usage: fetch_atomic URL DEST [VALIDATOR [TIMEOUT [MAX_BYTES [HTTPS_ONLY [ALLOW_INSECURE]]]]]" >&2
         return 2
     fi
     _fetch_at_dir=$(dirname "$_fetch_at_dest")
     if [ ! -d "$_fetch_at_dir" ]; then
-        printf '%s\n' "fetch_atomic: destination directory missing: $_fetch_at_dir" >&2
+        printf '%s\n' "fetch_atomic: destination directory missing" >&2
         return 1
     fi
+    _fetch_at_timeout=${4:-}
+    _fetch_at_timeout=$(_fetch_timeout_secs "$_fetch_at_timeout") || return $?
+    _fetch_at_max=$(_fetch_max_bytes "${5:-}") || return $?
+    _fetch_at_https=${6:-}
+    _fetch_at_allow=${7:-}
+    _fetch_validate_http_options "$_fetch_at_https" "$_fetch_at_max" "$_fetch_at_allow" || return $?
     _fetch_at_tmp=$(file_mktemp "$_fetch_at_dir") || return 1
-    if ! fetch_http "$_fetch_at_url" "$_fetch_at_tmp" "${4:-}" "${6:-0}" "${5:-}"; then
+    if ! _fetch_http_download generic "$_fetch_at_url" "$_fetch_at_tmp" \
+        "$_fetch_at_timeout" "$_FETCH_HTTP_HTTPS_ONLY" "$_FETCH_HTTP_MAX_BYTES"; then
         rm -f "$_fetch_at_tmp"
         return 1
     fi
@@ -1015,6 +1234,8 @@ _GUARD_RESOLVER_SYNC_DATA_EXCLUSIONS='flow-music path-scope-expansion'
 # Prefix: json_
 set -eu
 
+_JSON_MAX_DEPTH=64
+
 _json_normalize_path() {
     printf '%s\n' "$1" | sed -e 's/^\$\.//' -e 's/^@\.//' -e 's/^\.//' -e 's/\[\([0-9][0-9]*\)\]/.\1/g'
 }
@@ -1039,7 +1260,7 @@ _json_path_simple() {
 }
 
 _json_flatten_awk() {
-    awk '
+    awk -v max_depth="$_JSON_MAX_DEPTH" '
         {
             src = src $0 "\n"
         }
@@ -1061,13 +1282,35 @@ _json_flatten_awk() {
             bad = 1
             exit 2
         }
+        function escape_frame(value,    i, c, out) {
+            out = ""
+            for (i = 1; i <= length(value); i++) {
+                c = substr(value, i, 1)
+                if (c == "\\") {
+                    out = out "\\\\"
+                } else if (c == "\t") {
+                    out = out "\\t"
+                } else if (c == "\n") {
+                    out = out "\\n"
+                } else if (c == "\r") {
+                    out = out "\\r"
+                } else if (c == "\b") {
+                    out = out "\\b"
+                } else if (c == "\f") {
+                    out = out "\\f"
+                } else {
+                    out = out c
+                }
+            }
+            return out
+        }
         function emit(path, val) {
             if (path == "") {
                 return
             }
-            print path "\t" val
+            print path "\t" escape_frame(val)
         }
-        function parse_string(    c, out) {
+        function parse_string(    c, out, hex) {
             if (peek() != "\"") {
                 fail("expected string")
             }
@@ -1096,12 +1339,20 @@ _json_flatten_awk() {
                     } else if (c == "f") {
                         out = out "\f"
                     } else if (c == "u") {
-                        out = out "\\u" substr(src, pos, 4)
-                        pos += 4
-                    } else {
+                        hex = substr(src, pos, 4)
+                        if (length(hex) != 4 || hex ~ /[^0-9A-Fa-f]/) {
+                            fail("invalid unicode escape")
+                        }
+                        fail("Unicode escape decoding requires a structured JSON parser")
+                    } else if (c == "\"" || c == "\\" || c == "/") {
                         out = out c
+                    } else {
+                        fail("invalid string escape")
                     }
                     continue
+                }
+                if (c ~ /[[:cntrl:]]/) {
+                    fail("unescaped control character in string")
                 }
                 out = out c
             }
@@ -1121,12 +1372,25 @@ _json_flatten_awk() {
             if (raw == "") {
                 fail("expected value")
             }
+            if (raw == "true" || raw == "false" || raw == "null") {
+                return raw
+            }
+            if (raw !~ /^-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?$/) {
+                fail("invalid JSON literal")
+            }
             return raw
+        }
+        function enter_container() {
+            depth++
+            if (depth > max_depth) {
+                fail("JSON nesting exceeds supported depth")
+            }
         }
         function parse_object(prefix,    key, child, c, nkeys) {
             if (peek() != "{") {
                 fail("expected object")
             }
+            enter_container()
             pos++
             skip()
             nkeys = 0
@@ -1135,11 +1399,15 @@ _json_flatten_awk() {
                 if (prefix != "") {
                     emit(prefix, "{}")
                 }
+                depth--
                 return
             }
             while (pos <= n) {
                 skip()
                 key = parse_string()
+                if (key ~ /[[:cntrl:]]/) {
+                    fail("object key contains unsupported control characters")
+                }
                 skip()
                 if (peek() != ":") {
                     fail("expected colon")
@@ -1161,6 +1429,7 @@ _json_flatten_awk() {
                 }
                 if (c == "}") {
                     pos++
+                    depth--
                     return
                 }
                 fail("expected comma or }")
@@ -1171,6 +1440,7 @@ _json_flatten_awk() {
             if (peek() != "[") {
                 fail("expected array")
             }
+            enter_container()
             pos++
             skip()
             i = 0
@@ -1179,6 +1449,7 @@ _json_flatten_awk() {
                 if (prefix != "") {
                     emit(prefix, "[]")
                 }
+                depth--
                 return
             }
             while (pos <= n) {
@@ -1194,6 +1465,7 @@ _json_flatten_awk() {
                 }
                 if (c == "]") {
                     pos++
+                    depth--
                     return
                 }
                 fail("expected comma or ]")
@@ -1221,6 +1493,7 @@ _json_flatten_awk() {
             n = length(src)
             pos = 1
             bad = 0
+            depth = 0
             skip()
             if (pos > n) {
                 fail("empty JSON")
@@ -1273,9 +1546,33 @@ json_get() {
         fi
     fi
     _json_flat "$_json_jg_file" | awk -F '\t' -v q="$_json_jg_path" '
+        function fail() {
+            printf "%s\n", "json: invalid flattened value escape" > "/dev/stderr"
+            exit 2
+        }
+        function decode(value,    i, c, escape_char, out) {
+            out = ""
+            for (i = 1; i <= length(value); i++) {
+                c = substr(value, i, 1)
+                if (c != "\\") {
+                    out = out c
+                    continue
+                }
+                i++
+                if (i > length(value)) fail()
+                escape_char = substr(value, i, 1)
+                if (escape_char == "\\") out = out "\\"
+                else if (escape_char == "t") out = out "\t"
+                else if (escape_char == "n") out = out "\n"
+                else if (escape_char == "r") out = out "\r"
+                else if (escape_char == "b") out = out "\b"
+                else if (escape_char == "f") out = out "\f"
+                else fail()
+            }
+            return out
+        }
         $1 == q {
-            sub(/^[^\t]*\t/, "")
-            print
+            print decode(substr($0, index($0, "\t") + 1))
             found = 1
             exit 0
         }
@@ -1339,6 +1636,31 @@ json_list() {
     fi
     _json_jl_path=$(_json_normalize_path "$_json_jl_path")
     _json_flat "$_json_jl_file" | awk -F '\t' -v p="$_json_jl_path" '
+        function fail() {
+            printf "%s\n", "json: invalid flattened value escape" > "/dev/stderr"
+            exit 2
+        }
+        function decode(value,    i, c, escape_char, out) {
+            out = ""
+            for (i = 1; i <= length(value); i++) {
+                c = substr(value, i, 1)
+                if (c != "\\") {
+                    out = out c
+                    continue
+                }
+                i++
+                if (i > length(value)) fail()
+                escape_char = substr(value, i, 1)
+                if (escape_char == "\\") out = out "\\"
+                else if (escape_char == "t") out = out "\t"
+                else if (escape_char == "n") out = out "\n"
+                else if (escape_char == "r") out = out "\r"
+                else if (escape_char == "b") out = out "\b"
+                else if (escape_char == "f") out = out "\f"
+                else fail()
+            }
+            return out
+        }
         $1 == p && $2 == "[]" { empty = 1; next }
         {
             prefix = p "."
@@ -1347,8 +1669,7 @@ json_list() {
             }
             rest = substr($1, length(prefix) + 1)
             if (rest ~ /^[0-9]+$/) {
-                val = $0
-                sub(/^[^\t]*\t/, "", val)
+                val = substr($0, index($0, "\t") + 1)
                 items[rest + 0] = val
                 if (rest + 0 > max) {
                     max = rest + 0
@@ -1365,7 +1686,12 @@ json_list() {
             }
             for (i = 0; i <= max; i++) {
                 if (i in items) {
-                    print items[i]
+                    value = decode(items[i])
+                    if (index(value, "\n") > 0) {
+                        printf "%s\n", "json: json_list cannot frame values containing newlines" > "/dev/stderr"
+                        exit 2
+                    }
+                    print value
                 }
             }
         }
@@ -2591,6 +2917,30 @@ _nft_require_prefix() {
     fi
 }
 
+_nft_owned_name() {
+    _nft_on_name=${1:-}
+    _nft_on_prefix=${2:-}
+    [ -n "$_nft_on_prefix" ] || return 1
+    [ "$_nft_on_name" = "$_nft_on_prefix" ] && return 0
+    case $_nft_on_prefix in
+        *[-_.:])
+            case $_nft_on_name in
+                "$_nft_on_prefix"?*) return 0 ;;
+            esac
+            ;;
+        *)
+            case $_nft_on_name in
+                "$_nft_on_prefix"-*|"$_nft_on_prefix"_*|"$_nft_on_prefix".*|"$_nft_on_prefix":*)
+                    _nft_on_suffix=${_nft_on_name#"$_nft_on_prefix"}
+                    _nft_on_suffix=${_nft_on_suffix#?}
+                    [ -n "$_nft_on_suffix" ] && return 0
+                    ;;
+            esac
+            ;;
+    esac
+    return 1
+}
+
 _nft_parse_comment_handles() {
     awk '
         {
@@ -2614,14 +2964,7 @@ _nft_parse_comment_handles() {
 }
 
 _nft_comment_owned() {
-    case $1 in
-        "$2"|"$2"*)
-            return 0
-            ;;
-        *)
-            return 1
-            ;;
-    esac
+    _nft_owned_name "${1:-}" "${2:-}"
 }
 
 nft_table_exists() {
@@ -2685,14 +3028,10 @@ nft_delete_owned_set() {
     _nft_ds_table=$2
     _nft_ds_set=$3
     _nft_ds_prefix=$4
-    case $_nft_ds_set in
-        "$_nft_ds_prefix"|"$_nft_ds_prefix"*)
-            ;;
-        *)
-            printf '%s\n' "nft: refusing to delete unowned set: $_nft_ds_set" >&2
-            return 2
-            ;;
-    esac
+    if ! _nft_owned_name "$_nft_ds_set" "$_nft_ds_prefix"; then
+        printf '%s\n' "nft: refusing to delete unowned set: $_nft_ds_set" >&2
+        return 2
+    fi
     if ! nft_set_exists "$_nft_ds_family" "$_nft_ds_table" "$_nft_ds_set"; then
         return 0
     fi
@@ -2743,11 +3082,9 @@ nft_dump_owned_state() {
         while IFS= read -r _nft_do_set
         do
             [ -n "$_nft_do_set" ] || continue
-            case $_nft_do_set in
-                "$_nft_do_prefix"|"$_nft_do_prefix"*)
-                    printf 'set\t%s\n' "$_nft_do_set"
-                    ;;
-            esac
+            if _nft_owned_name "$_nft_do_set" "$_nft_do_prefix"; then
+                printf 'set\t%s\n' "$_nft_do_set"
+            fi
         done
 }
 # END MODULE: nft
@@ -3475,9 +3812,38 @@ _guard_resolver_sync_consumer_ready() {
         -v direct_iface="$_guard_rs_cr_direct" \
         -v set_name="$_GUARD_RESOLVER_SYNC_V4_SET" \
         -v comment="$_GUARD_RESOLVER_SYNC_V4_RULE_COMMENT" '
-        index($0, "oifname \"" direct_iface "\"") &&
-        index($0, "ip daddr @" set_name) && index($0, "reject") &&
-        index($0, "comment \"" comment "\"") { found = 1 }
+        function has_iface(wanted,    i) {
+            for (i = 1; i + 1 <= NF; i++) {
+                if ($i == "comment" || $i == "#") break
+                if ($i == "oifname" && $(i + 1) == "\"" wanted "\"") return 1
+            }
+            return 0
+        }
+        function has_set_token(address_family, wanted,    i, token) {
+            for (i = 1; i + 2 <= NF; i++) {
+                if ($i == "comment" || $i == "#") break
+                if ($i != address_family || $(i + 1) != "daddr") continue
+                token = $(i + 2)
+                if (token == "@" wanted) return 1
+            }
+            return 0
+        }
+        function has_reject_verdict(    i) {
+            for (i = 1; i <= NF; i++) {
+                if ($i == "comment" || $i == "#") break
+                if ($i == "reject") return 1
+            }
+            return 0
+        }
+        function has_owner_comment(wanted,    i) {
+            for (i = 1; i + 1 <= NF; i++) {
+                if ($i == "#") break
+                if ($i == "comment" && $(i + 1) == "\"" wanted "\"") return 1
+            }
+            return 0
+        }
+        has_iface(direct_iface) && has_set_token("ip", set_name) &&
+        has_reject_verdict() && has_owner_comment(comment) { found = 1 }
         END { exit !found }
     ' || return 1
 
@@ -3485,9 +3851,38 @@ _guard_resolver_sync_consumer_ready() {
         -v direct_iface="$_guard_rs_cr_direct" \
         -v set_name="$_GUARD_RESOLVER_SYNC_V6_SET" \
         -v comment="$_GUARD_RESOLVER_SYNC_V6_RULE_COMMENT" '
-        index($0, "oifname \"" direct_iface "\"") &&
-        index($0, "ip6 daddr @" set_name) && index($0, "reject") &&
-        index($0, "comment \"" comment "\"") { found = 1 }
+        function has_iface(wanted,    i) {
+            for (i = 1; i + 1 <= NF; i++) {
+                if ($i == "comment" || $i == "#") break
+                if ($i == "oifname" && $(i + 1) == "\"" wanted "\"") return 1
+            }
+            return 0
+        }
+        function has_set_token(address_family, wanted,    i, token) {
+            for (i = 1; i + 2 <= NF; i++) {
+                if ($i == "comment" || $i == "#") break
+                if ($i != address_family || $(i + 1) != "daddr") continue
+                token = $(i + 2)
+                if (token == "@" wanted) return 1
+            }
+            return 0
+        }
+        function has_reject_verdict(    i) {
+            for (i = 1; i <= NF; i++) {
+                if ($i == "comment" || $i == "#") break
+                if ($i == "reject") return 1
+            }
+            return 0
+        }
+        function has_owner_comment(wanted,    i) {
+            for (i = 1; i + 1 <= NF; i++) {
+                if ($i == "#") break
+                if ($i == "comment" && $(i + 1) == "\"" wanted "\"") return 1
+            }
+            return 0
+        }
+        has_iface(direct_iface) && has_set_token("ip6", set_name) &&
+        has_reject_verdict() && has_owner_comment(comment) { found = 1 }
         END { exit !found }
     '
 }
@@ -4448,6 +4843,15 @@ set -eu
 
 _GUARD_DNS_NAMES="adguardhome AdGuardHome adguard-home"
 
+_GUARD_DNS_BYPASS_RULES=0
+_GUARD_DNS_BYPASS_PORT53_RULES=0
+_GUARD_DNS_BYPASS_DOT853_RULES=0
+_GUARD_DNS_HIJACK_BYPASS_RULES=0
+_GUARD_DNS_BYPASS_UNKNOWN_SOURCE_RULES=0
+_GUARD_DNS_BYPASS_UNKNOWN_DPORT_RULES=0
+_GUARD_DNS_BYPASS_CLIENT_COUNT=0
+_GUARD_DNS_BYPASS_CLIENTS=
+
 guard_dns_agh_name() {
     _guard_dns_agh=
     for _guard_dns_cand in $_GUARD_DNS_NAMES
@@ -4552,8 +4956,217 @@ _guard_dns_add_bypass_client() {
     _GUARD_DNS_BYPASS_CLIENT_COUNT=$((_GUARD_DNS_BYPASS_CLIENT_COUNT + 1))
 }
 
+_guard_dns_source_is_literal() {
+    _guard_dns_sl_family=$1
+    _guard_dns_sl_value=$2
+    _guard_dns_sl_address=$_guard_dns_sl_value
+    _guard_dns_sl_prefix=
+
+    case $_guard_dns_sl_value in
+        */*)
+            _guard_dns_sl_address=${_guard_dns_sl_value%/*}
+            _guard_dns_sl_prefix=${_guard_dns_sl_value#*/}
+            case $_guard_dns_sl_prefix in
+                ''|*[!0-9]*) return 1 ;;
+            esac
+            [ "${#_guard_dns_sl_prefix}" -le 3 ] || return 1
+            case $_guard_dns_sl_prefix in
+                0|[1-9]|[1-9][0-9]) ;;
+                1[01][0-9]|12[0-8]) ;;
+                *) return 1 ;;
+            esac
+            ;;
+    esac
+
+    case $_guard_dns_sl_family in
+        ipv4)
+            _guard_resolver_sync_valid_ipv4 "$_guard_dns_sl_address" || return 1
+            if [ -n "$_guard_dns_sl_prefix" ]; then
+                [ "$_guard_dns_sl_prefix" -le 32 ] 2>/dev/null || return 1
+            fi
+            ;;
+        ipv6)
+            _guard_resolver_sync_valid_ipv6 "$_guard_dns_sl_address" || return 1
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+_guard_dns_scan_rule_records() {
+    _guard_dns_srr_chain=$1
+    awk -v scan_chain="$_guard_dns_srr_chain" '
+        function has_jump(target,    i) {
+            for (i = 1; i < NF; i++) {
+                if ($i == "jump" && $(i + 1) == target) return 1
+            }
+            return 0
+        }
+        function has_return(    i) {
+            for (i = 1; i <= NF; i++) if ($i == "return") return 1
+            return 0
+        }
+        function port_number(value,    number) {
+            if (value !~ /^[0-9]+$/ || length(value) > 5) return -1
+            number = value + 0
+            if (number > 65535) return -1
+            return number
+        }
+        function include_interval(first, last,    low, high) {
+            low = port_number(first)
+            high = port_number(last)
+            if (low < 0 || high < 0 || low > high) {
+                port_unknown = 1
+                return
+            }
+            if (low <= 53 && high >= 53) port53_match = 1
+            if (low <= 853 && high >= 853) port853_match = 1
+        }
+        function include_atom(atom,    separator, bounds) {
+            if (atom ~ /^[0-9]+$/) {
+                include_interval(atom, atom)
+                return
+            }
+            if (atom ~ /^[0-9]+-[0-9]+$/) {
+                split(atom, bounds, "-")
+                include_interval(bounds[1], bounds[2])
+                return
+            }
+            port_unknown = 1
+        }
+        function include_comparison(operator, value,    number) {
+            number = port_number(value)
+            if (number < 0) {
+                port_unknown = 1
+                return
+            }
+            if (operator == "!=" || operator == "<" || operator == "<=") {
+                if (operator == "!=" && number != 53) port53_match = 1
+                if (operator == "!=" && number != 853) port853_match = 1
+                if (operator == "<" && number > 53) port53_match = 1
+                if (operator == "<" && number > 853) port853_match = 1
+                if (operator == "<=" && number >= 53) port53_match = 1
+                if (operator == "<=" && number >= 853) port853_match = 1
+                return
+            }
+            if (operator == ">" && number < 53) port53_match = 1
+            if (operator == ">" && number < 853) port853_match = 1
+            if (operator == ">=" && number <= 53) port53_match = 1
+            if (operator == ">=" && number <= 853) port853_match = 1
+            if (operator == "=" || operator == "==") {
+                if (number == 53) port53_match = 1
+                if (number == 853) port853_match = 1
+            }
+        }
+        function analyze_dport(    i, j, token, operator, saw_value, closed, count) {
+            port53_match = 0
+            port853_match = 0
+            port_unknown = 0
+            count = 0
+            for (i = 1; i <= NF; i++) {
+                if ($i != "dport") continue
+                count++
+                j = i + 1
+                if (j > NF) {
+                    port_unknown = 1
+                    continue
+                }
+                if ($j == "{") {
+                    saw_value = 0
+                    closed = 0
+                    j++
+                    while (j <= NF && $j != "}") {
+                        token = $j
+                        gsub(/,/, "", token)
+                        if (token != "") {
+                            include_atom(token)
+                            saw_value = 1
+                        }
+                        j++
+                    }
+                    if (j <= NF && $j == "}") closed = 1
+                    if (!closed || !saw_value) port_unknown = 1
+                    i = j
+                    continue
+                }
+                token = $j
+                if (token == "!=" || token == "<" || token == "<=" ||
+                    token == ">" || token == ">=" || token == "=" || token == "==") {
+                    operator = token
+                    j++
+                    if (j > NF) {
+                        port_unknown = 1
+                    } else {
+                        token = $j
+                        gsub(/,/, "", token)
+                        include_comparison(operator, token)
+                    }
+                    i = j
+                    continue
+                }
+                gsub(/,/, "", token)
+                include_atom(token)
+                i = j
+            }
+            if (count > 1) port_unknown = 1
+            return count
+        }
+        function source_value(    i, family, value) {
+            for (i = 1; i < NF; i++) {
+                if ($i != "saddr") continue
+                if ($(i - 1) == "ip") family = "ipv4"
+                else if ($(i - 1) == "ip6") family = "ipv6"
+                else return "unknown|-"
+                value = $(i + 1)
+                gsub(/,/, "", value)
+                if (value == "{" || value == "}" || value == "" || value == "!") return "unknown|-"
+                return family "|" value
+            }
+            return "unknown|-"
+        }
+        {
+            for (i = 1; i <= NF; i++) {
+                if ($i == "comment" || $i == "#") {
+                    NF = i - 1
+                    break
+                }
+            }
+            if (scan_chain == "forward") {
+                if (!has_jump("accept_to_wan")) next
+                if (!analyze_dport()) next
+                if (port_unknown) {
+                    print "unknownPort|0|0|unknown|-"
+                    next
+                }
+                has53 = port53_match
+                has853 = port853_match
+                if (!has53 && !has853) next
+                split(source_value(), source, "|")
+                printf "forward|%d|%d|%s|%s\n", has53, has853, source[1], source[2]
+                next
+            }
+            if (!has_return() || !analyze_dport()) next
+            if (port_unknown) {
+                print "unknownPort|0|0|unknown|-"
+                next
+            }
+            if (!port53_match) next
+            split(source_value(), source, "|")
+            printf "dstnat|1|0|%s|%s\n", source[1], source[2]
+        }
+    '
+}
+
 guard_dns_detect_firewall_bypasses() {
     _GUARD_DNS_BYPASS_AVAILABLE=0
+    _GUARD_DNS_BYPASS_DETECTED=0
+    _GUARD_DNS_BYPASS_RULES=0
+    _GUARD_DNS_BYPASS_PORT53_RULES=0
+    _GUARD_DNS_BYPASS_DOT853_RULES=0
+    _GUARD_DNS_HIJACK_BYPASS_RULES=0
+    _GUARD_DNS_BYPASS_UNKNOWN_SOURCE_RULES=0
+    _GUARD_DNS_BYPASS_UNKNOWN_DPORT_RULES=0
     _GUARD_DNS_BYPASS_CLIENTS=
     _GUARD_DNS_BYPASS_CLIENT_COUNT=0
     _GUARD_DNS_BYPASS_PORT53=0
@@ -4566,39 +5179,37 @@ guard_dns_detect_firewall_bypasses() {
     _guard_dns_dstnat=$(nft -a list chain inet fw4 dstnat 2>/dev/null) || return 0
     _GUARD_DNS_BYPASS_AVAILABLE=1
 
-    _guard_dns_p53_clients=$(printf '%s\n' "$_guard_dns_forward" | awk '
-        /ip saddr/ && /dport/ && /jump accept_to_wan/ && /(^|[^0-9])53([^0-9]|$)/ {
-            for (i = 1; i <= NF; i++) if ($i == "saddr" && i < NF) print $(i + 1)
-        }
-    ')
-    _guard_dns_p853_clients=$(printf '%s\n' "$_guard_dns_forward" | awk '
-        /ip saddr/ && /dport/ && /jump accept_to_wan/ && /(^|[^0-9])853([^0-9]|$)/ {
-            for (i = 1; i <= NF; i++) if ($i == "saddr" && i < NF) print $(i + 1)
-        }
-    ')
-    _guard_dns_hijack_clients=$(printf '%s\n' "$_guard_dns_dstnat" | awk '
-        /ip saddr/ && /dport/ && /return/ && /(^|[^0-9])53([^0-9]|$)/ {
-            for (i = 1; i <= NF; i++) if ($i == "saddr" && i < NF) print $(i + 1)
-        }
-    ')
+    while IFS='|' read -r _guard_dns_kind _guard_dns_has53 _guard_dns_has853 _guard_dns_family _guard_dns_source; do
+        [ -n "$_guard_dns_kind" ] || continue
+        case $_guard_dns_kind in
+            forward)
+                _GUARD_DNS_BYPASS_RULES=$((_GUARD_DNS_BYPASS_RULES + 1))
+                _GUARD_DNS_BYPASS_PORT53_RULES=$((_GUARD_DNS_BYPASS_PORT53_RULES + _guard_dns_has53))
+                _GUARD_DNS_BYPASS_DOT853_RULES=$((_GUARD_DNS_BYPASS_DOT853_RULES + _guard_dns_has853))
+                ;;
+            dstnat)
+                _GUARD_DNS_HIJACK_BYPASS_RULES=$((_GUARD_DNS_HIJACK_BYPASS_RULES + 1))
+                ;;
+            unknownPort)
+                _GUARD_DNS_BYPASS_UNKNOWN_DPORT_RULES=$((_GUARD_DNS_BYPASS_UNKNOWN_DPORT_RULES + 1))
+                continue
+                ;;
+        esac
+        if _guard_dns_source_is_literal "$_guard_dns_family" "$_guard_dns_source"; then
+            _guard_dns_add_bypass_client "$_guard_dns_source"
+        else
+            _GUARD_DNS_BYPASS_UNKNOWN_SOURCE_RULES=$((_GUARD_DNS_BYPASS_UNKNOWN_SOURCE_RULES + 1))
+        fi
+    done <<EOF
+$(printf '%s\n' "$_guard_dns_forward" | _guard_dns_scan_rule_records forward)
+$(printf '%s\n' "$_guard_dns_dstnat" | _guard_dns_scan_rule_records dstnat)
+EOF
 
-    if [ -n "$_guard_dns_p53_clients" ]; then
-        _GUARD_DNS_BYPASS_PORT53=1
-        for _guard_dns_client in $_guard_dns_p53_clients; do
-            _guard_dns_add_bypass_client "$_guard_dns_client"
-        done
-    fi
-    if [ -n "$_guard_dns_p853_clients" ]; then
-        _GUARD_DNS_BYPASS_DOT853=1
-        for _guard_dns_client in $_guard_dns_p853_clients; do
-            _guard_dns_add_bypass_client "$_guard_dns_client"
-        done
-    fi
-    if [ -n "$_guard_dns_hijack_clients" ]; then
-        _GUARD_DNS_HIJACK_BYPASS=1
-        for _guard_dns_client in $_guard_dns_hijack_clients; do
-            _guard_dns_add_bypass_client "$_guard_dns_client"
-        done
+    [ "$_GUARD_DNS_BYPASS_PORT53_RULES" -eq 0 ] || _GUARD_DNS_BYPASS_PORT53=1
+    [ "$_GUARD_DNS_BYPASS_DOT853_RULES" -eq 0 ] || _GUARD_DNS_BYPASS_DOT853=1
+    [ "$_GUARD_DNS_HIJACK_BYPASS_RULES" -eq 0 ] || _GUARD_DNS_HIJACK_BYPASS=1
+    if [ "$_GUARD_DNS_BYPASS_RULES" -gt 0 ] || [ "$_GUARD_DNS_HIJACK_BYPASS_RULES" -gt 0 ]; then
+        _GUARD_DNS_BYPASS_DETECTED=1
     fi
 }
 
@@ -4756,6 +5367,13 @@ _GUARD_DNS_AGH_ENABLED=0
 _GUARD_DNS_AGH_RUNNING=0
 _GUARD_DNS_DOMAIN_SET=unavailable
 _GUARD_DNS_BYPASS_AVAILABLE=0
+_GUARD_DNS_BYPASS_DETECTED=0
+_GUARD_DNS_BYPASS_RULES=0
+_GUARD_DNS_BYPASS_PORT53_RULES=0
+_GUARD_DNS_BYPASS_DOT853_RULES=0
+_GUARD_DNS_HIJACK_BYPASS_RULES=0
+_GUARD_DNS_BYPASS_UNKNOWN_SOURCE_RULES=0
+_GUARD_DNS_BYPASS_UNKNOWN_DPORT_RULES=0
 _GUARD_DNS_BYPASS_CLIENTS=
 _GUARD_DNS_BYPASS_CLIENT_COUNT=0
 _GUARD_DNS_BYPASS_PORT53=0
@@ -4989,8 +5607,18 @@ guard_env_get() {
         dns.adguardhomeRunning) printf '%s\n' "$_GUARD_DNS_AGH_RUNNING" ;;
         dns.domainSetBackend) printf '%s\n' "$_GUARD_DNS_DOMAIN_SET" ;;
         dns.clientBypass.available) printf '%s\n' "$_GUARD_DNS_BYPASS_AVAILABLE" ;;
+        dns.clientBypass.scanAvailable) printf '%s\n' "$_GUARD_DNS_BYPASS_AVAILABLE" ;;
+        dns.clientBypass.detected) printf '%s\n' "$_GUARD_DNS_BYPASS_DETECTED" ;;
+        dns.clientBypass.rules) printf '%s\n' "$_GUARD_DNS_BYPASS_RULES" ;;
+        dns.clientBypass.port53Rules) printf '%s\n' "$_GUARD_DNS_BYPASS_PORT53_RULES" ;;
+        dns.clientBypass.dot853Rules) printf '%s\n' "$_GUARD_DNS_BYPASS_DOT853_RULES" ;;
+        dns.clientBypass.hijackBypassRules) printf '%s\n' "$_GUARD_DNS_HIJACK_BYPASS_RULES" ;;
+        dns.clientBypass.unknownSourceRules) printf '%s\n' "$_GUARD_DNS_BYPASS_UNKNOWN_SOURCE_RULES" ;;
+        dns.clientBypass.unknownDportRules) printf '%s\n' "$_GUARD_DNS_BYPASS_UNKNOWN_DPORT_RULES" ;;
         dns.clientBypass.count) printf '%s\n' "$_GUARD_DNS_BYPASS_CLIENT_COUNT" ;;
+        dns.clientBypass.clients.count) printf '%s\n' "$_GUARD_DNS_BYPASS_CLIENT_COUNT" ;;
         dns.clientBypass.clients) printf '%s\n' "$_GUARD_DNS_BYPASS_CLIENTS" ;;
+        dns.clientBypass.clients.items) printf '%s\n' "$_GUARD_DNS_BYPASS_CLIENTS" ;;
         dns.clientBypass.port53) printf '%s\n' "$_GUARD_DNS_BYPASS_PORT53" ;;
         dns.clientBypass.dot853) printf '%s\n' "$_GUARD_DNS_BYPASS_DOT853" ;;
         dns.clientBypass.hijack53) printf '%s\n' "$_GUARD_DNS_HIJACK_BYPASS" ;;
@@ -9102,14 +9730,28 @@ guard_cmd_doctor() {
     fi
     _guard_doctor_dns_bypass_available=$(guard_env_get dns.clientBypass.available)
     if [ "$_guard_doctor_dns_bypass_available" = 1 ]; then
-        _guard_doctor_dns_bypass_count=$(guard_env_get dns.clientBypass.count)
-        if [ "${_guard_doctor_dns_bypass_count:-0}" -gt 0 ] 2>/dev/null; then
-            _guard_doctor_dns_bypass_clients=$(guard_env_get dns.clientBypass.clients)
-            _guard_doctor_dns_bypass_port53=$(guard_env_get dns.clientBypass.port53)
-            _guard_doctor_dns_bypass_dot853=$(guard_env_get dns.clientBypass.dot853)
-            _guard_doctor_dns_bypass_hijack53=$(guard_env_get dns.clientBypass.hijack53)
-            cli_warn "client DNS firewall bypass detected: clients=${_guard_doctor_dns_bypass_clients:-unknown} port53=$_guard_doctor_dns_bypass_port53 dot853=$_guard_doctor_dns_bypass_dot853 hijack53=$_guard_doctor_dns_bypass_hijack53"
+        _guard_doctor_dns_bypass_detected=$(guard_env_get dns.clientBypass.detected)
+        _guard_doctor_dns_bypass_rules=$(guard_env_get dns.clientBypass.rules)
+        _guard_doctor_dns_bypass_port53_rules=$(guard_env_get dns.clientBypass.port53Rules)
+        _guard_doctor_dns_bypass_dot853_rules=$(guard_env_get dns.clientBypass.dot853Rules)
+        _guard_doctor_dns_bypass_hijack_rules=$(guard_env_get dns.clientBypass.hijackBypassRules)
+        _guard_doctor_dns_bypass_unknown_sources=$(guard_env_get dns.clientBypass.unknownSourceRules)
+        _guard_doctor_dns_bypass_unknown_dports=$(guard_env_get dns.clientBypass.unknownDportRules)
+        _guard_doctor_dns_bypass_count=$(guard_env_get dns.clientBypass.clients.count)
+        _guard_doctor_dns_bypass_clients=$(guard_env_get dns.clientBypass.clients.items)
+        cli_kv dns.clientBypass.rules "$_guard_doctor_dns_bypass_rules"
+        cli_kv dns.clientBypass.port53Rules "$_guard_doctor_dns_bypass_port53_rules"
+        cli_kv dns.clientBypass.dot853Rules "$_guard_doctor_dns_bypass_dot853_rules"
+        cli_kv dns.clientBypass.hijackBypassRules "$_guard_doctor_dns_bypass_hijack_rules"
+        cli_kv dns.clientBypass.unknownSourceRules "$_guard_doctor_dns_bypass_unknown_sources"
+        cli_kv dns.clientBypass.unknownDportRules "$_guard_doctor_dns_bypass_unknown_dports"
+        cli_kv dns.clientBypass.clients.count "$_guard_doctor_dns_bypass_count"
+        [ -z "$_guard_doctor_dns_bypass_clients" ] || cli_kv dns.clientBypass.clients.items "$_guard_doctor_dns_bypass_clients"
+        if [ "$_guard_doctor_dns_bypass_detected" = 1 ]; then
+            cli_warn "client DNS firewall bypass detected: rules=$_guard_doctor_dns_bypass_rules clients=$_guard_doctor_dns_bypass_count unknownSourceRules=$_guard_doctor_dns_bypass_unknown_sources unknownDportRules=$_guard_doctor_dns_bypass_unknown_dports port53Rules=$_guard_doctor_dns_bypass_port53_rules dot853Rules=$_guard_doctor_dns_bypass_dot853_rules hijackBypassRules=$_guard_doctor_dns_bypass_hijack_rules"
             cli_info "DNS bypass diagnostics are observation-only; firewall policy was not modified"
+        elif [ "$_guard_doctor_dns_bypass_unknown_dports" -gt 0 ] 2>/dev/null; then
+            cli_warn "DNS bypass scan incomplete: unknownDportRules=$_guard_doctor_dns_bypass_unknown_dports; unsupported destination-port selectors may include port 53 or 853"
         fi
     elif [ "$_guard_doctor_dns_bypass_available" = 0 ]; then
         cli_warn "client DNS firewall bypass diagnostics unavailable; required fw4 chains could not be observed"
