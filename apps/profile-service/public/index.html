@@ -4,87 +4,144 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
-  <title data-i18n="pageTitle">OpenClash Profile Builder</title>
+  <title>OpenClash Profile Builder</title>
   <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/editor.css">
 </head>
-<body>
-  <main class="shell tool-ini">
-    <header>
-      <p class="eyebrow">mythic3011/rules</p>
-      <h1>OpenClash Profile Builder</h1>
-      <p class="lede" data-i18n="builderDescription">Choose routing preferences and create an opaque subscription URL that redirects to the `.ini` template.</p>
-      <label class="language-picker"><span data-i18n="language">Language</span>
-        <select id="language" autocomplete="off">
-          <option value="en" data-language-option="en">English</option>
-          <option value="zh-Hant" data-language-option="zh-Hant">繁體中文</option>
-          <option value="zh-Hans" data-language-option="zh-Hans">简体中文</option>
-        </select>
-      </label>
-    </header>
-
-    <div class="page-toolbar">
-      <nav class="tool-nav" data-i18n-aria-label="toolsNavigation" aria-label="Profile tools">
-        <a href="/" aria-current="page" data-i18n="iniBuilder">INI template builder</a>
-        <a href="/converter.html" data-i18n="yamlConverter">Online YAML converter</a>
-      </nav>
-      <section class="actions">
-        <button id="preview" type="button" data-i18n="preview" disabled>Preview</button>
-        <button id="save" type="button" class="primary" data-i18n="createSubscription" disabled>Create subscription</button>
-      </section>
-      <div class="editor-feedback" aria-live="polite" aria-atomic="true">
-        <p id="editor-state" data-state="draft" data-i18n="editorDraft" tabindex="-1">This configuration is a draft and has not been saved.</p>
-        <p id="saved-state-note" class="saved-state-note" hidden></p>
-        <p id="preview-state" data-state="not-run"><span id="preview-state-label">Preview not run yet.</span></p>
-        <p id="preview-state-help" hidden></p>
+<body class="editor-app">
+  <a class="skip-link" href="#editor-main" data-i18n="skipToContent">Skip to content</a>
+  <header class="app-masthead">
+    <a class="app-brand" href="/builder/template" data-editor-link>OpenClash <span>Profile Builder</span></a>
+    <nav class="app-tools" data-i18n-aria-label="toolsNavigation">
+      <a href="/builder/template" data-editor-link aria-current="page" data-i18n="iniBuilder">INI template builder</a>
+      <a href="/converter" data-i18n="yamlConverter">Online YAML converter</a>
+    </nav>
+    <label class="language-picker"><span data-i18n="language">Language</span>
+      <select id="language" autocomplete="off">
+        <option value="en" data-language-option="en">English</option>
+        <option value="zh-Hant" data-language-option="zh-Hant">繁體中文</option>
+        <option value="zh-Hans" data-language-option="zh-Hans">简体中文</option>
+      </select>
+    </label>
+  </header>
+  <div class="editor-layout">
+    <aside class="editor-sidebar">
+      <p class="nav-caption" data-i18n="configurationSections">Configuration</p>
+      <nav id="section-navigation" class="section-navigation" data-i18n-aria-label="configurationSections"></nav>
+      <div id="safety-summary" class="safety-summary"></div>
+      <p class="sidebar-help" data-i18n="nonlinearNavigationHelp">Open any section. Your draft stays with you.</p>
+    </aside>
+    <main id="editor-main" class="editor-main" tabindex="-1">
+      <header class="page-heading">
+        <p id="profile-context" class="eyebrow"></p>
+        <h1 id="page-title" tabindex="-1">OpenClash Profile Builder</h1>
+        <p id="page-description" class="lede"></p>
+      </header>
+      <div class="editor-status-bar">
+        <div class="editor-feedback" aria-live="polite" aria-atomic="true">
+          <p id="editor-state" data-state="loading"></p>
+          <p id="saved-state-note" class="saved-state-note" hidden></p>
+          <p id="preview-state" data-state="not-run"><span id="preview-state-label"></span></p>
+          <p id="preview-state-help" class="hint" hidden></p>
+        </div>
+        <div id="draft-actions" class="draft-actions">
+          <button id="undo" type="button" data-i18n="undoChange" disabled>Undo</button>
+          <button id="cancel-changes" type="button" data-i18n="cancelChanges" disabled>Cancel changes</button>
+        </div>
       </div>
-    </div>
-
-    <section id="profile-options" class="panel" aria-labelledby="profile-options-title"></section>
-
-    <p class="hint"><span data-i18n="intakeHint">Need a regional service that is not listed?</span> <a href="https://github.com/mythic3011/rules/issues/new?template=service_intake.yml" target="_blank" rel="noreferrer" data-i18n="submitIntake">Submit a regional service request</a>.</p>
-
-    <section id="status" class="panel status" role="status" aria-live="polite" aria-atomic="true" tabindex="-1" hidden></section>
-
-    <section id="result" class="panel" tabindex="-1" hidden>
-      <h2 data-i18n="subscriptionCreated">Subscription created</h2>
-      <p id="result-intro" data-i18n="resultIntro">Your routing profile is saved. Complete both steps before using it.</p>
-      <p id="saved-result-state" class="saved-state-note" hidden></p>
-      <div class="result-steps">
-        <section id="result-import-step" class="result-step">
-          <h3 data-i18n="resultImportTitle">1. Add the read-only subscription URL</h3>
-          <h4 data-i18n="subscriptionTitle">OpenClash Custom Template URL</h4>
+      <section id="draft-recovery" class="recovery-notice" role="status" hidden>
+        <p id="draft-recovery-message"></p>
+        <button id="restore-draft" type="button" data-i18n="restoreLocalDraft">Restore local draft</button>
+        <button id="discard-recovery" type="button" data-i18n="discardLocalDraft">Discard local draft</button>
+      </section>
+      <p id="draft-storage-note" class="hint" role="status" hidden></p>
+      <section id="error-summary" class="error-summary" role="alert" tabindex="-1" hidden>
+        <h2 data-i18n="validationSummaryTitle">Resolve these issues</h2>
+        <ul id="error-list"></ul>
+      </section>
+      <p id="status" class="status" role="status" aria-live="polite" aria-atomic="true" tabindex="-1" hidden></p>
+      <section id="boot-error" role="alert" hidden>
+        <p data-i18n="builderLoadFailed">The profile builder could not be loaded. Refresh and try again.</p>
+        <button id="reload-editor" type="button" data-i18n="reloadEditor">Reload editor</button>
+      </section>
+      <section id="profile-options" data-i18n-aria-label="profileOptions" aria-label="Profile options"></section>
+      <section id="review-page" hidden>
+        <p class="review-scope" data-i18n="reviewDraftScope">This summary describes your current draft. Previewing does not save it.</p>
+        <div id="review-summary" class="review-summary"></div>
+        <section id="preview-result" class="preview-result" tabindex="-1" hidden>
+          <h2 data-i18n="configurationPreview">Configuration preview</h2>
+          <p id="preview-snapshot-note" class="hint"></p>
+          <details class="technical-details">
+            <summary data-i18n="technicalDetailsTitle">Technical details</summary>
+            <h3 data-i18n="previewTechnicalDetails">Technical summary (JSON)</h3>
+            <pre id="summary"></pre>
+            <h3 data-i18n="generatedIni">Generated INI</h3>
+            <pre id="ini-preview" class="ini"></pre>
+          </details>
+        </section>
+      </section>
+      <section id="result" class="success-page" tabindex="-1" hidden>
+        <p id="result-intro" data-i18n="resultIntro">Your routing profile is saved. Complete both steps before using it.</p>
+        <p id="saved-result-state" class="saved-state-note"></p>
+        <aside id="success-draft-notice" class="recovery-notice" role="status" hidden>
+          <p data-i18n="successDraftRetained">This subscription uses the saved settings. Your newer changes are still an unsaved draft.</p>
+          <p id="success-draft-invalid" data-i18n="successDraftInvalid" hidden>The newer draft has validation issues. Review it before saving.</p>
+          <a id="success-review-draft" href="/builder/review" data-editor-link data-i18n="reviewUnsavedDraft">Review unsaved draft</a>
+        </aside>
+        <section id="result-import-step" class="completion-step">
+          <h2 data-i18n="successReadTitle">1. Read-only Custom Template URL</h2>
           <div class="copy-row">
-            <input id="subscription-url" readonly data-i18n-aria-label="subscriptionTitle">
+            <input id="subscription-url" readonly data-i18n-aria-label="subscriptionTitle" autocomplete="off" spellcheck="false">
             <button data-copy="subscription-url" type="button" data-i18n="copy">Copy</button>
           </div>
           <p class="hint" data-i18n="subscriptionHint">Paste this URL into OpenClash subscription conversion as the Custom Template URL.</p>
-          <p id="result-fail-closed" class="warning" data-i18n="resultFailClosed" hidden>Fail-closed is enabled. After importing the template, choose an allowed exit in your proxy client.</p>
         </section>
-        <section id="result-manage-step" class="result-step">
-          <h3 data-i18n="resultManagementTitle">2. Save your management link</h3>
-          <p class="warning" data-i18n="managementWarning">This link can change routing preferences. Do not share it.</p>
+        <section id="result-manage-step" class="completion-step">
+          <h2 data-i18n="successManagementTitle">2. Save your management link</h2>
+          <p class="warning" data-i18n="saveManagementLink">Save this link somewhere private. Anyone with it can change this profile.</p>
           <div class="copy-row">
-            <input id="manage-url" readonly data-i18n-aria-label="managementLink">
+            <input id="manage-url" readonly data-i18n-aria-label="managementLink" autocomplete="off" spellcheck="false">
             <button data-copy="manage-url" type="button" data-i18n="copy">Copy</button>
           </div>
-          <p><a id="result-manage-open" data-i18n="resultManageAction" href="/manage">Open management page</a></p>
+          <p class="hint" data-i18n="capabilityLifetimeHelp">Links are shown in this tab for 30 minutes. Keep your own secure copy.</p>
         </section>
-      </div>
-    </section>
-
-    <section id="preview-result" class="panel" tabindex="-1" hidden>
-      <h2 data-i18n="configurationPreview">Configuration preview</h2>
-      <div id="preview-summary" class="preview-summary"><dl id="preview-summary-list"></dl></div>
-      <details class="technical-details">
-        <summary data-i18n="previewTechnicalDetails">Technical summary (JSON)</summary>
-        <pre id="summary"></pre>
-      </details>
-      <details>
-        <summary data-i18n="generatedIni">Generated INI</summary>
-        <pre id="ini-preview" class="ini"></pre>
-      </details>
-    </section>
-  </main>
+        <section class="completion-step">
+          <h2 data-i18n="successImportTitle">3. Import into OpenClash</h2>
+          <ol class="import-instructions">
+            <li data-i18n="importInstructionOne">Open subscription conversion in OpenClash.</li>
+            <li data-i18n="importInstructionTwo">Paste the read-only URL into Custom Template URL, then update the subscription.</li>
+            <li data-i18n="importInstructionThree">Select the nodes and manual exits you intend to use.</li>
+          </ol>
+          <p id="result-fail-closed" class="warning" data-i18n="successFailClosed" hidden>Traffic starts blocked after import. Manually select an allowed exit.</p>
+        </section>
+        <a id="result-manage-open" class="button-link primary" href="/manage" data-i18n="resultManageAction">Open management page</a>
+      </section>
+      <section id="success-unavailable" hidden>
+        <p data-i18n="successUnavailable">Creation links are unavailable or have expired in this tab. Use the management link you saved.</p>
+        <a href="/builder/template" data-editor-link data-i18n="backToEditor">Back to editor</a>
+      </section>
+      <section id="not-found" hidden>
+        <a id="not-found-link" class="button-link" href="/builder/template" data-editor-link data-i18n="backToEditor">Back to editor</a>
+      </section>
+      <footer id="section-actions" class="section-actions">
+        <a id="section-back" class="button-link" data-editor-link data-i18n="backAction">Back</a>
+        <a id="quick-review" data-editor-link data-i18n="useDefaultsReview">Use these settings and review</a>
+        <a id="section-continue" class="button-link primary" data-editor-link data-i18n="continueAction">Continue</a>
+        <div id="review-actions" class="review-actions" hidden>
+          <button id="preview" type="button" data-i18n="preview" disabled>Preview</button>
+          <button id="save" type="button" class="primary" data-i18n="createSubscription" disabled>Create subscription</button>
+        </div>
+      </footer>
+    </main>
+  </div>
+  <dialog id="confirm-dialog" aria-labelledby="confirm-title" aria-describedby="confirm-description">
+    <h2 id="confirm-title"></h2>
+    <p id="confirm-description"></p>
+    <form method="dialog" class="dialog-actions">
+      <button value="cancel" data-i18n="cancelAction" autofocus>Cancel</button>
+      <button id="confirm-submit" value="confirm" class="destructive" data-i18n="confirmAction">Confirm</button>
+    </form>
+  </dialog>
   <script type="module" src="/app.js"></script>
 </body>
 </html>

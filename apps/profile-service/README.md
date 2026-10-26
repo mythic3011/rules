@@ -9,21 +9,29 @@ A self-hosted Cloudflare Worker with two browser tools:
 
 ## Use the web UI
 
-1. Open the deployed Worker URL.
-2. Choose **INI template builder** or **Online YAML converter** in the top navigation.
-3. Choose a template. AI templates offer region and service controls. Preview the INI, then create its subscription URL; later edits update that same URL.
-4. For YAML, use **Auto detect** to paste proxy links and HTTPS subscription URLs together, one entry per line. A conversion accepts at most five remote subscriptions, 256 KiB of downloaded subscription content in total, and 100 nodes. Pasted input has a separate 262,144-character limit and a 300,000-byte JSON request limit.
-5. Copy or download the YAML. After import, select a node in a regional group, then choose that region in the pinned selector. With **Fail closed** enabled, also select allowed routes for DNS and each service you use. Selections stay manual.
+The INI builder is a set of directly addressable pages. Its section navigation stays available while you edit, so you can move between pages without completing a fixed wizard.
 
-### Builder states and next steps
+| Route | Task |
+| --- | --- |
+| `/builder/template` | Choose a template and see its default policy. |
+| `/builder/regions` | Include or exclude routable regions, adjust node filters, and set the displayed region order. |
+| `/builder/services` | Search service groups, create a group, or open one group for editing. |
+| `/builder/services/<group-id>` | Edit one group's service membership and manual exit choices. |
+| `/builder/policies` | Set enabled services, service display order, DIRECT access, and fail-closed behavior. |
+| `/builder/review` | Read the configuration summary, resolve validation issues, preview, and create the subscription. |
+| `/builder/success?profile=<public-id>` | Copy that profile's read-only URL, securely save its management link, and follow the OpenClash import steps. |
 
-The editor is your **draft**. **Preview** shows a snapshot of that draft and is marked outdated after you change routing settings. **Saved profile** is the last revision behind the subscription URL; previewing alone does not save changes.
+The builder keeps its draft in the current tab, including when you change pages. This local recovery copy is not a server save. **Undo** reverses the last edit; **Cancel changes** returns to the last saved settings, or to the starting defaults for a new profile. Builder and management drafts are stored separately. If recovery finds a management draft based on an older server revision, review or discard it before saving.
 
-After creating a profile, copy the read-only URL into OpenClash as its **Custom Template URL**, then save the separate management link somewhere private. Use the management link to edit and save the profile; the public builder only creates subscriptions. With **Fail closed** enabled, choose an allowed exit in your proxy client after import.
+Review summarizes the current draft in plain language. Its **Edit** links open the relevant page; **Return to review** takes you back after editing. A change makes the previous preview outdated. Previewing checks the current draft but does not save it, and Create or Save stays disabled until validation and preview match the current settings. Validation appears in the Review summary and links to the relevant field. When the affected field is mounted, the same message appears beside it and is connected with `aria-invalid` and `aria-describedby`.
 
-The YAML converter accepts `socks5h`, HTTPS proxy, and standard node links, plus pasted subscription text. Put each link or subscription URL on its own line. Paste Clash YAML or Base64 subscription data as a complete document by itself, not mixed with links. Every remote URL must match the exact-host allowlist; if any entry fails, the request returns no partial profile. Input and output stay in the page until you clear them or close the page. YAML can contain proxy credentials.
+Creating a profile opens a separate page at `/builder/success?profile=<public-id>`. The `profile` value identifies the profile and is not a secret. Each profile has a separate result record in the current tab; opening `/builder/success` without a profile ID shows the latest result. Copy the read-only `/p/<token>` URL into OpenClash as the **Custom Template URL**. Save the separate management link somewhere private; anyone who has it can edit the profile. The tab keeps each result record and displays its links for 30 minutes, so copy them before the display expires. Expiry clears the displayed fields without changing the subscription. Management capability sessions have their own lifetime; reopening the management link starts a new in-tab session, and expiry of the older result record does not revoke a renewed session. Later edits through the management page save a new revision behind the same subscription. With **Fail closed** enabled, traffic starts blocked after import; manually select an allowed exit in your proxy client.
 
-An HTTPS link with explicit proxy connection details is a proxy in **Auto detect** mode. Use **Subscription URLs or content** mode for bare HTTPS subscription URLs with an explicit port.
+Management saves use the existing unconditional API `PUT`: two tabs editing the same revision can overwrite one another, with the last successful save taking effect. The local revision check warns when a recovered draft starts from an older server revision, but it is not a server-side compare-and-swap and does not prevent simultaneous-tab overwrites. If the editor fails during startup, its recovery panel offers **Reload editor**.
+
+The converter remains separate at `/converter`. On desktop it places input and output side by side; on mobile it uses one column. Use **Auto detect** to paste proxy links and HTTPS subscription URLs together, one entry per line. A conversion accepts at most five remote subscriptions, 256 KiB of downloaded subscription content in total, and 100 nodes. Pasted input has a separate 262,144-character limit and a 300,000-byte JSON request limit. The converter accepts `socks5h`, HTTPS proxy, and standard node links, plus pasted subscription text. Paste Clash YAML or Base64 subscription data as a complete document by itself, not mixed with links. Every remote URL must match the exact-host allowlist; if any entry fails, the request returns no partial profile. Input and output stay in the page until you clear them or close the page. YAML can contain proxy credentials.
+
+An HTTPS link with explicit proxy connection details is a proxy in **Auto detect** mode. Use **Subscription URLs or content** mode for bare HTTPS subscription URLs with an explicit port. Copy or download the generated YAML. After import, select a node in a regional group, then choose that region in the pinned selector. With **Fail closed** enabled, also select allowed routes for DNS and each service you use. These selections are manual.
 
 ## Templates and routing controls
 

@@ -14,6 +14,101 @@ async function previewIni(page) {
   return payload;
 }
 
+async function captureSuccess(page, key, checkRead = false) {
+  return page.evaluate(async ({ key, checkRead }) => {
+    await new Promise((resolve) => {
+      const timeout = setTimeout(resolve, 8_000);
+      const ready = () => {
+        const result = document.getElementById("result");
+        const read = document.getElementById("subscription-url");
+        const manage = document.getElementById("manage-url");
+        if (location.pathname === "/builder/success" && result && !result.hidden && read?.value && manage?.value) {
+          clearTimeout(timeout);
+          resolve();
+          return;
+        }
+        requestAnimationFrame(ready);
+      };
+      ready();
+    });
+    const result = document.getElementById("result");
+    const readInput = document.getElementById("subscription-url");
+    const managementInput = document.getElementById("manage-url");
+    const managementLink = document.getElementById("result-manage-open");
+    let readUrl = null;
+    let manageUrl = null;
+    try { readUrl = new URL(readInput?.value || ""); } catch {}
+    try { manageUrl = new URL(managementInput?.value || ""); } catch {}
+    const routeUrl = new URL(location.href);
+    const profileId = manageUrl?.searchParams.get("id") ?? null;
+    const priorReadUrl = sessionStorage.getItem(`e2e-success-${key}-read`);
+    const priorProfileId = sessionStorage.getItem(`e2e-success-${key}-id`);
+    if (readUrl) sessionStorage.setItem(`e2e-success-${key}-read`, readUrl.href);
+    if (profileId) sessionStorage.setItem(`e2e-success-${key}-id`, profileId);
+    if (key === "a" && readUrl) sessionStorage.setItem("e2e-profile-subscription", readUrl.href);
+    let subscription = { status: null, redirected: false, redirectedToIni: false, revision: null, hasIni: false };
+    if (checkRead && readUrl) {
+      const path = readUrl.pathname.replace(/\.ini$/u, "");
+      const response = await fetch(`${readUrl.origin}${path}`, { cache: "no-store", redirect: "follow" });
+      subscription = {
+        status: response.status,
+        redirected: response.redirected,
+        redirectedToIni: /\.ini$/u.test(new URL(response.url).pathname),
+        revision: response.headers.get("x-profile-revision"),
+        hasIni: (await response.text()).includes("[custom]"),
+      };
+    }
+    const metadata = {
+      pathname: routeUrl.pathname,
+      routeProfileId: routeUrl.searchParams.get("profile"),
+      profileId,
+      resultVisible: Boolean(result && !result.hidden),
+      readStepVisible: Boolean(document.getElementById("result-import-step")?.getClientRects().length),
+      managementStepVisible: Boolean(document.getElementById("result-manage-step")?.getClientRects().length),
+      failClosedVisible: Boolean(document.getElementById("result-fail-closed")?.getClientRects().length),
+      readLinkValid: Boolean(readUrl && readUrl.origin === location.origin && /^\/p\/[A-Za-z0-9_-]{40,64}$/u.test(readUrl.pathname)),
+      managementLinkValid: Boolean(manageUrl && manageUrl.origin === location.origin && manageUrl.pathname === "/manage"),
+      managementIdMatchesRoute: profileId === routeUrl.searchParams.get("profile"),
+      managementCapabilityInFragment: Boolean(manageUrl?.hash),
+      managementQueryHasOnlyId: Boolean(manageUrl && [...manageUrl.searchParams.keys()].every((name) => name === "id")),
+      linksHaveSeparatePaths: Boolean(readUrl && manageUrl && readUrl.pathname !== manageUrl.pathname),
+      restoredReadLink: Boolean(priorReadUrl && readUrl?.href === priorReadUrl),
+      restoredManagementProfile: Boolean(priorProfileId && profileId === priorProfileId),
+      profileIdDifferentFromSavedA: key !== "b" || profileId !== sessionStorage.getItem("e2e-success-a-id"),
+      subscription,
+    };
+    if (readInput instanceof HTMLInputElement) readInput.value = "";
+    if (managementInput instanceof HTMLInputElement) managementInput.value = "";
+    managementLink?.removeAttribute("href");
+    return metadata;
+  }, { key, checkRead });
+}
+
+async function followManagementLink(page, id) {
+  const navigation = page.waitForEvent("framenavigated", (frame) => frame === page.mainFrame());
+  const started = await page.evaluate((profileId) => {
+    const raw = sessionStorage.getItem(`profile-manage:${profileId}`);
+    let entry;
+    try { entry = JSON.parse(raw); } catch { entry = raw; }
+    const token = typeof entry === "string" ? entry : entry?.token;
+    if (!profileId || !token) return false;
+    location.assign(`/manage?id=${encodeURIComponent(profileId)}#${encodeURIComponent(token)}`);
+    return true;
+  }, id);
+  expect(started).toBe(true);
+  await navigation;
+}
+
+async function expectManagementRoute(page, pathname, id) {
+  await page.waitForFunction(() => location.pathname.startsWith("/manage")
+    && location.hash === "" && document.documentElement.dataset.i18nReady === "true");
+  const route = await page.evaluate(() => {
+    const url = new URL(location.href);
+    return { pathname: url.pathname, profileId: url.searchParams.get("id"), hasFragment: Boolean(url.hash) };
+  });
+  expect(route).toEqual({ pathname, profileId: id, hasFragment: false });
+}
+
 function serviceGroupPolicy(catalog, outputFormat, baseProfile, serviceId) {
   return catalog.serviceGroups.find((group) => (
     group.outputFormat === outputFormat
@@ -94,7 +189,7 @@ test.beforeEach(async ({ request }) => {
   expect(catalog.baseProfiles.length).toBeGreaterThan(0);
 });
 
-test("previews, creates, edits, and reloads a persistent profile without rotating its subscription URL", async ({ page }) => {
+test("routes a profile draft through review, success, and management without changing generated policy behavior", async ({ page }) => {
   const pageErrors = [];
   page.on("pageerror", () => pageErrors.push("pageerror"));
   const loadedLocales = new Set();
@@ -103,75 +198,66 @@ test("previews, creates, edits, and reloads a persistent profile without rotatin
     if (match && response.status() === 200) loadedLocales.add(match[1]);
   });
 
-  await page.goto("/");
+  await page.goto("/builder/template");
   await expect(page.locator("html")).toHaveAttribute("data-i18n-ready", "true");
   await page.locator("#language").selectOption("en");
   await expect(page.locator("#language")).toHaveValue("en");
   await expect(page.locator("#base-profile option").first()).toBeAttached();
-  await expect(page.locator("#region-list input").first()).toBeVisible();
-
   await page.locator("#base-profile").selectOption("ai-balanced");
+  await expect(page).toHaveURL(/\/builder\/template$/u);
+
   const profileCatalog = await page.evaluate(async () => (await fetch("/api/v1/catalog")).json());
   const geminiPolicy = serviceGroupPolicy(profileCatalog, "ini", "ai-balanced", "gemini");
   expect(geminiPolicy).toBeTruthy();
   expect(geminiPolicy.allowedRoutes).toContain("us");
-  const alternateGeminiRoute = geminiPolicy.allowedRoutes.find((route) => (
-    route !== "us" && profileCatalog.regions.some((region) => region.id === route)
-  ));
-  expect(alternateGeminiRoute).toBeTruthy();
 
-  await createAndAssignServiceGroup(page, {
-    initialName: "Gemini draft",
-    name: "Gemini Routing E2E",
-    serviceId: "gemini",
-    routes: ["us"],
-  });
-  await openDetails(page, ".group-route-palette");
-  await page.locator(`#route-available-${alternateGeminiRoute}`).dragTo(page.locator("#service-group-routes"));
-  await page.locator(`#group-route-${alternateGeminiRoute}-moveUp`).click();
-  await page.locator(`#group-route-${alternateGeminiRoute}-remove`).click();
-  await openDetails(page, ".group-settings");
-  await page.locator("#delete-service-group").click();
-  await expect(page.locator("#service-group-editor .hint").filter({ hasText: /Gemini/u })).toBeVisible();
+  await page.locator("#nav-policies").click();
+  await expect(page).toHaveURL(/\/builder\/policies$/u);
+  await expect(page.locator("#fail-closed")).toBeChecked();
+  await page.locator("#allow-direct").uncheck();
 
+  await page.locator("#nav-regions").click();
+  await expect(page).toHaveURL(/\/builder\/regions$/u);
   for (const region of ["us", "jp", "sg"]) {
     await page.locator("#prefer-region-picker").selectOption(region);
-    await page.getByRole("button", { name: "Add region" }).click();
+    await page.locator("#prefer-region-add").click();
   }
 
-  await page.locator(".profile-advanced > summary").click();
-  const allowDirect = page.locator("#allow-direct");
-  await allowDirect.check();
-  const directAllowed = await previewIni(page);
-  expectIniServiceRulesTarget(
-    directAllowed.ini,
-    "gemini",
-    runtimeData.accountProtection.rejectGroup ?? runtimeData.groups.reject,
-  );
-  await expect(page.locator("#preview-result")).toBeVisible();
-  const directAllowedIni = directAllowed.ini;
-  const directGroup = directAllowedIni.split(/\r?\n/u).find((line) => line.startsWith("custom_proxy_group=🎯 全球直連"));
-  expect(directGroup).toContain("[]DIRECT");
-  await allowDirect.uncheck();
-  await page.locator("#fail-closed").check();
-  const directBlockedIni = (await previewIni(page)).ini;
-  const blockedDirectGroup = directBlockedIni.split(/\r?\n/u).find((line) => line.startsWith("custom_proxy_group=🎯 全球直連"));
-  expect(blockedDirectGroup).toContain("[]⛔ 拒絕");
-  expect(directBlockedIni).not.toContain("[]🎯 全球直連");
-  const catchAllGroup = directBlockedIni.split(/\r?\n/u).find((line) => line.startsWith("custom_proxy_group=🐟 漏網之魚"));
-  expect(catchAllGroup).toContain("[]⛔ 拒絕");
+  await page.locator("#nav-services").click();
+  await expect(page).toHaveURL(/\/builder\/services$/u);
+  await page.locator("#new-service-group-name").fill("Gemini Routing E2E");
+  await page.locator("#create-service-group").click();
+  await expect(page).toHaveURL(/\/builder\/services\/custom-1$/u);
+  await page.locator(".group-service-palette > summary").click();
+  await page.locator("#group-service-available-gemini").click();
+  await openDetails(page, ".group-route-palette");
+  await page.locator("#route-available-us").click();
+  await page.locator("#route-available-jp").click();
+  await page.locator("#group-route-jp-moveUp").click();
+  expect(await page.locator("#service-group-routes > [data-route]").evaluateAll((rows) => rows.map((row) => row.dataset.route)))
+    .toEqual(["jp", "us"]);
+  await openDetails(page, ".group-settings");
+  await page.locator("#service-group-name").fill("Gemini Routing E2E");
+  await page.locator("#rename-service-group").click();
+  await page.locator("#section-continue").click();
+  await expect(page).toHaveURL(/\/builder\/services$/u);
 
-  const savedGeminiGroupId = await createAndAssignServiceGroup(page, {
-    initialName: "Gemini reassignment",
-    name: "Gemini US Only",
-    serviceId: "gemini",
-    routes: ["us"],
-  });
-  const assignedGeminiPreview = await previewIni(page);
-  const assignedGeminiGroup = assignedGeminiPreview.ini
-    .split(/\r?\n/u)
-    .find((line) => line.startsWith("custom_proxy_group=Gemini US Only`"));
-  expect(assignedGeminiGroup).toContain(runtimeData.regions.find((region) => region.id === "us").group);
+  await page.locator("#nav-review").click();
+  await expect(page).toHaveURL(/\/builder\/review$/u);
+  await expect(page.locator("#preview-state")).toHaveAttribute("data-state", "current");
+  await expect(page.locator("#save")).toBeEnabled();
+  await expect(page.locator("#review-summary")).toContainText("Gemini Routing E2E");
+  await expect(page.locator(".technical-details")).not.toHaveJSProperty("open", true);
+  const reviewed = await previewIni(page);
+  const directGroup = reviewed.ini.split(/\r?\n/u).find((line) => line.startsWith("custom_proxy_group=🎯 全球直連"));
+  expect(directGroup).toContain("[]⛔ 拒絕");
+  expect(reviewed.ini).not.toContain("[]🎯 全球直連");
+  const customGroupLine = reviewed.ini.split(/\r?\n/u).find((line) => line.startsWith("custom_proxy_group=Gemini Routing E2E`"));
+  expect(customGroupLine).toContain(runtimeData.regions.find((region) => region.id === "jp").group);
+  expect(customGroupLine).toContain(runtimeData.regions.find((region) => region.id === "us").group);
+  expect(customGroupLine.indexOf(runtimeData.regions.find((region) => region.id === "jp").group))
+    .toBeLessThan(customGroupLine.indexOf(runtimeData.regions.find((region) => region.id === "us").group));
+  expect(reviewed.summary.preferredRegions.map((region) => region.id)).toEqual(["us", "jp", "sg"]);
 
   const resolvedLanguages = [];
   page.on("request", (request) => {
@@ -179,13 +265,20 @@ test("previews, creates, edits, and reloads a persistent profile without rotatin
     resolvedLanguages.push(request.postDataJSON()?.spec?.language);
   });
   for (const [language, previewLabel] of [["zh-Hant", "預覽"], ["zh-Hans", "预览"], ["en", "Preview"]]) {
+    const resolving = page.waitForResponse((response) => (
+      new URL(response.url()).pathname === "/api/v1/resolve" && response.request().method() === "POST"
+    ));
     await page.locator("#language").selectOption(language);
     await expect(page.locator("html")).toHaveAttribute("data-i18n-ready", "true");
     await expect(page.locator("#language")).toHaveValue(language);
     await expect(page.locator("#preview")).toHaveText(previewLabel);
-    const preview = await previewIni(page);
+    const resolveResponse = await resolving;
+    expect(resolveResponse.status()).toBe(200);
+    const preview = await resolveResponse.json();
+    await expect(page.locator("#preview-state")).toHaveAttribute("data-state", "current");
     await expect(page.locator("#preview-result")).toBeVisible();
     await expect(page.locator("#ini-preview")).toContainText("[custom]");
+    await expect(page.locator("#ini-preview")).toHaveText(preview.ini);
     const summary = preview.summary;
     expect(summary.preferredRegions.map((region) => region.id)).toEqual(["us", "jp", "sg"]);
   }
@@ -193,107 +286,146 @@ test("previews, creates, edits, and reloads a persistent profile without rotatin
   expect([...loadedLocales].sort()).toEqual(["en", "zh-Hans", "zh-Hant"]);
   await expect(page.locator("#language")).toHaveValue("en");
 
+  await page.locator("#language").selectOption("en");
+  await expect(page.locator("#language")).toHaveValue("en");
+  const createResponsePending = page.waitForResponse((response) => (
+    new URL(response.url()).pathname === "/api/v1/profiles" && response.request().method() === "POST"
+  ));
+  await page.locator("#save").click();
+  const createResponse = await createResponsePending;
+  const initialSubscription = await captureSuccess(page, "a", true);
+  expect(createResponse.status()).toBe(201);
+  expect(initialSubscription).toMatchObject({
+    pathname: "/builder/success",
+    routeProfileId: expect.stringMatching(/^[0-9a-f-]{36}$/iu),
+    profileId: expect.stringMatching(/^[0-9a-f-]{36}$/iu),
+    resultVisible: true,
+    readStepVisible: true,
+    managementStepVisible: true,
+    failClosedVisible: true,
+    readLinkValid: true,
+    managementLinkValid: true,
+    managementIdMatchesRoute: true,
+    managementCapabilityInFragment: true,
+    managementQueryHasOnlyId: true,
+    linksHaveSeparatePaths: true,
+    subscription: {
+      status: 200,
+      redirected: true,
+      redirectedToIni: true,
+      revision: "1",
+      hasIni: true,
+    },
+  });
+
+  await page.locator("#nav-template").click();
+  await expect(page).toHaveURL(/\/builder\/template$/u);
   await page.locator("#base-profile").selectOption("standard");
-  await page.locator("#language").selectOption("zh-Hans");
-  await expect(page.locator("html")).toHaveAttribute("data-i18n-ready", "true");
-  await expect(page.locator("#language")).toHaveValue("zh-Hans");
-  await previewIni(page);
-  await expect(page.locator("#preview-result")).toBeVisible();
-  expect(JSON.parse(await page.locator("#summary").textContent()).baseProfile).toBe("standard");
-  await expect(page.locator("#ini-preview")).toContainText(/(?:;|#) 由 Profile Builder 生成/u);
-  await page.locator("#base-profile").selectOption("ai-balanced");
-  await page.locator("#language").selectOption("en");
-  await expect(page.locator("html")).toHaveAttribute("data-i18n-ready", "true");
-  await expect(page.locator("#language")).toHaveValue("en");
-
-  await page.locator("#language").selectOption("zh-Hant");
-  await expect(page.locator("html")).toHaveAttribute("data-i18n-ready", "true");
-  await expect(page.locator("#language")).toHaveValue("zh-Hant");
+  const secondResolvePending = page.waitForResponse((response) => (
+    new URL(response.url()).pathname === "/api/v1/resolve" && response.request().method() === "POST"
+  ));
+  await page.locator("#nav-review").click();
+  expect((await secondResolvePending).status()).toBe(200);
+  await expect(page.locator("#preview-state")).toHaveAttribute("data-state", "current");
+  const secondCreatePending = page.waitForResponse((response) => (
+    new URL(response.url()).pathname === "/api/v1/profiles" && response.request().method() === "POST"
+  ));
   await page.locator("#save").click();
-  await expect(page.locator("#result")).toBeVisible();
-  const subscriptionShape = await page.locator("#subscription-url").evaluate((input) => {
-    const url = new URL(input.value);
-    return {
-      sameOrigin: url.origin === location.origin,
-      expectedPath: /^\/p\/[A-Za-z0-9_-]{40,64}$/u.test(url.pathname),
-    };
+  const secondCreate = await secondCreatePending;
+  const secondSuccess = await captureSuccess(page, "b");
+  expect(secondCreate.status()).toBe(201);
+  expect(secondSuccess).toMatchObject({
+    pathname: "/builder/success",
+    routeProfileId: expect.stringMatching(/^[0-9a-f-]{36}$/iu),
+    profileId: expect.stringMatching(/^[0-9a-f-]{36}$/iu),
+    managementIdMatchesRoute: true,
+    profileIdDifferentFromSavedA: true,
   });
-  expect(subscriptionShape).toEqual({ sameOrigin: true, expectedPath: true });
+  expect(secondSuccess.profileId).not.toBe(initialSubscription.profileId);
 
-  const initialSubscription = await page.locator("#subscription-url").evaluate(async (input) => {
-    const subscriptionUrl = new URL(input.value);
-    sessionStorage.setItem("e2e-profile-subscription", subscriptionUrl.href);
-    const extensionlessPath = subscriptionUrl.pathname.replace(/\.ini$/u, "");
-    const response = await fetch(`${subscriptionUrl.origin}${extensionlessPath}`, {
-      cache: "no-store",
-      redirect: "follow",
-    });
-    const finalPath = new URL(response.url).pathname;
-    return {
-      status: response.status,
-      redirected: response.redirected,
-      redirectedToIni: /\.ini$/u.test(finalPath),
-      revision: response.headers.get("x-profile-revision"),
-      hasIni: (await response.text()).includes("[custom]"),
-    };
-  });
-  expect(initialSubscription).toEqual({
-    status: 200,
-    redirected: true,
-    redirectedToIni: true,
-    revision: "1",
-    hasIni: true,
+  await page.goBack();
+  await expect(page).toHaveURL(/\/builder\/review$/u);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/builder\/template$/u);
+  await page.goBack();
+  const restoredSuccess = await captureSuccess(page, "a");
+  expect(restoredSuccess).toMatchObject({
+    pathname: "/builder/success",
+    routeProfileId: initialSubscription.profileId,
+    profileId: initialSubscription.profileId,
+    managementIdMatchesRoute: true,
+    restoredReadLink: true,
+    restoredManagementProfile: true,
   });
 
-  await page.locator("#manage-url").evaluate((input) => {
-    const url = new URL(input.value);
-    const id = url.searchParams.get("id");
-    sessionStorage.setItem(`profile-manage:${id}`, url.hash.slice(1));
-    localStorage.setItem("profile-service-language", "en");
-    url.hash = "";
-    location.assign(`${url.pathname}${url.search}`);
-  });
-  await expect(page).toHaveURL(/\/manage\?id=[0-9a-f-]{36}$/iu);
+  await followManagementLink(page, initialSubscription.profileId);
+  await expectManagementRoute(page, "/manage", initialSubscription.profileId);
+  await expect(page.locator("#editor-state")).toHaveAttribute("data-state", "clean");
   await expect(page.locator("#saved-state-note")).toContainText("1");
-  await expect(page.locator("html")).toHaveAttribute("lang", "zh-Hant");
-  await expect(page.locator("#language")).toHaveValue("zh-Hant");
+  const capabilityHandling = await page.evaluate(() => {
+    const url = new URL(location.href);
+    const id = url.searchParams.get("id");
+    const entry = JSON.parse(sessionStorage.getItem(`profile-manage:${id}`) || "null");
+    const token = typeof entry === "string" ? entry : entry?.token;
+    return {
+      fragmentRemoved: location.hash === "",
+      capabilityIsTabScoped: Boolean(token),
+      capabilityAbsentFromQuery: [...url.searchParams.values()].every((value) => value !== token),
+      capabilityAbsentFromLocalStorage: !Object.values(localStorage).some((value) => value === token),
+    };
+  });
+  expect(capabilityHandling).toEqual({
+    fragmentRemoved: true,
+    capabilityIsTabScoped: true,
+    capabilityAbsentFromQuery: true,
+    capabilityAbsentFromLocalStorage: true,
+  });
+
   await page.locator("#language").selectOption("en");
   await expect(page.locator("html")).toHaveAttribute("data-i18n-ready", "true");
   await expect(page.locator("#language")).toHaveValue("en");
 
-  await page.locator('#region-list input[value="jp"]').check();
+  await page.locator("#nav-regions").click();
+  await page.locator('#region-list input[value="sg"]').check();
+  await expect(page.locator("#editor-state")).toHaveAttribute("data-state", "dirty");
+  await page.locator("#nav-review").click();
+  await expect(page.locator("#preview-state")).toHaveAttribute("data-state", "current");
+  const saveResponsePending = page.waitForResponse((response) => (
+    new URL(response.url()).pathname.startsWith("/api/v1/profiles/") && response.request().method() === "PUT"
+  ));
   await page.locator("#save").click();
+  const saveResponse = await saveResponsePending;
+  expect(saveResponse.status()).toBe(200);
   await expect(page.locator("#status")).toContainText("Saved revision 2.");
 
   await page.reload();
   await expect(page.locator("#saved-state-note")).toContainText("2");
-  await expect(page.locator('#region-list input[value="jp"]')).toBeChecked();
-  await selectServiceGroup(page, savedGeminiGroupId);
-  await openDetails(page, ".group-settings");
-  await expect(page.locator("#service-group-name")).toHaveValue("Gemini US Only");
+  await page.locator("#nav-regions").click();
+  await expect(page.locator('#region-list input[value="sg"]')).toBeChecked();
+  await page.locator("#nav-services").click();
+  await page.locator("#service-group-select-custom-1").click();
+  await expectManagementRoute(page, "/manage/services/custom-1", initialSubscription.profileId);
+  await expect(page.locator("#service-group-name")).toHaveValue("Gemini Routing E2E");
   await expect(page.locator("#group-service-gemini-remove")).toBeVisible();
   expect(await page.locator("#service-group-routes > [data-route]").evaluateAll((rows) =>
     rows.map((row) => row.dataset.route)
-  )).toEqual(["us"]);
+  )).toEqual(["jp", "us"]);
   await expect(page.locator("#service-group-start-reject")).toBeChecked();
   const savedSubscription = await page.evaluate(async () => {
-    const subscriptionUrl = sessionStorage.getItem("e2e-profile-subscription");
-    const url = new URL(subscriptionUrl);
+    const url = new URL(sessionStorage.getItem("e2e-profile-subscription"));
     const extensionlessPath = url.pathname.replace(/\.ini$/u, "");
     const response = await fetch(`${url.origin}${extensionlessPath}`, {
       cache: "no-store",
       redirect: "follow",
     });
     const finalPath = new URL(response.url).pathname;
-    const result = {
+    return {
       status: response.status,
       redirected: response.redirected,
       redirectedToIni: /\.ini$/u.test(finalPath),
       revision: response.headers.get("x-profile-revision"),
       hasIni: (await response.text()).includes("[custom]"),
     };
-    sessionStorage.removeItem("e2e-profile-subscription");
-    return result;
   });
   expect(savedSubscription).toEqual({
     status: 200,
@@ -484,7 +616,7 @@ test("converts real inputs, downloads policy YAML, clears and navigates without 
   await expect(output).toHaveValue("");
   await expect(page.locator("#output-panel")).toBeHidden();
   await page.getByRole("link", { name: "INI template builder" }).click();
-  await expect(page).toHaveURL(/\/$/u);
+  await expect(page).toHaveURL(/\/builder\/template$/u);
   await page.getByRole("link", { name: "Online YAML converter" }).click();
   await expect(page).toHaveURL(/\/converter$/u);
 

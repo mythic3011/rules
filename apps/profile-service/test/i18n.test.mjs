@@ -208,7 +208,7 @@ test("returning to the active locale cancels an older pending language selection
   assert.equal(storage.value, "en");
 });
 
-test("all static and direct-code UI translation keys exist in every JSON locale", async () => {
+test("static and runtime-selected UI translation keys exist in every JSON locale", async () => {
   const files = [
     "../public/index.html",
     "../public/converter.html",
@@ -216,9 +216,19 @@ test("all static and direct-code UI translation keys exist in every JSON locale"
     "../public/converter.js",
     "../public/profile-options.js",
     "../public/service-group-editor.js",
+    "../public/editor-state.mjs",
+    "../public/builder-router.mjs",
+    "../public/capability-session.mjs",
   ];
-  const keys = new Set();
+  const keys = new Set([
+    // Page labels and descriptions are selected from route maps at runtime.
+    "sectionTemplate", "sectionRegions", "sectionServices", "sectionPolicies", "sectionReview",
+    "templatePageHelp", "regionsPageHelp", "servicesPageHelp", "policiesPageHelp", "reviewPageHelp", "successPageHelp",
+    // The group editor builds fallback route labels from route IDs.
+    "routeReject", "routeDefault", "routeOther", "routeManual",
+  ]);
   const catalogLabels = new Set();
+  const catalogCollections = new Set();
   for (const file of files) {
     const source = await readFile(new URL(file, import.meta.url), "utf8");
     for (const [, key] of source.matchAll(/data-i18n(?:-aria-label|-placeholder)="([^"]+)"/gu)) keys.add(key);
@@ -226,10 +236,23 @@ test("all static and direct-code UI translation keys exist in every JSON locale"
     for (const [, key] of source.matchAll(/child\(document,\s*["\x27][^"\x27]+["\x27],\s*undefined,\s*["\x27]([^"\x27]+)["\x27]/gu)) keys.add(key);
     for (const [, key] of source.matchAll(/appendHint\(document,\s*[^,]+,\s*["\x27]([^"\x27]+)["\x27]/gu)) keys.add(key);
     for (const [, key] of source.matchAll(/["\x27]((?:builder|converter|editor|preview|result|save)[A-Z][A-Za-z0-9]+)["\x27]/gu)) keys.add(key);
+    if (file === "../public/app.js") {
+      for (const [, key] of source.matchAll(/\bkey\s*=\s*["\x27]([^"\x27]+)["\x27]/gu)) keys.add(key);
+      for (const [, body] of source.matchAll(/\b(?:sectionKeys|descriptionKeys)\s*=\s*\{([^}]+)\}/gu)) {
+        for (const [, key] of body.matchAll(/:\s*["\x27]([^"\x27]+)["\x27]/gu)) keys.add(key);
+      }
+      for (const [, call] of source.matchAll(/setStatus\(([^)]*)\)/gu)) {
+        for (const [, key] of call.matchAll(/["\x27]([a-z][A-Za-z0-9]+)["\x27]/gu)) keys.add(key);
+      }
+      for (const [, key] of source.matchAll(/\bdraftNotice\s*=\s*["\x27]([^"\x27]+)["\x27]/gu)) keys.add(key);
+      for (const [, key] of source.matchAll(/\bkey:\s*["\x27]([^"\x27]+)["\x27]/gu)) keys.add(key);
+    }
     for (const [, collection, id] of source.matchAll(/translateCatalogLabel\(["\x27]([^"\x27]+)["\x27],\s*["\x27]([^"\x27]+)["\x27]/gu)) {
       catalogLabels.add(`${collection}.${id}`);
     }
+    for (const [, collection] of source.matchAll(/translateCatalogLabel\(["\x27]([^"\x27]+)["\x27]/gu)) catalogCollections.add(collection);
   }
+  for (const collection of catalogCollections) keys.delete(collection);
 
   for (const language of Object.keys(LANGUAGES)) {
     await setLanguage(language, undefined, { fetcher: localeJsonFetcher, persist: false });

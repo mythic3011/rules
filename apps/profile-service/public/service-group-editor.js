@@ -11,11 +11,30 @@ export function copyServiceGroups(value) {
   return value.map(({ id, name, serviceIds, routes }) => ({ id, name, serviceIds: [...serviceIds], routes: [...routes] }));
 }
 
+export function effectiveServiceGroups({ groups, regions, value, allowDirect, failClosed, disabledRegions = [], onlyRegions = [] }) {
+  const byRegion = new Set(regions.map((region) => region.id));
+  const disabled = new Set(disabledRegions);
+  const only = new Set(onlyRegions);
+  const globallyAllowed = (route) => route === "direct" ? allowDirect !== false
+    : route === "other" ? only.size === 0
+      : !byRegion.has(route) || !disabled.has(route) && (!only.size || only.has(route));
+  return (copyServiceGroups(value) ?? groups.map(({ id, name, serviceIds, defaultRoutes }) => ({
+    id, name, serviceIds: [...serviceIds], routes: [...defaultRoutes],
+  }))).map((item) => {
+    const protectedGroup = groups.some((policy) => policy.protected
+      && (policy.id === item.id || item.serviceIds.some((id) => policy.serviceIds.includes(id))));
+    const routes = item.routes.filter(globallyAllowed);
+    return { ...item, routes: protectedGroup || failClosed === true
+      ? ["reject", ...routes.filter((route) => route !== "reject")] : routes };
+  });
+}
+
 export function mountServiceGroupEditor({
   root, groups, regions, services, value, selectedGroup, allowDirect, failClosed,
   servicePaletteOpen = false, routePaletteOpen = true, settingsOpen = false, limits = {}, reservedNames = [],
   searches = {}, onSearch = () => {},
   disabledRegions = [], onlyRegions = [], onSelect, onChange,
+  view = "all", groupHref = () => "#", announcement = null,
 }) {
   const document = root.ownerDocument;
   const policiesByService = new Map(groups.flatMap((item) => item.serviceIds.map((id) => [id, item])));
@@ -37,15 +56,8 @@ export function mountServiceGroupEditor({
     if (route === "other") return only.size === 0;
     return !byRegion.has(route) || (!disabled.has(route) && (!only.size || only.has(route)));
   };
-  const layout = (copyServiceGroups(value) ?? groups.map(({ id, name, serviceIds, defaultRoutes }) => ({
-    id, name, serviceIds: [...serviceIds], routes: [...defaultRoutes],
-  }))).map((item) => {
-    const routes = item.routes.filter(globallyAllowed);
-    return { ...item, routes: isProtected(item) || failClosed === true
-      ? ["reject", ...routes.filter((route) => route !== "reject")]
-      : routes };
-  });
-  const group = layout.find((item) => item.id === selectedGroup) ?? layout[0];
+  const layout = effectiveServiceGroups({ groups, regions, value, allowDirect, failClosed, disabledRegions, onlyRegions });
+  const group = layout.find((item) => item.id === selectedGroup) ?? (view === "all" ? layout[0] : undefined);
   const locked = group && isProtected(group);
   const rejectLocked = locked || failClosed === true;
   const permitted = (route) => group && allowedRoutes(group).includes(route) && globallyAllowed(route);
@@ -78,6 +90,9 @@ export function mountServiceGroupEditor({
   const status = label("p", "", "hint group-edit-status");
   status.id = "service-group-edit-status";
   status.setAttribute("role", "status");
+  if (announcement) status.textContent = translate(announcement.key, {
+    route: routeName(announcement.route), position: announcement.position,
+  });
   const validName = (name, currentId) => name && name.isWellFormed()
     && (!limits.maxNameLength || name.length <= limits.maxNameLength)
     && !reserved.has(name)
@@ -100,7 +115,7 @@ export function mountServiceGroupEditor({
         item.hidden = !`${item.dataset.search ?? ""} ${item.textContent}`.normalize("NFKC").toLocaleLowerCase().includes(term);
         if (!item.hidden) visible += 1;
       }
-      if (key === "groups") {
+      if (key === "groups" && view === "all") {
         const visible = [...list.children].filter((item) => !item.hidden);
         const selected = visible.find((item) => item.getAttribute("aria-checked") === "true");
         const tabStop = selected ?? visible[0];
@@ -122,14 +137,14 @@ export function mountServiceGroupEditor({
     return panel;
   }
 
-  function updateRoutes(next) {
-    onChange(layout.map((item) => item.id === group.id ? { ...item, routes: next } : item));
+  function updateRoutes(next, message = null) {
+    onChange(layout.map((item) => item.id === group.id ? { ...item, routes: next } : item), message);
   }
-  function updateExits(next) {
+  function updateExits(next, message = null) {
     const unique = [...new Set(next.filter((route) => route !== "reject" && permitted(route)))];
     // Preserve a legacy template's trailing block choice until explicitly changed.
     updateRoutes(startBlocked ? ["reject", ...unique]
-      : routes.includes("reject") ? [...unique, "reject"] : unique);
+      : routes.includes("reject") ? [...unique, "reject"] : unique, message);
   }
   function insert(route, position) {
     if (route === "reject" || !permitted(route)) return;
@@ -181,26 +196,38 @@ export function mountServiceGroupEditor({
     });
   }
 
-  root.append(label("h3", translate("serviceGroupRoutes")));
-  root.append(label("p", translate("serviceGroupRoutesHelp"), "hint"));
+  if (view === "all") {
+    root.append(label("h3", translate("serviceGroupRoutes")));
+    root.append(label("p", translate("serviceGroupRoutesHelp"), "hint"));
+  }
   const workspace = document.createElement("div");
-  workspace.className = "service-group-workspace";
+  workspace.className = `service-group-workspace group-view-${view}`;
+  if (view !== "detail") {
   const navigation = document.createElement("nav");
   navigation.className = "service-group-navigation";
   navigation.setAttribute("aria-label", translate("groupsLabel"));
-  navigation.append(label("h4", translate("groupsLabel"), "group-section-label"));
+  navigation.append(label(view === "all" ? "h4" : "h2", translate("groupsLabel"), "group-section-label"));
   const groupList = document.createElement("div");
   groupList.id = "service-group-list";
-  groupList.setAttribute("role", "radiogroup");
+  groupList.setAttribute("role", view === "all" ? "radiogroup" : "group");
+  if (view === "list") groupList.tabIndex = -1;
   groupList.setAttribute("aria-label", translate("groupsLabel"));
   for (const item of layout) {
-    const choose = button("", () => onSelect(item.id), `service-group-select-${item.id}`, "group-choice");
-    choose.setAttribute("role", "radio");
-    choose.setAttribute("aria-checked", String(item.id === group?.id));
-    choose.tabIndex = item.id === group?.id ? 0 : -1;
+    const choose = view === "list" ? label("a", "", "group-choice")
+      : button("", () => onSelect(item.id), `service-group-select-${item.id}`, "group-choice");
+    choose.id = `service-group-select-${item.id}`;
+    if (view === "list") {
+      choose.href = groupHref(item.id);
+      choose.dataset.editorLink = "";
+    } else {
+      choose.setAttribute("role", "radio");
+      choose.setAttribute("aria-checked", String(item.id === group?.id));
+      choose.tabIndex = item.id === group?.id ? 0 : -1;
+    }
     choose.dataset.groupId = item.id;
     choose.dataset.search = `${item.id} ${item.name}`;
     choose.addEventListener("keydown", (event) => {
+      if (view === "list") return;
       const visible = [...groupList.children].filter((choice) => !choice.hidden);
       const current = visible.indexOf(choose);
       if (current < 0 || !visible.length) return;
@@ -223,6 +250,7 @@ export function mountServiceGroupEditor({
   navigation.append(searchable("groups", "service-group-search", "searchGroups", groupList));
   const createPanel = document.createElement("details");
   createPanel.className = "group-create";
+  createPanel.open = view === "list";
   const newGroup = label("summary", `+ ${translate("createGroup")}`);
   newGroup.id = "new-service-group";
   createPanel.append(newGroup);
@@ -235,6 +263,9 @@ export function mountServiceGroupEditor({
     const name = newName.value.trim();
     if (!validName(name)) {
       status.textContent = translate("invalidGroupName");
+      newName.setAttribute("aria-invalid", "true");
+      newName.setAttribute("aria-describedby", status.id);
+      newName.focus();
       return;
     }
     let suffix = 1;
@@ -244,6 +275,10 @@ export function mountServiceGroupEditor({
     onChange([...layout, { id, name, serviceIds: [], routes: ["reject"] }]);
   }, "create-service-group");
   create.disabled = limits.maxGroups !== undefined && layout.length >= limits.maxGroups;
+  if (view === "list") create.className = "primary";
+  newName.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !create.disabled) { event.preventDefault(); create.click(); }
+  });
   createPanel.append(newName, create);
   navigation.append(createPanel);
   const advanced = document.createElement("details");
@@ -252,19 +287,26 @@ export function mountServiceGroupEditor({
   advanced.append(confirmedAction("resetServiceGroups", "restoreServiceGroupsHelp", "reset-service-groups", () => onChange(undefined)));
   navigation.append(advanced);
   workspace.append(navigation);
+  }
+  root.append(workspace, status);
+  if (view === "list") return;
   const editor = document.createElement("div");
   editor.className = "service-group-detail";
   workspace.append(editor);
-  root.append(workspace);
   if (!group) {
-    editor.append(label("p", translate("chooseOrCreateGroup"), "hint"));
-    root.append(status);
+    editor.append(label("p", translate(view === "detail" ? "groupNotFound" : "chooseOrCreateGroup"), "hint"));
+    if (view === "detail") {
+      const back = label("a", translate("backToGroups"));
+      back.href = groupHref(null);
+      back.dataset.editorLink = "";
+      editor.append(back);
+    }
     return;
   }
 
   const heading = document.createElement("div");
   heading.className = "group-detail-heading";
-  heading.append(label("h3", groupName(group)));
+  if (view === "all") heading.append(label("h3", groupName(group)));
   const settings = document.createElement("details");
   settings.className = "group-settings";
   settings.open = settingsOpen;
@@ -280,6 +322,9 @@ export function mountServiceGroupEditor({
     const name = nameInput.value.trim();
     if (!validName(name, group.id)) {
       status.textContent = translate("invalidGroupName");
+      nameInput.setAttribute("aria-invalid", "true");
+      nameInput.setAttribute("aria-describedby", status.id);
+      nameInput.focus();
       return;
     }
     onChange(layout.map((item) => item.id === group.id ? { ...item, name } : item));
@@ -304,23 +349,29 @@ export function mountServiceGroupEditor({
     order.append(move);
   }
   settings.append(order);
-  const removeGroup = button(translate("deleteGroup"), () => {
+  const removeGroup = confirmedAction("deleteGroup", "deleteGroupHelp", "delete-service-group", () => {
     const remaining = layout.filter((item) => item.id !== group.id);
-    onSelect(remaining[0]?.id ?? "", false);
+    onSelect(view === "detail" ? "" : remaining[0]?.id ?? "", false);
     onChange(remaining);
-  }, "delete-service-group", "group-delete");
-  removeGroup.disabled = locked;
-  settings.append(removeGroup, label("p", translate("deleteGroupHelp"), "hint"));
+  });
+  removeGroup.className = "group-confirm-action group-delete";
+  if (locked) {
+    const protectedRemove = button(translate("deleteGroup"), () => {}, "delete-service-group");
+    protectedRemove.disabled = true;
+    settings.append(protectedRemove, label("p", translate("protectedGroupRoutes"), "hint"));
+  } else settings.append(removeGroup);
   heading.append(settings);
   editor.append(heading);
   if (locked) editor.append(label("p", translate("protectedGroupRoutes"), "group-protection-note"));
 
   const serviceSection = document.createElement("section");
   serviceSection.className = "group-assignment";
-  serviceSection.append(label("h4", translate("groupServices"), "group-section-label"));
+  serviceSection.append(label(view === "all" ? "h4" : "h2", translate("groupServices"), "group-section-label"));
   const members = document.createElement("div");
   members.id = "service-group-members";
   members.className = "group-service-members";
+  members.setAttribute("role", "group");
+  members.setAttribute("aria-label", translate("groupServices"));
   dropTarget(members, SERVICE_DRAG_TYPE, (id) => !locked && policiesByService.has(id), moveService);
   for (const id of group.serviceIds) {
     const name = serviceName(id);
@@ -356,7 +407,7 @@ export function mountServiceGroupEditor({
 
   const routeSection = document.createElement("section");
   routeSection.className = "group-exit-priority";
-  routeSection.append(label("h4", translate("groupRouteOrder"), "group-section-label"));
+  routeSection.append(label(view === "all" ? "h4" : "h2", translate("groupRouteOrder"), "group-section-label"));
   routeSection.append(label("p", translate("groupRouteOrderHelp"), "hint"));
   const startLabel = document.createElement("label");
   startLabel.className = "group-start-state";
@@ -374,6 +425,7 @@ export function mountServiceGroupEditor({
   list.id = "service-group-routes";
   list.className = "route-list";
   list.setAttribute("aria-label", translate("groupRouteOrder"));
+  list.tabIndex = -1;
   dropTarget(list, DRAG_TYPE, (route) => route !== "reject" && permitted(route), (route) => insert(route, exits.length));
   for (const [index, route] of exits.entries()) {
     const row = document.createElement("li");
@@ -395,7 +447,7 @@ export function mountServiceGroupEditor({
       const move = button(text, () => {
         const next = [...exits];
         [next[index], next[index + delta]] = [next[index + delta], next[index]];
-        updateExits(next);
+        updateExits(next, { key: "exitMoved", route, position: index + delta + 1 });
       }, `group-route-${route}-${key}`);
       move.setAttribute("aria-label", `${translate(key)}: ${name}`);
       move.disabled = index + delta < 0 || index + delta >= exits.length;
@@ -412,7 +464,7 @@ export function mountServiceGroupEditor({
   transfer.className = "group-exit-transfer";
   const selectedPane = document.createElement("section");
   selectedPane.className = "group-selected-exits";
-  selectedPane.append(label("h5", translate("selectedRoutes")), list);
+  selectedPane.append(label(view === "all" ? "h5" : "h3", translate("selectedRoutes")), list);
   const palettePanel = document.createElement("details");
   palettePanel.className = "group-route-palette";
   palettePanel.open = routePaletteOpen;
@@ -457,7 +509,9 @@ export function mountServiceGroupEditor({
     explanation.append(reasons);
     palettePanel.append(explanation);
   }
-  transfer.append(palettePanel, selectedPane);
+  // Keep visual order and keyboard order aligned in the routed editor.
+  if (view === "all") transfer.append(palettePanel, selectedPane);
+  else transfer.append(selectedPane, palettePanel);
   routeSection.append(transfer);
   settings.append(confirmedAction("resetGroupRoutes", "resetGroupRoutesHelp", "reset-service-group-routes", () => {
     const canonical = groups.find((item) => item.id === group.id);
