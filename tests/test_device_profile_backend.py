@@ -31,7 +31,6 @@ class DeviceProfileBackendTest(unittest.TestCase):
 
         catalog = json.loads(CATALOG.read_text(encoding="utf-8"))
         catalog["cache"]["root"] = str(self.cache_dir)
-        catalog["reportPolicy"]["receiveTimeoutSeconds"] = 1
         catalog_path = self.temp_root / "share/openclash-guard/device-profiles.json"
         catalog_path.parent.mkdir(parents=True)
         catalog_path.write_text(json.dumps(catalog), encoding="utf-8")
@@ -183,9 +182,17 @@ class DeviceProfileBackendTest(unittest.TestCase):
         process.stdin.write(b"{")
         process.stdin.flush()
         started = time.monotonic()
-        stdout, stderr = process.communicate(timeout=4)
+        try:
+            process.wait(timeout=4)
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.wait()
+        elapsed = time.monotonic() - started
+        stdout, stderr = process.communicate(timeout=1)
         self.assertNotEqual(process.returncode, 0, stderr.decode() + stdout.decode())
-        self.assertLess(time.monotonic() - started, 3)
+        self.assertGreaterEqual(elapsed, 0.8)
+        self.assertLess(elapsed, 3)
         self.assertFalse((self.cache_dir / "device_1.json").exists())
 
     def test_writable_cache_parent_is_rejected(self) -> None:
