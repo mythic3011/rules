@@ -59,7 +59,8 @@ function setStatus(key, values = {}, error = false) {
   renderStatus();
 }
 function renderStatus() {
-  $("status").hidden = !state.status;
+  const completion = state.route?.section === "success";
+  $("status").hidden = !state.status || completion && !["copied", "clipboardUnavailable"].includes(state.status.key);
   $("status").classList.toggle("error", Boolean(state.status?.error));
   $("status").textContent = state.status ? translate(state.status.key, state.status.values) : "";
 }
@@ -80,8 +81,8 @@ function groupLabel(group) {
 }
 function displayList(values) { return values.length ? values.join(", ") : translate("previewNone"); }
 function enabled(value) { return typeof value === "boolean" ? translate(value ? "previewEnabled" : "previewDisabled") : translate("policyInherited"); }
-function supportsOptions() {
-  return state.catalog?.templates?.find((template) => template.id === state.model?.draft.baseProfile && template.outputFormat === "ini")?.supportsProfileOptions !== false;
+function supportsOptions(id = state.model?.draft.baseProfile) {
+  return state.catalog?.templates?.find((template) => template.id === id && template.outputFormat === "ini")?.supportsProfileOptions !== false;
 }
 function validateDraft() {
   if (!state.model || !state.options) return;
@@ -107,6 +108,7 @@ function draftChanged() {
 }
 function renderState() {
   const model = state.model;
+  const completion = state.route?.section === "success" ? capabilities.getCreated(state.route.resultId ?? null) : null;
   let key = "editorLoading";
   let dataState = "loading";
   if (management && state.managementLoad === "failed") {
@@ -139,18 +141,20 @@ function renderState() {
   if (state.recovery) $("draft-recovery-message").textContent = translate("draftRevisionConflict", {
     localRevision: state.recovery.baseRevision, revision: model?.revision,
   });
-  $("profile-context").textContent = model
+  $("profile-context").textContent = completion
+    ? translate("createdProfileContext", { template: templateLabel(completion.spec.baseProfile) }) : model
     ? translate(management ? "managementProfileContext" : "builderProfileContext", {
       template: templateLabel(model.draft.baseProfile), id: context.id ?? "",
     }) : translate(management ? "managementContext" : "builderContext");
   const safety = $("safety-summary");
   safety.replaceChildren();
-  if (model && ready() && supportsOptions()) {
+  const safetySpec = completion?.spec ?? model?.draft;
+  if (model && ready() && supportsOptions(safetySpec.baseProfile)) {
     safety.append(element("strong", translate("safetyStatusTitle")));
-    for (const [keyName, value] of [["previewSummaryFailClosed", model.draft.failClosed], ["previewSummaryDirect", model.draft.allowDirect]]) {
+    for (const [keyName, value] of [["previewSummaryFailClosed", safetySpec.failClosed], ["previewSummaryDirect", safetySpec.allowDirect]]) {
       safety.append(element("p", `${translate(keyName)}: ${enabled(value)}`));
     }
-    safety.append(link(translate("editPolicies"), href("policies")));
+    if (!completion) safety.append(link(translate("editPolicies"), href("policies")));
   }
   renderStatus();
 }
@@ -311,6 +315,7 @@ function renderSuccess() {
 }
 function renderRoute(route, position = null, { focus = true } = {}) {
   state.route = route;
+  document.querySelector(".editor-status-bar").hidden = route?.section === "success";
   if (!route) {
     renderNavigation(); renderState(); renderValidation(); renderButtons();
     $("page-title").textContent = translate("pageNotFound");
@@ -359,7 +364,7 @@ function serverIssue(error) {
   if (error.status !== 400) return null;
   if (error.code === "no_active_region") return { key: "atLeastOneActiveRegion", section: "regions", field: "region-list" };
   if (/region/u.test(error.code)) return { key: "validationRegionsServer", section: "regions", field: "region-list" };
-  if (/service|group/u.test(error.code)) return { key: "validationGroupsServer", section: "services", field: "service-group-search" };
+  if (/service|group/u.test(error.code)) return { key: "validationGroupsServer", section: "services", field: "service-group-list" };
   if (/profile|template/u.test(error.code)) return { key: "validationTemplateServer", section: "template", field: "base-profile" };
   return { key: "validationConfigurationServer", section: "review", field: "error-summary" };
 }

@@ -209,7 +209,8 @@ export function mountServiceGroupEditor({
   navigation.append(label(view === "all" ? "h4" : "h2", translate("groupsLabel"), "group-section-label"));
   const groupList = document.createElement("div");
   groupList.id = "service-group-list";
-  if (view === "all") groupList.setAttribute("role", "radiogroup");
+  groupList.setAttribute("role", view === "all" ? "radiogroup" : "group");
+  if (view === "list") groupList.tabIndex = -1;
   groupList.setAttribute("aria-label", translate("groupsLabel"));
   for (const item of layout) {
     const choose = view === "list" ? label("a", "", "group-choice")

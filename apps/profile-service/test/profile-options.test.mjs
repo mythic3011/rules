@@ -484,12 +484,15 @@ test("shared controls keep typed policy state, persist only nonsecret preference
 });
 
 test("loading a legacy spec preserves omitted direct and fail-closed behavior", async () => {
-  const { options } = mount();
+  const { options, root } = mount();
   await options.applySpec({ baseProfile: "ai-balanced", disabledNodeRegions: ["jp"] });
   const spec = options.getSpec();
   assert.deepEqual(spec.disabledNodeRegions, ["jp"]);
   assert.ok(!Object.hasOwn(spec, "allowDirect"));
   assert.ok(!Object.hasOwn(spec, "failClosed"));
+  assert.equal(control(root, "allow-direct").indeterminate, true);
+  assert.equal(control(root, "fail-closed").indeterminate, true);
+  assert.equal(control(root, "allow-direct").getAttribute("aria-describedby"), "direct-inherited-help");
 });
 
 test("loading a managed INI profile restores its exported comment language", async () => {
@@ -753,7 +756,7 @@ test("routed profile views mount only their own task and expose semantic group n
   assert.ok(groupList.children.every((item) => item.href === `/builder/services/${item.dataset.groupId}`));
   assert.equal(find(services.root, (node) => node.id === "service-group-name"), undefined);
   assert.equal(find(services.root, (node) => node.id === "service-group-routes"), undefined);
-  assert.equal(groupList.getAttribute("role"), null);
+  assert.equal(groupList.getAttribute("role"), "group");
 
   const group = mountView({ view: "group", groupId: "claude" });
   assert.equal(find(group.root, (node) => node.id === "service-group-list"), undefined);

@@ -9,6 +9,8 @@ async function createLocalProfile(page) {
   await expect(page.locator("#save")).toBeEnabled();
   await page.locator("#save").click();
   await expect(page.locator("#result")).toBeVisible();
+  await expect(page.locator("#profile-context")).toContainText("Saved profile");
+  await expect(page.locator(".editor-status-bar")).toBeHidden();
   // Never return or assert capability strings: failure output stays nonsecret.
   expect(await page.evaluate(() => Boolean(document.getElementById("manage-url").value))).toBe(true);
 }
@@ -59,15 +61,44 @@ test("server validation has translated inline recovery and can be retried withou
   await expect(page.locator("#save")).toBeDisabled();
   await expect(page.locator("#preview")).toBeEnabled();
   await page.locator("#error-list a").click();
-  await expect(page.locator("#service-group-search")).toBeFocused();
-  await expect(page.locator("#service-group-search")).toHaveAttribute("aria-invalid", "true");
-  await expect(page.locator("#service-group-search")).toHaveAttribute("aria-describedby", "field-error-service-group-search");
+  await expect(page.locator("#service-group-list")).toBeFocused();
+  await expect(page.locator("#service-group-list")).toHaveAttribute("aria-invalid", "true");
+  await expect(page.locator("#service-group-list")).toHaveAttribute("aria-describedby", "field-error-service-group-list");
+  await expect(page.locator("#service-group-search")).not.toHaveAttribute("aria-invalid", "true");
   await page.locator("#language").selectOption("zh-Hant");
-  await expect(page.locator("#field-error-service-group-search")).toHaveText(traditional.validationGroupsServer);
+  await expect(page.locator("#field-error-service-group-list")).toHaveText(traditional.validationGroupsServer);
   await page.locator("#section-continue").click();
   await page.unroute("**/api/v1/resolve");
   await page.locator("#preview").click();
   await expect(page.locator("#preview-state")).toHaveAttribute("data-state", "current");
   await expect(page.locator("#error-summary")).toBeHidden();
   await expect(page.locator("#save")).toBeEnabled();
+});
+
+test("legacy management options remain visibly inherited until explicitly changed", async ({ page }) => {
+  await page.goto("/builder/template");
+  await expect(page.locator("#base-profile")).toBeEnabled();
+  expect(await page.evaluate(async () => {
+    const response = await fetch("/api/v1/profiles", { method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ spec: { baseProfile: "ai-balanced", language: "en" } }) });
+    if (!response.ok) return false;
+    const result = await response.json();
+    location.assign(`/manage/policies?id=${encodeURIComponent(result.id)}#${result.manageToken}`);
+    return true;
+  })).toBe(true);
+  await expect(page.locator("#editor-state")).toHaveAttribute("data-state", "clean");
+  expect(await page.evaluate(() => ({
+    directInherited: document.getElementById("allow-direct").indeterminate,
+    failClosedInherited: document.getElementById("fail-closed").indeterminate,
+    captured: location.hash === "",
+  }))).toEqual({ directInherited: true, failClosedInherited: true, captured: true });
+  await expect(page.locator("#direct-inherited-help")).toBeVisible();
+  await expect(page.locator("#fail-closed-inherited-help")).toBeVisible();
+  await page.locator("#allow-direct").check();
+  await expect(page.locator("#editor-state")).toHaveAttribute("data-state", "dirty");
+  expect(await page.locator("#allow-direct").evaluate((node) => node.indeterminate)).toBe(false);
+  await page.locator("#undo").click();
+  await expect(page.locator("#editor-state")).toHaveAttribute("data-state", "clean");
+  expect(await page.locator("#allow-direct").evaluate((node) => node.indeterminate)).toBe(true);
 });

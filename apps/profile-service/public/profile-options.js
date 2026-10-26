@@ -607,7 +607,15 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
       render();
       persist();
     });
+    direct.input.indeterminate = state.allowDirect === undefined;
     extra.append(direct.label);
+    if (direct.input.indeterminate) {
+      const inherited = child(document, "p", undefined, "policyInherited");
+      inherited.id = "direct-inherited-help";
+      inherited.className = "hint";
+      direct.input.setAttribute("aria-describedby", inherited.id);
+      extra.append(inherited);
+    }
     appendHint(document, extra, "allowDirectHelp");
     const defaultsFailClosed = typeof defaults.failClosed === "boolean" ? defaults.failClosed : true;
     const failClosed = makeToggle(document, "fail-closed", state.failClosed ?? defaultsFailClosed, "failClosed", (value) => {
@@ -615,7 +623,15 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
       render();
       persist();
     });
+    failClosed.input.indeterminate = state.failClosed === undefined;
     extra.append(failClosed.label);
+    if (failClosed.input.indeterminate) {
+      const inherited = child(document, "p", undefined, "policyInherited");
+      inherited.id = "fail-closed-inherited-help";
+      inherited.className = "hint";
+      failClosed.input.setAttribute("aria-describedby", inherited.id);
+      extra.append(inherited);
+    }
     appendHint(document, extra, "failClosedHelp");
     if (view === "policies") {
       extra.append(child(document, "h3", undefined, "fallbackBehaviorTitle"));
