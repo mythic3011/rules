@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures.mjs";
 import YAML from "yaml";
 import { runtimeData } from "../worker/solver.mjs";
 
@@ -31,16 +31,18 @@ async function openDetails(page, detailsSelector, summarySelector) {
 }
 
 async function selectServiceGroup(page, id) {
+  await openDetails(page, "#service-group-customization");
   const selection = page.locator(`#service-group-select-${id}`);
   await selection.click();
-  await expect(selection).toHaveAttribute("aria-pressed", "true");
+  await expect(selection).toHaveAttribute("aria-checked", "true");
 }
 
 async function createAndAssignServiceGroup(page, { initialName, name, serviceId, routes }) {
+  await openDetails(page, "#service-group-customization");
   await openDetails(page, ".group-create", "#new-service-group");
   await page.locator("#new-service-group-name").fill(initialName);
   await page.locator("#create-service-group").click();
-  const selectedId = await page.locator('#service-group-editor [aria-pressed="true"]').getAttribute("id");
+  const selectedId = await page.locator('#service-group-editor [aria-checked="true"]').getAttribute("id");
   const id = selectedId?.replace(/^service-group-select-/u, "");
   expect(id).toBeTruthy();
   await selectServiceGroup(page, id);
@@ -252,7 +254,7 @@ test("previews, creates, edits, and reloads a persistent profile without rotatin
     location.assign(`${url.pathname}${url.search}`);
   });
   await expect(page).toHaveURL(/\/manage\?id=[0-9a-f-]{36}$/iu);
-  await expect(page.locator("#status")).toContainText("1");
+  await expect(page.locator("#saved-state-note")).toContainText("1");
   await expect(page.locator("html")).toHaveAttribute("lang", "zh-Hant");
   await expect(page.locator("#language")).toHaveValue("zh-Hant");
   await page.locator("#language").selectOption("en");
@@ -264,7 +266,7 @@ test("previews, creates, edits, and reloads a persistent profile without rotatin
   await expect(page.locator("#status")).toContainText("Saved revision 2.");
 
   await page.reload();
-  await expect(page.locator("#status")).toContainText("Loaded revision 2.");
+  await expect(page.locator("#saved-state-note")).toContainText("2");
   await expect(page.locator('#region-list input[value="jp"]')).toBeChecked();
   await selectServiceGroup(page, savedGeminiGroupId);
   await openDetails(page, ".group-settings");
@@ -489,7 +491,10 @@ test("converts real inputs, downloads policy YAML, clears and navigates without 
   await input.fill("http://subscription.example.test/list?token=synthetic");
   await format.selectOption("subscription");
   await page.locator("#convert-button").click();
-  await expect(status).toHaveText("Could not convert this input. Check the selected type and try again.");
+  const invalidSubscriptionMessage = await page.evaluate(async () => (
+    await (await fetch("/locales/en.json")).json()
+  ).converterErrorInvalidSubscriptionUrl);
+  await expect(status).toContainText(invalidSubscriptionMessage);
   await expect(status).not.toContainText("subscription.example.test");
   await expect(page.locator("#output-panel")).toBeHidden();
 
@@ -501,7 +506,7 @@ test("converts real inputs, downloads policy YAML, clears and navigates without 
   ].join("\n"));
   await format.selectOption("auto");
   await page.locator("#convert-button").click();
-  await expect(status).toHaveText("This subscription host is not enabled by the service operator.");
+  await expect(status).toContainText("This subscription host is not enabled by the service operator.");
   await expect(status).not.toContainText("unapproved-one.example.net");
   await expect(status).not.toContainText("unapproved-two.example.net");
   await expect(status).not.toContainText("synthetic");

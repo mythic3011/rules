@@ -84,6 +84,30 @@ async function readLocale(language) {
   return readFile(new URL(`../public/locales/${language}.json`, import.meta.url), "utf8");
 }
 
+function collectMessages(value, prefix = "", result = new Map()) {
+  for (const [key, child] of Object.entries(value)) {
+    const path = prefix ? `${prefix}.${key}` : key;
+    if (typeof child === "string") result.set(path, child);
+    else collectMessages(child, path, result);
+  }
+  return result;
+}
+
+function placeholders(message) {
+  return [...message.matchAll(/\{([A-Za-z0-9_]+)\}/gu)].map((match) => match[1]).sort();
+}
+
+test("locale messages have matching keys and interpolation placeholders", async () => {
+  const english = collectMessages(JSON.parse(await readLocale("en")));
+  for (const language of Object.keys(LANGUAGES)) {
+    const localized = collectMessages(JSON.parse(await readLocale(language)));
+    assert.deepEqual([...localized.keys()].sort(), [...english.keys()].sort(), `${language}: message keys`);
+    for (const [key, message] of english) {
+      assert.deepEqual(placeholders(localized.get(key)), placeholders(message), `${language}:${key} placeholders`);
+    }
+  }
+});
+
 test("locale JSON loads at runtime and interpolated messages use the active locale", async () => {
   const storage = new FakeStorage();
   await setLanguage("zh-Hant", storage, { fetcher: localeJsonFetcher });
@@ -194,16 +218,26 @@ test("all static and direct-code UI translation keys exist in every JSON locale"
     "../public/service-group-editor.js",
   ];
   const keys = new Set();
+  const catalogLabels = new Set();
   for (const file of files) {
     const source = await readFile(new URL(file, import.meta.url), "utf8");
     for (const [, key] of source.matchAll(/data-i18n(?:-aria-label|-placeholder)="([^"]+)"/gu)) keys.add(key);
     for (const [, key] of source.matchAll(/translate\(["\x27]([^"\x27]+)["\x27]/gu)) keys.add(key);
     for (const [, key] of source.matchAll(/child\(document,\s*["\x27][^"\x27]+["\x27],\s*undefined,\s*["\x27]([^"\x27]+)["\x27]/gu)) keys.add(key);
     for (const [, key] of source.matchAll(/appendHint\(document,\s*[^,]+,\s*["\x27]([^"\x27]+)["\x27]/gu)) keys.add(key);
+    for (const [, key] of source.matchAll(/["\x27]((?:builder|converter|editor|preview|result|save)[A-Z][A-Za-z0-9]+)["\x27]/gu)) keys.add(key);
+    for (const [, collection, id] of source.matchAll(/translateCatalogLabel\(["\x27]([^"\x27]+)["\x27],\s*["\x27]([^"\x27]+)["\x27]/gu)) {
+      catalogLabels.add(`${collection}.${id}`);
+    }
   }
 
   for (const language of Object.keys(LANGUAGES)) {
     await setLanguage(language, undefined, { fetcher: localeJsonFetcher, persist: false });
     for (const key of keys) assert.doesNotThrow(() => translate(key), `${language}:${key}`);
+    const locale = JSON.parse(await readLocale(language));
+    for (const label of catalogLabels) {
+      const [collection, id] = label.split(".");
+      assert.equal(typeof locale[collection]?.[id], "string", `${language}:${label}`);
+    }
   }
 });

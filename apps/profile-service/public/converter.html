@@ -58,15 +58,19 @@
 
     <section id="output-panel" class="panel" aria-labelledby="output-title" hidden>
       <div class="result-heading">
-        <h2 id="output-title" data-i18n="outputTitle">YAML output</h2>
+        <h2 id="output-title" tabindex="-1" data-i18n="outputTitle">YAML output</h2>
         <span id="node-count" class="node-count"></span>
       </div>
       <p id="output-help" class="hint" data-i18n="outputHelp">Select a node in a regional group, then choose that region in the pinned selector. With fail closed enabled, also select allowed routes for DNS and the services you use. Selections stay manual.</p>
-      <label for="converted-yaml" data-i18n="convertedProfile">Converted profile</label>
-      <textarea id="converted-yaml" class="output" rows="18" readonly spellcheck="false" aria-describedby="output-help"></textarea>
+      <p id="converter-output-summary" class="converter-output-summary" data-state="current" data-i18n="converterOutputSummary">YAML is ready. Copy or download the complete profile.</p>
+      <details id="converter-output-details" class="converter-output-details">
+        <summary data-i18n="converterOutputDetails">View full YAML source</summary>
+        <label for="converted-yaml" data-i18n="convertedProfile">Converted profile</label>
+        <textarea id="converted-yaml" class="output" rows="18" readonly spellcheck="false" aria-describedby="output-help"></textarea>
+      </details>
       <div class="converter-actions">
-        <button id="copy-yaml" type="button" data-i18n="copyYaml">Copy YAML</button>
-        <button id="download-yaml" type="button" data-i18n="downloadYaml">Download .yaml</button>
+        <button id="copy-yaml" type="button" data-i18n="copyYaml" disabled>Copy YAML</button>
+        <button id="download-yaml" type="button" data-i18n="downloadYaml" disabled>Download .yaml</button>
       </div>
     </section>
       </div>

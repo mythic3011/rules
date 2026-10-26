@@ -80,6 +80,37 @@ test("single proxy mode applies the same per-node length limit as subscription i
   );
 });
 
+test("mixed proxy input errors report the original line after blank lines without echoing credentials", async () => {
+  await assert.rejects(
+    convertInput({
+      input: [
+        "socks5://valid.example:1080",
+        "",
+        "socks5://alice:private-password@proxy.example:70000",
+      ].join("\n"),
+      format: "proxy",
+      profile: baseProfile,
+    }),
+    (error) => {
+      assert.equal(error.code, "invalid_node");
+      assert.equal(error.line, 3);
+      assert.doesNotMatch(error.message, /alice|private-password|proxy\.example/u);
+      return true;
+    },
+  );
+});
+
+test("raw whitespace around a valid URI still counts toward the node-line size limit", async () => {
+  await assert.rejects(
+    convertInput({
+      input: `${" ".repeat(8_192)}socks5://proxy.example:1080`,
+      format: "proxy",
+      profile: baseProfile,
+    }),
+    (error) => error.code === "node_too_large" && error.line === 1 && error.status === 413,
+  );
+});
+
 test("converts standard VMess and Shadowsocks subscription links", () => {
   const vmess = `vmess://${btoa(JSON.stringify({
     v: "2",

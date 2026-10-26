@@ -28,37 +28,57 @@
         <a href="/converter.html" data-i18n="yamlConverter">Online YAML converter</a>
       </nav>
       <section class="actions">
-        <button id="preview" type="button" data-i18n="preview">Preview</button>
-        <button id="save" type="button" class="primary" data-i18n="createSubscription">Create subscription</button>
+        <button id="preview" type="button" data-i18n="preview" disabled>Preview</button>
+        <button id="save" type="button" class="primary" data-i18n="createSubscription" disabled>Create subscription</button>
       </section>
+      <div class="editor-feedback" aria-live="polite" aria-atomic="true">
+        <p id="editor-state" data-state="draft" data-i18n="editorDraft" tabindex="-1">This configuration is a draft and has not been saved.</p>
+        <p id="saved-state-note" class="saved-state-note" hidden></p>
+        <p id="preview-state" data-state="not-run"><span id="preview-state-label">Preview not run yet.</span></p>
+        <p id="preview-state-help" hidden></p>
+      </div>
     </div>
 
     <section id="profile-options" class="panel" aria-labelledby="profile-options-title"></section>
 
     <p class="hint"><span data-i18n="intakeHint">Need a regional service that is not listed?</span> <a href="https://github.com/mythic3011/rules/issues/new?template=service_intake.yml" target="_blank" rel="noreferrer" data-i18n="submitIntake">Submit a regional service request</a>.</p>
 
-    <section id="status" class="panel status" role="status" aria-live="polite" aria-atomic="true" hidden></section>
+    <section id="status" class="panel status" role="status" aria-live="polite" aria-atomic="true" tabindex="-1" hidden></section>
 
-    <section id="result" class="panel" hidden>
-      <h2 data-i18n="subscriptionTitle">OpenClash Custom Template URL</h2>
-      <div class="copy-row">
-        <input id="subscription-url" readonly>
-        <button data-copy="subscription-url" type="button" data-i18n="copy">Copy</button>
+    <section id="result" class="panel" tabindex="-1" hidden>
+      <h2 data-i18n="subscriptionCreated">Subscription created</h2>
+      <p id="result-intro" data-i18n="resultIntro">Your routing profile is saved. Complete both steps before using it.</p>
+      <p id="saved-result-state" class="saved-state-note" hidden></p>
+      <div class="result-steps">
+        <section id="result-import-step" class="result-step">
+          <h3 data-i18n="resultImportTitle">1. Add the read-only subscription URL</h3>
+          <h4 data-i18n="subscriptionTitle">OpenClash Custom Template URL</h4>
+          <div class="copy-row">
+            <input id="subscription-url" readonly data-i18n-aria-label="subscriptionTitle">
+            <button data-copy="subscription-url" type="button" data-i18n="copy">Copy</button>
+          </div>
+          <p class="hint" data-i18n="subscriptionHint">Paste this URL into OpenClash subscription conversion as the Custom Template URL.</p>
+          <p id="result-fail-closed" class="warning" data-i18n="resultFailClosed" hidden>Fail-closed is enabled. After importing the template, choose an allowed exit in your proxy client.</p>
+        </section>
+        <section id="result-manage-step" class="result-step">
+          <h3 data-i18n="resultManagementTitle">2. Save your management link</h3>
+          <p class="warning" data-i18n="managementWarning">This link can change routing preferences. Do not share it.</p>
+          <div class="copy-row">
+            <input id="manage-url" readonly data-i18n-aria-label="managementLink">
+            <button data-copy="manage-url" type="button" data-i18n="copy">Copy</button>
+          </div>
+          <p><a id="result-manage-open" data-i18n="resultManageAction" href="/manage">Open management page</a></p>
+        </section>
       </div>
-      <p class="hint" data-i18n="subscriptionHint">Paste this URL into OpenClash subscription conversion as the Custom Template URL.</p>
-      <details>
-        <summary data-i18n="managementLink">Management link</summary>
-        <p class="warning" data-i18n="managementWarning">This link can change routing preferences. Do not share it.</p>
-        <div class="copy-row">
-          <input id="manage-url" readonly>
-          <button data-copy="manage-url" type="button" data-i18n="copy">Copy</button>
-        </div>
-      </details>
     </section>
 
-    <section id="preview-result" class="panel" hidden>
-      <h2 data-i18n="effectiveProfile">Effective profile</h2>
-      <pre id="summary"></pre>
+    <section id="preview-result" class="panel" tabindex="-1" hidden>
+      <h2 data-i18n="configurationPreview">Configuration preview</h2>
+      <div id="preview-summary" class="preview-summary"><dl id="preview-summary-list"></dl></div>
+      <details class="technical-details">
+        <summary data-i18n="previewTechnicalDetails">Technical summary (JSON)</summary>
+        <pre id="summary"></pre>
+      </details>
       <details>
         <summary data-i18n="generatedIni">Generated INI</summary>
         <pre id="ini-preview" class="ini"></pre>

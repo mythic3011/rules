@@ -52,7 +52,9 @@ function json(value, status = 200, headers = {}) {
 
 function errorResponse(error) {
   if (error instanceof ConverterError) {
-    return json({ error: error.code, message: error.message }, error.status);
+    const response = { error: error.code, message: error.message };
+    if (Number.isSafeInteger(error.line) && error.line > 0) response.line = error.line;
+    return json(response, error.status);
   }
   if (error instanceof ProfileSpecError) {
     return json({ error: error.code, message: error.message }, error.code === "body_too_large" ? 413 : 400);
