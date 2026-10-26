@@ -1,5 +1,9 @@
 import { defineConfig } from "@playwright/test";
 
+// Pinned Playwright otherwise captures the full page into error-context.md,
+// even with screenshots and traces off. Success pages contain capability URLs.
+process.env.PLAYWRIGHT_NO_COPY_PROMPT = "1";
+
 const DEFAULT_BASE_URL = "http://127.0.0.1:8787";
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 const SUPPORTED_CHANNELS = new Set([
