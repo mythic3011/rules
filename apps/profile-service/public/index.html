@@ -83,6 +83,11 @@
       <section id="result" class="success-page" tabindex="-1" hidden>
         <p id="result-intro" data-i18n="resultIntro">Your routing profile is saved. Complete both steps before using it.</p>
         <p id="saved-result-state" class="saved-state-note"></p>
+        <aside id="success-draft-notice" class="recovery-notice" role="status" hidden>
+          <p data-i18n="successDraftRetained">This subscription uses the saved settings. Your newer changes are still an unsaved draft.</p>
+          <p id="success-draft-invalid" data-i18n="successDraftInvalid" hidden>The newer draft has validation issues. Review it before saving.</p>
+          <a id="success-review-draft" href="/builder/review" data-editor-link data-i18n="reviewUnsavedDraft">Review unsaved draft</a>
+        </aside>
         <section id="result-import-step" class="completion-step">
           <h2 data-i18n="successReadTitle">1. Read-only Custom Template URL</h2>
           <div class="copy-row">

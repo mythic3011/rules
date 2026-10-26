@@ -360,5 +360,8 @@
   "templateDefaultsEditable": "Region and service controls are available. Review shows the exact draft before you create a subscription.",
   "templateOptionsUnavailable": "This template uses its published routing. These overrides are not applicable. Choose another template to customize routing.",
   "exitMoved": "{route} moved to position {position}.",
-  "reloadEditor": "Reload editor"
+  "reloadEditor": "Reload editor",
+  "successDraftRetained": "This subscription uses the saved settings. Your newer changes are still an unsaved draft.",
+  "successDraftInvalid": "The newer draft has validation issues. Review it before saving.",
+  "reviewUnsavedDraft": "Review unsaved draft"
 }

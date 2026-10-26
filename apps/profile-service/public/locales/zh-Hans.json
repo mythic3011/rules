@@ -360,5 +360,8 @@
   "templateDefaultsEditable": "可设置地区和服务。创建订阅前，检查页会显示完整草稿摘要。",
   "templateOptionsUnavailable": "此模板沿用已发布路由，这些覆盖设置不适用。如需自定义，请选择其他模板。",
   "exitMoved": "{route} 已移至第 {position} 位。",
-  "reloadEditor": "重新加载编辑器"
+  "reloadEditor": "重新加载编辑器",
+  "successDraftRetained": "此订阅使用已保存的设置。你较新的修改仍是未保存草稿。",
+  "successDraftInvalid": "较新的草稿存在验证问题，请检查后再保存。",
+  "reviewUnsavedDraft": "检查未保存的草稿"
 }

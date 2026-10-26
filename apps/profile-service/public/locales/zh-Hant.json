@@ -360,5 +360,8 @@
   "templateDefaultsEditable": "可設定地區同服務。建立訂閱前，檢查頁會顯示完整草稿摘要。",
   "templateOptionsUnavailable": "此範本沿用已發佈路由，這些覆寫設定不適用。如需自訂，請選擇其他範本。",
   "exitMoved": "{route} 已移至第 {position} 位。",
-  "reloadEditor": "重新載入編輯器"
+  "reloadEditor": "重新載入編輯器",
+  "successDraftRetained": "此訂閱使用已儲存嘅設定。你較新嘅修改仍係未儲存草稿。",
+  "successDraftInvalid": "較新嘅草稿有驗證問題，請檢查後再儲存。",
+  "reviewUnsavedDraft": "檢查未儲存嘅草稿"
 }

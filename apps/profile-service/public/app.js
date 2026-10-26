@@ -172,7 +172,7 @@ function renderButtons() {
   $("profile-options").setAttribute("aria-busy", state.applyingDraft ? "true" : "false");
 }
 function renderValidation() {
-  const issues = state.model?.issues ?? [];
+  const issues = state.route?.section === "success" ? [] : state.model?.issues ?? [];
   $("error-summary").hidden = !issues.length;
   $("error-list").replaceChildren();
   for (const message of document.querySelectorAll("[data-editor-validation-for]")) {
@@ -310,6 +310,9 @@ function renderSuccess() {
   $("manage-url").value = manageUrl;
   $("result-manage-open").href = manageUrl;
   $("saved-result-state").textContent = translate("resultUrlsSavedRevision", { revision: result.revision });
+  $("success-draft-notice").hidden = !state.model?.dirty;
+  $("success-draft-invalid").hidden = !state.model?.issues.length;
+  $("success-review-draft").href = href("review");
   $("result-fail-closed").hidden = result.spec?.failClosed !== true;
   $("profile-context").textContent = translate("createdProfileContext", { template: templateLabel(result.spec.baseProfile) });
 }

@@ -11,6 +11,7 @@ async function createLocalProfile(page) {
   await expect(page.locator("#result")).toBeVisible();
   await expect(page.locator("#profile-context")).toContainText("Saved profile");
   await expect(page.locator(".editor-status-bar")).toBeHidden();
+  await expect(page.locator("#success-draft-notice")).toBeHidden();
   // Never return or assert capability strings: failure output stays nonsecret.
   expect(await page.evaluate(() => Boolean(document.getElementById("manage-url").value))).toBe(true);
 }
@@ -25,6 +26,49 @@ test("expires displayed success links and same-tab capability records without a 
     manageCleared: document.getElementById("manage-url").value === "",
     recordsCleared: Object.keys(sessionStorage).every((key) => !key.startsWith("profile-manage:") && !key.startsWith("profile-created")),
   }))).toEqual({ readCleared: true, manageCleared: true, recordsCleared: true });
+});
+
+test("creation identifies newer invalid edits as a separate retained draft", async ({ page, request }) => {
+  const translations = await (await request.get("/locales/zh-Hant.json")).json();
+  let releaseCreate;
+  let notifyStarted;
+  const pendingCreate = new Promise((resolve) => { releaseCreate = resolve; });
+  const started = new Promise((resolve) => { notifyStarted = resolve; });
+  await page.route("**/api/v1/profiles", async (route) => {
+    notifyStarted();
+    await pendingCreate;
+    await route.continue();
+  });
+  try {
+    await page.goto("/builder/template");
+    await expect(page.locator("#base-profile")).toBeEnabled();
+    await page.locator("#language").selectOption("en");
+    await page.locator("#quick-review").click();
+    await expect(page.locator("#save")).toBeEnabled();
+    await page.locator("#save").click();
+    await started;
+    await page.locator("#nav-regions").click();
+    await page.locator("#region-mode-only").check();
+    await expect(page.locator("#region-validation")).toBeVisible();
+  } finally {
+    releaseCreate();
+  }
+  await expect(page.locator("#result")).toBeVisible();
+  await expect(page.locator("#profile-context")).toContainText("Saved profile");
+  await expect(page.locator("#success-draft-notice")).toBeVisible();
+  await expect(page.locator("#success-draft-invalid")).toBeVisible();
+  await expect(page.locator("#error-summary")).toBeHidden();
+  await expect(page.locator(".editor-status-bar")).toBeHidden();
+  await page.locator("#language").selectOption("zh-Hant");
+  await expect(page.locator("#success-draft-notice")).toContainText(translations.successDraftRetained);
+  await expect(page.locator("#success-draft-invalid")).toHaveText(translations.successDraftInvalid);
+  await page.locator("#success-review-draft").click();
+  await expect(page.locator("#error-summary")).toBeVisible();
+  await expect(page.locator("#save")).toBeDisabled();
+  await page.locator("#error-list a").click();
+  await expect(page.locator("#region-mode-only")).toBeChecked();
+  await expect(page.locator('#region-list input:checked')).toHaveCount(0);
+  await expect(page.locator("#region-list")).toBeFocused();
 });
 
 test("result expiry preserves a renewed management session, then session expiry preserves its draft", async ({ page }) => {

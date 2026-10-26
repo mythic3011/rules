@@ -28,6 +28,10 @@ Review. Creating from Review navigates to Success; management saves remain in
 the editor and report the new server revision there. Success labels the saved
 profile snapshot separately from any later local draft.
 
+If a newer unsaved draft exists after creation, Success shows a separate notice
+and a link to Review that draft. Its validation errors stay with the editor and
+Review; they do not replace the saved result, subscription URL, or revision.
+
 Success records are kept per public profile ID in tab-scoped session storage;
 the bare `/builder/success` route resolves to the latest result in that tab.
 The profile ID is not a capability. The result record and displayed fields
