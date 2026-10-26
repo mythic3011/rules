@@ -864,7 +864,8 @@ class GuardAppTests(unittest.TestCase):
             os.write(source_write, BUNDLE.read_bytes())
             os.close(source_write)
         chunks: list[bytes] = []
-        deadline = time.monotonic() + 12
+        # Setup starts several UCI helpers; allow slower CI runners time to finish.
+        deadline = time.monotonic() + 30
         input_sent = False
         while time.monotonic() < deadline:
             ready, _, _ = select.select([master], [], [], 0.1)

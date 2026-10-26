@@ -4,3 +4,7 @@ packages:
 allowBuilds:
   esbuild: true
   workerd: true
+
+overrides:
+  # Pin Miniflare 5's Undici 7 dependency above the fixed advisory range.
+  "miniflare>undici@7.29.1": 7.30.1
