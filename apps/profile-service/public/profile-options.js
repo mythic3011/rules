@@ -1,5 +1,6 @@
 import { getLanguage, setLanguage, translate, translateCatalogLabel } from "./i18n.mjs";
-import { copyServiceGroups, mountServiceGroupEditor } from "./service-group-editor.js";
+import { copyServiceGroups, effectiveServiceGroups, mountServiceGroupEditor } from "./service-group-editor.js";
+import { copyEditorDraft } from "./editor-state.mjs";
 
 const PREFERENCES_KEY = "profile-service-policy-preferences";
 const PREFERENCE_FIELDS = Object.freeze([
@@ -118,7 +119,8 @@ function getStoredRegionMode(preferences) {
   return listOrEmpty(preferences.onlyNodeRegions).length ? "only" : "exclude";
 }
 
-export function mountProfileOptions({ root, catalog, outputFormat, onChange = () => {}, onLanguage = () => {}, storage = globalThis.localStorage, languageFetcher = globalThis.fetch }) {
+export function mountProfileOptions({ root, catalog, outputFormat, onChange = () => {}, onLanguage = () => {}, storage = globalThis.localStorage, languageFetcher = globalThis.fetch,
+  view = "all", groupId = null, groupHref = () => "#", onNavigateGroup = () => {}, persistPreferences = true }) {
   const document = root.ownerDocument;
   const defaults = catalog.optionDefaults ?? {};
   const regions = Array.isArray(catalog.regions) ? catalog.regions : [];
@@ -150,11 +152,16 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
     groupSettingsOpen: false,
     resetGroupPanels: false,
     groupSearches: {},
+    groupAnnouncement: null,
+    policyServiceSearch: "",
     // Undefined means preserve the server's legacy behavior for an old spec.
     allowDirect: typeof defaults.allowDirect === "boolean" ? defaults.allowDirect : true,
     failClosed: typeof defaults.failClosed === "boolean" ? defaults.failClosed : true,
     advancedOpen: false,
   };
+  const layoutsByTemplate = new Map();
+  let pendingGroupNavigation = null;
+  if (groupId) state.selectedServiceGroup = groupId;
 
   const storedMode = getStoredRegionMode(cached);
   state.regionMode = storedMode;
@@ -216,6 +223,11 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
       error.translationKey = "onlyRequiresRegion";
       throw error;
     }
+    if (!activeRegions().length) {
+      const error = new Error(translate("atLeastOneActiveRegion"));
+      error.translationKey = "atLeastOneActiveRegion";
+      throw error;
+    }
     const disabled = state.regionMode === "exclude" ? cleanedOrder(state.selectedRegions, regions) : [];
     Object.assign(spec, {
       disabledNodeRegions: disabled,
@@ -234,7 +246,7 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
 
   function persist() {
     try {
-      writePreferences(storage, collectSpec(), outputFormat, state.serviceGroups);
+      if (persistPreferences) writePreferences(storage, collectSpec(), outputFormat, state.serviceGroups);
     } catch {
       // Invalid intermediate edits (such as an empty only-mode) are not saved.
     }
@@ -284,10 +296,11 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
   function appendPreferredOrder(parent, preference) {
     const block = document.createElement("div");
     block.className = "preference-block";
-    block.append(child(document, "h4", undefined, preference.heading));
+    block.append(child(document, view === "all" ? "h4" : "h3", undefined, preference.heading));
     appendHint(document, block, preference.hint);
     const picker = document.createElement("select");
     picker.id = preference.pickerId;
+    picker.setAttribute("aria-label", translate(preference.heading));
     const available = preference.items();
     const selected = preference.selected();
     for (const item of available) {
@@ -321,36 +334,7 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
     parent.append(block);
   }
 
-  function render() {
-    const focusedId = document.activeElement && root.contains?.(document.activeElement)
-      ? document.activeElement.id
-      : "";
-    const captureOpen = (selector, assign) => {
-      const node = root.querySelector?.(selector);
-      if (node) assign(node.open);
-    };
-    captureOpen(".profile-advanced", (open) => { state.advancedOpen = open; });
-    captureOpen("#service-group-customization", (open) => { state.serviceCustomizationOpen = open; });
-    if (state.resetGroupPanels) {
-      state.servicePaletteOpen = false;
-      state.routePaletteOpen = true;
-      state.groupSettingsOpen = false;
-      state.groupSearches.services = "";
-      state.groupSearches.routes = "";
-      state.resetGroupPanels = false;
-    } else {
-      captureOpen(".group-service-palette", (open) => { state.servicePaletteOpen = open; });
-      captureOpen(".group-route-palette", (open) => { state.routePaletteOpen = open; });
-      captureOpen(".group-settings", (open) => { state.groupSettingsOpen = open; });
-    }
-    root.replaceChildren();
-    const profileHeading = child(document, "h2", undefined, "profileOptions");
-    profileHeading.id = "profile-options-title";
-    root.append(profileHeading);
-    // One settings column, so the service-group editor can sit beside it.
-    const rail = document.createElement("div");
-    rail.className = "profile-rail";
-
+  function renderTemplate(rail, selectedTemplate) {
     const templateSelect = document.createElement("select");
     templateSelect.id = "base-profile";
     for (const profile of templates) {
@@ -361,8 +345,11 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
     }
     templateSelect.disabled = templates.length === 0;
     templateSelect.addEventListener("change", () => {
+      layoutsByTemplate.set(state.baseProfile, copyServiceGroups(state.serviceGroups));
       state.baseProfile = templateSelect.value;
-      state.serviceGroups = copyServiceGroups(readPreferences(storage).serviceGroupsByTemplate?.[`${outputFormat}/${state.baseProfile}`]);
+      state.serviceGroups = copyServiceGroups(layoutsByTemplate.has(state.baseProfile)
+        ? layoutsByTemplate.get(state.baseProfile)
+        : readPreferences(storage).serviceGroupsByTemplate?.[`${outputFormat}/${state.baseProfile}`]);
       state.selectedServiceGroup = "";
       state.resetGroupPanels = true;
       state.groupSearches = {};
@@ -371,7 +358,6 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
     });
     rail.append(makeLabel(document, "baseProfile", templateSelect));
 
-    const selectedTemplate = templates.find((item) => item.id === state.baseProfile);
     if (selectedTemplate) {
       const text = translateCatalogLabel("templateDescriptions", selectedTemplate.id, selectedTemplate.description ?? "");
       if (text) {
@@ -381,21 +367,26 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
       }
       const scope = outputFormat === "ini" ? "iniTemplateScope" : "yamlTemplateScope";
       appendHint(document, rail, scope);
+      if (view === "template") {
+        const policy = document.createElement("section");
+        policy.className = "template-defaults";
+        policy.append(child(document, "h2", undefined, "templateDefaultsTitle"));
+        appendHint(document, policy, selectedTemplate.supportsProfileOptions === false ? "templateDefaultsFixed" : "templateDefaultsEditable");
+        rail.append(policy);
+      }
     }
-    if (selectedTemplate?.supportsProfileOptions === false) {
-      root.append(rail);
-      restoreFocus(focusedId);
-      return;
-    }
+  }
 
+  function renderRegions(rail) {
     const regionsSection = document.createElement("section");
     regionsSection.className = "profile-subsection";
     regionsSection.setAttribute("aria-labelledby", "region-title");
-    const regionHeading = child(document, "h3", undefined, "regionRouting");
+    const regionHeading = child(document, view === "all" ? "h3" : "h2", undefined, "regionRouting");
     regionHeading.id = "region-title";
     regionsSection.append(regionHeading);
-    const modeRow = document.createElement("div");
+    const modeRow = document.createElement("fieldset");
     modeRow.className = "mode-row";
+    modeRow.append(child(document, "legend", undefined, "regionSelectionMode"));
     for (const [value, key] of [["exclude", "excludeRegions"], ["only", "onlyRegions"]]) {
       const label = document.createElement("label");
       const input = document.createElement("input");
@@ -404,6 +395,8 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
       input.id = `region-mode-${value}`;
       input.value = value;
       input.checked = state.regionMode === value;
+      input.setAttribute("aria-describedby", "region-mode-help region-validation");
+      if (validationIssues().length) input.setAttribute("aria-invalid", "true");
       input.addEventListener("change", () => {
         if (!input.checked) return;
         state.regionMode = value;
@@ -416,9 +409,26 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
       modeRow.append(label);
     }
     regionsSection.append(modeRow);
+    const modeHelp = child(document, "p", undefined, state.regionMode === "only" ? "regionsHelpOnly" : "regionsHelpExclude");
+    modeHelp.id = "region-mode-help";
+    modeHelp.className = "hint";
+    const validation = child(document, "p", validationIssues().map((issue) => translate(issue.key)).join(" "));
+    validation.id = "region-validation";
+    validation.className = "inline-error";
+    validation.setAttribute("role", "status");
+    validation.hidden = !validationIssues().length;
+    regionsSection.append(modeHelp, validation);
+    regionsSection.append(child(document, "h3", undefined, "routableRegions"));
     const regionList = document.createElement("div");
     regionList.id = "region-list";
     regionList.className = "region-grid";
+    regionList.tabIndex = -1;
+    regionList.setAttribute("role", "group");
+    regionList.setAttribute("aria-label", translate("routableRegions"));
+    regionList.setAttribute("aria-describedby", "region-validation");
+    const filterList = document.createElement("div");
+    filterList.id = "node-filter-list";
+    filterList.className = "region-grid filter-region-grid";
     for (const region of regions) {
       if (state.regionMode === "only" && !region.routable) continue;
       const label = document.createElement("label");
@@ -445,10 +455,14 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
       meta.textContent = region.routable ? region.id.toUpperCase() : `${region.id.toUpperCase()} · ${translate("nodeFilterOnly")}`;
       text.append(meta);
       label.append(input, text);
-      regionList.append(label);
+      (region.routable ? regionList : filterList).append(label);
     }
     regionsSection.append(regionList);
-    appendHint(document, regionsSection, state.regionMode === "only" ? "regionsHelpOnly" : "regionsHelpExclude");
+    if (filterList.children.length) {
+      regionsSection.append(child(document, "h3", undefined, "filterOnlyRegions"));
+      appendHint(document, regionsSection, "filterOnlyRegionsHelp");
+      regionsSection.append(filterList);
+    }
     appendPreferredOrder(regionsSection, {
       pickerId: "prefer-region-picker",
       addId: "prefer-region-add",
@@ -463,16 +477,18 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
       assign(values) { state.preferredNodeRegions = values; },
     });
     rail.append(regionsSection);
+  }
 
+  function renderServiceGroups(rail) {
     const templateGroups = serviceGroups.filter((group) => !group.baseProfile || group.baseProfile === state.baseProfile);
     let serviceGroupEditor = null;
-    if (templateGroups.length) {
-      const customization = document.createElement("details");
-      customization.id = "service-group-customization";
+    if (templateGroups.length && ["all", "services", "group"].includes(view)) {
+      const customization = document.createElement(view === "all" ? "details" : "section");
+      customization.id = view === "all" ? "service-group-customization" : "service-group-page";
       customization.className = "profile-subsection service-group-customization";
       customization.open = state.serviceCustomizationOpen;
       customization.addEventListener("toggle", () => { state.serviceCustomizationOpen = customization.open; });
-      customization.append(child(document, "summary", undefined, "serviceGroupCustomization"));
+      if (view === "all") customization.append(child(document, "summary", undefined, "serviceGroupCustomization"));
       const editor = document.createElement("section");
       editor.id = "service-group-editor";
       editor.className = "service-group-editor-content";
@@ -489,32 +505,55 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
         allowDirect: state.allowDirect, failClosed: state.failClosed,
         disabledRegions: state.regionMode === "exclude" ? state.selectedRegions : [],
         onlyRegions: state.regionMode === "only" ? state.selectedRegions : [],
+        view: view === "all" ? "all" : view === "services" ? "list" : "detail",
+        groupHref,
+        announcement: state.groupAnnouncement,
         onSelect(id, rerender = true, focus = false) {
+          if (view === "services" && !rerender) pendingGroupNavigation = id;
           state.selectedServiceGroup = id;
           state.focusSelectedServiceGroup = focus === true;
           state.resetGroupPanels = true;
           if (rerender) render();
         },
-        onChange(value) {
+        onChange(value, announcement = null) {
+          state.groupAnnouncement = announcement;
           state.serviceGroups = copyServiceGroups(value);
           render();
           persist();
+          if (view === "services" && pendingGroupNavigation) {
+            const destination = pendingGroupNavigation;
+            pendingGroupNavigation = null;
+            onNavigateGroup(destination);
+          }
+          else if (view === "group" && !state.selectedServiceGroup) onNavigateGroup(null);
         },
       });
       customization.append(editor);
       serviceGroupEditor = customization;
     }
+    if (["services", "group"].includes(view) && !templateGroups.length) appendHint(document, rail, "templateOptionsUnavailable");
+    return serviceGroupEditor;
+  }
 
-    const extra = document.createElement("details");
+  function renderPolicies(rail) {
+    const extra = document.createElement(view === "all" ? "details" : "section");
     extra.className = "profile-subsection profile-advanced";
     extra.open = state.advancedOpen;
     extra.addEventListener("toggle", () => { state.advancedOpen = extra.open; });
-    const summary = child(document, "summary", undefined, "serviceOptions");
+    const summary = child(document, view === "all" ? "summary" : "h2", undefined, "serviceOptions");
     extra.append(summary);
     const serviceSection = document.createElement("div");
     serviceSection.className = "service-grid";
-    const serviceHeading = child(document, "h4", undefined, "enabledServices");
+    const serviceHeading = child(document, view === "all" ? "h4" : "h3", undefined, "enabledServices");
     extra.append(serviceHeading);
+    let serviceSearch = null;
+    if (view === "policies") {
+      serviceSearch = document.createElement("input");
+      serviceSearch.type = "search";
+      serviceSearch.id = "policy-service-search";
+      serviceSearch.value = state.policyServiceSearch;
+      extra.append(makeLabel(document, "searchServices", serviceSearch));
+    }
     const disabled = new Set(state.disabledServices);
     for (const service of services) {
       const { label, input } = makeToggle(document, `service-${service.id}`, !disabled.has(service.id), "", (enabled) => {
@@ -527,11 +566,21 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
         persist();
       });
       label.lastChild.textContent = translateCatalogLabel("serviceNames", service.id, service.name ?? service.id);
+      label.dataset.search = `${service.id} ${label.lastChild.textContent}`;
       serviceSection.append(label);
       if (!service.name) label.lastChild.textContent = service.id;
       void input;
     }
     extra.append(serviceSection);
+    if (serviceSearch) {
+      const filter = () => {
+        state.policyServiceSearch = serviceSearch.value;
+        const term = serviceSearch.value.normalize("NFKC").toLocaleLowerCase();
+        for (const label of serviceSection.children) label.hidden = !label.dataset.search.normalize("NFKC").toLocaleLowerCase().includes(term);
+      };
+      serviceSearch.addEventListener("input", filter);
+      filter();
+    }
     appendHint(document, extra, "serviceHelp");
     if (state.serviceGroups === undefined) {
       appendPreferredOrder(extra, {
@@ -568,7 +617,59 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
     });
     extra.append(failClosed.label);
     appendHint(document, extra, "failClosedHelp");
+    if (view === "policies") {
+      extra.append(child(document, "h3", undefined, "fallbackBehaviorTitle"));
+      appendHint(document, extra, state.failClosed !== false ? "fallbackBlockedHelp" : "fallbackTemplateHelp");
+      appendHint(document, extra, "manualOrderHelp");
+    }
     rail.append(extra);
+  }
+
+  function render() {
+    const focusedId = document.activeElement && root.contains?.(document.activeElement)
+      ? document.activeElement.id
+      : "";
+    const captureOpen = (selector, assign) => {
+      const node = root.querySelector?.(selector);
+      if (node) assign(node.open);
+    };
+    captureOpen(".profile-advanced", (open) => { state.advancedOpen = open; });
+    captureOpen("#service-group-customization", (open) => { state.serviceCustomizationOpen = open; });
+    if (state.resetGroupPanels) {
+      state.servicePaletteOpen = false;
+      state.routePaletteOpen = true;
+      state.groupSettingsOpen = false;
+      state.groupSearches.services = "";
+      state.groupSearches.routes = "";
+      state.resetGroupPanels = false;
+    } else {
+      captureOpen(".group-service-palette", (open) => { state.servicePaletteOpen = open; });
+      captureOpen(".group-route-palette", (open) => { state.routePaletteOpen = open; });
+      captureOpen(".group-settings", (open) => { state.groupSettingsOpen = open; });
+    }
+    root.replaceChildren();
+    if (view === "all") {
+      const profileHeading = child(document, "h2", undefined, "profileOptions");
+      profileHeading.id = "profile-options-title";
+      root.append(profileHeading);
+    }
+    // Routed pages mount one editor; the standalone converter uses the all view.
+    const rail = document.createElement("div");
+    rail.className = "profile-rail";
+    const selectedTemplate = templates.find((item) => item.id === state.baseProfile);
+    if (view === "all" || view === "template") renderTemplate(rail, selectedTemplate);
+    if (selectedTemplate?.supportsProfileOptions === false) {
+      if (view !== "all" && view !== "template") appendHint(document, rail, "templateOptionsUnavailable");
+      root.append(rail);
+      restoreFocus(focusedId);
+      return;
+    }
+
+    if (view === "all" || view === "regions") renderRegions(rail);
+
+    const serviceGroupEditor = renderServiceGroups(rail);
+
+    if (view === "all" || view === "policies") renderPolicies(rail);
     root.append(rail);
     if (serviceGroupEditor) root.append(serviceGroupEditor);
     const selectedGroup = root.querySelector?.('.group-choice[aria-checked="true"]');
@@ -604,6 +705,10 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
     if (!candidate && (id.startsWith("group-route-") || id.startsWith("group-service-"))) {
       candidate = document.querySelector?.('.group-choice[aria-checked="true"]');
     }
+    if ((!candidate || candidate.disabled) && id.startsWith("group-route-")) {
+      const routeId = id.replace(/-(?:moveUp|moveDown|remove)$/u, "");
+      candidate = document.getElementById(routeId) ?? document.getElementById("service-group-routes");
+    }
     if (!candidate || !root.contains?.(candidate)) return;
     try {
       candidate.focus({ preventScroll: true });
@@ -631,6 +736,34 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
     render();
   }
 
+  function getDraft() {
+    return copyEditorDraft({
+      baseProfile: state.baseProfile, regionMode: state.regionMode,
+      selectedRegions: state.selectedRegions, preferredNodeRegions: state.preferredNodeRegions,
+      disabledServices: state.disabledServices, preferredServices: state.preferredServices,
+      serviceGroups: state.serviceGroups, allowDirect: state.allowDirect,
+      failClosed: state.failClosed, language: getLanguage(storage),
+    });
+  }
+
+  function validationIssues() {
+    try { collectSpec(); return []; } catch (error) {
+      return [{ key: error.translationKey ?? "chooseTemplate", section: error.translationKey ? "regions" : "template",
+        field: error.translationKey ? "region-list" : "base-profile" }];
+    }
+  }
+
+  async function applyDraft(value) {
+    const draft = copyEditorDraft(value);
+    if (!draft || !templates.some((template) => template.id === draft.baseProfile)) throw new TypeError("Invalid local draft");
+    if (getLanguage(storage) !== draft.language) {
+      const language = await setLanguage(draft.language, storage, { fetcher: languageFetcher });
+      onLanguage(language);
+    }
+    for (const key of ["baseProfile", "regionMode", "selectedRegions", "preferredNodeRegions", "disabledServices", "preferredServices", "serviceGroups", "allowDirect", "failClosed"]) state[key] = draft[key];
+    render();
+  }
+
   function rerenderForLanguage() {
     render();
   }
@@ -638,6 +771,23 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
   render();
   return {
     getSpec: collectSpec,
+    getDraft,
+    applyDraft,
+    validate: validationIssues,
+    getGroups() {
+      return effectiveServiceGroups({
+        groups: serviceGroups.filter((group) => !group.baseProfile || group.baseProfile === state.baseProfile),
+        regions, value: state.serviceGroups, allowDirect: state.allowDirect, failClosed: state.failClosed,
+        disabledRegions: state.regionMode === "exclude" ? state.selectedRegions : [],
+        onlyRegions: state.regionMode === "only" ? state.selectedRegions : [],
+      });
+    },
+    setView(next, id = null) {
+      if (!["all", "template", "regions", "services", "group", "policies", "review", "success"].includes(next)) throw new TypeError("Unknown editor view");
+      view = next;
+      if (next === "group") state.selectedServiceGroup = id;
+      render();
+    },
     applySpec,
     setLanguage: rerenderForLanguage,
     savePreferences() {
