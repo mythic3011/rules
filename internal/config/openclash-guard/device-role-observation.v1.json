@@ -1,0 +1,264 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:clash-guard:device-role-observation:v1",
+  "title": "Clash Guard Device Role Observation v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "role_catalog_version",
+    "platform",
+    "observed_at_ms",
+    "ttl_ms",
+    "window",
+    "collection_status",
+    "reason_code",
+    "role_suggestions",
+    "authority"
+  ],
+  "properties": {
+    "schema_version": { "$ref": "#/$defs/schemaVersion" },
+    "role_catalog_version": { "$ref": "#/$defs/roleCatalogVersion" },
+    "platform": { "$ref": "#/$defs/platform" },
+    "observed_at_ms": { "$ref": "#/$defs/timestampMs" },
+    "ttl_ms": { "$ref": "#/$defs/ttlMs" },
+    "window": { "$ref": "#/$defs/window" },
+    "collection_status": { "$ref": "#/$defs/collectionStatus" },
+    "reason_code": { "$ref": "#/$defs/reasonCode" },
+    "role_suggestions": { "$ref": "#/$defs/roleSuggestions" },
+    "authority": { "$ref": "#/$defs/authority" }
+  },
+  "$defs": {
+    "schemaVersion": { "const": 1 },
+    "roleCatalogVersion": { "const": 1 },
+    "timestampMs": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "platform": {
+      "type": "string",
+      "enum": ["macos", "linux", "windows", "android", "ios", "other"]
+    },
+    "collectionStatus": {
+      "type": "string",
+      "enum": ["partial", "unsupported", "blocked"]
+    },
+    "reasonCode": {
+      "type": "string",
+      "enum": [
+        "macos_permission_limited_snapshot",
+        "linux_namespace_permission_limited_snapshot",
+        "windows_tcp_only_no_executable_paths",
+        "mobile_cross_app_collection_unsupported",
+        "platform_collection_unsupported",
+        "native_socket_source_unavailable",
+        "observation_limit_reached",
+        "executable_metadata_unavailable",
+        "no_classifiable_process_metadata"
+      ]
+    },
+    "freshness": {
+      "type": "string",
+      "enum": ["fresh", "stale", "unavailable"]
+    },
+    "authority": { "const": "ADVISORY_ONLY_NO_ROUTING_AUTHORITY" },
+    "roleId": {
+      "type": "string",
+      "enum": [
+        "browser",
+        "communication",
+        "gaming",
+        "media",
+        "cloud_sync",
+        "developer"
+      ]
+    },
+    "confidence": {
+      "type": "string",
+      "enum": ["heuristic_low"]
+    },
+    "ttlMs": { "const": 60000 },
+    "bucketMs": { "const": 10000 },
+    "bucketCount": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 6
+    },
+    "staleAfterBuckets": { "const": 2 },
+    "maxSocketOwners": { "const": 1024 },
+    "maxReportBytes": { "const": 16384 },
+    "window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bucket_ms", "bucket_count", "freshness"],
+      "properties": {
+        "bucket_ms": { "$ref": "#/$defs/bucketMs" },
+        "bucket_count": { "$ref": "#/$defs/bucketCount" },
+        "freshness": { "$ref": "#/$defs/freshness" }
+      }
+    },
+    "roleSuggestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "active_bucket_count", "confidence"],
+      "properties": {
+        "role": { "$ref": "#/$defs/roleId" },
+        "active_bucket_count": { "$ref": "#/$defs/bucketCount" },
+        "confidence": { "$ref": "#/$defs/confidence" }
+      }
+    },
+    "roleSuggestions": {
+      "type": "array",
+      "uniqueItems": true,
+      "maxItems": 6,
+      "items": { "$ref": "#/$defs/roleSuggestion" }
+    }
+  },
+  "x-device-role-contract": {
+    "role_aliases_are_local_only": true,
+    "classifier_input": "native_socket.executable",
+    "normalization": "trim, take final component separated by slash or backslash, lowercase ASCII, remove a terminal .exe",
+    "unknown_metadata": "omit role suggestion",
+    "semantic_invariants": [
+      "role_ids_unique",
+      "active_bucket_count_lte_window_bucket_count",
+      "unsupported_or_blocked_requires_empty_role_suggestions",
+      "observed_at_ms_plus_ttl_ms_within_timestampMs"
+    ],
+    "reason_mapping": {
+      "native_source_unavailable": "native_socket_source_unavailable",
+      "socket_owner_limit_reached": "observation_limit_reached",
+      "socket_owner_executable_missing": "executable_metadata_unavailable",
+      "executable_unmatched": "no_classifiable_process_metadata"
+    },
+    "limit_refs": {
+      "ttl_ms": "#/$defs/ttlMs",
+      "bucket_ms": "#/$defs/bucketMs",
+      "bucket_count": "#/$defs/bucketCount",
+      "stale_after_buckets": "#/$defs/staleAfterBuckets",
+      "max_socket_owners": "#/$defs/maxSocketOwners",
+      "max_report_bytes": "#/$defs/maxReportBytes"
+    },
+    "platform_handling": [
+      {
+        "platform": "macos",
+        "collection_status": "partial",
+        "reason_code": "macos_permission_limited_snapshot"
+      },
+      {
+        "platform": "linux",
+        "collection_status": "partial",
+        "reason_code": "linux_namespace_permission_limited_snapshot"
+      },
+      {
+        "platform": "windows",
+        "collection_status": "partial",
+        "reason_code": "windows_tcp_only_no_executable_paths"
+      },
+      {
+        "platform": "android",
+        "collection_status": "unsupported",
+        "reason_code": "mobile_cross_app_collection_unsupported"
+      },
+      {
+        "platform": "ios",
+        "collection_status": "unsupported",
+        "reason_code": "mobile_cross_app_collection_unsupported"
+      },
+      {
+        "platform": "other",
+        "collection_status": "unsupported",
+        "reason_code": "platform_collection_unsupported"
+      }
+    ],
+    "role_aliases": [
+      {
+        "role": "browser",
+        "confidence": "heuristic_low",
+        "executable_basenames": [
+          "brave",
+          "brave-browser",
+          "chrome",
+          "chromium",
+          "firefox",
+          "google-chrome",
+          "msedge",
+          "opera",
+          "safari",
+          "vivaldi"
+        ]
+      },
+      {
+        "role": "communication",
+        "confidence": "heuristic_low",
+        "executable_basenames": [
+          "discord",
+          "element",
+          "signal",
+          "skype",
+          "slack",
+          "teams",
+          "telegram",
+          "whatsapp",
+          "zoom"
+        ]
+      },
+      {
+        "role": "gaming",
+        "confidence": "heuristic_low",
+        "executable_basenames": [
+          "battle.net",
+          "cs2",
+          "dota2",
+          "epicgameslauncher",
+          "leagueclient",
+          "minecraft",
+          "riotclientservices",
+          "roblox",
+          "steam",
+          "steamwebhelper"
+        ]
+      },
+      {
+        "role": "media",
+        "confidence": "heuristic_low",
+        "executable_basenames": [
+          "deezer",
+          "mpv",
+          "plex",
+          "spotify",
+          "tidal",
+          "vlc"
+        ]
+      },
+      {
+        "role": "cloud_sync",
+        "confidence": "heuristic_low",
+        "executable_basenames": [
+          "box",
+          "dropbox",
+          "googledrivefs",
+          "icloud",
+          "nextcloud",
+          "onedrive",
+          "syncthing"
+        ]
+      },
+      {
+        "role": "developer",
+        "confidence": "heuristic_low",
+        "executable_basenames": [
+          "code",
+          "code-insiders",
+          "cursor",
+          "docker",
+          "idea",
+          "pycharm",
+          "webstorm",
+          "zed"
+        ]
+      }
+    ]
+  }
+}

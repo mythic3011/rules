@@ -10,6 +10,7 @@ The UI follows an operational-dashboard pattern similar to AdGuard Home: importa
 
 - **Overview** — summary cards for Guard, OpenClash, DNS, and fail-closed protection; 24-hour egress observations; per-service mini trends; recent events; routing intent; profile/distribution summary and quick links.
 - **Profile** — one HTTPS custom-template INI URL, including Profile Service `/p/<opaque-token>.ini` URLs, with a router-side fetch/format probe.
+- **Devices** — manual labels, catalog-defined roles, and built-in profile references, shown separately from tentative read-only suggestions. The edit dialog shows the stable Device ID used for forced SSH-key binding.
 - **Routing** — direct/proxy region selection from the shared Region Registry and per-service route intent.
 - **DNS** — backend, resolver-sync intent, and fail-closed policy.
 - **Rules** — local direct/proxy rules and remote HTTPS rule-source URLs.
@@ -30,7 +31,7 @@ The optional procd monitor reuses the same fixed rpcd trace implementation. It c
 
 ## Shared configuration
 
-The app writes `/etc/config/openclash_guard` directly. Guard runtime integration should consume the same UCI model instead of scraping CLI output or maintaining a second configuration store.
+The existing Guard settings are stored in `/etc/config/openclash_guard`. Manual device labels are stored separately in `/etc/config/openclash_guard_devices`. Each record has a stable Device ID that does not change when its label changes; use the ID shown in the edit dialog when binding a forced SSH key. This metadata is advisory and does not change routing.
 
 ## Security boundaries
 
@@ -42,5 +43,14 @@ The app writes `/etc/config/openclash_guard` directly. Guard runtime integration
 - routing selectors and trace-region comparison reuse the packaged Region Registry rather than hardcoded country maps;
 - CI enforces byte-for-byte parity between the packaged Region Registry and the canonical routing catalog;
 - background monitoring is opt-in and only invokes the fixed ChatGPT/Claude/Grok probe identifiers.
+- the Devices page reads catalog and suggestion data through a read-only RPC object; Save/Apply writes only the separate advisory UCI namespace;
+- suggestions are never copied into manual roles or used to activate routes, and selected built-in profiles store catalog IDs rather than URLs or tokens;
+- device kinds are catalog-defined manual labels. Mobile can be selected manually; this UI does not claim to install or use a mobile-app collector.
+
+## Device role reports
+
+The optional receiver accepts one bounded JSON report through manual import or a forced SSH command. Each key maps to a saved Device ID; the report cannot choose that ID. Incoming reports must match the pinned contract, be unexpired, and be newer than the cached report. The receiver limits input size and read time before atomically replacing the private cache entry.
+
+Reports are advisory. Expired reports are omitted, and stale or unavailable windows expose metadata without role hints. Cache files live under volatile `/tmp` storage and disappear on reboot. See the [device profile guide](../../docs/endpoint-device-profiles.md) for enrollment, import commands, platform limits, and cache maintenance.
 
 Router-origin egress probes are diagnostic evidence. They do not claim to prove the route of every forwarded LAN client when source-, mark-, or device-specific policy differs.

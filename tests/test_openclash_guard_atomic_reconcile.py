@@ -253,8 +253,10 @@ class GuardRuntimeHarness(unittest.TestCase):
         if not self.bundle_text.endswith(suffix):
             self.fail("generated bundle entrypoint changed; update the test harness")
         source = self.bundle_text[: -len(suffix)] + body + "\n"
+        script_path = self.work / "bundle-functions.sh"
+        script_path.write_text(source, encoding="utf-8")
         return subprocess.run(
-            ["/bin/sh", "-c", source],
+            ["/bin/sh", str(script_path)],
             capture_output=True,
             text=True,
             timeout=20,

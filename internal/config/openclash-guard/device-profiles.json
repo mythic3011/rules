@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "uci": {
+    "package": "openclash_guard_devices",
+    "sectionType": "device",
+    "fields": [
+      "label",
+      "kind",
+      "manual_roles",
+      "profile_id"
+    ]
+  },
+  "deviceId": {
+    "pattern": "^[A-Za-z0-9_]{1,64}$",
+    "maxLength": 64
+  },
+  "limits": {
+    "maxDevices": 128,
+    "maxLabelLength": 64,
+    "maxRolesSource": "endpoint.roleId.enum"
+  },
+  "kinds": [
+    {
+      "id": "unknown",
+      "label": "Unknown"
+    },
+    {
+      "id": "desktop",
+      "label": "Desktop"
+    },
+    {
+      "id": "laptop",
+      "label": "Laptop"
+    },
+    {
+      "id": "mobile",
+      "label": "Mobile"
+    },
+    {
+      "id": "console",
+      "label": "Console"
+    },
+    {
+      "id": "other",
+      "label": "Other"
+    }
+  ],
+  "roleLabels": [
+    {
+      "id": "browser",
+      "label": "Browser"
+    },
+    {
+      "id": "communication",
+      "label": "Communication"
+    },
+    {
+      "id": "gaming",
+      "label": "Gaming"
+    },
+    {
+      "id": "media",
+      "label": "Media"
+    },
+    {
+      "id": "cloud_sync",
+      "label": "Cloud sync"
+    },
+    {
+      "id": "developer",
+      "label": "Developer"
+    }
+  ],
+  "profileFormatLabels": {
+    "ini": "INI",
+    "yaml": "YAML"
+  },
+  "profileIdEncoding": "${outputFormat}:${id}",
+  "endpointSource": {
+    "path": "internal/config/openclash-guard/device-role-observation.v1.json",
+    "schemaId": "urn:clash-guard:device-role-observation:v1",
+    "schemaVersion": 1,
+    "sha256": "cd6589d8addd550053d1fa4cec333592235836a52a4c687954181c53754f7d5a"
+  },
+  "reportPolicy": {
+    "maxFutureClockSkewMs": 30000,
+    "receiveTimeoutSeconds": 15
+  },
+  "cache": {
+    "root": "/tmp/openclash-guard/device-observations",
+    "volatile": true,
+    "pruneIntervalSeconds": 30
+  }
+}

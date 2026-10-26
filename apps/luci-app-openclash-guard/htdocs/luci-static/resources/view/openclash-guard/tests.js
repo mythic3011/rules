@@ -176,11 +176,11 @@ function historyTable(records, regions) {
 		var status = historyStatus(record, regions);
 		var observed = record.ok ? [ record.country || '-', record.colo || '-', record.ip || '-' ].join(' · ') : (record.error || _('Probe failed'));
 		return E('tr', {}, [
-			E('td', {}, formatTime(record.epoch)),
-			E('td', {}, record.service || '-'),
-			E('td', {}, observed),
-			E('td', {}, expectedText(record, regions)),
-			E('td', {}, E('span', { 'class': 'ocg-test-badge ' + status.klass }, status.text))
+			E('td', {}, [ formatTime(record.epoch) ]),
+			E('td', {}, [ record.service || '-' ]),
+			E('td', {}, [ observed ]),
+			E('td', {}, [ expectedText(record, regions) ]),
+			E('td', {}, E('span', { 'class': 'ocg-test-badge ' + status.klass }, [ status.text ]))
 		]);
 	})));
 }

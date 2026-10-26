@@ -1,0 +1,3 @@
+# Manual device labels are advisory metadata only.
+# This namespace is separate from openclash_guard runtime policy.
+# LuCI creates anonymous device sections with stable UCI section identifiers.

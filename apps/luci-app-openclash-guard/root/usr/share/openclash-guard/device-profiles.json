@@ -1,0 +1,247 @@
+{
+  "cache": {
+    "pruneIntervalSeconds": 30,
+    "root": "/tmp/openclash-guard/device-observations",
+    "volatile": true
+  },
+  "kinds": [
+    {
+      "id": "unknown",
+      "label": "Unknown"
+    },
+    {
+      "id": "desktop",
+      "label": "Desktop"
+    },
+    {
+      "id": "laptop",
+      "label": "Laptop"
+    },
+    {
+      "id": "mobile",
+      "label": "Mobile"
+    },
+    {
+      "id": "console",
+      "label": "Console"
+    },
+    {
+      "id": "other",
+      "label": "Other"
+    }
+  ],
+  "limits": {
+    "deviceIdPattern": "^[A-Za-z0-9_]{1,64}$",
+    "maxDeviceIdLength": 64,
+    "maxDevices": 128,
+    "maxLabelLength": 64,
+    "maxRoles": 6
+  },
+  "profiles": [
+    {
+      "id": "ini:ai-balanced",
+      "label": "AI Balanced (INI)"
+    },
+    {
+      "id": "ini:standard",
+      "label": "Standard (INI)"
+    },
+    {
+      "id": "ini:lite",
+      "label": "Lite (INI)"
+    },
+    {
+      "id": "ini:gfw",
+      "label": "GFW (INI)"
+    },
+    {
+      "id": "ini:full",
+      "label": "Full (INI)"
+    },
+    {
+      "id": "ini:mainland",
+      "label": "Mainland (INI)"
+    },
+    {
+      "id": "yaml:ai-balanced",
+      "label": "AI Balanced (YAML)"
+    },
+    {
+      "id": "yaml:ai-strict",
+      "label": "AI Strict (YAML)"
+    },
+    {
+      "id": "yaml:standard",
+      "label": "Standard (YAML)"
+    }
+  ],
+  "reportContract": {
+    "authority": "ADVISORY_ONLY_NO_ROUTING_AUTHORITY",
+    "collectionStatuses": [
+      "partial",
+      "unsupported",
+      "blocked"
+    ],
+    "confidenceValues": [
+      "heuristic_low"
+    ],
+    "freshnessValues": [
+      "fresh",
+      "stale",
+      "unavailable"
+    ],
+    "limits": {
+      "bucketCountMax": 6,
+      "bucketCountMin": 1,
+      "bucketMs": 10000,
+      "maxReportBytes": 16384,
+      "maxSocketOwners": 1024,
+      "maxSuggestions": 6,
+      "staleAfterBuckets": 2,
+      "timestampMax": 9007199254740991,
+      "timestampMin": 0,
+      "ttlMs": 60000
+    },
+    "platformHandling": [
+      {
+        "collection_status": "partial",
+        "platform": "macos",
+        "reason_code": "macos_permission_limited_snapshot"
+      },
+      {
+        "collection_status": "partial",
+        "platform": "linux",
+        "reason_code": "linux_namespace_permission_limited_snapshot"
+      },
+      {
+        "collection_status": "partial",
+        "platform": "windows",
+        "reason_code": "windows_tcp_only_no_executable_paths"
+      },
+      {
+        "collection_status": "unsupported",
+        "platform": "android",
+        "reason_code": "mobile_cross_app_collection_unsupported"
+      },
+      {
+        "collection_status": "unsupported",
+        "platform": "ios",
+        "reason_code": "mobile_cross_app_collection_unsupported"
+      },
+      {
+        "collection_status": "unsupported",
+        "platform": "other",
+        "reason_code": "platform_collection_unsupported"
+      }
+    ],
+    "platforms": [
+      "macos",
+      "linux",
+      "windows",
+      "android",
+      "ios",
+      "other"
+    ],
+    "reasonCodes": [
+      "macos_permission_limited_snapshot",
+      "linux_namespace_permission_limited_snapshot",
+      "windows_tcp_only_no_executable_paths",
+      "mobile_cross_app_collection_unsupported",
+      "platform_collection_unsupported",
+      "native_socket_source_unavailable",
+      "observation_limit_reached",
+      "executable_metadata_unavailable",
+      "no_classifiable_process_metadata"
+    ],
+    "reasonMapping": {
+      "executable_unmatched": "no_classifiable_process_metadata",
+      "native_source_unavailable": "native_socket_source_unavailable",
+      "socket_owner_executable_missing": "executable_metadata_unavailable",
+      "socket_owner_limit_reached": "observation_limit_reached"
+    },
+    "requiredKeys": [
+      "schema_version",
+      "role_catalog_version",
+      "platform",
+      "observed_at_ms",
+      "ttl_ms",
+      "window",
+      "collection_status",
+      "reason_code",
+      "role_suggestions",
+      "authority"
+    ],
+    "roleCatalogVersion": 1,
+    "roleSuggestionKeys": [
+      "role",
+      "active_bucket_count",
+      "confidence"
+    ],
+    "roles": [
+      "browser",
+      "communication",
+      "gaming",
+      "media",
+      "cloud_sync",
+      "developer"
+    ],
+    "schemaVersion": 1,
+    "semanticInvariants": [
+      "role_ids_unique",
+      "active_bucket_count_lte_window_bucket_count",
+      "unsupported_or_blocked_requires_empty_role_suggestions",
+      "observed_at_ms_plus_ttl_ms_within_timestampMs"
+    ],
+    "windowKeys": [
+      "bucket_ms",
+      "bucket_count",
+      "freshness"
+    ]
+  },
+  "reportPolicy": {
+    "maxFutureClockSkewMs": 30000,
+    "receiveTimeoutSeconds": 15
+  },
+  "roles": [
+    {
+      "id": "browser",
+      "label": "Browser"
+    },
+    {
+      "id": "communication",
+      "label": "Communication"
+    },
+    {
+      "id": "gaming",
+      "label": "Gaming"
+    },
+    {
+      "id": "media",
+      "label": "Media"
+    },
+    {
+      "id": "cloud_sync",
+      "label": "Cloud sync"
+    },
+    {
+      "id": "developer",
+      "label": "Developer"
+    }
+  ],
+  "source": {
+    "schemaId": "urn:clash-guard:device-role-observation:v1",
+    "schemaVersion": 1,
+    "sha256": "cd6589d8addd550053d1fa4cec333592235836a52a4c687954181c53754f7d5a"
+  },
+  "uci": {
+    "fields": [
+      "label",
+      "kind",
+      "manual_roles",
+      "profile_id"
+    ],
+    "package": "openclash_guard_devices",
+    "sectionType": "device"
+  },
+  "version": 1
+}
