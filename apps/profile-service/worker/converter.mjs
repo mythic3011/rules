@@ -9,6 +9,7 @@ import {
 } from "./node-adapters.mjs";
 
 const MAX_INPUT_CHARACTERS = 262_144;
+const MAX_INPUT_LINE_NUMBER = MAX_INPUT_CHARACTERS + 1;
 const MAX_SUBSCRIPTION_BYTES = 262_144;
 const MAX_REMOTE_URLS = 5;
 const MAX_NODE_COUNT = 100;
@@ -21,16 +22,19 @@ const RESERVED_BUILTIN_NAMES = new Set([
 ]);
 
 export class ConverterError extends Error {
-  constructor(message, code = "invalid_converter_input", status = 400) {
+  constructor(message, code = "invalid_converter_input", status = 400, line) {
     super(message);
     this.name = "ConverterError";
     this.code = code;
     this.status = status;
+    if (Number.isSafeInteger(line) && line >= 1 && line <= MAX_INPUT_LINE_NUMBER) {
+      this.line = line;
+    }
   }
 }
 
-function reject(message, code, status) {
-  throw new ConverterError(message, code, status);
+function reject(message, code, status, line) {
+  throw new ConverterError(message, code, status, line);
 }
 
 function isRecord(value) {
@@ -55,9 +59,9 @@ function hasProxyYamlShape(text) {
   return /^\s*(?:---\s*)?(?:proxies\s*:|proxy-groups\s*:)/mu.test(text);
 }
 
-function boundedNodeLine(line) {
+function boundedNodeLine(line, sourceLine) {
   if (line.length > MAX_NODE_LINE_LENGTH) {
-    reject("A node entry exceeds the size limit", "node_too_large", 413);
+    reject("A node entry exceeds the size limit", "node_too_large", 413, sourceLine);
   }
   return line.trim();
 }
@@ -84,21 +88,25 @@ function uniqueNodeNames(nodes, reservedNames = []) {
   });
 }
 
-function parseUriLines(text) {
-  const lines = text.split(/\r?\n/u)
-    .map(boundedNodeLine)
-    .filter((line) => line && !line.startsWith("#"));
+function indexedLines(text) {
+  return String(text).split(/\r?\n/u)
+    .map((textLine, index) => ({ line: index + 1, text: boundedNodeLine(textLine, index + 1) }))
+    .filter(({ text }) => text && !text.startsWith("#"));
+}
+
+function parseUriLines(source) {
+  const lines = Array.isArray(source) ? source : indexedLines(source);
   if (!lines.length) reject("No proxy nodes were found", "no_nodes");
-  if (lines.length > MAX_NODE_COUNT) reject("A maximum of 100 proxy nodes is allowed", "too_many_nodes", 413);
-  const nodes = lines.map((line, index) => {
+  if (lines.length > MAX_NODE_COUNT) reject("A maximum of 100 proxy nodes is allowed", "too_many_nodes", 413, lines[MAX_NODE_COUNT]?.line);
+  const nodes = lines.map(({ text: line, line: sourceLine }, index) => {
     if (!recognizedNodeScheme(line)) {
-      reject("Subscription content must contain supported proxy links", "unsupported_subscription_format");
+      reject("Subscription content must contain supported proxy links", "unsupported_subscription_format", 400, sourceLine);
     }
     try {
       return parseNodeUri(line, index);
     } catch (error) {
       if (error instanceof NodeInputError) {
-        reject(`Node ${index + 1}: ${error.message}`, error.code);
+        reject(error.message, error.code, 400, sourceLine);
       }
       throw error;
     }
@@ -193,20 +201,27 @@ function validateClashNodes(text) {
 }
 
 function parseSubscriptionText(rawText) {
-  let text = String(rawText).replace(/^\uFEFF/u, "").trim();
+  let text = String(rawText).replace(/^\uFEFF/u, "");
   if (!text) reject("Input is empty", "empty_input");
   if (text.length > MAX_INPUT_CHARACTERS) reject("Input exceeds the 256 KiB limit", "input_too_large", 413);
-  if (hasProxyYamlShape(text)) return validateClashNodes(text);
+  if (hasProxyYamlShape(text.trim())) return validateClashNodes(text);
 
-  const lines = text.split(/\r?\n/u).map((line) => line.trim()).filter(Boolean);
-  if (lines.length === 1 && !recognizedNodeScheme(lines[0])) {
-    const decoded = decodeBase64(lines[0]);
+  let lines = indexedLines(text);
+  if (lines.length === 1 && !recognizedNodeScheme(lines[0].text)) {
+    const sourceLine = lines[0].line;
+    const decoded = decodeBase64(lines[0].text);
     if (decoded) {
-      text = decoded.replace(/^\uFEFF/u, "").trim();
-      if (hasProxyYamlShape(text)) return validateClashNodes(text);
+      text = decoded.replace(/^\uFEFF/u, "");
+      if (hasProxyYamlShape(text.trim())) return validateClashNodes(text);
+      lines = indexedLines(text);
+      try {
+        return parseUriLines(lines);
+      } catch (error) {
+        rethrowAtInputLine(error, sourceLine);
+      }
     }
   }
-  return parseUriLines(text);
+  return parseUriLines(lines);
 }
 
 function allowedHostSet(env) {
@@ -334,48 +349,58 @@ function isTopLevelRemoteSubscription(text, format) {
   }
 }
 
-function sourceLines(text) {
-  return text.split(/\r?\n/u)
-    .map(boundedNodeLine)
-    .filter((line) => line && !line.startsWith("#"));
-}
-
 function parseDirectLines(lines) {
   if (!lines.length) return [];
-  return parseUriLines(lines.join("\n"));
+  return parseUriLines(lines);
 }
 
 function prepareTopLevelInput(source, format) {
-  const text = String(source).replace(/^\uFEFF/u, "").trim();
+  const sourceText = String(source).replace(/^\uFEFF/u, "");
+  const text = sourceText.trim();
   if (!text) reject("Input is empty", "empty_input");
   if (text.length > MAX_INPUT_CHARACTERS) reject("Input exceeds the 256 KiB limit", "input_too_large", 413);
   if (format !== "proxy" && hasProxyYamlShape(text)) {
     return { nodes: validateClashNodes(text), remoteUrls: [] };
   }
 
-  const lines = sourceLines(text);
-  if (format !== "proxy" && lines.length === 1 && !recognizedNodeScheme(lines[0])) {
-    const decoded = decodeBase64(lines[0]);
+  const lines = indexedLines(sourceText);
+  if (format !== "proxy" && lines.length === 1 && !recognizedNodeScheme(lines[0].text)) {
+    const sourceLine = lines[0].line;
+    const decoded = decodeBase64(lines[0].text);
     if (decoded) {
       // A pasted Base64 subscription is parsed as one document. Links inside it never trigger fetches.
-      return { nodes: parseSubscriptionText(decoded), remoteUrls: [] };
+      try {
+        return { nodes: parseSubscriptionText(decoded), remoteUrls: [] };
+      } catch (error) {
+        if (error instanceof ConverterError && Number.isSafeInteger(error.line)) {
+          throw new ConverterError(error.message, error.code, error.status, sourceLine);
+        }
+        throw error;
+      }
     }
   }
   if (!lines.length) reject("No proxy nodes or subscriptions were found", "no_nodes");
 
   const nodeLines = [];
   const remoteUrls = [];
-  for (const line of lines) {
-    if (isTopLevelRemoteSubscription(line, format)) {
-      remoteUrls.push(line);
+  for (const entry of lines) {
+    if (isTopLevelRemoteSubscription(entry.text, format)) {
+      remoteUrls.push(entry);
     } else {
-      nodeLines.push(line);
+      nodeLines.push(entry);
     }
   }
   if (remoteUrls.length > MAX_REMOTE_URLS) {
-    reject("A maximum of 5 remote subscription URLs is allowed", "too_many_subscriptions", 413);
+    reject("A maximum of 5 remote subscription URLs is allowed", "too_many_subscriptions", 413, remoteUrls[MAX_REMOTE_URLS]?.line);
   }
   return { nodes: parseDirectLines(nodeLines), remoteUrls };
+}
+
+function rethrowAtInputLine(error, line) {
+  if (error instanceof ConverterError) {
+    throw new ConverterError(error.message, error.code, error.status, line);
+  }
+  throw error;
 }
 
 function clonePlainValue(value) {
@@ -420,7 +445,7 @@ export async function convertInput({ input, format = "auto", spec, env = {}, fet
     reject("Format must be auto, proxy, or subscription", "invalid_format");
   }
   const outputProfile = profile ?? resolveOutputProfile({ outputFormat: "yaml", spec });
-  const source = input.trim();
+  const source = input.replace(/^\uFEFF/u, "");
   const inputData = prepareTopLevelInput(source, format);
   let nodes = inputData.nodes;
   if (nodes.length > MAX_NODE_COUNT) {
@@ -430,20 +455,30 @@ export async function convertInput({ input, format = "auto", spec, env = {}, fet
     if (typeof fetcher !== "function") reject("Remote subscriptions are unavailable", "subscription_fetch_failed", 503);
     const allowedHosts = allowedHostSet(env);
     // Validate every explicit remote before any fetch so a denied entry cannot leave a partial conversion.
-    const urls = inputData.remoteUrls.map((value) => validateSubscriptionUrl(value, allowedHosts));
+    const urls = inputData.remoteUrls.map(({ text, line }) => {
+      try {
+        return { url: validateSubscriptionUrl(text, allowedHosts), line };
+      } catch (error) {
+        rethrowAtInputLine(error, line);
+      }
+    });
     let downloadedBytes = 0;
-    for (const url of urls) {
+    for (const { url, line } of urls) {
       const remainingBytes = MAX_SUBSCRIPTION_BYTES - downloadedBytes;
       if (remainingBytes <= 0) {
-        reject("Combined remote subscriptions exceed the 256 KiB limit", "subscription_too_large", 413);
+        reject("Combined remote subscriptions exceed the 256 KiB limit", "subscription_too_large", 413, line);
       }
-      const downloaded = await fetchSubscription(url, fetcher, remainingBytes);
-      downloadedBytes += downloaded.bytes;
-      const importedNodes = parseSubscriptionText(downloaded.text);
-      if (nodes.length + importedNodes.length > MAX_NODE_COUNT) {
-        reject("A maximum of 100 proxy nodes is allowed", "too_many_nodes", 413);
+      try {
+        const downloaded = await fetchSubscription(url, fetcher, remainingBytes);
+        downloadedBytes += downloaded.bytes;
+        const importedNodes = parseSubscriptionText(downloaded.text);
+        if (nodes.length + importedNodes.length > MAX_NODE_COUNT) {
+          reject("A maximum of 100 proxy nodes is allowed", "too_many_nodes", 413, line);
+        }
+        nodes = [...nodes, ...importedNodes];
+      } catch (error) {
+        rethrowAtInputLine(error, line);
       }
-      nodes = [...nodes, ...importedNodes];
     }
   }
   if (!nodes.length) reject("No proxy nodes were found", "no_nodes");

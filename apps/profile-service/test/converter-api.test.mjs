@@ -50,6 +50,28 @@ test("converter returns sanitized errors and rejects unknown request fields", as
   assert.equal((await unknown.json()).error, "unknown_converter_field");
 });
 
+test("converter returns only typed, original input line metadata for safe localized errors", async () => {
+  const response = await worker.fetch(
+    convertRequest({
+      input: [
+        "socks5h://valid-user:valid-secret@valid.example:1080",
+        "",
+        "socks5://alice:private-password@proxy.example:70000",
+      ].join("\n"),
+      format: "proxy",
+    }),
+    envWithoutDb,
+  );
+
+  assert.equal(response.status, 400);
+  const body = await response.json();
+  assert.equal(body.error, "invalid_node");
+  assert.equal(body.line, 3);
+  assert.equal(Object.hasOwn(body, "input"), false);
+  assert.equal(Object.hasOwn(body, "source"), false);
+  assert.doesNotMatch(body.message, /alice|private-password|proxy\.example|valid-secret/u);
+});
+
 test("remote subscription links fail closed when no exact host is configured", async () => {
   const response = await worker.fetch(
     convertRequest({ input: "https://feeds.example.net/sub?token=private", format: "subscription" }),
