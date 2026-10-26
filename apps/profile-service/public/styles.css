@@ -545,7 +545,7 @@ summary { cursor: pointer; }
 
 .group-choice:hover { background: var(--hover); }
 
-.group-choice[aria-pressed="true"] {
+.group-choice[aria-checked="true"] {
   background: var(--accent-dim);
   box-shadow: inset 3px 0 var(--group-accent);
 }
@@ -828,34 +828,76 @@ summary { cursor: pointer; }
   outline-offset: 2px;
 }
 
-.tool-ini #profile-options:has(#service-group-editor) {
+.service-group-customization > summary {
+  cursor: pointer;
+  font-size: 1.02rem;
+  font-weight: 700;
+}
+
+.service-group-customization[open] > summary { margin-bottom: 16px; }
+.service-group-editor-content { margin-top: 0; padding-top: 0; border-top: 0; }
+
+#result,
+#preview-result,
+#status { scroll-margin-top: 160px; }
+
+#editor-state,
+#preview-state {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+#editor-state { font-weight: 600; }
+#preview-state { color: var(--muted); }
+#editor-state[data-state="dirty"],
+#editor-state[data-state="invalid"],
+#preview-state[data-state="outdated"] { color: var(--warning); }
+
+.editor-feedback {
+  flex-basis: 100%;
+  padding: 8px 6px 2px;
+  border-top: 1px solid var(--line);
+}
+
+.preview-state-label,
+#preview-state-label { font-weight: 600; }
+#preview-state-help { display: block; }
+
+#preview-summary dl {
   display: grid;
-  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
-  column-gap: 0;
-  align-items: start;
+  grid-template-columns: minmax(130px, 0.35fr) minmax(0, 1fr);
+  gap: 8px 18px;
+  margin: 16px 0 20px;
 }
 
-.tool-ini #profile-options:has(#service-group-editor) > h2 { grid-column: 1 / -1; }
+#preview-summary dt { color: var(--muted); font-weight: 500; }
+#preview-summary dd { margin: 0; overflow-wrap: anywhere; }
 
-.tool-ini #profile-options:has(#service-group-editor) > .profile-rail {
-  grid-column: 1;
-  grid-row: 2;
+.result-steps {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  margin: 20px 0;
 }
 
-.tool-ini #profile-options:has(#service-group-editor) > #service-group-editor {
-  grid-column: 2;
-  grid-row: 2;
-  margin-top: 0;
-  padding-top: 0;
-  padding-left: 28px;
-  border-top: 0;
-  border-left: 1px solid var(--line);
-}
+.result-step { min-width: 0; }
+.result-step + .result-step { padding-left: 24px; border-left: 1px solid var(--line); }
+.result-step h3 { margin: 0 0 8px; font-size: 1rem; }
+.result-step .copy-row { margin-top: 12px; }
+#result-intro { max-width: 70ch; }
+#result-manage-open { display: inline-block; margin-top: 12px; font-weight: 600; }
 
-.tool-ini #profile-options:has(#service-group-editor) .region-grid,
-.tool-ini #profile-options:has(#service-group-editor) .mode-row {
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-}
+.saved-state-note,
+.converter-output-summary { color: var(--muted); font-size: 0.875rem; }
+.saved-state-note[data-state="dirty"],
+.converter-output-summary[data-state="outdated"] { color: var(--warning); }
+
+.converter-output-details { margin: 16px 0; }
+.converter-output-details > summary { font-weight: 600; }
+.converter-output-details[open] > summary { margin-bottom: 10px; }
+
+[aria-busy="true"] { cursor: progress; }
 
 .converter-layout {
   display: grid;
@@ -897,17 +939,6 @@ summary { cursor: pointer; }
     overflow: visible;
   }
   .converter-stage .panel { margin: 0 0 16px; }
-}
-
-@media (max-width: 980px) {
-  .tool-ini #profile-options:has(#service-group-editor) { display: block; }
-  .tool-ini #profile-options:has(#service-group-editor) > #service-group-editor {
-    margin-top: 22px;
-    padding-top: 18px;
-    padding-left: 0;
-    border-top: 1px solid var(--line);
-    border-left: 0;
-  }
 }
 
 @media (max-width: 780px) {
@@ -971,6 +1002,13 @@ summary { cursor: pointer; }
   .prefer-add button,
   .copy-row button { width: 100%; }
   .result-heading { flex-direction: column; align-items: flex-start; gap: 2px; }
+  #preview-summary dl { grid-template-columns: minmax(0, 1fr); gap: 3px; }
+  #preview-summary dd { margin-bottom: 10px; }
+  .result-steps { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+  .result-step + .result-step { padding: 20px 0 0; border-left: 0; border-top: 1px solid var(--line); }
+  #result,
+  #preview-result,
+  #status { scroll-margin-top: 16px; }
 }
 
 /* After the 780px query, so a matching container keeps the 168px choice basis. */
