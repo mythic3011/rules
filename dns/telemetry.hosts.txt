@@ -2,20 +2,20 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/internal/python/generate_adblock_outputs.py
 # CATEGORY: telemetry
-# GENERATED_AT: 2026-10-08T10:44:13Z
-# TOTAL: 1994
+# GENERATED_AT: 2026-10-26T09:11:06Z
+# TOTAL: 1991
 # FORMAT: hosts
-# UPSTREAM hagezi_native_apple: 106
+# UPSTREAM hagezi_native_apple: 110
 # UPSTREAM hagezi_native_apple HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_huawei: 135
 # UPSTREAM hagezi_native_huawei HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_oppo_realme: 488
+# UPSTREAM hagezi_native_oppo_realme: 489
 # UPSTREAM hagezi_native_oppo_realme HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_samsung: 200
 # UPSTREAM hagezi_native_samsung HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_tiktok: 449
+# UPSTREAM hagezi_native_tiktok: 437
 # UPSTREAM hagezi_native_tiktok HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_vivo: 240
+# UPSTREAM hagezi_native_vivo: 244
 # UPSTREAM hagezi_native_vivo HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_xiaomi: 345
 # UPSTREAM hagezi_native_xiaomi HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -146,6 +146,7 @@
 0.0.0.0 adx-op-in.heytapmobile.com
 0.0.0.0 adx-op-ru.heytapmobile.com
 0.0.0.0 adx-op-sg.heytapmobile.com
+0.0.0.0 adx-u-in.heytapmobile.com
 0.0.0.0 adx-u-ru.heytapmobile.com
 0.0.0.0 adx-u-sg.heytapmobile.com
 0.0.0.0 adx.ads.oppomobile.com
@@ -274,6 +275,7 @@
 0.0.0.0 api.xmpush.xiaomi.com
 0.0.0.0 apisnd.heytapmobi.com
 0.0.0.0 apkrep.ff.avast.sec.miui.com
+0.0.0.0 app-events.infoapps.apple.com
 0.0.0.0 app.bugsnag.com
 0.0.0.0 app.getsentry.com
 0.0.0.0 app.greengurad.sec.miui.com
@@ -397,6 +399,7 @@
 0.0.0.0 child.sec.miui.com
 0.0.0.0 chong.sec.miui.com
 0.0.0.0 ck.ads.oppomobile.com
+0.0.0.0 cl-vcode-api.vivoglobal.com
 0.0.0.0 claritybt.freshmarketer.com
 0.0.0.0 classify-app-eu.allawnos.com
 0.0.0.0 classify-app-in.allawnos.com
@@ -519,6 +522,7 @@
 0.0.0.0 cname-in-bom01-nginxpool03.vivoglobal.com
 0.0.0.0 cname-in-ctdbonrt-stsdk.vivoglobal.com
 0.0.0.0 cname-sin01-stsdk09.vivoglobal.com
+0.0.0.0 co-album-api.vivoglobal.com
 0.0.0.0 co-cota.vivoglobal.com
 0.0.0.0 co-domaincfg.vivoglobal.com
 0.0.0.0 co-onrt-stsdk.vivoglobal.com
@@ -748,6 +752,7 @@
 0.0.0.0 fr-api.xmpush.global.xiaomi.com
 0.0.0.0 fr-register.xmpush.global.xiaomi.com
 0.0.0.0 fr.feedback.xmpush.global.xiaomi.com
+0.0.0.0 freeform-events.apple.com
 0.0.0.0 freshmarketer.com
 0.0.0.0 frontier-us-ttp2.capcutw.us
 0.0.0.0 frontier.byteoversea.com
@@ -952,11 +957,13 @@
 0.0.0.0 kz-p.vivoglobal.com
 0.0.0.0 kz-pnrt-stsdk.vivoglobal.com
 0.0.0.0 kz-prt-stsdk.vivoglobal.com
+0.0.0.0 kz-romsp-unifyconfig.vivoglobal.com
 0.0.0.0 kz-st-exappupgrade.vivoglobal.com
 0.0.0.0 kz-st-sl.vivoglobal.com
 0.0.0.0 kz-st-sysupgrade.vivoglobal.com
 0.0.0.0 kz-stsdk.vivoglobal.com
 0.0.0.0 kz-timesync.vivoglobal.com
+0.0.0.0 kz-vcode-api.vivoglobal.com
 0.0.0.0 kz-vcode-od.vivoglobal.com
 0.0.0.0 kz-vcode-or.vivoglobal.com
 0.0.0.0 launch.apple.com
@@ -1106,7 +1113,6 @@
 0.0.0.0 mcs-i18n.tiktok.com
 0.0.0.0 mcs-ie.tiktokw.eu
 0.0.0.0 mcs-ie2.tiktokw.eu
-0.0.0.0 mcs-ie2.tiktokw.eu.dvaitas.lt
 0.0.0.0 mcs-normal-sg.capcutapi.com
 0.0.0.0 mcs-tiktok.byteoversea.net
 0.0.0.0 mcs-ttp2.tiktokv.us
@@ -1283,7 +1289,6 @@
 0.0.0.0 mon-csj-maliva-ios.byteoversea.com
 0.0.0.0 mon-hl.snssdk.com
 0.0.0.0 mon-i18n.tiktokv.com
-0.0.0.0 mon-i18n.tiktokv.com.dvaitas.lt
 0.0.0.0 mon-phx.tiktokv.com
 0.0.0.0 mon-ru.tiktokv.com
 0.0.0.0 mon-sg.capcutapi.com
@@ -1314,23 +1319,13 @@
 0.0.0.0 msg2.video.ptqy.gitv.tv
 0.0.0.0 msga.ptqy.gitv.tv
 0.0.0.0 mssdk-bu.snssdk.com
-0.0.0.0 mssdk-i18n.tiktok.com
-0.0.0.0 mssdk-i18n.tiktokv.com
-0.0.0.0 mssdk-phx.tiktokv.com
-0.0.0.0 mssdk-ru.tiktokv.com
 0.0.0.0 mssdk-sg-bu.byteoversea.com
 0.0.0.0 mssdk-sg.byteoversea.com
 0.0.0.0 mssdk-sg.capcutapi.com
-0.0.0.0 mssdk-sg.tiktokv.com
 0.0.0.0 mssdk-va-useast2a.byteoversea.com
-0.0.0.0 mssdk-va-useast2a.tiktokv.com
 0.0.0.0 mssdk-va.byteoversea.com
 0.0.0.0 mssdk.capcutapi.us
 0.0.0.0 mssdk.snssdk.com
-0.0.0.0 mssdk.tiktokw.eu
-0.0.0.0 mssdk.tiktokw.us
-0.0.0.0 mssdk.us.tiktok.com
-0.0.0.0 mssdk.us.tiktokv.com
 0.0.0.0 mssdk16-normal-sg.capcutapi.com
 0.0.0.0 mssdk16-normal-us-ttp.capcutapi.us
 0.0.0.0 mssdk16-normal-us-ttp2.capcutapi.us
@@ -1473,12 +1468,14 @@
 0.0.0.0 preload.xiaomi.com
 0.0.0.0 preview.crm.sms.miui.com
 0.0.0.0 privacy.miui.com
+0.0.0.0 prod-app-analytics-event-gateway.v.aaplimg.com
 0.0.0.0 prod-event-relay-api.v.aaplimg.com
 0.0.0.0 prod-event-relay-books-api.v.aaplimg.com
 0.0.0.0 prod-event-relay-notes-api.v.aaplimg.com
 0.0.0.0 prod-event-relay-sports-api.v.aaplimg.com
 0.0.0.0 prod-event-relay-stocks-api.v.aaplimg.com
 0.0.0.0 prod-event-relay-weather-api.v.aaplimg.com
+0.0.0.0 prod-iwork-events.v.aaplimg.com
 0.0.0.0 prod-news-notification-events.v.aaplimg.com
 0.0.0.0 protect.dev.sec.intl.miui.com
 0.0.0.0 protect.dev.sec.miui.com
