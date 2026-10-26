@@ -127,7 +127,7 @@ CLOUDFLARE_ACCOUNT_ID=your-account-id mise run deploy
 Before migrations, setup records the selected D1 database ID in that Wrangler config so later steps keep using the same database. The default config may therefore gain an account-specific `database_id` after first setup; do not commit that live ID to shared source. For another account or environment, use a separate operator-owned config. `wrangler.local.jsonc` is gitignored and can be selected explicitly with `--config`; Wrangler does not discover it automatically. Config paths are relative to `apps/profile-service/`:
 
 ```sh
-mise exec -- pnpm --filter mythic-rules-profile-service deploy --config wrangler.local.jsonc --env staging
+mise exec -- pnpm --filter mythic-rules-profile-service run deploy --config wrangler.local.jsonc --env staging
 ```
 
 Automatic D1 ID recording requires a JSON or JSONC config. For TOML, set `database_id` explicitly before deployment; otherwise setup stops before creating a database.
@@ -138,7 +138,20 @@ Automatic D1 ID recording requires a JSON or JSONC config. For TOML, set `databa
 
 Pull requests run the existing AI-profile validation pipeline, a Worker bundle check, and the two browser journeys against local Wrangler with Chromium.
 
-For deployment, create the GitHub environment **profile-service-production** and add its `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` secrets. Scope the token to the intended account with Workers Scripts and D1 edit permissions. Then select **Actions → Deploy profile service → Run workflow** on the default branch. The workflow validates the checked-in sources and generated outputs, then uses the same `mise run deploy` entrypoint. It does not deploy automatically on pushes or pull requests. No live D1 ID is committed back from the runner.
+1. Create the GitHub environment **profile-service-production** and restrict deployment branches to **main**.
+2. Create a Cloudflare API token scoped to the destination account. For granular Workers roles, use an account-owned token with the permissions below.
+3. Add `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` as secrets in that GitHub environment.
+4. Select **Actions → Deploy profile service → Run workflow** on **main**.
+
+| Operation | Cloudflare token permission |
+| --- | --- |
+| Create the Worker on the first deployment | Workers product-level **Admin** in the destination account |
+| Update an existing Worker | **Editor** scoped to `mythic-rules-profile-service` |
+| List or create D1 databases and apply remote migrations | Account **D1 Edit** (called **D1 Write** in the API reference) |
+
+After the first deployment, reduce Workers access to Editor for this Worker. Keep D1 Edit because every deployment checks the database and applies pending migrations. See Cloudflare's [Workers roles and permissions](https://developers.cloudflare.com/workers/authorization/workers/), [API token permission names](https://developers.cloudflare.com/fundamentals/api/reference/permissions/), and [D1 creation permissions](https://developers.cloudflare.com/api/resources/d1/subresources/database/methods/create/). The checked-in config uses `workers.dev` and declares no routes or custom domains, so it requires no zone or DNS permissions.
+
+The workflow validates the checked-in sources and generated outputs, then uses the same `mise run deploy` entrypoint. Deployment is manual. No live D1 ID is committed back from the runner. GitHub's `contents: read` permission is sufficient for this job; Cloudflare access comes from the API token.
 
 To require approval, configure required reviewers in that environment's protection rules. Naming an environment alone does not add an approval step.
 
