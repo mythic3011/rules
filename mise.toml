@@ -74,4 +74,4 @@ run = "pnpm --filter mythic-rules-profile-service deploy:setup"
 
 [tasks.deploy]
 description = "Check, provision D1, migrate, and deploy profile-service"
-run = "pnpm --filter mythic-rules-profile-service deploy"
+run = "pnpm --filter mythic-rules-profile-service run deploy"
