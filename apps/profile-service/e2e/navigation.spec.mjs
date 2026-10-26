@@ -73,4 +73,3 @@ test("keeps an invalid raw draft through nonlinear navigation and reload, then r
   await expect(page.locator("#preview-result")).toBeFocused();
   await expect(page.locator("#preview-result")).toBeInViewport({ ratio: 0.2 });
 });
-
