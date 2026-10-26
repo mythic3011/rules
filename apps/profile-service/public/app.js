@@ -60,7 +60,8 @@ function setStatus(key, values = {}, error = false) {
 }
 function renderStatus() {
   const completion = state.route?.section === "success";
-  $("status").hidden = !state.status || completion && !["copied", "clipboardUnavailable"].includes(state.status.key);
+  $("status").hidden = !state.status || completion
+    && !["copied", "clipboardUnavailable", "languageFallback", "languageChangeFailed"].includes(state.status.key);
   $("status").classList.toggle("error", Boolean(state.status?.error));
   $("status").textContent = state.status ? translate(state.status.key, state.status.values) : "";
 }

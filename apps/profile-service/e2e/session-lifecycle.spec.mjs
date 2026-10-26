@@ -146,3 +146,16 @@ test("legacy management options remain visibly inherited until explicitly change
   await expect(page.locator("#editor-state")).toHaveAttribute("data-state", "clean");
   expect(await page.locator("#allow-direct").evaluate((node) => node.indeterminate)).toBe(true);
 });
+
+test("a failed language change remains visible beside the saved success result", async ({ page, request }) => {
+  const english = await (await request.get("/locales/en.json")).json();
+  await createLocalProfile(page);
+  await page.route("**/locales/zh-Hant.json", (route) => route.fulfill({ status: 503 }));
+  await page.locator("#language").selectOption("zh-Hant");
+  await expect(page.locator("#status")).toBeVisible();
+  await expect(page.locator("#status")).toHaveText(english.languageChangeFailed.replaceAll("{language}", english.languageNames["zh-Hant"]));
+  await expect(page.locator("#language")).toHaveValue("en");
+  await expect(page.locator("#result")).toBeVisible();
+  await expect(page.locator("#profile-context")).toContainText("Saved profile");
+  await expect(page.locator("#success-draft-notice")).toBeHidden();
+});
