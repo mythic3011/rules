@@ -15,6 +15,12 @@ A self-hosted Cloudflare Worker with two browser tools:
 4. For YAML, use **Auto detect** to paste proxy links and HTTPS subscription URLs together, one entry per line. A conversion accepts at most five remote subscriptions, 256 KiB of downloaded subscription content in total, and 100 nodes. Pasted input has a separate 262,144-character limit and a 300,000-byte JSON request limit.
 5. Copy or download the YAML. After import, select a node in a regional group, then choose that region in the pinned selector. With **Fail closed** enabled, also select allowed routes for DNS and each service you use. Selections stay manual.
 
+### Builder states and next steps
+
+The editor is your **draft**. **Preview** shows a snapshot of that draft and is marked outdated after you change routing settings. **Saved profile** is the last revision behind the subscription URL; previewing alone does not save changes.
+
+After creating a profile, copy the read-only URL into OpenClash as its **Custom Template URL**, then save the separate management link somewhere private. Use the management link to edit and save the profile; the public builder only creates subscriptions. With **Fail closed** enabled, choose an allowed exit in your proxy client after import.
+
 The YAML converter accepts `socks5h`, HTTPS proxy, and standard node links, plus pasted subscription text. Put each link or subscription URL on its own line. Paste Clash YAML or Base64 subscription data as a complete document by itself, not mixed with links. Every remote URL must match the exact-host allowlist; if any entry fails, the request returns no partial profile. Input and output stay in the page until you clear them or close the page. YAML can contain proxy credentials.
 
 An HTTPS link with explicit proxy connection details is a proxy in **Auto detect** mode. Use **Subscription URLs or content** mode for bare HTTPS subscription URLs with an explicit port.
@@ -136,7 +142,7 @@ Automatic D1 ID recording requires a JSON or JSONC config. For TOML, set `databa
 
 ### GitHub Actions
 
-Pull requests run the existing AI-profile validation pipeline, a Worker bundle check, and the two browser journeys against local Wrangler with Chromium.
+Pull requests run the existing AI-profile validation pipeline, a Worker bundle check, and browser journeys against local Wrangler with Chromium.
 
 1. Create the GitHub environment **profile-service-production** and restrict deployment branches to **main**.
 2. Create a Cloudflare API token scoped to the destination account. For granular Workers roles, use an account-owned token with the permissions below.
