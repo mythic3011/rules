@@ -143,6 +143,8 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
     preferredServices: [],
     serviceGroups: copyServiceGroups(cached.serviceGroupsByTemplate?.[`${outputFormat}/${initialTemplate}`]),
     selectedServiceGroup: "",
+    serviceCustomizationOpen: false,
+    focusSelectedServiceGroup: false,
     servicePaletteOpen: false,
     routePaletteOpen: true,
     groupSettingsOpen: false,
@@ -210,7 +212,9 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
     }
     const only = state.regionMode === "only" ? cleanedOrder(state.selectedRegions, routableRegions()) : [];
     if (state.regionMode === "only" && only.length === 0) {
-      throw new Error(translate("onlyRequiresRegion"));
+      const error = new Error(translate("onlyRequiresRegion"));
+      error.translationKey = "onlyRequiresRegion";
+      throw error;
     }
     const disabled = state.regionMode === "exclude" ? cleanedOrder(state.selectedRegions, regions) : [];
     Object.assign(spec, {
@@ -326,6 +330,7 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
       if (node) assign(node.open);
     };
     captureOpen(".profile-advanced", (open) => { state.advancedOpen = open; });
+    captureOpen("#service-group-customization", (open) => { state.serviceCustomizationOpen = open; });
     if (state.resetGroupPanels) {
       state.servicePaletteOpen = false;
       state.routePaletteOpen = true;
@@ -374,6 +379,8 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
         description.className = "hint template-description";
         rail.append(description);
       }
+      const scope = outputFormat === "ini" ? "iniTemplateScope" : "yamlTemplateScope";
+      appendHint(document, rail, scope);
     }
     if (selectedTemplate?.supportsProfileOptions === false) {
       root.append(rail);
@@ -460,9 +467,15 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
     const templateGroups = serviceGroups.filter((group) => !group.baseProfile || group.baseProfile === state.baseProfile);
     let serviceGroupEditor = null;
     if (templateGroups.length) {
+      const customization = document.createElement("details");
+      customization.id = "service-group-customization";
+      customization.className = "profile-subsection service-group-customization";
+      customization.open = state.serviceCustomizationOpen;
+      customization.addEventListener("toggle", () => { state.serviceCustomizationOpen = customization.open; });
+      customization.append(child(document, "summary", undefined, "serviceGroupCustomization"));
       const editor = document.createElement("section");
       editor.id = "service-group-editor";
-      editor.className = "profile-subsection";
+      editor.className = "service-group-editor-content";
       mountServiceGroupEditor({
         root: editor, groups: templateGroups, regions, services,
         value: state.serviceGroups, selectedGroup: state.selectedServiceGroup,
@@ -476,8 +489,9 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
         allowDirect: state.allowDirect, failClosed: state.failClosed,
         disabledRegions: state.regionMode === "exclude" ? state.selectedRegions : [],
         onlyRegions: state.regionMode === "only" ? state.selectedRegions : [],
-        onSelect(id, rerender = true) {
+        onSelect(id, rerender = true, focus = false) {
           state.selectedServiceGroup = id;
+          state.focusSelectedServiceGroup = focus === true;
           state.resetGroupPanels = true;
           if (rerender) render();
         },
@@ -487,7 +501,8 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
           persist();
         },
       });
-      serviceGroupEditor = editor;
+      customization.append(editor);
+      serviceGroupEditor = customization;
     }
 
     const extra = document.createElement("details");
@@ -556,7 +571,7 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
     rail.append(extra);
     root.append(rail);
     if (serviceGroupEditor) root.append(serviceGroupEditor);
-    const selectedGroup = root.querySelector?.(".group-choice[aria-pressed=true]");
+    const selectedGroup = root.querySelector?.('.group-choice[aria-checked="true"]');
     const groupList = root.querySelector?.("#service-group-list");
     if (selectedGroup?.getBoundingClientRect && groupList?.getBoundingClientRect) {
       const selectedBounds = selectedGroup.getBoundingClientRect();
@@ -568,14 +583,18 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
         groupList.scrollTop += selectedBounds.top - listBounds.top;
       }
     }
-    restoreFocus(focusedId);
+    const focusId = state.focusSelectedServiceGroup
+      ? `service-group-select-${state.selectedServiceGroup}`
+      : focusedId;
+    state.focusSelectedServiceGroup = false;
+    restoreFocus(focusId);
   }
 
   function restoreFocus(id) {
     if (!id || !document.getElementById) return;
     let candidate = document.getElementById(id);
     if (id === "create-service-group" || id === "delete-service-group") {
-      candidate = document.querySelector?.(".group-choice[aria-pressed=true]");
+      candidate = document.querySelector?.('.group-choice[aria-checked="true"]');
     }
     if ((!candidate || candidate.disabled) && id.startsWith("route-available-")) {
       candidate = document.getElementById(`group-route-${id.slice("route-available-".length)}`);
@@ -583,7 +602,7 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
       candidate = document.getElementById(`group-service-${id.slice("group-service-available-".length)}-remove`);
     }
     if (!candidate && (id.startsWith("group-route-") || id.startsWith("group-service-"))) {
-      candidate = document.querySelector?.(".group-choice[aria-pressed=true]");
+      candidate = document.querySelector?.('.group-choice[aria-checked="true"]');
     }
     if (!candidate || !root.contains?.(candidate)) return;
     try {

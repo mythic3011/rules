@@ -19,6 +19,8 @@ class FakeNode {
     this.textContent = "";
     this.checked = false;
     this.disabled = false;
+    this.hidden = false;
+    this.tabIndex = 0;
     this.title = "";
     this.classList = { add() {}, remove() {} };
   }
@@ -41,11 +43,26 @@ class FakeNode {
     this.listeners.set(name, callback);
   }
 
-  dispatch(name) {
+  dispatch(name, values = {}) {
     if (name === "click" && this.tagName === "summary" && this.parentNode?.tagName === "details") {
       this.parentNode.open = !this.parentNode.open;
     }
-    return this.listeners.get(name)?.({ target: this });
+    let defaultPrevented = false;
+    return this.listeners.get(name)?.({
+      target: this,
+      currentTarget: this,
+      preventDefault() { defaultPrevented = true; },
+      get defaultPrevented() { return defaultPrevented; },
+      ...values,
+    });
+  }
+
+  focus() {
+    this.ownerDocument.activeElement = this;
+  }
+
+  contains(node) {
+    return walk(this).includes(node);
   }
 
   setAttribute(name, value) {
@@ -57,11 +74,23 @@ class FakeNode {
   }
 
   querySelector(selector) {
+    const classAttributeMatch = selector.match(/^\.([\w-]+)\[([\w-]+)="([^"]+)"\]$/u);
+    if (classAttributeMatch) {
+      const [, className, attribute, value] = classAttributeMatch;
+      return walk(this).find((node) => (node.className ?? "").split(/\s+/u).includes(className)
+        && (node.getAttribute(attribute) ?? node[attribute]) === value);
+    }
     if (selector.startsWith(".")) {
       const className = selector.slice(1);
       return walk(this).find((node) => (node.className ?? "").split(/\s+/u).includes(className));
     }
     if (selector.startsWith("#")) return walk(this).find((node) => node.id === selector.slice(1));
+    const attributeMatch = selector.match(/^([\w-]+)?\[([\w-]+)="([^"]+)"\]$/u);
+    if (attributeMatch) {
+      const [, tag, attribute, value] = attributeMatch;
+      return walk(this).find((node) => (!tag || node.tagName === tag)
+        && (node.getAttribute(attribute) ?? node[attribute]) === value);
+    }
     return walk(this).find((node) => node.tagName === selector);
   }
 
@@ -75,8 +104,30 @@ class FakeNode {
 }
 
 class FakeDocument {
+  constructor() {
+    this.nodes = [];
+    this.activeElement = null;
+  }
+
   createElement(tagName) {
-    return new FakeNode(tagName, this);
+    const node = new FakeNode(tagName, this);
+    this.nodes.push(node);
+    return node;
+  }
+
+  getElementById(id) {
+    return [...this.nodes].reverse().find((node) => node.id === id);
+  }
+
+  querySelector(selector) {
+    return [...this.nodes].reverse().find((node) => {
+      const match = selector.match(/^\.([\w-]+)\[([\w-]+)="([^"]+)"\]$/u);
+      if (match) return (node.className ?? "").split(/\s+/u).includes(match[1])
+        && (node.getAttribute(match[2]) ?? node[match[2]]) === match[3];
+      if (selector.startsWith(".")) return (node.className ?? "").split(/\s+/u).includes(selector.slice(1));
+      if (selector.startsWith("#")) return node.id === selector.slice(1);
+      return false;
+    });
   }
 }
 
@@ -127,9 +178,10 @@ function openDetails(root, className, summaryId) {
 }
 
 function selectServiceGroup(root, id) {
+  openDetails(root, "service-group-customization");
   click(root, `service-group-select-${id}`);
   const selection = control(root, `service-group-select-${id}`);
-  assert.equal(selection.getAttribute("aria-pressed"), "true");
+  assert.equal(selection.getAttribute("aria-checked"), "true");
   return selection;
 }
 
@@ -199,10 +251,10 @@ function catalog() {
   };
 }
 
-function mount(storage = new FakeStorage(), onLanguage = () => {}, outputFormat = "ini", data = catalog()) {
+function mount(storage = new FakeStorage(), onLanguage = () => {}, outputFormat = "ini", data = catalog(), onChange = () => {}) {
   const document = new FakeDocument();
   const root = document.createElement("section");
-  const options = mountProfileOptions({ root, catalog: data, outputFormat, storage, onLanguage, languageFetcher: localeJsonFetcher });
+  const options = mountProfileOptions({ root, catalog: data, outputFormat, storage, onLanguage, onChange, languageFetcher: localeJsonFetcher });
   return { root, options, storage };
 }
 
@@ -216,6 +268,72 @@ test("profile options filter templates and omit controls for a static template",
 
   assert.equal(find(root, (node) => node.name === "region-mode"), undefined);
   assert.deepEqual(options.getSpec(), { schemaVersion: 1, baseProfile: "static-ini", language: "en" });
+});
+
+test("service customization is opt-in, explains the output scope, and selection/search do not change routing", () => {
+  const changes = [];
+  const { root } = mount(new FakeStorage(), () => {}, "ini", catalog(), (spec) => changes.push(spec));
+  const disclosure = control(root, "service-group-customization");
+  assert.equal(disclosure.tagName, "details");
+  assert.equal(disclosure.open, false);
+  assert.ok(disclosure.className.split(/\s+/u).includes("service-group-customization"));
+  assert.ok(find(root, (node) => node.dataset.i18n === "iniTemplateScope"));
+  assert.deepEqual(changes, []);
+
+  openDetails(root, "service-group-customization");
+  selectServiceGroup(root, "openai-services");
+  const search = control(root, "service-group-search");
+  search.value = "google";
+  search.dispatch("input");
+
+  assert.equal(control(root, "service-group-customization").open, true);
+  assert.equal(control(root, "service-group-select-openai-services").hidden, true);
+  assert.equal(control(root, "service-group-select-google-services").hidden, false);
+  assert.deepEqual(changes, []);
+});
+
+test("service group radios support arrow, Home, End, Space, roving focus, and preserve the disclosure", () => {
+  const { root } = mount();
+  openDetails(root, "service-group-customization");
+  const groupList = control(root, "service-group-list");
+  assert.equal(groupList.getAttribute("role"), "radiogroup");
+  assert.equal(groupList.getAttribute("aria-label"), "Groups");
+
+  const claude = control(root, "service-group-select-claude-guard");
+  assert.equal(claude.getAttribute("role"), "radio");
+  assert.equal(claude.getAttribute("aria-checked"), "true");
+  assert.equal(claude.tabIndex, 0);
+  claude.focus();
+  claude.dispatch("keydown", { key: "ArrowDown" });
+
+  const openai = control(root, "service-group-select-openai-services");
+  assert.equal(openai.getAttribute("aria-checked"), "true");
+  assert.equal(openai.tabIndex, 0);
+  assert.equal(control(root, "service-group-select-claude-guard").tabIndex, -1);
+  assert.equal(root.ownerDocument.activeElement.id, openai.id);
+  assert.equal(control(root, "service-group-customization").open, true);
+
+  openai.dispatch("keydown", { key: "End" });
+  assert.equal(control(root, "service-group-select-google-services").getAttribute("aria-checked"), "true");
+  control(root, "service-group-select-google-services").dispatch("keydown", { key: "Home" });
+  assert.equal(control(root, "service-group-select-claude-guard").getAttribute("aria-checked"), "true");
+  control(root, "service-group-select-claude-guard").dispatch("keydown", { key: "ArrowLeft" });
+  const google = control(root, "service-group-select-google-services");
+  assert.equal(google.getAttribute("aria-checked"), "true");
+  google.dispatch("keydown", { key: " " });
+  assert.equal(control(root, "service-group-select-google-services").getAttribute("aria-checked"), "true");
+  assert.equal(control(root, "service-group-customization").open, true);
+});
+
+test("empty only-region mode identifies its translation key and keeps the callback contract", () => {
+  const changes = [];
+  const { root, options } = mount(new FakeStorage(), () => {}, "ini", catalog(), (spec) => changes.push(spec));
+  const onlyMode = find(root, (node) => node.name === "region-mode" && node.value === "only");
+  onlyMode.checked = true;
+  onlyMode.dispatch("change");
+
+  assert.equal(changes.at(-1), null);
+  assert.throws(() => options.getSpec(), (error) => error.translationKey === "onlyRequiresRegion");
 });
 
 test("shared controls keep typed policy state, persist only nonsecret preferences, and include selected language", async () => {
@@ -306,6 +424,7 @@ test("YAML template choices are filtered and carry language without static polic
   const storage = new FakeStorage();
   await setLanguage("en", storage, { fetcher: localeJsonFetcher });
   const { root, options } = mount(storage, () => {}, "yaml");
+  assert.ok(find(root, (node) => node.dataset.i18n === "yamlTemplateScope"));
   const templatePicker = find(root, (node) => node.id === "base-profile");
   assert.deepEqual(templatePicker.options.map((item) => item.value), ["ai-balanced", "ai-strict", "static-yaml"]);
   templatePicker.value = "static-yaml";
@@ -365,7 +484,7 @@ test("service groups support create, rename, related-service moves, route orderi
 
   openDetails(root, "group-settings");
   click(root, "move-service-group-up");
-  assert.equal(control(root, "service-group-select-custom-1").getAttribute("aria-pressed"), "true");
+  assert.equal(control(root, "service-group-select-custom-1").getAttribute("aria-checked"), "true");
   openDetails(root, "group-settings");
   click(root, "delete-service-group");
   assert.equal(options.getSpec().serviceGroups.some((group) => group.id === "custom-1"), false);

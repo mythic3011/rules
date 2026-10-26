@@ -100,6 +100,12 @@ export function mountServiceGroupEditor({
         item.hidden = !`${item.dataset.search ?? ""} ${item.textContent}`.normalize("NFKC").toLocaleLowerCase().includes(term);
         if (!item.hidden) visible += 1;
       }
+      if (key === "groups") {
+        const visible = [...list.children].filter((item) => !item.hidden);
+        const selected = visible.find((item) => item.getAttribute("aria-checked") === "true");
+        const tabStop = selected ?? visible[0];
+        for (const item of list.children) item.tabIndex = item === tabStop ? 0 : -1;
+      }
       empty.hidden = !term || visible > 0;
       onSearch(key, search.value);
     }
@@ -185,11 +191,29 @@ export function mountServiceGroupEditor({
   navigation.append(label("h4", translate("groupsLabel"), "group-section-label"));
   const groupList = document.createElement("div");
   groupList.id = "service-group-list";
+  groupList.setAttribute("role", "radiogroup");
+  groupList.setAttribute("aria-label", translate("groupsLabel"));
   for (const item of layout) {
     const choose = button("", () => onSelect(item.id), `service-group-select-${item.id}`, "group-choice");
+    choose.setAttribute("role", "radio");
+    choose.setAttribute("aria-checked", String(item.id === group?.id));
+    choose.tabIndex = item.id === group?.id ? 0 : -1;
     choose.dataset.groupId = item.id;
     choose.dataset.search = `${item.id} ${item.name}`;
-    choose.setAttribute("aria-pressed", String(item.id === group?.id));
+    choose.addEventListener("keydown", (event) => {
+      const visible = [...groupList.children].filter((choice) => !choice.hidden);
+      const current = visible.indexOf(choose);
+      if (current < 0 || !visible.length) return;
+      let destination = -1;
+      if (event.key === "ArrowRight" || event.key === "ArrowDown") destination = (current + 1) % visible.length;
+      else if (event.key === "ArrowLeft" || event.key === "ArrowUp") destination = (current - 1 + visible.length) % visible.length;
+      else if (event.key === "Home") destination = 0;
+      else if (event.key === "End") destination = visible.length - 1;
+      else if (event.key === " " || event.key === "Spacebar") destination = current;
+      else return;
+      event.preventDefault();
+      onSelect(visible[destination].dataset.groupId, true, true);
+    });
     choose.append(label("span", groupName(item), "group-choice-name"));
     choose.append(label("small", translate("groupCounts", {
       services: item.serviceIds.length, exits: item.routes.filter((route) => route !== "reject").length,
