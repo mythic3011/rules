@@ -12,6 +12,7 @@ export default defineConfig({
         main: resolve(import.meta.dirname, 'web/site/index.html'),
         ipLookup: resolve(import.meta.dirname, 'web/site/ip-lookup.html'),
         report: resolve(import.meta.dirname, 'web/site/report.html'),
+        setup: resolve(import.meta.dirname, 'web/site/setup.html'),
       },
     },
   },

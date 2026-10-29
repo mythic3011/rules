@@ -1,8 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
     <title>Rules Report Detail - mythic3011/rules</title>
     <link rel="icon" href="./favicon.ico" sizes="any" />
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
@@ -10,28 +11,29 @@
     <link rel="stylesheet" href="./assets/site.css" />
   </head>
   <body>
+    <a class="skip-link" href="#content">Skip to content</a>
     <header class="app-header">
       <div class="container">
         <div class="brand-group">
           <a href="./index.html" class="brand-title">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+            <img class="brand-mark" src="./favicon.svg" alt="" width="22" height="22" />
             mythic3011/rules
           </a>
-          <span class="status-badge"><span class="status-dot"></span> OPERATIONAL</span>
+          <span class="status-badge"><span class="status-dot"></span> Operational</span>
         </div>
-        <nav class="nav-links">
+        <nav class="nav-links" aria-label="Console">
           <a href="./index.html" class="nav-link">Overview</a>
           <a href="./ip-lookup.html" class="nav-link">IP Lookup</a>
-          <a href="./report.html?category=adblock" class="nav-link active">Reports</a>
-          <a href="https://github.com/mythic3011/rules/blob/main/docs/getting-started.md" class="nav-link">Setup Guide</a>
-          <a href="https://github.com/mythic3011/rules" class="nav-link" target="_blank" rel="noreferrer">GitHub ↗</a>
+          <a href="./report.html?category=adblock" class="nav-link active" aria-current="page">Reports</a>
+          <a href="./setup.html" class="nav-link">Setup Guide</a>
+          <a href="https://github.com/mythic3011/rules" class="nav-link" target="_blank" rel="noreferrer">GitHub</a>
         </nav>
       </div>
     </header>
 
-    <main class="main-content">
+    <main id="content" class="main-content">
       <section class="hero-banner">
-        <div class="hero-eyebrow">Category Detail</div>
+        <p class="hero-eyebrow">Category detail</p>
         <h1 class="hero-title" id="title">Loading report...</h1>
         <p class="hero-lead" id="lead">
           Loading category summary and upstream source metadata from the generated reports folder.
@@ -43,7 +45,7 @@
       <section class="section-panel">
         <div class="section-header">
           <h2 class="section-title">Metadata</h2>
-          <span class="badge badge-cyan">PIPELINE CONFIG</span>
+          <span class="badge badge-cyan">Pipeline</span>
         </div>
         <div class="meta-grid" id="metadata"></div>
       </section>
@@ -51,14 +53,14 @@
       <section class="section-panel">
         <div class="section-header">
           <h2 class="section-title">Upstream Sources</h2>
-          <span class="badge badge-emerald">FEED PROVENANCE</span>
+          <span class="badge badge-emerald">Provenance</span>
         </div>
         <div class="table-container">
           <table class="console-table">
             <thead>
               <tr>
                 <th>ID</th>
-                <th>Count</th>
+                <th class="num">Count</th>
                 <th>Format</th>
                 <th>Homepage</th>
               </tr>

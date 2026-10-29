@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
+  <title>Setup Guide - mythic3011/rules</title>
+  <link rel="icon" href="./favicon.ico" sizes="any" />
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
+  <link rel="stylesheet" href="./assets/site.css" />
+</head>
+<body>
+<a class="skip-link" href="#content">Skip to content</a>
+<header class="app-header">
+  <div class="container">
+    <div class="brand-group">
+      <a href="./index.html" class="brand-title">
+        <img class="brand-mark" src="./favicon.svg" alt="" width="22" height="22" />
+        mythic3011/rules
+      </a>
+      <span class="status-badge"><span class="status-dot"></span> Operational</span>
+    </div>
+    <nav class="nav-links" aria-label="Console">
+      <a href="./index.html" class="nav-link">Overview</a>
+      <a href="./ip-lookup.html" class="nav-link">IP Lookup</a>
+      <a href="./report.html?category=adblock" class="nav-link">Reports</a>
+      <a href="./setup.html" class="nav-link active" aria-current="page">Setup Guide</a>
+      <a href="https://github.com/mythic3011/rules" class="nav-link" target="_blank" rel="noreferrer">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content" class="main-content">
+  <section class="hero-banner">
+    <p class="hero-eyebrow">Setup guide</p>
+    <h1 class="hero-title">Getting started</h1>
+    <p class="hero-lead">There are two OpenClash workflows in this repository. Use a ready-to-load runtime YAML when you want a complete profile, or a subscription-conversion INI when OpenClash is converting a provider subscription.</p>
+  </section>
+
+  <section class="section-block" aria-labelledby="choose-title">
+    <div class="section-header">
+      <h2 id="choose-title" class="section-title">Choose the right artifact</h2>
+    </div>
+    <div class="card-grid">
+      <article class="card-panel">
+        <p class="card-kicker">Runtime config</p>
+        <h3 class="card-title">Ready-to-load YAML</h3>
+        <p class="card-label">Use <code>cfg/yaml/*.yaml</code> when you want a complete Mihomo/OpenClash YAML profile.</p>
+      </article>
+      <article class="card-panel">
+        <p class="card-kicker">Subscription conversion</p>
+        <h3 class="card-title">INI custom template</h3>
+        <p class="card-label">Use a <code>cfg/*.ini</code> custom template, or the Profile Builder's opaque <code>/p/&lt;token&gt;.ini</code>, when OpenClash or subconverter is converting an existing provider subscription.</p>
+      </article>
+    </div>
+    <p class="notice-pill warn">Do not load a <code>.ini</code> template as runtime Mihomo YAML.</p>
+    <p class="guide-follow">The canonical published list is <a href="./catalog.json">catalog.json</a>. In a clone:</p>
+    <pre class="guide-code"><code>./rulesctl list</code></pre>
+  </section>
+
+  <section class="section-panel guide" aria-labelledby="conversion-title">
+    <h2 id="conversion-title" class="section-title">OpenClash subscription conversion</h2>
+    <p>For a static AI template, use this URL as OpenClash's <strong>Custom Template URL</strong>:</p>
+    <pre class="guide-code"><code>https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/cfg/Custom_Clash_AI.ini</code></pre>
+    <p>For a personalized template, deploy <code>apps/profile-service/</code> and use its Web Builder. The builder returns a stable opaque URL:</p>
+    <pre class="guide-code"><code>https://&lt;your-worker-domain&gt;/p/&lt;opaque-token&gt;.ini</code></pre>
+    <p>The URL does not encode <code>disable</code>, <code>only</code>, or <code>prefer</code> settings. The Worker resolves the saved <code>ProfileSpec</code> and emits the INI on every subscription fetch.</p>
+    <p>Local preview without Cloudflare:</p>
+    <pre class="guide-code"><code>./rulesctl profile render --disable hk --prefer jp,sg -o /tmp/custom.ini</code></pre>
+  </section>
+
+  <section class="section-panel guide" aria-labelledby="yaml-title">
+    <h2 id="yaml-title" class="section-title">Ready-to-load OpenClash/Mihomo YAML</h2>
+    <p>Recommended rolling URL:</p>
+    <pre class="guide-code"><code>https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/cfg/yaml/Custom_Clash_AI.yaml</code></pre>
+    <p>Router-side download:</p>
+    <pre class="guide-code"><code>wget -O /tmp/mythic3011-rules-install.sh \
+  https://raw.githubusercontent.com/mythic3011/rules/main/setup/openclash/install.sh
+sh /tmp/mythic3011-rules-install.sh --profile ai-balanced --install</code></pre>
+    <p>The script writes <code>/etc/openclash/config/mythic3011-ai-balanced.yaml</code>, preserving an existing file as <code>.bak</code>. It does not activate or restart OpenClash.</p>
+    <div class="card-actions">
+      <a class="btn-outline" href="https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/cfg/yaml/Custom_Clash_AI.yaml">Download YAML</a>
+      <a class="btn-outline" href="https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/cfg/Custom_Clash_AI.ini">Open INI</a>
+    </div>
+  </section>
+
+  <section class="section-panel guide" aria-labelledby="channels-title">
+    <h2 id="channels-title" class="section-title">Pinning and CDN channels</h2>
+    <p><a href="./catalog.json">catalog.json</a> exposes three rolling channels: <code>testingcf.jsdelivr.net</code>, jsDelivr CDN, and raw GitHub. Generated AI distribution metadata additionally exposes immutable jsDelivr URLs with a commit SHA placeholder for reproducible deployment.</p>
+  </section>
+
+  <section class="section-panel guide" aria-labelledby="preferences-title">
+    <h2 id="preferences-title" class="section-title">Contributions and personal preferences</h2>
+    <ul>
+      <li>Regional service facts belong in the <a href="https://github.com/mythic3011/rules/issues/new?template=service_intake.yml" target="_blank" rel="noreferrer">GitHub Service Intake workflow</a> because they improve the canonical registry for everyone.</li>
+      <li>Personal choices such as "never use HK nodes" or "prefer JP then SG" belong in a saved <code>ProfileSpec</code>. Do not hand-edit them into generated <code>cfg/*.ini</code> files.</li>
+    </ul>
+  </section>
+</main>
+
+<footer class="app-footer">
+  <div class="container">
+    mythic3011/rules · Network Routing Operations Console
+  </div>
+</footer>
+</body>
+</html>

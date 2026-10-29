@@ -21,11 +21,11 @@ export function initOverviewPage() {
         tdCategory.append(aCategory);
 
         const tdDomains = document.createElement('td');
-        tdDomains.className = 'mono';
+        tdDomains.className = 'mono num';
         tdDomains.textContent = fmt(item.final_domain_count);
 
         const tdSources = document.createElement('td');
-        tdSources.className = 'mono';
+        tdSources.className = 'mono num';
         tdSources.textContent = fmt(item.source_count);
 
         const tdOutputs = document.createElement('td');

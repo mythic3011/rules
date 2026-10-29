@@ -1,8 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
     <title>IP Lookup Beta - mythic3011/rules</title>
     <link rel="icon" href="./favicon.ico" sizes="any" />
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
@@ -10,49 +11,47 @@
     <link rel="stylesheet" href="./assets/site.css" />
   </head>
   <body>
+    <a class="skip-link" href="#content">Skip to content</a>
     <header class="app-header">
       <div class="container">
         <div class="brand-group">
           <a href="./index.html" class="brand-title">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+            <img class="brand-mark" src="./favicon.svg" alt="" width="22" height="22" />
             mythic3011/rules
           </a>
-          <span class="status-badge"><span class="status-dot"></span> OPERATIONAL</span>
+          <span class="status-badge"><span class="status-dot"></span> Operational</span>
         </div>
-        <nav class="nav-links">
+        <nav class="nav-links" aria-label="Console">
           <a href="./index.html" class="nav-link">Overview</a>
-          <a href="./ip-lookup.html" class="nav-link active">IP Lookup</a>
+          <a href="./ip-lookup.html" class="nav-link active" aria-current="page">IP Lookup</a>
           <a href="./report.html?category=adblock" class="nav-link">Reports</a>
-          <a href="https://github.com/mythic3011/rules/blob/main/docs/getting-started.md" class="nav-link">Setup Guide</a>
-          <a href="https://github.com/mythic3011/rules" class="nav-link" target="_blank" rel="noreferrer">GitHub ↗</a>
+          <a href="./setup.html" class="nav-link">Setup Guide</a>
+          <a href="https://github.com/mythic3011/rules" class="nav-link" target="_blank" rel="noreferrer">GitHub</a>
         </nav>
       </div>
     </header>
 
-    <main class="main-content">
+    <main id="content" class="main-content">
       <section class="hero-banner">
-        <div class="hero-eyebrow">IP Lookup Beta</div>
-        <h1 class="hero-title">IP lookup (CIDR assets only)</h1>
+        <p class="hero-eyebrow">IP lookup beta</p>
+        <h1 class="hero-title">IP lookup for CIDR assets</h1>
         <p class="hero-lead">
           This first version only searches CIDR-capable assets from the repository inventory. It
           does not search domain-only assets, mixed classical assets, or unsupported binary assets.
         </p>
+        <form class="controls-bar" role="search">
+          <input id="query" type="text" inputmode="decimal" placeholder="Enter IPv4, e.g. 1.1.1.1" aria-label="IPv4 address query" autocomplete="off" spellcheck="false" />
+          <button id="run" class="btn-primary" type="button">Lookup</button>
+        </form>
         <div class="hero-notices">
-          <div class="notice-pill">
+          <p class="notice-pill">
             <strong>Current scope:</strong> IPv4 only, exact IP and CIDR containment only. <code>mixed</code> assets are
             intentionally skipped and reported as skipped, not silently ignored.
-          </div>
-          <div class="notice-pill">
+          </p>
+          <p class="notice-pill">
             <strong>Audit trail:</strong> <a href="./reports/rule-assets.json">rule asset inventory</a> and
             <a href="./reports/ip-match.schema.json">IP match schema</a>.
-          </div>
-        </div>
-      </section>
-
-      <section class="section-panel">
-        <div class="controls-bar">
-          <input id="query" type="text" placeholder="Enter IPv4, e.g. 1.1.1.1" aria-label="IPv4 address query" />
-          <button id="run" class="btn-primary">Lookup</button>
+          </p>
         </div>
       </section>
 
@@ -61,7 +60,7 @@
       <section class="section-panel">
         <div class="section-header">
           <h2 class="section-title">Matches</h2>
-          <span class="badge badge-cyan">MATCHED ASSETS</span>
+          <span class="badge badge-cyan">Matched assets</span>
         </div>
         <div class="table-container">
           <table class="console-table">
@@ -82,8 +81,8 @@
 
       <section class="section-panel">
         <div class="section-header">
-          <h2 class="section-title">Skipped Assets</h2>
-          <span class="badge badge-amber">BYPASSED ASSETS</span>
+          <h2 class="section-title">Skipped assets</h2>
+          <span class="badge badge-amber">Bypassed</span>
         </div>
         <div class="table-container">
           <table class="console-table">

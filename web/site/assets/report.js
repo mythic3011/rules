@@ -127,7 +127,7 @@ export function initReportPage() {
           tdId.textContent = source.id;
 
           const tdCount = document.createElement('td');
-          tdCount.className = 'mono';
+          tdCount.className = 'mono num';
           tdCount.textContent = fmt(source.count);
 
           const tdFormat = document.createElement('td');
