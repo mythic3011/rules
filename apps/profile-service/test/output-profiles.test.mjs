@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { getProfileOptions, resolveOutputProfile } from "../worker/profile_options.mjs";
+import { getProfileOptions, profileCommentText, resolveOutputProfile } from "../worker/profile_options.mjs";
 import runtimeData from "../worker/generated/runtime-data.mjs";
 import { defaultServiceGroupLayout } from "./service-group-fixtures.mjs";
 
@@ -76,6 +76,17 @@ function group(profile, name) {
 function pattern(value) {
   return new RegExp(value.replace(/\(\?i\)/gu, ""), "i");
 }
+
+test("YAML comment metadata rejects Unicode line breaks and C1 controls", () => {
+  for (const separator of ["\u0085", "\u2028", "\u2029"]) {
+    const data = structuredClone(runtimeData);
+    data.render.localized.en.yaml.header[0] = `# unsafe${separator}line`;
+    assert.throws(
+      () => profileCommentText("en", {}, data),
+      (error) => error.code === "invalid_profile_data",
+    );
+  }
+});
 
 function domainRoute(profile, host) {
   for (const rule of profile.rules) {
@@ -275,4 +286,123 @@ test("canonical account protection survives relaxed fallback and rejects a disab
 
 test("public choices only advertise services supported by the output format", () => {
   assert.deepEqual(getProfileOptions({ outputFormat: "yaml", data: fixture() }).services.map((entry) => entry.id), ["earlier", "disabled", "sibling", "protected"]);
+});
+
+test("canonical adblock metadata and provider intervals are generated from their source owners", () => {
+  assert.deepEqual(runtimeData.adblockRuleProvider, {
+    name: "Ads_Lite_Domain",
+    behavior: "domain",
+    url: `${runtimeData.adblockRuleProvider.url.split("/rule/")[0]}/rule/Ads_Lite_Domain.yaml`,
+  });
+  assert.deepEqual(runtimeData.ruleProviderIntervals, { yaml: 10800, ini: 28800 });
+  const options = getProfileOptions({ outputFormat: "yaml", data: runtimeData });
+  assert.deepEqual(options.customRuleProviderLimits, { maxProviders: 10, maxUrlLength: 2048 });
+  assert.deepEqual(options.optionDefaults.adblock, false);
+  assert.deepEqual(options.optionDefaults.customRuleProviders, []);
+  assert.equal(options.templates.find((template) => template.id === "standard").supportsRuleProviderOptions, true);
+  assert.equal(getProfileOptions({ outputFormat: "ini", data: runtimeData }).templates.find((template) => template.id === "standard").supportsRuleProviderOptions, false);
+});
+
+test("YAML custom providers and adblock preserve account precedence across every template", () => {
+  for (const baseProfile of ["ai-balanced", "ai-strict", "standard"]) {
+    const data = structuredClone(runtimeData);
+    if (baseProfile === "ai-balanced") {
+      data.outputProfiles.yaml[baseProfile]["rule-providers"].Ads_Lite_Domain = {
+        payload: ["DOMAIN,preexisting-adblock.example"],
+      };
+      data.outputProfiles.yaml[baseProfile]["rule-providers"].Profile_Custom_Rule_1 = {
+        payload: ["DOMAIN,preexisting-custom.example"],
+      };
+      data.outputProfiles.yaml[baseProfile]["rule-providers"].Path_Collision = {
+        path: "./ruleset/Profile_Custom_Rule_2.yaml",
+      };
+    }
+
+    const spec = {
+      baseProfile,
+      adblock: true,
+      customRuleProviders: [
+        { url: "https://custom.example/domain.yaml", behavior: "domain", target: "proxy" },
+        { url: "https://custom.example/classical.yaml", behavior: "classical", target: "direct" },
+      ],
+    };
+    const output = resolveOutputProfile({ outputFormat: "yaml", data, spec });
+    const rules = output.rules;
+    const addedRules = rules.filter((rule) => /^(?:RULE-SET),(?:Ads_Lite_Domain|Ads_Lite_Domain_2|Profile_Custom_Rule_)/u.test(rule));
+    const providerNames = addedRules.map((rule) => rule.split(",")[1]);
+    const targetNames = new Set(output["proxy-groups"].map((entry) => entry.name));
+    assert.equal(addedRules.length, 3, baseProfile);
+    assert.equal(new Set(providerNames).size, 3, baseProfile);
+    assert.ok(addedRules.every((rule) => targetNames.has(rule.split(",")[2])), baseProfile);
+
+    const providers = output["rule-providers"];
+    for (const name of providerNames) {
+      assert.equal(providers[name].type, "http", `${baseProfile}:${name}`);
+      assert.equal(providers[name].format, "yaml", `${baseProfile}:${name}`);
+      assert.equal(providers[name].interval, runtimeData.ruleProviderIntervals.yaml, `${baseProfile}:${name}`);
+      assert.ok(providers[name].url.startsWith("https://"), `${baseProfile}:${name}`);
+      assert.ok(!Object.values(output["rule-providers"]).some((entry) => (
+        entry !== providers[name] && entry?.path === providers[name].path
+      )), `${baseProfile}:${name} path collision`);
+    }
+
+    const addedStart = rules.indexOf(addedRules[0]);
+    const privacyIndex = rules.findIndex((rule) => rule.includes("Privacy_Guard_Classical"));
+    const accountTargets = new Set([data.accountProtection.protectedGroup, data.groups["high-risk-account"]]);
+    const accountIndices = rules.flatMap((rule, index) => accountTargets.has(rule.split(",")[2]) ? [index] : []);
+    const lastAccountIndex = Math.max(-1, ...accountIndices);
+    const firstFallbackGeoip = rules.findIndex((rule, index) => (
+      index > lastAccountIndex && rule.startsWith("GEOIP,") && rule.split(",")[1]?.toLowerCase() !== "private"
+    ));
+    const matchIndex = rules.findIndex((rule) => rule.startsWith("MATCH,"));
+    assert.ok(privacyIndex >= 0 && privacyIndex < addedStart, baseProfile);
+    assert.ok(accountIndices.every((index) => index < addedStart), baseProfile);
+    assert.ok(firstFallbackGeoip < 0 || addedRules.every((rule) => rules.indexOf(rule) < firstFallbackGeoip), baseProfile);
+    assert.equal(matchIndex, rules.length - 1, baseProfile);
+
+    if (baseProfile === "ai-balanced") {
+      assert.deepEqual(providers.Ads_Lite_Domain.payload, ["DOMAIN,preexisting-adblock.example"]);
+      assert.deepEqual(providers.Profile_Custom_Rule_1.payload, ["DOMAIN,preexisting-custom.example"]);
+      assert.ok(providerNames.includes("Ads_Lite_Domain_2"));
+      assert.ok(providerNames.includes("Profile_Custom_Rule_1_2"));
+      assert.ok(providerNames.includes("Profile_Custom_Rule_2_2"));
+    } else {
+      assert.ok(providerNames.includes("Ads_Lite_Domain"));
+    }
+  }
+});
+
+test("adblock is opt-in and custom rule target names follow each YAML template", () => {
+  const baseline = resolveOutputProfile({ outputFormat: "yaml", data: runtimeData, spec: {} });
+  assert.equal(Object.hasOwn(baseline["rule-providers"], runtimeData.adblockRuleProvider.name), false);
+
+  for (const baseProfile of ["ai-balanced", "ai-strict", "standard"]) {
+    const output = resolveOutputProfile({
+      outputFormat: "yaml",
+      data: runtimeData,
+      spec: {
+        baseProfile,
+        customRuleProviders: [
+          { url: "https://custom.example/direct.yaml", behavior: "domain", target: "direct" },
+          { url: "https://custom.example/proxy.yaml", behavior: "classical", target: "proxy" },
+        ],
+      },
+    });
+    const customRules = output.rules.filter((rule) => /^RULE-SET,Profile_Custom_Rule_/u.test(rule));
+    assert.equal(customRules.length, 2, baseProfile);
+    const directProvider = Object.entries(output["rule-providers"]).find(([, value]) => value.url === "https://custom.example/direct.yaml");
+    const proxyProvider = Object.entries(output["rule-providers"]).find(([, value]) => value.url === "https://custom.example/proxy.yaml");
+    assert.ok(directProvider && proxyProvider, baseProfile);
+    const directRule = customRules.find((rule) => rule.split(",")[1] === directProvider[0]);
+    const proxyRule = customRules.find((rule) => rule.split(",")[1] === proxyProvider[0]);
+    const directGroup = output["proxy-groups"].find((entry) => (
+      entry.type === "select" && Array.isArray(entry.proxies)
+      && entry.proxies.length === 1 && entry.proxies[0] === "DIRECT"
+    ));
+    const proxyGroup = runtimeData.templates.find((entry) => entry.outputFormat === "yaml" && entry.id === baseProfile).dnsEgressGroup
+      ?? runtimeData.groups.manual;
+    assert.equal(directRule.split(",")[2], directGroup?.name, baseProfile);
+    assert.equal(proxyRule.split(",")[2], proxyGroup, baseProfile);
+    assert.ok(output["proxy-groups"].some((entry) => entry.name === proxyRule.split(",")[2]), baseProfile);
+  }
 });

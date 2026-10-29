@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  CUSTOM_RULE_PROVIDER_LIMITS,
   ProfileSpecError,
   canonicalizeRegion,
   normalizeProfileSpec,
@@ -48,6 +49,81 @@ test("unknown HTTP-facing fields are rejected", () => {
     () => normalizeProfileSpec({ rawRule: "DOMAIN-SUFFIX,example.com" }),
     (error) => error instanceof ProfileSpecError && error.code === "unknown_profile_field",
   );
+});
+
+test("custom rule providers require bounded HTTPS URLs and a closed option shape", () => {
+  const provider = { url: "https://rules.example/list.yaml", behavior: "domain", target: "proxy" };
+  assert.deepEqual(normalizeProfileSpec({ customRuleProviders: [provider] }).customRuleProviders, [provider]);
+  assert.deepEqual(CUSTOM_RULE_PROVIDER_LIMITS, { maxProviders: 10, maxUrlLength: 2048 });
+
+  for (const url of [
+    "http://rules.example/list.yaml",
+    "//rules.example/list.yaml",
+    "https://user:secret@rules.example/list.yaml",
+    "https://rules.example/list.yaml#fragment",
+    "https://rules.example/list.yaml#",
+    "https://rules.example/list,other.yaml",
+    "https://rules.example/list`other.yaml",
+    "https://rules.example/list\\other.yaml",
+    "https://rules.example/list.yaml\nmore",
+    "https://rules.example/list.yaml\tmore",
+    " https://rules.example/list.yaml",
+    "https://rules.example/list.yaml ",
+  ]) {
+    assert.throws(
+      () => normalizeProfileSpec({ customRuleProviders: [{ ...provider, url }] }),
+      (error) => error instanceof ProfileSpecError && error.code === "invalid_custom_rule_provider_url",
+      url,
+    );
+  }
+  assert.throws(
+    () => normalizeProfileSpec({ customRuleProviders: Array(CUSTOM_RULE_PROVIDER_LIMITS.maxProviders + 1).fill(provider) }),
+    (error) => error instanceof ProfileSpecError && error.code === "too_many_custom_rule_providers",
+  );
+  assert.throws(
+    () => normalizeProfileSpec({ customRuleProviders: [{ ...provider, extra: true }] }),
+    (error) => error instanceof ProfileSpecError && error.code === "unknown_custom_rule_provider_field",
+  );
+  assert.throws(
+    () => normalizeProfileSpec({ customRuleProviders: [{ ...provider, target: "arbitrary-group" }] }),
+    (error) => error instanceof ProfileSpecError && error.code === "invalid_custom_rule_provider",
+  );
+  assert.throws(
+    () => normalizeProfileSpec({ customRuleProviders: [{ ...provider, behavior: "yaml" }] }),
+    (error) => error instanceof ProfileSpecError && error.code === "invalid_custom_rule_provider",
+  );
+  const tooLong = `https://rules.example/${"x".repeat(CUSTOM_RULE_PROVIDER_LIMITS.maxUrlLength)}`;
+  assert.throws(
+    () => normalizeProfileSpec({ customRuleProviders: [{ ...provider, url: tooLong }] }),
+    (error) => error instanceof ProfileSpecError && error.code === "invalid_custom_rule_provider_url",
+  );
+});
+
+test("worker-only fields remain omitted when absent and direct providers honor allowDirect", () => {
+  const legacy = normalizeProfileSpec({ disabledNodeRegions: ["jp"] });
+  assert.equal(Object.hasOwn(legacy, "adblock"), false);
+  assert.equal(Object.hasOwn(legacy, "customRuleProviders"), false);
+
+  const direct = { url: "https://rules.example/direct.yaml", behavior: "domain", target: "direct" };
+  assert.throws(
+    () => normalizeProfileSpec({ allowDirect: false, customRuleProviders: [direct] }),
+    (error) => error instanceof ProfileSpecError && error.code === "conflicting_custom_rule_target",
+  );
+  const proxy = { ...direct, target: "proxy" };
+  assert.deepEqual(
+    normalizeProfileSpec({ allowDirect: false, customRuleProviders: [proxy] }).customRuleProviders,
+    [proxy],
+  );
+
+  for (const field of [
+    { baseProfile: "standard", adblock: true },
+    { baseProfile: "standard", customRuleProviders: [proxy] },
+  ]) {
+    assert.throws(
+      () => normalizeProfileSpec(field, runtimeData, "ini"),
+      (error) => error instanceof ProfileSpecError && error.code === "unsupported_profile_options",
+    );
+  }
 });
 
 function editableIniLayout() {
@@ -308,6 +384,75 @@ test("allowDirect=false rewrites direct choices in rule targets and selectors", 
   }
   const directGroup = planGroups(plan).find((group) => group.name === runtimeData.groups.direct);
   assert.deepEqual(directGroup.candidates, [{ kind: "group-ref", value: runtimeData.groups.reject }]);
+});
+
+test("custom INI providers follow privacy and account guards before generic GEOIP and terminal FINAL", () => {
+  const spec = {
+    adblock: true,
+    customRuleProviders: [
+      { url: "https://custom.example/direct.yaml", behavior: "domain", target: "direct" },
+      { url: "https://custom.example/proxy.yaml", behavior: "classical", target: "proxy" },
+    ],
+  };
+  const { plan } = solveSubconverterPlan(spec);
+  const rules = planRules(plan);
+  const adblockIndex = rules.findIndex((rule) => rule.url === runtimeData.adblockRuleProvider.url);
+  const directIndex = rules.findIndex((rule) => rule.url === spec.customRuleProviders[0].url);
+  const proxyIndex = rules.findIndex((rule) => rule.url === spec.customRuleProviders[1].url);
+  const finalIndex = rules.findIndex((rule) => rule.kind === "final");
+  const firstTailGeoip = rules.findIndex((rule, index) => index > proxyIndex && rule.kind === "geoip");
+  const privacyUrl = plan.sections.find((section) => section.role === "foundation-rules")
+    .rules.find((rule) => rule.kind === "remote-classical").url;
+  const claude = runtimeData.services.find((service) => service.id === runtimeData.accountProtection.serviceId);
+  const claudeRuleRefs = new Set(claude.ruleRefs.map((reference) => JSON.stringify([reference.iniKind, reference.iniValue])));
+
+  assert.ok(adblockIndex > rules.findIndex((rule) => rule.url === privacyUrl));
+  assert.ok(claudeRuleRefs.has(JSON.stringify(["geosite", "category-ntp"])));
+  assert.ok([...claudeRuleRefs].every((reference) => {
+    const [kind, value] = JSON.parse(reference);
+    return rules.findIndex((rule) => JSON.stringify([rule.kind, rule.url ?? rule.value]) === JSON.stringify([kind, value])) < adblockIndex;
+  }));
+  assert.ok(rules.filter((rule) => rule.target === runtimeData.groups["high-risk-account"])
+    .every((rule) => rules.indexOf(rule) < adblockIndex));
+  assert.ok(adblockIndex < directIndex && directIndex < proxyIndex);
+  assert.ok(firstTailGeoip > proxyIndex);
+  assert.equal(finalIndex, rules.length - 1);
+  assert.equal(rules[adblockIndex].target, runtimeData.groups.reject);
+  assert.equal(rules[directIndex].target, runtimeData.groups.direct);
+  assert.equal(rules[proxyIndex].target, runtimeData.groups.manual);
+  assert.equal(rules[adblockIndex].interval, runtimeData.ruleProviderIntervals.ini);
+
+  const ini = renderIni(plan, runtimeData);
+  assert.ok(ini.indexOf(`clash-domain:${runtimeData.adblockRuleProvider.url}`) < ini.indexOf("clash-domain:https://custom.example/direct.yaml"));
+  assert.match(ini, /clash-classic:https:\/\/custom\.example\/proxy\.yaml,28800/);
+  const finalLineIndex = ini.split("\n").indexOf("ruleset=🐟 漏網之魚,[]FINAL");
+  assert.ok(finalLineIndex >= 0);
+  assert.deepEqual(ini.split("\n").slice(finalLineIndex + 1).filter((line) => line.startsWith("ruleset=")), []);
+});
+
+test("localizes optional INI provider explanations without changing rules or exposing source URLs", () => {
+  const providerUrl = "https://rules.example/list.yaml?token=private-token";
+  const outputs = ["en", "zh-Hant", "zh-Hans"].map((language) => {
+    const spec = {
+      language,
+      adblock: true,
+      customRuleProviders: [{ url: providerUrl, behavior: "domain", target: "reject" }],
+    };
+    const { plan } = solveSubconverterPlan(spec);
+    return renderIni(plan, runtimeData, { language, spec });
+  });
+  const comments = outputs.map((ini) => ini.split(/\r?\n/u).filter((line) => line.startsWith(";")).join("\n"));
+  assert.equal(new Set(comments).size, 3);
+  assert.match(comments[0], /; Optional ad blocking is enabled\./u);
+  assert.match(comments[0], /; Optional custom routing rules are enabled\./u);
+  assert.match(comments[1], /; 已啟用選用的廣告封鎖。/u);
+  assert.match(comments[2], /; 已启用可选的广告拦截。/u);
+  for (const explanation of comments) {
+    assert.doesNotMatch(explanation, /https?:\/\/|token=|private-token|password\s*[:=]/iu);
+  }
+  const withoutComments = outputs.map((ini) => ini.split(/\r?\n/u).filter((line) => !line.startsWith(";")).join("\n"));
+  assert.deepEqual(withoutComments[1], withoutComments[0]);
+  assert.deepEqual(withoutComments[2], withoutComments[0]);
 });
 
 test("disabled JP removes automatic and stable JP paths", () => {

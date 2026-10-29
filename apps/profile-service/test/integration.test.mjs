@@ -85,6 +85,56 @@ async function createSavedProfile(environment, spec) {
   return response.json();
 }
 
+test("profile catalog publishes canonical input and custom-provider limits", async () => {
+  const response = await worker.fetch(new Request("https://rules.example/api/v1/catalog"), env());
+  assert.equal(response.status, 200);
+  const catalog = await response.json();
+  assert.ok(Number.isInteger(catalog.profileSpecLimits?.maxJsonBytes));
+  assert.ok(catalog.profileSpecLimits.maxJsonBytes > 0);
+  assert.deepEqual(catalog.customRuleProviderLimits, { maxProviders: 10, maxUrlLength: 2048 });
+  assert.equal(catalog.optionDefaults.adblock, false);
+  assert.deepEqual(catalog.optionDefaults.customRuleProviders, []);
+  assert.equal(catalog.templates.find((template) => template.outputFormat === "yaml" && template.id === "standard").supportsRuleProviderOptions, true);
+  assert.equal(catalog.templates.find((template) => template.outputFormat === "ini" && template.id === "standard").supportsRuleProviderOptions, false);
+});
+
+test("resolve and saved subscriptions preserve custom providers and canonical adblock", async () => {
+  const environment = env();
+  const spec = {
+    adblock: true,
+    customRuleProviders: [
+      { url: "https://custom.example/domain.yaml", behavior: "domain", target: "proxy" },
+      { url: "https://custom.example/classical.yaml", behavior: "classical", target: "direct" },
+    ],
+  };
+  const preview = await worker.fetch(new Request("https://rules.example/api/v1/resolve", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ spec }),
+  }), environment);
+  assert.equal(preview.status, 200);
+  const resolved = await preview.json();
+  assert.deepEqual(resolved.spec.customRuleProviders, spec.customRuleProviders);
+  assert.equal(resolved.spec.adblock, true);
+  assert.match(resolved.ini, new RegExp(runtimeData.adblockRuleProvider.url.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")));
+  assert.match(resolved.ini, /clash-domain:https:\/\/custom\.example\/domain\.yaml/);
+  assert.match(resolved.ini, /clash-classic:https:\/\/custom\.example\/classical\.yaml/);
+  assert.ok(!Object.hasOwn(resolved.spec, "language"));
+
+  const saved = await createSavedProfile(environment, resolved.spec);
+  const subscription = await worker.fetch(new Request(`https://rules.example/p/${saved.readToken}.ini`), environment);
+  assert.equal(subscription.status, 200);
+  assert.equal(await subscription.text(), resolved.ini);
+
+  const managed = await worker.fetch(new Request(`https://rules.example/api/v1/profiles/${saved.id}`, {
+    headers: { authorization: `Bearer ${saved.manageToken}` },
+  }), environment);
+  assert.equal(managed.status, 200);
+  const stored = await managed.json();
+  assert.equal(stored.spec.adblock, true);
+  assert.deepEqual(stored.spec.customRuleProviders, spec.customRuleProviders);
+});
+
 test("opaque read capability ignores query-string routing tampering", async () => {
   const environment = env();
   const saved = await createSavedProfile(environment, { disabledNodeRegions: ["jp"] });
@@ -221,12 +271,18 @@ test("registered static INI selections can be saved and updated through the same
 
 test("unsupported static-template options are rejected before any profile is saved", async () => {
   const environment = env();
-  const response = await worker.fetch(new Request("https://rules.example/api/v1/profiles", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ spec: { baseProfile: "standard", allowDirect: false } }),
-  }), environment);
-  assert.equal(response.status, 400);
-  assert.equal((await response.json()).error, "unsupported_profile_options");
+  for (const spec of [
+    { baseProfile: "standard", allowDirect: false },
+    { baseProfile: "standard", adblock: true },
+    { baseProfile: "standard", customRuleProviders: [{ url: "https://custom.example/rules.yaml", behavior: "domain", target: "proxy" }] },
+  ]) {
+    const response = await worker.fetch(new Request("https://rules.example/api/v1/profiles", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ spec }),
+    }), environment);
+    assert.equal(response.status, 400);
+    assert.equal((await response.json()).error, "unsupported_profile_options");
+  }
   assert.equal(environment.DB.rows.length, 0);
 });

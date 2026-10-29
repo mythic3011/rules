@@ -171,12 +171,12 @@ function serviceGroupMetadata(outputFormat, baseProfile) {
 
 function catalog() {
   const templates = [
-    { id: "ai-balanced", name: "AI Balanced", outputFormat: "ini", supportsProfileOptions: true },
-    { id: "ai-strict", name: "AI Strict", outputFormat: "ini", supportsProfileOptions: true },
-    { id: "static-ini", name: "Static INI", outputFormat: "ini", supportsProfileOptions: false },
-    { id: "ai-balanced", name: "AI Balanced YAML", outputFormat: "yaml", supportsProfileOptions: true },
-    { id: "ai-strict", name: "AI Strict YAML", outputFormat: "yaml", supportsProfileOptions: true },
-    { id: "static-yaml", name: "Static YAML", outputFormat: "yaml", supportsProfileOptions: false },
+    { id: "ai-balanced", name: "AI Balanced", outputFormat: "ini", supportsProfileOptions: true, supportsRuleProviderOptions: true },
+    { id: "ai-strict", name: "AI Strict", outputFormat: "ini", supportsProfileOptions: true, supportsRuleProviderOptions: true },
+    { id: "static-ini", name: "Static INI", outputFormat: "ini", supportsProfileOptions: false, supportsRuleProviderOptions: false },
+    { id: "ai-balanced", name: "AI Balanced YAML", outputFormat: "yaml", supportsProfileOptions: true, supportsRuleProviderOptions: true },
+    { id: "ai-strict", name: "AI Strict YAML", outputFormat: "yaml", supportsProfileOptions: true, supportsRuleProviderOptions: true },
+    { id: "static-yaml", name: "Static YAML", outputFormat: "yaml", supportsProfileOptions: false, supportsRuleProviderOptions: true },
   ];
   return {
     templates,
@@ -194,6 +194,7 @@ function catalog() {
     serviceGroups: templates.flatMap(({ id: baseProfile, outputFormat }) => (
       serviceGroupMetadata(outputFormat, baseProfile)
     )),
+    customRuleProviderLimits: { maxProviders: 2, maxUrlLength: 400 },
     serviceGroupLimits: { maxGroups: 8, maxNameLength: 48, maxRoutesPerGroup: 8 },
     optionDefaults: { allowDirect: false, failClosed: true },
   };
@@ -271,6 +272,128 @@ test("loading a legacy spec preserves omitted direct and fail-closed behavior", 
   assert.deepEqual(spec.disabledNodeRegions, ["jp"]);
   assert.ok(!Object.hasOwn(spec, "allowDirect"));
   assert.ok(!Object.hasOwn(spec, "failClosed"));
+});
+
+test("adblock and custom rule providers remain optional, editable, and exportable", async () => {
+  const { root, options } = mount();
+  const initial = options.getSpec();
+  assert.ok(!Object.hasOwn(initial, "adblock"));
+  assert.ok(!Object.hasOwn(initial, "customRuleProviders"));
+
+  change(root, "adblock-setting", "enabled");
+  click(root, "custom-rule-provider-add");
+  change(root, "custom-rule-provider-url-0", "https://rules.example.test/profile.yaml");
+  change(root, "custom-rule-provider-behavior-0", "domain");
+  change(root, "custom-rule-provider-target-0", "proxy");
+
+  const edited = options.getSpec();
+  assert.equal(edited.adblock, true);
+  assert.deepEqual(edited.customRuleProviders, [{
+    url: "https://rules.example.test/profile.yaml",
+    behavior: "domain",
+    target: "proxy",
+  }]);
+  assert.equal(control(root, "custom-rule-provider-url-0").maxLength, 400);
+  click(root, "custom-rule-provider-add");
+  assert.equal(control(root, "custom-rule-provider-add").disabled, true);
+
+  await options.applySpec({
+    schemaVersion: 1,
+    baseProfile: "ai-balanced",
+    language: "zh-Hans",
+    adblock: false,
+    customRuleProviders: [{
+      url: "https://rules.example.test/imported.yaml",
+      behavior: "classical",
+      target: "reject",
+    }],
+  });
+  assert.equal(control(root, "adblock-setting").value, "disabled");
+  assert.equal(control(root, "custom-rule-provider-url-0").value, "https://rules.example.test/imported.yaml");
+  assert.equal(control(root, "custom-rule-provider-behavior-0").value, "classical");
+  assert.equal(control(root, "custom-rule-provider-target-0").value, "reject");
+  assert.equal(options.getSpec().adblock, false);
+
+  click(root, "custom-rule-provider-remove-0");
+  const removed = options.getSpec();
+  assert.deepEqual(removed.customRuleProviders, []);
+  assert.equal(removed.adblock, false);
+});
+
+test("additional options are disabled for static INI and available to static YAML templates", () => {
+  const ini = mount();
+  change(ini.root, "base-profile", "static-ini");
+  assert.equal(control(ini.root, "adblock-setting").disabled, true);
+  assert.equal(control(ini.root, "custom-rule-provider-add").disabled, true);
+  const additionalOptions = find(ini.root, (node) => node.tagName === "details"
+    && (node.className ?? "").includes("profile-additional"));
+  assert.ok(find(additionalOptions, (node) => node.className === "hint" && node.textContent.length > 0));
+  assert.ok(!Object.hasOwn(ini.options.getSpec(), "adblock"));
+
+  const yaml = mount(new FakeStorage(), () => {}, "yaml");
+  change(yaml.root, "base-profile", "static-yaml");
+  assert.equal(control(yaml.root, "adblock-setting").disabled, false);
+  assert.equal(control(yaml.root, "custom-rule-provider-add").disabled, false);
+});
+
+test("a failed locale load leaves the currently edited spec unchanged", async () => {
+  const storage = new FakeStorage();
+  const document = new FakeDocument();
+  const root = document.createElement("section");
+  const options = mountProfileOptions({
+    root,
+    catalog: catalog(),
+    outputFormat: "ini",
+    storage,
+    languageFetcher: async () => ({ ok: false }),
+  });
+  change(root, "adblock-setting", "enabled");
+  click(root, "custom-rule-provider-add");
+  change(root, "custom-rule-provider-url-0", "https://rules.example.test/current.yaml");
+  const before = options.getSpec();
+
+  await assert.rejects(options.applySpec({
+    schemaVersion: 1,
+    baseProfile: "ai-strict",
+    language: "zh-Hant",
+    adblock: false,
+    customRuleProviders: [{
+      url: "https://rules.example.test/next.yaml",
+      behavior: "domain",
+      target: "reject",
+    }],
+  }));
+
+  assert.deepEqual(options.getSpec(), before);
+});
+
+test("stale provider field events cannot overwrite a newly applied spec", async () => {
+  const { root, options } = mount();
+  const oldSpec = {
+    schemaVersion: 1,
+    baseProfile: "ai-balanced",
+    customRuleProviders: [{
+      url: "https://rules.example.test/old.yaml",
+      behavior: "classical",
+      target: "reject",
+    }],
+  };
+  await options.applySpec(oldSpec);
+  const staleUrl = control(root, "custom-rule-provider-url-0");
+  staleUrl.value = "https://rules.example.test/stale-edit.yaml";
+
+  const importedSpec = {
+    ...oldSpec,
+    customRuleProviders: [{
+      url: "https://rules.example.test/imported.yaml",
+      behavior: "domain",
+      target: "proxy",
+    }],
+  };
+  await options.applySpec(importedSpec);
+  staleUrl.dispatch("change");
+
+  assert.deepEqual(options.getSpec().customRuleProviders, importedSpec.customRuleProviders);
 });
 
 test("loading a managed INI profile restores its exported comment language", async () => {

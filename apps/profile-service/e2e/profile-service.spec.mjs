@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { readFile } from "node:fs/promises";
 import YAML from "yaml";
 import { runtimeData } from "../worker/solver.mjs";
 
@@ -213,7 +214,7 @@ test("previews, creates, edits, and reloads a persistent profile without rotatin
     const url = new URL(input.value);
     return {
       sameOrigin: url.origin === location.origin,
-      expectedPath: /^\/p\/[A-Za-z0-9_-]{40,64}$/u.test(url.pathname),
+      expectedPath: /^\/p\/[A-Za-z0-9_-]{40,64}\.ini$/u.test(url.pathname),
     };
   });
   expect(subscriptionShape).toEqual({ sameOrigin: true, expectedPath: true });
@@ -221,8 +222,7 @@ test("previews, creates, edits, and reloads a persistent profile without rotatin
   const initialSubscription = await page.locator("#subscription-url").evaluate(async (input) => {
     const subscriptionUrl = new URL(input.value);
     sessionStorage.setItem("e2e-profile-subscription", subscriptionUrl.href);
-    const extensionlessPath = subscriptionUrl.pathname.replace(/\.ini$/u, "");
-    const response = await fetch(`${subscriptionUrl.origin}${extensionlessPath}`, {
+    const response = await fetch(subscriptionUrl.href, {
       cache: "no-store",
       redirect: "follow",
     });
@@ -237,7 +237,7 @@ test("previews, creates, edits, and reloads a persistent profile without rotatin
   });
   expect(initialSubscription).toEqual({
     status: 200,
-    redirected: true,
+    redirected: false,
     redirectedToIni: true,
     revision: "1",
     hasIni: true,
@@ -277,8 +277,7 @@ test("previews, creates, edits, and reloads a persistent profile without rotatin
   const savedSubscription = await page.evaluate(async () => {
     const subscriptionUrl = sessionStorage.getItem("e2e-profile-subscription");
     const url = new URL(subscriptionUrl);
-    const extensionlessPath = url.pathname.replace(/\.ini$/u, "");
-    const response = await fetch(`${url.origin}${extensionlessPath}`, {
+    const response = await fetch(url.href, {
       cache: "no-store",
       redirect: "follow",
     });
@@ -295,7 +294,7 @@ test("previews, creates, edits, and reloads a persistent profile without rotatin
   });
   expect(savedSubscription).toEqual({
     status: 200,
-    redirected: true,
+    redirected: false,
     redirectedToIni: true,
     revision: "2",
     hasIni: true,
@@ -507,4 +506,127 @@ test("converts real inputs, downloads policy YAML, clears and navigates without 
   await expect(status).not.toContainText("synthetic");
   await expect(page.locator("#output-panel")).toBeHidden();
   expect(pageErrors).toHaveLength(0);
+});
+
+test("imports validated ProfileSpec JSON, exports a reusable template, and edits additive options", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator("#base-profile option").first()).toBeAttached();
+  await page.locator("#base-profile").selectOption("ai-balanced");
+  const importLimit = await page.evaluate(async () => (
+    (await (await fetch("/api/v1/catalog")).json()).profileSpecLimits.maxJsonBytes
+  ));
+  expect(Number.isSafeInteger(importLimit)).toBe(true);
+  let resolveCalls = 0;
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/api/v1/resolve" && request.method() === "POST") resolveCalls += 1;
+  });
+  await page.locator("#profile-json-import-file").setInputFiles({
+    name: "oversized-profile.json",
+    mimeType: "application/json",
+    buffer: Buffer.alloc(importLimit + 1, 0x20),
+  });
+  await expect(page.locator("#status")).toContainText("exceeds the profile service import limit");
+  expect(resolveCalls).toBe(0);
+
+  const initialSpec = {
+    schemaVersion: 1,
+    baseProfile: "ai-balanced",
+    language: "en",
+    customRuleProviders: [{
+      url: "https://rules.example.test/profile-provider.yaml",
+      behavior: "domain",
+      target: "reject",
+    }],
+    adblock: true,
+  };
+  const initialResolve = page.waitForResponse((response) => (
+    new URL(response.url()).pathname === "/api/v1/resolve"
+    && response.request().method() === "POST"
+  ));
+  await page.locator("#profile-json-import-file").setInputFiles({
+    name: "profile-spec.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(initialSpec)),
+  });
+  const initialResponse = await initialResolve;
+  expect(initialResponse.status()).toBe(200);
+  const initialPreview = await initialResponse.json();
+  expect(initialPreview.spec).toMatchObject(initialSpec);
+  await expect(page.locator("#status")).toContainText("ProfileSpec validated and imported");
+
+  await openDetails(page, ".profile-additional");
+  await expect(page.locator("#adblock-setting")).toHaveValue("enabled");
+  await expect(page.locator("#custom-rule-provider-url-0")).toHaveValue(initialSpec.customRuleProviders[0].url);
+  await expect(page.locator("#custom-rule-provider-behavior-0")).toHaveValue("domain");
+  await expect(page.locator("#custom-rule-provider-target-0")).toHaveValue("reject");
+
+  const [exportedDownload] = await Promise.all([
+    page.waitForEvent("download"),
+    page.locator("#export-profile-json").click(),
+  ]);
+  const exportedText = await readFile(await exportedDownload.path(), "utf8");
+  const exportedSpec = JSON.parse(exportedText);
+  expect(exportedSpec).toMatchObject(initialSpec);
+
+  await page.locator("#adblock-setting").selectOption("disabled");
+  await page.locator("#custom-rule-provider-url-0").fill("https://rules.example.test/edited.yaml");
+  await page.locator("#custom-rule-provider-behavior-0").selectOption("classical");
+  await page.locator("#custom-rule-provider-target-0").selectOption("proxy");
+
+  const roundTripResolve = page.waitForResponse((response) => (
+    new URL(response.url()).pathname === "/api/v1/resolve"
+    && response.request().method() === "POST"
+  ));
+  await page.locator("#profile-json-import-file").setInputFiles({
+    name: "exported-profile.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(exportedText),
+  });
+  const roundTripResponse = await roundTripResolve;
+  expect(roundTripResponse.status()).toBe(200);
+  await expect(page.locator("#adblock-setting")).toHaveValue("enabled");
+  await expect(page.locator("#custom-rule-provider-url-0")).toHaveValue(initialSpec.customRuleProviders[0].url);
+  await expect(page.locator("#custom-rule-provider-behavior-0")).toHaveValue("domain");
+  await expect(page.locator("#custom-rule-provider-target-0")).toHaveValue("reject");
+
+  const invalidSpec = {
+    ...exportedSpec,
+    customRuleProviders: [{ ...exportedSpec.customRuleProviders[0], target: "unknown" }],
+  };
+  const invalidResolve = page.waitForResponse((response) => (
+    new URL(response.url()).pathname === "/api/v1/resolve"
+    && response.request().method() === "POST"
+  ));
+  await page.locator("#profile-json-import-file").setInputFiles({
+    name: "invalid-profile.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(invalidSpec)),
+  });
+  const invalidResponse = await invalidResolve;
+  expect(invalidResponse.status()).toBe(400);
+  await expect(page.locator("#status")).toContainText("Could not import ProfileSpec");
+  await expect(page.locator("#adblock-setting")).toHaveValue("enabled");
+  await expect(page.locator("#custom-rule-provider-url-0")).toHaveValue(initialSpec.customRuleProviders[0].url);
+
+  const [instructionsDownload] = await Promise.all([
+    page.waitForEvent("download"),
+    page.locator("#download-agent-instructions").click(),
+  ]);
+  const instructions = await readFile(await instructionsDownload.path(), "utf8");
+  expect(instructions).toContain("GET /api/v1/catalog");
+  expect(instructions).toContain("POST /api/v1/resolve");
+  expect(instructions).toContain("capability credentials");
+});
+
+test("YAML converter exposes additive provider and adblock controls on a standard YAML template", async ({ page }) => {
+  await page.goto("/converter.html");
+  await expect(page.locator("#base-profile option").first()).toBeAttached();
+  await page.locator("#base-profile").selectOption("standard");
+  await openDetails(page, ".profile-additional");
+
+  await expect(page.locator("#adblock-setting")).toBeEnabled();
+  await expect(page.locator("#custom-rule-provider-add")).toBeEnabled();
+  await page.locator("#custom-rule-provider-add").click();
+  await expect(page.locator("#custom-rule-provider-url-0")).toBeVisible();
+  await expect(page.locator("#custom-rule-provider-url-0")).toHaveValue("");
 });

@@ -40,10 +40,98 @@ async function preview() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ spec: currentSpec() }),
     });
-    $("summary").textContent = JSON.stringify(result.summary, null, 2);
-    $("ini-preview").textContent = result.ini;
-    $("preview-result").hidden = false;
+    showResolved(result);
     setStatus("");
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+}
+
+function showResolved(result) {
+  if (!result || typeof result.ini !== "string" || !result.summary || typeof result.summary !== "object") {
+    throw new Error(translate("invalidProfilePreview"));
+  }
+  $("summary").textContent = JSON.stringify(result.summary, null, 2);
+  $("ini-preview").textContent = result.ini;
+  $("preview-result").hidden = false;
+}
+
+function downloadText(filename, content, type) {
+  const url = URL.createObjectURL(new Blob([content], { type }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.hidden = true;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+function agentInstructions() {
+  return `# Local ProfileSpec editing instructions
+
+Use a local agent to edit a ProfileSpec JSON file with typed JSON and the current catalog. Never include capability credentials or send them to third parties.
+
+1. Start from a fresh JSON export from the profile builder so existing choices are preserved.
+2. Read the current catalog from the same profile service origin with \`GET /api/v1/catalog\`. Use only registered template, region, service, and group IDs; add provider/adblock fields only when the selected template has \`supportsRuleProviderOptions: true\`.
+3. Return one raw ProfileSpec JSON object. Do not wrap it in an envelope or write INI/YAML directly.
+4. The builder validates imports through \`POST /api/v1/resolve\` before applying the resolver's normalized \`spec\`. A failed preview leaves the current profile untouched.
+
+Supported additional fields:
+
+- \`customRuleProviders\`: optional array of \`{ "url": "https://…", "behavior": "classical" | "domain", "target": "reject" | "direct" | "proxy" }\`. Let the catalog and server preview define the accepted limits and values.
+- \`adblock\`: optional boolean. When enabled, it adds the lite adblock rules only.
+
+Custom provider URLs are not fetched by this Worker. Downstream clients fetch them, so use trusted sources and never put credentials in a URL. These additional fields require a template that supports profile options; static templates reject them. If preview rejects a field, report the server error and keep the file unchanged.
+`;
+}
+
+async function importProfileFile(file) {
+  if (!file) return;
+  const maxBytes = state.catalog?.profileSpecLimits?.maxJsonBytes;
+  if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) {
+    setStatus(translate("profileJsonLimitUnavailable"), true);
+    return;
+  }
+  if (file.size > maxBytes) {
+    setStatus(translate("profileJsonTooLarge"), true);
+    return;
+  }
+  setStatus(translate("profileJsonValidating"));
+  try {
+    const result = await api("/api/v1/resolve", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: file,
+    });
+    // Check the server preview response before changing the current editor.
+    if (!result || typeof result.ini !== "string" || !result.summary || typeof result.summary !== "object"
+      || !result.spec || typeof result.spec !== "object" || Array.isArray(result.spec)) {
+      throw new Error(translate("invalidProfilePreview"));
+    }
+    await state.options.applySpec(result.spec);
+    showResolved(result);
+    setStatus(translate("profileJsonImported"));
+  } catch (error) {
+    setStatus(translate("profileJsonImportFailed", { reason: error.message }), true);
+  }
+}
+
+function exportProfileJson() {
+  try {
+    const spec = currentSpec();
+    downloadText("openclash-profile.json", `${JSON.stringify(spec, null, 2)}\n`, "application/json;charset=utf-8");
+    setStatus(translate("profileJsonExported"));
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+}
+
+function downloadAgentInstructions() {
+  try {
+    downloadText("profile-spec-agent-instructions.md", agentInstructions(), "text/markdown;charset=utf-8");
+    setStatus(translate("agentInstructionsDownloaded"));
   } catch (error) {
     setStatus(error.message, true);
   }
@@ -69,7 +157,7 @@ async function save() {
     }
 
     const origin = location.origin;
-    $("subscription-url").value = `${origin}/p/${result.readToken}`;
+    $("subscription-url").value = `${origin}/p/${result.readToken}.ini`;
     $("manage-url").value = `${origin}/manage?id=${encodeURIComponent(result.id)}#${result.manageToken}`;
     $("result").hidden = false;
     setStatus(translate("subscriptionCreated"));
@@ -127,6 +215,15 @@ async function init() {
     });
     $("preview").addEventListener("click", preview);
     $("save").addEventListener("click", save);
+    $("import-profile-json").addEventListener("click", () => $("profile-json-import-file").click());
+    $("profile-json-import-file").addEventListener("change", async (event) => {
+      const input = event.currentTarget;
+      const file = input.files?.[0];
+      input.value = "";
+      await importProfileFile(file);
+    });
+    $("export-profile-json").addEventListener("click", exportProfileJson);
+    $("download-agent-instructions").addEventListener("click", downloadAgentInstructions);
     for (const button of document.querySelectorAll("[data-copy]")) {
       button.addEventListener("click", async () => {
         try {

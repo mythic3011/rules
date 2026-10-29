@@ -5,6 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
   <title data-i18n="pageTitle">OpenClash Profile Builder</title>
+  <meta name="description" content="Build OpenClash custom-template subscriptions with clear routing preferences, or convert proxy links and subscriptions into a manual-selection YAML profile.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="OpenClash Profile Builder">
+  <meta property="og:description" content="Build OpenClash custom-template subscriptions with clear routing preferences, or convert proxy links and subscriptions into a manual-selection YAML profile.">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="OpenClash Profile Builder">
+  <meta name="twitter:description" content="Build OpenClash custom-template subscriptions with clear routing preferences, or convert proxy links and subscriptions into a manual-selection YAML profile.">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -32,6 +39,19 @@
         <button id="save" type="button" class="primary" data-i18n="createSubscription">Create subscription</button>
       </section>
     </div>
+
+    <section id="profile-json-tools" class="panel profile-json-tools" aria-labelledby="profile-json-title">
+      <div>
+        <h2 id="profile-json-title" data-i18n="profileJsonTitle">ProfileSpec JSON</h2>
+        <p class="hint" data-i18n="profileJsonHelp">Export or import a ProfileSpec. Imports are checked by this profile service before the builder applies them. Download instructions for a local agent; no remote model call is made.</p>
+      </div>
+      <div class="actions profile-json-actions">
+        <button id="import-profile-json" type="button" data-i18n="importProfileJson">Import JSON</button>
+        <button id="export-profile-json" type="button" data-i18n="exportProfileJson">Export current ProfileSpec</button>
+        <button id="download-agent-instructions" type="button" data-i18n="downloadAgentInstructions">Download agent instructions</button>
+        <input id="profile-json-import-file" class="visually-hidden" type="file" accept=".json,application/json" data-i18n-aria-label="importProfileJson">
+      </div>
+    </section>
 
     <section id="profile-options" class="panel" aria-labelledby="profile-options-title"></section>
 
