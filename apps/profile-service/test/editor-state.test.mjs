@@ -28,6 +28,29 @@ test("preview freshness, undo, and saved baselines are independent", () => {
   assert.equal(model.dirty, false);
 });
 
+test("adblock and custom providers survive undo, cancel, and session recovery", () => {
+  const provider = { url: "https://rules.example/custom.yaml", behavior: "domain", target: "reject" };
+  const configured = draft({ adblock: true, customRuleProviders: [provider] });
+  const model = createEditorState(draft());
+
+  model.update(configured);
+  assert.equal(model.draft.adblock, true);
+  assert.deepEqual(model.draft.customRuleProviders, [provider]);
+  model.undo();
+  assert.equal(Object.hasOwn(model.draft, "adblock"), false);
+  assert.equal(Object.hasOwn(model.draft, "customRuleProviders"), false);
+
+  model.update(configured);
+  model.revert();
+  assert.equal(Object.hasOwn(model.draft, "adblock"), false);
+  assert.equal(Object.hasOwn(model.draft, "customRuleProviders"), false);
+
+  const storage = new Storage();
+  const context = { context: "builder" };
+  assert.equal(writeSessionDraft(storage, context, configured, null, 100), true);
+  assert.deepEqual(readSessionDraft(storage, context, 101).draft, configured);
+});
+
 test("a late save acknowledges only the submitted draft, preserving newer and invalid edits", () => {
   const model = createEditorState(draft(), 4);
   const submitted = draft({ selectedRegions: ["jp"] });

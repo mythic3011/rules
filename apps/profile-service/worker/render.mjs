@@ -103,7 +103,7 @@ function emitSection(lines, section, localizedCopy) {
   throw new Error(`Unsupported INI section type: ${section.type}`);
 }
 
-export function renderIni(plan, data, { language } = {}) {
+export function renderIni(plan, data, { language, spec } = {}) {
   const localizedCopy = language === undefined ? null : data.render.localized?.[language];
   if (language !== undefined && !localizedCopy) {
     throw new Error(`Unsupported profile language: ${language}`);
@@ -112,6 +112,15 @@ export function renderIni(plan, data, { language } = {}) {
     ? [...localizedCopy.header, "", "[custom]", ""]
     : data.render.preamble;
   const lines = [...preamble];
+  if (localizedCopy && spec) {
+    const notes = [];
+    if (spec.adblock === true) notes.push(localizedCopy.optionalProviderNotes?.adblock);
+    if (Array.isArray(spec.customRuleProviders) && spec.customRuleProviders.length > 0) notes.push(localizedCopy.optionalProviderNotes?.customRuleProviders);
+    if (notes.length) {
+      if (notes.some((line) => typeof line !== "string" || !line.startsWith(";") || /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u.test(line))) throw new Error("Canonical INI provider comments are unavailable");
+      lines.push(...notes, "");
+    }
+  }
   for (const section of plan.sections) emitSection(lines, section, localizedCopy);
   const suffix = localizedCopy
     ? ["", "", ...localizedCopy.footer, ...data.render.suffix.filter((line) => line && !line.trimStart().startsWith(";"))]

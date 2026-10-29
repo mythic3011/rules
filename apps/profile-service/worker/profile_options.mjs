@@ -1,7 +1,9 @@
 import runtimeData from "./generated/runtime-data.mjs";
 import {
+  CUSTOM_RULE_PROVIDER_LIMITS,
   ProfileSpecError,
   normalizeProfileSpec,
+  protectedRuleTargets,
   resolveProfileSpec,
   serviceRouteGroupName,
 } from "./solver.mjs";
@@ -31,6 +33,7 @@ export function getProfileOptions({ outputFormat, data = runtimeData } = {}) {
         name,
         description,
         supportsProfileOptions,
+        supportsRuleProviderOptions: outputFormat === "yaml" || supportsProfileOptions,
       })),
     regions,
     services: (data.services ?? [])
@@ -56,7 +59,10 @@ export function getProfileOptions({ outputFormat, data = runtimeData } = {}) {
       allowDirect: false,
       failClosed: true,
       language: data.render.defaultLanguage,
+      adblock: false,
+      customRuleProviders: [],
     },
+    customRuleProviderLimits: { ...CUSTOM_RULE_PROVIDER_LIMITS },
   };
 }
 
@@ -496,6 +502,106 @@ function applyAccountProtection(profile, resolved, data) {
   if (Object.hasOwn(protectedGroup, "default-selected")) protectedGroup["default-selected"] = reject;
 }
 
+const RULE_PROVIDER_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_-]*$/u;
+
+function customRuleTarget(target, data, baseProfile, profile) {
+  const key = target === "reject" ? "reject" : target === "direct" ? "direct" : "manual";
+  const groups = profile["proxy-groups"];
+  const names = new Set(groups.map((group) => group?.name).filter((name) => typeof name === "string"));
+  const canonical = data.groups?.[key];
+  if (typeof canonical === "string" && names.has(canonical)) return canonical;
+  if (target === "proxy") {
+    const templateGroup = profileTemplate(data, "yaml", baseProfile)?.dnsEgressGroup;
+    if (typeof templateGroup === "string" && names.has(templateGroup)) return templateGroup;
+  }
+  if (target === "direct" || target === "reject") {
+    const builtin = target === "direct" ? "DIRECT" : "REJECT";
+    const candidates = groups.filter((group) => (
+      group?.type === "select" && Array.isArray(group.proxies)
+      && group.proxies.length === 1 && group.proxies[0] === builtin
+    ));
+    const uniqueNames = [...new Set(candidates.map((group) => group.name).filter((name) => typeof name === "string"))];
+    if (uniqueNames.length === 1) return uniqueNames[0];
+  }
+  throw new ProfileSpecError(`Custom rule target metadata is unavailable: ${target}`, "invalid_profile_data");
+}
+
+function providerNameAndPath(preferredName, providers, paths) {
+  if (typeof preferredName !== "string" || !RULE_PROVIDER_NAME_RE.test(preferredName)) {
+    throw new ProfileSpecError("Rule provider name metadata is invalid", "invalid_profile_data");
+  }
+  let name = preferredName;
+  let suffix = 2;
+  let path = `./ruleset/${name}.yaml`;
+  while (Object.hasOwn(providers, name) || paths.has(path)) {
+    name = `${preferredName}_${suffix}`;
+    path = `./ruleset/${name}.yaml`;
+    suffix += 1;
+  }
+  paths.add(path);
+  return { name, path };
+}
+
+function yamlRuleKind(rule) {
+  return rule.split(",", 1)[0].trim().toUpperCase();
+}
+
+function yamlRuleTarget(rule) {
+  const fields = rule.split(",");
+  return yamlRuleKind(rule) === "MATCH" ? fields[1]?.trim() : fields[2]?.trim();
+}
+
+function applyCustomRuleProviders(profile, resolved, data) {
+  const entries = [];
+  if (resolved.adblock) {
+    const provider = data.adblockRuleProvider;
+    if (!provider || typeof provider.name !== "string" || typeof provider.url !== "string" || !provider.url || provider.behavior !== "domain") {
+      throw new ProfileSpecError("Canonical adblock provider metadata is unavailable", "invalid_profile_data");
+    }
+    entries.push({ preferredName: provider.name, url: provider.url, behavior: provider.behavior, target: "reject" });
+  }
+  for (const [index, provider] of resolved.customRuleProviders.entries()) {
+    entries.push({ preferredName: `Profile_Custom_Rule_${index + 1}`, ...provider });
+  }
+  if (!entries.length) return;
+  const interval = data.ruleProviderIntervals?.yaml;
+  if (!Number.isInteger(interval) || interval < 1) {
+    throw new ProfileSpecError("Canonical YAML rule provider interval is unavailable", "invalid_profile_data");
+  }
+  const providers = profile["rule-providers"];
+  const rules = profile.rules;
+  if (!providers || typeof providers !== "object" || Array.isArray(providers) || !Array.isArray(rules) || !Array.isArray(profile["proxy-groups"])) {
+    throw new ProfileSpecError("YAML profile has no rule-provider insertion point", "invalid_profile_data");
+  }
+  const matches = rules.flatMap((rule, index) => typeof rule === "string" && yamlRuleKind(rule) === "MATCH" ? [index] : []);
+  if (matches.length !== 1 || matches[0] !== rules.length - 1) {
+    throw new ProfileSpecError("YAML profile must contain one terminal MATCH rule", "invalid_profile_data");
+  }
+  const paths = new Set(Object.values(providers).filter((provider) => provider && typeof provider === "object" && typeof provider.path === "string").map((provider) => provider.path));
+  const addedRules = [];
+  for (const entry of entries) {
+    const { name, path } = providerNameAndPath(entry.preferredName, providers, paths);
+    providers[name] = { type: "http", behavior: entry.behavior, format: "yaml", interval, url: entry.url, path };
+    addedRules.push(`RULE-SET,${name},${customRuleTarget(entry.target, data, resolved.spec.baseProfile, profile)}`);
+  }
+  const matchIndex = matches[0];
+  const targets = protectedRuleTargets(data);
+  let lastProtectedRule = -1;
+  for (let index = 0; index < matchIndex; index += 1) if (targets.has(yamlRuleTarget(rules[index]))) lastProtectedRule = index;
+  let insertionIndex = matchIndex;
+  for (let index = lastProtectedRule + 1; index < matchIndex; index += 1) {
+    const fields = rules[index].split(",");
+    if (yamlRuleKind(rules[index]) === "GEOIP" && fields[1]?.trim().toLowerCase() !== "private") {
+      insertionIndex = index;
+      break;
+    }
+  }
+  if (rules.slice(insertionIndex, matchIndex).some((rule) => targets.has(yamlRuleTarget(rule)))) {
+    throw new ProfileSpecError("Protected account rules occur after the custom-rule insertion point", "invalid_profile_data");
+  }
+  rules.splice(insertionIndex, 0, ...addedRules);
+}
+
 export function resolveOutputProfile({ outputFormat, spec = {}, data = runtimeData } = {}) {
   const normalized = normalizeProfileSpec(spec, data, outputFormat);
   const template = profileTemplate(data, outputFormat, normalized.baseProfile);
@@ -515,6 +621,7 @@ export function resolveOutputProfile({ outputFormat, spec = {}, data = runtimeDa
     applyTrafficGuards(output, resolved, data);
     applyAccountProtection(output, resolved, data);
   }
+  applyCustomRuleProviders(output, resolved, data);
   return output;
 }
 
@@ -524,4 +631,38 @@ export function profileCommentHeader(language, data = runtimeData) {
     throw new ProfileSpecError(`Unsupported profile language: ${language}`, "invalid_language");
   }
   return localized ? localized.header.map((line) => line.replace(/^;\s?/, "# ")).join("\n") : "";
+}
+
+function yamlCommentLines(value) {
+  return Array.isArray(value) && value.length > 0 && value.every((line) => (
+    typeof line === "string" && line.startsWith("#")
+    && !/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u.test(line)
+  ));
+}
+
+export function profileCommentText(language, spec = {}, data = runtimeData) {
+  if (language === undefined) return "";
+  const localized = data.render.localized?.[language];
+  if (!localized) throw new ProfileSpecError(`Unsupported profile language: ${language}`, "invalid_language");
+  const copy = localized.yaml;
+  if (!copy || !yamlCommentLines(copy.header)) throw new ProfileSpecError("Canonical YAML comment metadata is unavailable", "invalid_profile_data");
+  const comments = [...copy.header];
+  const policyKey = spec?.baseProfile === "ai-strict" ? "strict" : spec?.baseProfile === "ai-balanced" || !spec?.baseProfile ? "balanced" : null;
+  if (policyKey) {
+    const lines = copy.policyNotes?.[policyKey];
+    const title = copy.titles?.[policyKey];
+    if (!yamlCommentLines(lines) || typeof title !== "string" || !title || /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u.test(title)) throw new ProfileSpecError("Canonical YAML policy comments are incomplete", "invalid_profile_data");
+    comments.push(`# ${title}`, ...lines);
+  }
+  if (spec?.adblock === true) {
+    const line = copy.optionalProviderNotes?.adblock;
+    if (!yamlCommentLines([line])) throw new ProfileSpecError("Canonical adblock comment is unavailable", "invalid_profile_data");
+    comments.push(line);
+  }
+  if (Array.isArray(spec?.customRuleProviders) && spec.customRuleProviders.length > 0) {
+    const line = copy.optionalProviderNotes?.customRuleProviders;
+    if (!yamlCommentLines([line])) throw new ProfileSpecError("Canonical custom rule comment is unavailable", "invalid_profile_data");
+    comments.push(line);
+  }
+  return comments.join("\n");
 }

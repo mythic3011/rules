@@ -1,6 +1,6 @@
 import YAML from "yaml";
 
-import { profileCommentHeader, resolveOutputProfile } from "./profile_options.mjs";
+import { profileCommentText, resolveOutputProfile } from "./profile_options.mjs";
 import {
   NodeInputError,
   parseNodeUri,
@@ -486,7 +486,7 @@ export async function convertInput({ input, format = "auto", spec, env = {}, fet
   let yaml;
   try {
     yaml = YAML.stringify(config, { lineWidth: 0, sortMapEntries: false });
-    const comment = profileCommentHeader(spec?.language);
+    const comment = profileCommentText(spec?.language, spec);
     if (comment) yaml = `${comment}\n${yaml}`;
   } catch {
     reject("Canonical profile could not be serialized", "profile_serialization_failed", 500);

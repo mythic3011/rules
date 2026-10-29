@@ -1,5 +1,12 @@
 import runtimeData from "./generated/runtime-data.mjs";
 
+export const CUSTOM_RULE_PROVIDER_LIMITS = Object.freeze({
+  maxProviders: 10,
+  maxUrlLength: 2048,
+});
+
+const CUSTOM_RULE_PROVIDER_UNSAFE_URL_RE = /[,`\\\s\p{Cc}\u2028\u2029]/u;
+
 export class ProfileSpecError extends Error {
   constructor(message, code = "invalid_profile_spec") {
     super(message);
@@ -89,6 +96,57 @@ function canonicalizeServices(values, data, field, outputFormat) {
     }
     return serviceId;
   }));
+}
+
+function normalizeCustomRuleProviders(values) {
+  if (!Array.isArray(values)) {
+    throw new ProfileSpecError("customRuleProviders must be an array", "invalid_custom_rule_providers");
+  }
+  if (values.length > CUSTOM_RULE_PROVIDER_LIMITS.maxProviders) {
+    throw new ProfileSpecError(
+      `customRuleProviders exceeds the limit of ${CUSTOM_RULE_PROVIDER_LIMITS.maxProviders}`,
+      "too_many_custom_rule_providers",
+    );
+  }
+  return values.map((provider, index) => {
+    const at = `customRuleProviders[${index}]`;
+    if (!provider || typeof provider !== "object" || Array.isArray(provider)) {
+      throw new ProfileSpecError(`${at} must be an object`, "invalid_custom_rule_provider");
+    }
+    for (const key of Object.keys(provider)) {
+      if (!["url", "behavior", "target"].includes(key)) {
+        throw new ProfileSpecError(`Unknown ${at} field: ${key}`, "unknown_custom_rule_provider_field");
+      }
+    }
+    const { url, behavior, target } = provider;
+    if (
+      typeof url !== "string" || !url || url.length > CUSTOM_RULE_PROVIDER_LIMITS.maxUrlLength
+      || url !== url.trim() || !isWellFormedUnicode(url)
+      || CUSTOM_RULE_PROVIDER_UNSAFE_URL_RE.test(url) || url.includes("#")
+    ) {
+      throw new ProfileSpecError(`${at}.url is invalid or too long`, "invalid_custom_rule_provider_url");
+    }
+    let parsedUrl;
+    try {
+      parsedUrl = new URL(url);
+    } catch {
+      throw new ProfileSpecError(`${at}.url must be an absolute HTTPS URL`, "invalid_custom_rule_provider_url");
+    }
+    const authority = url.match(/^https:\/\/([^/?#]*)/iu)?.[1];
+    if (
+      parsedUrl.protocol !== "https:" || !parsedUrl.hostname || parsedUrl.username || parsedUrl.password
+      || parsedUrl.hash || typeof authority !== "string" || authority.includes("@")
+    ) {
+      throw new ProfileSpecError(`${at}.url must be HTTPS without credentials or a fragment`, "invalid_custom_rule_provider_url");
+    }
+    if (behavior !== "classical" && behavior !== "domain") {
+      throw new ProfileSpecError(`${at}.behavior must be classical or domain`, "invalid_custom_rule_provider");
+    }
+    if (target !== "reject" && target !== "direct" && target !== "proxy") {
+      throw new ProfileSpecError(`${at}.target must be reject, direct, or proxy`, "invalid_custom_rule_provider");
+    }
+    return { url, behavior, target };
+  });
 }
 
 const SERVICE_GROUP_NAME_UNSAFE_RE = /[,`\[\]\\\p{Cc}\u2028\u2029]/u;
@@ -465,6 +523,8 @@ export function normalizeProfileSpec(input, data = runtimeData, outputFormat = "
     "failClosed",
     "language",
     "serviceGroups",
+    "adblock",
+    "customRuleProviders",
   ]);
   for (const key of Object.keys(input)) {
     if (!allowed.has(key)) {
@@ -494,6 +554,9 @@ export function normalizeProfileSpec(input, data = runtimeData, outputFormat = "
   };
   const disabledServices = canonicalizeServices(input.disabledServices ?? [], data, "disabledServices", outputFormat);
   const preferredServices = canonicalizeServices(input.preferredServices ?? [], data, "preferredServices", outputFormat);
+  const customRuleProviders = input.customRuleProviders === undefined
+    ? undefined
+    : normalizeCustomRuleProviders(input.customRuleProviders);
   const conflictingServices = disabledServices.filter((service) => preferredServices.includes(service));
   if (conflictingServices.length) {
     throw new ProfileSpecError(
@@ -508,6 +571,15 @@ export function normalizeProfileSpec(input, data = runtimeData, outputFormat = "
   if (input.failClosed !== undefined && typeof input.failClosed !== "boolean") {
     throw new ProfileSpecError("failClosed must be a boolean", "invalid_boolean_option");
   }
+  if (input.adblock !== undefined && typeof input.adblock !== "boolean") {
+    throw new ProfileSpecError("adblock must be a boolean", "invalid_boolean_option");
+  }
+  if (input.allowDirect === false && customRuleProviders?.some((provider) => provider.target === "direct")) {
+    throw new ProfileSpecError(
+      "Custom direct rules conflict with allowDirect=false",
+      "conflicting_custom_rule_target",
+    );
+  }
   if (input.language !== undefined && !Object.hasOwn(data.render?.localized ?? {}, input.language)) {
     throw new ProfileSpecError("language must be en, zh-Hant, or zh-Hans", "invalid_language");
   }
@@ -520,7 +592,8 @@ export function normalizeProfileSpec(input, data = runtimeData, outputFormat = "
     || preferredServices.length
     || input.allowDirect !== undefined
     || input.failClosed !== undefined
-    || hasServiceGroups;
+    || hasServiceGroups
+    || (outputFormat === "ini" && (input.adblock === true || Boolean(customRuleProviders?.length)));
   if (!template.supportsProfileOptions && hasUnsupportedOptions) {
     throw new ProfileSpecError(
       `Profile options are not supported by the ${baseProfile} ${outputFormat.toUpperCase()} template`,
@@ -546,6 +619,8 @@ export function normalizeProfileSpec(input, data = runtimeData, outputFormat = "
   if (Object.hasOwn(input, "failClosed")) spec.failClosed = input.failClosed;
   if (Object.hasOwn(input, "language")) spec.language = input.language;
   if (hasServiceGroups) spec.serviceGroups = serviceGroups;
+  if (input.adblock !== undefined) spec.adblock = input.adblock;
+  if (customRuleProviders !== undefined) spec.customRuleProviders = customRuleProviders;
   return spec;
 }
 
@@ -614,6 +689,8 @@ export function resolveProfileSpec(input, data = runtimeData, outputFormat = "in
     preferredServiceIds: preferredServices,
     allowDirect: spec.allowDirect,
     failClosed: spec.failClosed,
+    adblock: spec.adblock === true,
+    customRuleProviders: spec.customRuleProviders ?? [],
     language: spec.language,
     includeOtherRegion: spec.onlyNodeRegions.length === 0,
   };
@@ -668,6 +745,81 @@ function serviceRuleReference(rule) {
   const value = rule.url ?? rule.value;
   if (typeof rule.kind !== "string" || typeof value !== "string" || !value) return null;
   return JSON.stringify([rule.kind, value]);
+}
+
+function customRuleTarget(target, data) {
+  const key = target === "reject" ? "reject" : target === "direct" ? "direct" : "manual";
+  const group = data.groups?.[key];
+  if (typeof group !== "string" || !group) {
+    throw new ProfileSpecError(`Custom rule target metadata is unavailable: ${target}`, "invalid_profile_data");
+  }
+  return group;
+}
+
+function customIniRules(resolved, data) {
+  const rules = [];
+  const hasProviderRules = resolved.adblock || resolved.customRuleProviders.length > 0;
+  const interval = data.ruleProviderIntervals?.ini;
+  if (hasProviderRules && (!Number.isInteger(interval) || interval < 1)) {
+    throw new ProfileSpecError("Canonical INI rule provider interval is unavailable", "invalid_profile_data");
+  }
+  if (resolved.adblock) {
+    const provider = data.adblockRuleProvider;
+    if (!provider || provider.behavior !== "domain" || typeof provider.url !== "string" || !provider.url) {
+      throw new ProfileSpecError("Canonical adblock provider metadata is unavailable", "invalid_profile_data");
+    }
+    rules.push({ kind: "remote-domain", target: customRuleTarget("reject", data), url: provider.url, interval });
+  }
+  for (const provider of resolved.customRuleProviders) {
+    rules.push({
+      kind: provider.behavior === "domain" ? "remote-domain" : "remote-classical",
+      target: customRuleTarget(provider.target, data),
+      url: provider.url,
+      interval,
+    });
+  }
+  return rules;
+}
+
+function planRuleLocations(plan) {
+  const locations = [];
+  for (const section of plan.sections) {
+    if (section.type === "rules") {
+      section.rules.forEach((rule, index) => locations.push({ section, rules: section.rules, index, rule }));
+    } else if (section.type === "clusters") {
+      for (const cluster of section.clusters) {
+        cluster.rules.forEach((rule, index) => locations.push({ section, rules: cluster.rules, index, rule }));
+      }
+    }
+  }
+  return locations;
+}
+
+export function protectedRuleTargets(data) {
+  return new Set([
+    data.accountProtection?.protectedGroup,
+    data.groups?.["high-risk-account"],
+    ...(data.serviceGroups ?? []).filter((group) => group?.protected).map((group) => group.name),
+  ].filter((value) => typeof value === "string" && value));
+}
+
+function insertIniCustomRules(plan, rules, data) {
+  if (!rules.length) return;
+  const locations = planRuleLocations(plan);
+  const finals = locations.filter(({ rule }) => rule.kind === "final");
+  if (finals.length !== 1 || finals[0] !== locations.at(-1)) {
+    throw new ProfileSpecError("INI profile must contain one terminal FINAL rule", "invalid_profile_data");
+  }
+  const tail = plan.sections.find((section) => section.type === "clusters" && section.role === "routing-tail-clusters");
+  if (!tail) throw new ProfileSpecError("INI profile has no routing-tail insertion point", "invalid_profile_data");
+  const insertion = locations.find(({ section, rule }) => section === tail && (rule.kind === "geoip" || rule.kind === "final"));
+  if (!insertion) throw new ProfileSpecError("INI profile has no routing-tail fallback rule", "invalid_profile_data");
+  const insertionLocationIndex = locations.indexOf(insertion);
+  const protectedTargets = protectedRuleTargets(data);
+  if (locations.slice(insertionLocationIndex).some(({ rule }) => protectedTargets.has(rule.target))) {
+    throw new ProfileSpecError("Protected account rules occur after the custom-rule insertion point", "invalid_profile_data");
+  }
+  insertion.rules.splice(insertion.index, 0, ...rules);
 }
 
 function serviceGroupCandidates(layout, data, failClosed, sourceByService, protectedGroup = false) {
@@ -1087,6 +1239,8 @@ export function solveSubconverterPlan(input, data = runtimeData) {
       }
     }
   }
+
+  insertIniCustomRules(plan, customIniRules(resolved, data), data);
 
   return { resolved, plan };
 }

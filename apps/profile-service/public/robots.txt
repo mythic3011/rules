@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /manage
+Disallow: /api/
+Disallow: /p/
+Disallow: /builder/success

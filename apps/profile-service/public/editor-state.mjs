@@ -3,7 +3,7 @@ import { copyServiceGroups } from "./service-group-editor.js";
 
 // Raw draft fields belong to this browser contract, not to the HTTP ProfileSpec.
 const ARRAY_FIELDS = Object.freeze(["selectedRegions", "preferredNodeRegions", "disabledServices", "preferredServices"]);
-const DRAFT_FIELDS = new Set(["baseProfile", "regionMode", ...ARRAY_FIELDS, "serviceGroups", "allowDirect", "failClosed", "language"]);
+const DRAFT_FIELDS = new Set(["baseProfile", "regionMode", ...ARRAY_FIELDS, "serviceGroups", "allowDirect", "failClosed", "adblock", "customRuleProviders", "language"]);
 export const DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_DRAFT_BYTES = 65_536;
 const UNDO_LIMIT = 30;
@@ -14,11 +14,18 @@ export function copyEditorDraft(value) {
     || typeof value.baseProfile !== "string" || !["exclude", "only"].includes(value.regionMode)
     || !Object.hasOwn(LANGUAGES, value.language)
     || ARRAY_FIELDS.some((key) => !Array.isArray(value[key]) || value[key].some((id) => typeof id !== "string"))
-    || ["allowDirect", "failClosed"].some((key) => value[key] !== undefined && typeof value[key] !== "boolean")
+    || ["allowDirect", "failClosed", "adblock"].some((key) => value[key] !== undefined && typeof value[key] !== "boolean")
+    || value.customRuleProviders !== undefined && (!Array.isArray(value.customRuleProviders)
+      || value.customRuleProviders.some((provider) => !provider || typeof provider !== "object" || Array.isArray(provider)
+        || Object.keys(provider).some((key) => !["url", "behavior", "target"].includes(key))
+        || typeof provider.url !== "string" || typeof provider.behavior !== "string" || typeof provider.target !== "string"))
     || value.serviceGroups !== undefined && copyServiceGroups(value.serviceGroups) === undefined) return null;
   const draft = { baseProfile: value.baseProfile, regionMode: value.regionMode, language: value.language };
   for (const key of ARRAY_FIELDS) draft[key] = [...value[key]];
-  for (const key of ["allowDirect", "failClosed"]) if (value[key] !== undefined) draft[key] = value[key];
+  for (const key of ["allowDirect", "failClosed", "adblock"]) if (value[key] !== undefined) draft[key] = value[key];
+  if (value.customRuleProviders !== undefined) {
+    draft.customRuleProviders = value.customRuleProviders.map(({ url, behavior, target }) => ({ url, behavior, target }));
+  }
   if (value.serviceGroups !== undefined) draft.serviceGroups = copyServiceGroups(value.serviceGroups);
   return draft;
 }

@@ -9,6 +9,7 @@ from internal.python.ai_profiles.plans.ini_mvp import (
     account_protection_group_candidates,
     load_ini_mvp_plan,
 )
+from internal.python.ai_profiles.profile_languages import PROFILE_COMMENT_COPY
 from internal.python.ai_profiles.profile_templates import load_profile_template_registry
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -43,6 +44,23 @@ class GenerateProfileServiceRuntimeTest(unittest.TestCase):
         )
         for fixture in data["parityFixtures"].values():
             self.assertEqual(len(fixture["customBodySha256"]), 64)
+
+        for language, copy in PROFILE_COMMENT_COPY.items():
+            localized = data["render"]["localized"][language]
+            self.assertEqual(localized["optionalProviderNotes"], dict(copy["optionalProviderNotes"]))
+            self.assertEqual(localized["yaml"], {
+                "header": list(copy["yaml"]["header"]),
+                "titles": dict(copy["yaml"]["titles"]),
+                "policyNotes": {key: list(lines) for key, lines in copy["yaml"]["policyNotes"].items()},
+                "optionalProviderNotes": dict(copy["yaml"]["optionalProviderNotes"]),
+                "comments": {
+                    "profileMarker": copy["yaml"]["comments"]["profileMarker"],
+                    "description": list(copy["yaml"]["comments"]["description"]),
+                    "generated": copy["yaml"]["comments"]["generated"],
+                    "secretWarning": copy["yaml"]["comments"]["secretWarning"],
+                    "sections": dict(copy["yaml"]["comments"]["sections"]),
+                },
+            })
 
         artifact = RUNTIME_PATH.read_text(encoding="utf-8")
         self.assertTrue(artifact.startswith("// GENERATED. Do not edit.\nexport default "))

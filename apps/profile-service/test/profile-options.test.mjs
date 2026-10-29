@@ -371,6 +371,33 @@ test("profile options filter templates and omit controls for a static template",
   assert.deepEqual(options.getSpec(), { schemaVersion: 1, baseProfile: "static-ini", language: "en" });
 });
 
+test("static YAML templates can collect provider options and stale controls cannot mutate the new render", () => {
+  const data = catalog();
+  data.templates.find((template) => template.id === "static-yaml").supportsRuleProviderOptions = true;
+  data.customRuleProviderLimits = { maxProviders: 2, maxUrlLength: 400 };
+  const { root, options } = mount(new FakeStorage(), () => {}, "yaml", data);
+  const staleAdd = control(root, "custom-rule-provider-add");
+
+  change(root, "base-profile", "static-yaml");
+  assert.deepEqual(options.getSpec(), { schemaVersion: 1, baseProfile: "static-yaml", language: "en" });
+
+  staleAdd.dispatch("click");
+  assert.equal(Object.hasOwn(options.getSpec(), "customRuleProviders"), false);
+
+  click(root, "custom-rule-provider-add");
+  change(root, "custom-rule-provider-url-0", "https://rules.example/custom.yaml");
+  change(root, "custom-rule-provider-behavior-0", "domain");
+  change(root, "custom-rule-provider-target-0", "reject");
+  change(root, "adblock-setting", "enabled");
+  assert.deepEqual(options.getSpec(), {
+    schemaVersion: 1,
+    baseProfile: "static-yaml",
+    language: "en",
+    adblock: true,
+    customRuleProviders: [{ url: "https://rules.example/custom.yaml", behavior: "domain", target: "reject" }],
+  });
+});
+
 test("service customization is opt-in, explains the output scope, and selection/search do not change routing", () => {
   const changes = [];
   const { root } = mount(new FakeStorage(), () => {}, "ini", catalog(), (spec) => changes.push(spec));

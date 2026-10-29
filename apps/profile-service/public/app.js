@@ -65,6 +65,85 @@ function renderStatus() {
   $("status").classList.toggle("error", Boolean(state.status?.error));
   $("status").textContent = state.status ? translate(state.status.key, state.status.values) : "";
 }
+function downloadText(filename, content, type) {
+  const url = URL.createObjectURL(new Blob([content], { type }));
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.hidden = true;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+function addProfileJsonTools() {
+  const optionsRoot = $("profile-options");
+  if (!optionsRoot?.parentNode || $("profile-json-tools")) return;
+  const section = element("section", undefined, "panel profile-json-tools");
+  section.id = "profile-json-tools";
+  section.setAttribute("aria-labelledby", "profile-json-title");
+  const copy = element("div");
+  const title = element("h2", translate("profileJsonTitle"));
+  title.id = "profile-json-title";
+  title.dataset.i18n = "profileJsonTitle";
+  const help = element("p", translate("profileJsonHelp"), "hint");
+  help.dataset.i18n = "profileJsonHelp";
+  copy.append(title, help);
+  const actions = element("div", undefined, "actions profile-json-actions");
+  const importButton = element("button", translate("importProfileJson"));
+  importButton.type = "button";
+  importButton.dataset.i18n = "importProfileJson";
+  const exportButton = element("button", translate("exportProfileJson"));
+  exportButton.type = "button";
+  exportButton.dataset.i18n = "exportProfileJson";
+  const instructionsButton = element("button", translate("downloadAgentInstructions"));
+  instructionsButton.type = "button";
+  instructionsButton.dataset.i18n = "downloadAgentInstructions";
+  const file = document.createElement("input");
+  file.id = "profile-json-import-file";
+  file.type = "file";
+  file.accept = ".json,application/json";
+  file.className = "visually-hidden";
+  importButton.addEventListener("click", () => file.click());
+  file.addEventListener("change", async () => {
+    const selected = file.files?.[0];
+    file.value = "";
+    await importProfileJson(selected);
+  });
+  exportButton.addEventListener("click", () => {
+    try {
+      downloadText("openclash-profile.json", `${JSON.stringify(state.options.getSpec(), null, 2)}\n`, "application/json;charset=utf-8");
+      setStatus("profileJsonExported");
+    } catch (error) { setStatus(error.translationKey ?? "profileJsonImportFailed", { reason: error.message }, true); }
+  });
+  instructionsButton.addEventListener("click", () => {
+    downloadText("profile-spec-agent-instructions.md", "# Local ProfileSpec editing instructions\\n\\nUse the catalog from GET /api/v1/catalog and return one raw ProfileSpec JSON object. Preserve schemaVersion and use registered IDs. The builder validates imports through POST /api/v1/resolve before applying them. Supported optional fields are adblock and customRuleProviders; use trusted HTTPS URLs without credentials.\\n", "text/markdown;charset=utf-8");
+    setStatus("agentInstructionsDownloaded");
+  });
+  actions.append(importButton, exportButton, instructionsButton, file);
+  section.append(copy, actions);
+  optionsRoot.parentNode.insertBefore(section, optionsRoot);
+}
+async function importProfileJson(file) {
+  if (!file) return;
+  const maxBytes = state.catalog?.profileSpecLimits?.maxJsonBytes;
+  if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) { setStatus("profileJsonLimitUnavailable", {}, true); return; }
+  if (file.size > maxBytes) { setStatus("profileJsonTooLarge", {}, true); return; }
+  setStatus("profileJsonValidating");
+  try {
+    const result = await api("/api/v1/resolve", { method: "POST", headers: { "content-type": "application/json" }, body: file });
+    if (!result?.spec || !result?.summary || typeof result.ini !== "string") throw apiError();
+    await state.options.applySpec(result.spec);
+    state.model.update(state.options.getDraft());
+    validateDraft();
+    state.model.previewResolved({ fingerprint: state.model.fingerprint, spec: result.spec, summary: result.summary, ini: result.ini });
+    persistDraft();
+    $("summary").textContent = JSON.stringify(result.summary, null, 2);
+    $("ini-preview").textContent = result.ini;
+    setStatus("profileJsonImported");
+    renderRoute(state.route, null, { focus: false });
+  } catch (error) { setStatus("profileJsonImportFailed", { reason: error.message }, true); }
+}
 function templateLabel(id) {
   const item = state.catalog?.templates?.find((template) => template.outputFormat === "ini" && template.id === id);
   return translateCatalogLabel("templateNames", id, item?.name ?? id);
@@ -319,6 +398,8 @@ function renderSuccess() {
 }
 function renderRoute(route, position = null, { focus = true } = {}) {
   state.route = route;
+  const jsonTools = $("profile-json-tools");
+  if (jsonTools) jsonTools.hidden = !route || route.section === "success";
   document.querySelector(".editor-status-bar").hidden = route?.section === "success";
   if (!route) {
     renderNavigation(); renderState(); renderValidation(); renderButtons();
@@ -573,6 +654,7 @@ async function init() {
       groupHref: (id) => href("services", { groupId: id, returnToReview: state.route?.returnToReview }),
       onNavigateGroup: (id) => state.router.navigate(href("services", { groupId: id, returnToReview: state.route?.returnToReview })),
     });
+    addProfileJsonTools();
     if (management) await loadManagement();
     else state.model = createEditorState(state.options.getDraft());
     if (ready()) { await restoreSessionDraft(); validateDraft(); }

@@ -96,6 +96,17 @@ function listOrEmpty(value) {
   return Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
 }
 
+function copyCustomRuleProviders(value) {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) throw new TypeError("customRuleProviders must be an array");
+  return value.map((provider, index) => {
+    if (!provider || typeof provider !== "object" || Array.isArray(provider)) {
+      throw new TypeError(`customRuleProviders[${index}] must be an object`);
+    }
+    return { url: provider.url, behavior: provider.behavior, target: provider.target };
+  });
+}
+
 function availableTemplates(catalog, outputFormat) {
   if (Array.isArray(catalog.templates)) {
     return catalog.templates.filter((template) => template.outputFormat === outputFormat);
@@ -129,6 +140,11 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
     : [];
   const templates = availableTemplates(catalog, outputFormat);
   const serviceGroups = (catalog.serviceGroups ?? []).filter((group) => group.outputFormat === outputFormat);
+  const providerLimits = catalog.customRuleProviderLimits ?? {};
+  const maxCustomRuleProviders = Number.isSafeInteger(providerLimits.maxProviders) && providerLimits.maxProviders >= 0
+    ? providerLimits.maxProviders : undefined;
+  const maxCustomRuleProviderUrlLength = Number.isSafeInteger(providerLimits.maxUrlLength) && providerLimits.maxUrlLength > 0
+    ? providerLimits.maxUrlLength : undefined;
   const cached = readPreferences(storage);
   const catalogDefault = catalog.defaultTemplate ?? catalog.defaultProfiles?.[outputFormat];
   const initialTemplate = templates.some((item) => item.id === cached.baseProfile)
@@ -158,6 +174,10 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
     allowDirect: typeof defaults.allowDirect === "boolean" ? defaults.allowDirect : true,
     failClosed: typeof defaults.failClosed === "boolean" ? defaults.failClosed : true,
     advancedOpen: false,
+    additionalOpen: false,
+    customRuleProviders: undefined,
+    adblock: undefined,
+    renderGeneration: 0,
   };
   const layoutsByTemplate = new Map();
   let pendingGroupNavigation = null;
@@ -214,6 +234,10 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
       baseProfile: state.baseProfile,
       language: getLanguage(storage),
     };
+    if (selectedTemplate.supportsRuleProviderOptions === true) {
+      if (state.customRuleProviders !== undefined) spec.customRuleProviders = copyCustomRuleProviders(state.customRuleProviders);
+      if (typeof state.adblock === "boolean") spec.adblock = state.adblock;
+    }
     if (selectedTemplate.supportsProfileOptions === false) {
       return spec;
     }
@@ -375,6 +399,120 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
         rail.append(policy);
       }
     }
+  }
+
+  function renderAdditionalOptions(rail, selectedTemplate) {
+    const available = selectedTemplate?.supportsRuleProviderOptions === true;
+    const renderGeneration = state.renderGeneration;
+    const currentRender = () => state.renderGeneration === renderGeneration;
+    const additional = document.createElement("details");
+    additional.className = "profile-subsection profile-additional";
+    additional.open = state.additionalOpen;
+    additional.addEventListener("toggle", () => { state.additionalOpen = additional.open; });
+    additional.append(child(document, "summary", undefined, "additionalOptions"));
+
+    const adblock = document.createElement("select");
+    adblock.id = "adblock-setting";
+    adblock.disabled = !available;
+    addOption(document, adblock, translate("adblockDefault"), "default");
+    addOption(document, adblock, translate("adblockEnabled"), "enabled");
+    addOption(document, adblock, translate("adblockDisabled"), "disabled");
+    adblock.value = typeof state.adblock === "boolean" ? (state.adblock ? "enabled" : "disabled") : "default";
+    adblock.addEventListener("change", () => {
+      if (!currentRender()) return;
+      state.adblock = adblock.value === "default" ? undefined : adblock.value === "enabled";
+      persist();
+    });
+    additional.append(makeLabel(document, "adblock", adblock));
+    appendHint(document, additional, "adblockHelp");
+
+    additional.append(child(document, "h4", undefined, "customRuleProviders"));
+    appendHint(document, additional, "customRuleProvidersHelp");
+    if (!available) appendHint(document, additional, "additionalOptionsUnsupported");
+    const list = document.createElement("div");
+    list.id = "custom-rule-provider-list";
+    list.className = "profile-provider-list";
+    const providers = state.customRuleProviders ?? [];
+    providers.forEach((provider, index) => {
+      const row = document.createElement("div");
+      row.className = "profile-provider-row";
+      const url = document.createElement("input");
+      url.type = "url";
+      url.id = `custom-rule-provider-url-${index}`;
+      url.value = provider.url ?? "";
+      url.required = true;
+      url.disabled = !available;
+      url.autocomplete = "off";
+      url.spellcheck = false;
+      if (maxCustomRuleProviderUrlLength !== undefined) url.maxLength = maxCustomRuleProviderUrlLength;
+      url.addEventListener("change", () => {
+        if (!currentRender()) return;
+        state.customRuleProviders[index].url = url.value;
+        persist();
+      });
+      row.append(makeLabel(document, "customRuleProviderUrl", url));
+      const behavior = document.createElement("select");
+      behavior.id = `custom-rule-provider-behavior-${index}`;
+      behavior.disabled = !available;
+      addOption(document, behavior, translate("customRuleProviderClassical"), "classical");
+      addOption(document, behavior, translate("customRuleProviderDomain"), "domain");
+      behavior.value = provider.behavior ?? "classical";
+      behavior.addEventListener("change", () => {
+        if (!currentRender()) return;
+        state.customRuleProviders[index].behavior = behavior.value;
+        persist();
+      });
+      row.append(makeLabel(document, "customRuleProviderBehavior", behavior));
+      const target = document.createElement("select");
+      target.id = `custom-rule-provider-target-${index}`;
+      target.disabled = !available;
+      addOption(document, target, translate("customRuleProviderReject"), "reject");
+      addOption(document, target, translate("customRuleProviderDirect"), "direct");
+      addOption(document, target, translate("customRuleProviderProxy"), "proxy");
+      target.value = provider.target ?? "reject";
+      target.addEventListener("change", () => {
+        if (!currentRender()) return;
+        state.customRuleProviders[index].target = target.value;
+        persist();
+      });
+      row.append(makeLabel(document, "customRuleProviderTarget", target));
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.id = `custom-rule-provider-remove-${index}`;
+      remove.textContent = translate("remove");
+      remove.disabled = !available;
+      remove.setAttribute("aria-label", translate("removeCustomRuleProvider", { index: index + 1 }));
+      remove.addEventListener("click", () => {
+        if (!currentRender()) return;
+        state.customRuleProviders.splice(index, 1);
+        render();
+        persist();
+      });
+      row.append(remove);
+      list.append(row);
+    });
+    additional.append(list);
+    const add = document.createElement("button");
+    add.type = "button";
+    add.id = "custom-rule-provider-add";
+    add.textContent = translate("addCustomRuleProvider");
+    add.disabled = !available || maxCustomRuleProviders !== undefined && providers.length >= maxCustomRuleProviders;
+    add.addEventListener("click", () => {
+      if (!currentRender()) return;
+      state.customRuleProviders = [...(state.customRuleProviders ?? []), { url: "", behavior: "classical", target: "reject" }];
+      render();
+      persist();
+      document.getElementById?.(`custom-rule-provider-url-${state.customRuleProviders.length - 1}`)?.focus?.();
+    });
+    additional.append(add);
+    if (maxCustomRuleProviders !== undefined && maxCustomRuleProviderUrlLength !== undefined) {
+      const hint = child(document, "p", translate("customRuleProviderLimit", {
+        maxProviders: maxCustomRuleProviders, maxUrlLength: maxCustomRuleProviderUrlLength,
+      }));
+      hint.className = "hint";
+      additional.append(hint);
+    }
+    rail.append(additional);
   }
 
   function renderRegions(rail) {
@@ -642,6 +780,7 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
   }
 
   function render() {
+    state.renderGeneration += 1;
     const focusedId = document.activeElement && root.contains?.(document.activeElement)
       ? document.activeElement.id
       : "";
@@ -650,6 +789,7 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
       if (node) assign(node.open);
     };
     captureOpen(".profile-advanced", (open) => { state.advancedOpen = open; });
+    captureOpen(".profile-additional", (open) => { state.additionalOpen = open; });
     captureOpen("#service-group-customization", (open) => { state.serviceCustomizationOpen = open; });
     if (state.resetGroupPanels) {
       state.servicePaletteOpen = false;
@@ -674,6 +814,7 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
     rail.className = "profile-rail";
     const selectedTemplate = templates.find((item) => item.id === state.baseProfile);
     if (view === "all" || view === "template") renderTemplate(rail, selectedTemplate);
+    if (view === "all" || view === "template") renderAdditionalOptions(rail, selectedTemplate);
     if (selectedTemplate?.supportsProfileOptions === false) {
       if (view !== "all" && view !== "template") appendHint(document, rail, "templateOptionsUnavailable");
       root.append(rail);
@@ -735,8 +876,11 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
 
   async function applySpec(spec) {
     if (!spec || typeof spec !== "object" || Array.isArray(spec)) return;
-    if (templates.some((item) => item.id === spec.baseProfile)) state.baseProfile = spec.baseProfile;
+    const nextBaseProfile = templates.some((item) => item.id === spec.baseProfile) ? spec.baseProfile : state.baseProfile;
     const only = listOrEmpty(spec.onlyNodeRegions);
+    const nextProviders = copyCustomRuleProviders(spec.customRuleProviders);
+    const nextAdblock = typeof spec.adblock === "boolean" ? spec.adblock : undefined;
+    state.baseProfile = nextBaseProfile;
     state.regionMode = only.length ? "only" : "exclude";
     state.selectedRegions = only.length ? only : listOrEmpty(spec.disabledNodeRegions);
     state.preferredNodeRegions = listOrEmpty(spec.preferredNodeRegions);
@@ -745,6 +889,8 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
     state.serviceGroups = copyServiceGroups(spec.serviceGroups);
     state.allowDirect = typeof spec.allowDirect === "boolean" ? spec.allowDirect : undefined;
     state.failClosed = typeof spec.failClosed === "boolean" ? spec.failClosed : undefined;
+    state.customRuleProviders = nextProviders;
+    state.adblock = nextAdblock;
     if (typeof spec.language === "string") {
       const language = await setLanguage(spec.language, storage, { fetcher: languageFetcher });
       onLanguage(language);
@@ -758,7 +904,8 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
       selectedRegions: state.selectedRegions, preferredNodeRegions: state.preferredNodeRegions,
       disabledServices: state.disabledServices, preferredServices: state.preferredServices,
       serviceGroups: state.serviceGroups, allowDirect: state.allowDirect,
-      failClosed: state.failClosed, language: getLanguage(storage),
+      failClosed: state.failClosed, adblock: state.adblock, customRuleProviders: state.customRuleProviders,
+      language: getLanguage(storage),
     });
   }
 
@@ -776,7 +923,7 @@ export function mountProfileOptions({ root, catalog, outputFormat, onChange = ()
       const language = await setLanguage(draft.language, storage, { fetcher: languageFetcher });
       onLanguage(language);
     }
-    for (const key of ["baseProfile", "regionMode", "selectedRegions", "preferredNodeRegions", "disabledServices", "preferredServices", "serviceGroups", "allowDirect", "failClosed"]) state[key] = draft[key];
+    for (const key of ["baseProfile", "regionMode", "selectedRegions", "preferredNodeRegions", "disabledServices", "preferredServices", "serviceGroups", "allowDirect", "failClosed", "adblock", "customRuleProviders"]) state[key] = draft[key];
     render();
   }
 

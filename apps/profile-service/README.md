@@ -50,6 +50,30 @@ For AI templates:
 
 A group shares its exits across its member services. Adding HK creates a manual exit for that group; it does not add HK to the global pool. Group layouts are saved separately for each template and output format.
 
+The builder can export its current `ProfileSpec` as JSON for reuse, or import a
+JSON spec created by a person or an external agent. An agent should start with
+an exported spec and the catalog from `GET /api/v1/catalog`, keep the existing
+schema version, use only registered template, region, service and route IDs,
+and return JSON without credentials. The builder validates imported data with
+the same resolver used for preview and saving. Review the resulting selections
+and preview the INI before creating or updating a subscription.
+
+For a browser-free workflow, see [Agent API and CLI](AGENT_API.md).
+
+The AI INI builder and YAML profiles can add ordered custom HTTPS rule
+providers with classical or domain behavior and a reject, direct, or proxy
+target. The optional adblock setting uses the repository's lightweight
+`Ads_Lite_Domain` rules; the full DNS blocking pipeline remains separate.
+Additional rules follow protected account rules and precede general fallback
+rules, so earlier specific rules retain precedence. The downstream converter or
+client fetches provider links: use trusted sources and do not put credentials
+in URLs. Static INI templates do not support these options because their rule
+order has no shared protected insertion anchor.
+
+`adblock` and `customRuleProviders` extend the profile service's HTTP spec;
+the Python profile compiler's `ProfileSpec` covers the shared core options and
+does not implement these service-specific fields.
+
 Global controls still take precedence:
 
 - Disable regions, or allow only selected regions. Add preferred regions and move them into an order such as **US → JP → SG**.

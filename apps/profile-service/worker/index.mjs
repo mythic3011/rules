@@ -24,6 +24,7 @@ const JSON_HEADERS = {
   "x-content-type-options": "nosniff",
   "referrer-policy": "no-referrer",
   "x-frame-options": "DENY",
+  "x-robots-tag": "noindex, nofollow, noarchive",
   "content-security-policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
 };
 const SUBSCRIPTION_HEADERS = {
@@ -32,6 +33,7 @@ const SUBSCRIPTION_HEADERS = {
   "x-content-type-options": "nosniff",
   "referrer-policy": "no-referrer",
   "x-frame-options": "DENY",
+  "x-robots-tag": "noindex, nofollow, noarchive",
   "content-security-policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
 };
 const TOKEN_RE = /^[A-Za-z0-9_-]{40,64}$/;
@@ -117,7 +119,9 @@ async function readBodyText(request, maxBytes) {
   }
 }
 
-async function parseJson(request, maxBytes = 32_768) {
+const PROFILE_SPEC_MAX_JSON_BYTES = 32_768;
+
+async function parseJson(request, maxBytes = PROFILE_SPEC_MAX_JSON_BYTES) {
   const contentType = request.headers.get("content-type") ?? "";
   if (!JSON_MEDIA_TYPE_RE.test(contentType)) {
     throw new ProfileSpecError("Content-Type must be application/json", "invalid_content_type");
@@ -162,7 +166,7 @@ function resolveIniPayload(input) {
   return {
     spec,
     summary: summarizeResolvedProfile(resolved),
-    ini: renderIni(plan, runtimeData, { language: spec.language }),
+    ini: renderIni(plan, runtimeData, { language: spec.language, spec }),
   };
 }
 
@@ -272,6 +276,8 @@ export async function handleRequest(request, env) {
       serviceGroups: [...iniOptions.serviceGroups, ...yamlOptions.serviceGroups],
       reservedGroupNames: iniOptions.reservedGroupNames,
       serviceGroupLimits: iniOptions.serviceGroupLimits,
+      profileSpecLimits: { maxJsonBytes: PROFILE_SPEC_MAX_JSON_BYTES },
+      customRuleProviderLimits: iniOptions.customRuleProviderLimits,
       serviceGroupRouteLabels: iniOptions.serviceGroupRouteLabels,
       optionDefaults: iniOptions.optionDefaults,
       languages: iniOptions.languages,

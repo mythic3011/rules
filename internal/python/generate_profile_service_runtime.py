@@ -37,7 +37,9 @@ from ai_profiles.service_groups import (
 )
 from ai_profiles.render.subconverter import _render_ini
 from ai_profiles.render.mihomo import render_yaml
+from ai_profiles.routing_ir import INI_RULESET_INTERVAL
 from ai_profiles.settings import BASE_URL, REPO_URL, RULE_DIR
+from generate_adblock_outputs import load_categories as load_filter_categories
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "apps/profile-service/worker/generated/runtime-data.mjs"
@@ -242,7 +244,7 @@ def _runtime_regions(catalog) -> list[dict[str, object]]:
     ]
 
 
-def _render_boilerplate() -> dict[str, list[str]]:
+def _render_boilerplate() -> dict[str, object]:
     return {
         "preamble": [
             ";Custom_OpenClash_Rules",
@@ -273,6 +275,20 @@ def _render_boilerplate() -> dict[str, list[str]]:
                 "header": list(copy["header"]),
                 "footer": list(copy["footer"]),
                 "sections": dict(copy["sections"]),
+                "optionalProviderNotes": dict(copy["optionalProviderNotes"]),
+                "yaml": {
+                    "header": list(copy["yaml"]["header"]),
+                    "titles": dict(copy["yaml"]["titles"]),
+                    "policyNotes": {key: list(lines) for key, lines in copy["yaml"]["policyNotes"].items()},
+                    "optionalProviderNotes": dict(copy["yaml"]["optionalProviderNotes"]),
+                    "comments": {
+                        "profileMarker": copy["yaml"]["comments"]["profileMarker"],
+                        "description": list(copy["yaml"]["comments"]["description"]),
+                        "generated": copy["yaml"]["comments"]["generated"],
+                        "secretWarning": copy["yaml"]["comments"]["secretWarning"],
+                        "sections": dict(copy["yaml"]["comments"]["sections"]),
+                    },
+                },
             }
             for language, copy in PROFILE_COMMENT_COPY.items()
         },
@@ -525,9 +541,34 @@ def _profile_templates(registry: ProfileTemplateRegistry) -> list[dict[str, obje
             "name": template.name,
             "description": template.description,
             "supportsProfileOptions": template.supports_profile_options,
+            "dnsEgressGroup": template.dns_egress_group,
         }
         for template in registry.templates
     ]
+
+
+def _adblock_rule_provider() -> dict[str, str]:
+    categories = load_filter_categories()
+    adblock = categories.get("adblock")
+    if not isinstance(adblock, dict):
+        raise RuntimeError("Adblock category metadata is unavailable")
+    provider_name = adblock.get("clash_name")
+    output_value = adblock.get("clash_output")
+    if not isinstance(provider_name, str) or not provider_name or not isinstance(output_value, str):
+        raise RuntimeError("Adblock Clash output metadata is invalid")
+    output_path = Path(output_value)
+    if output_path.is_absolute() or not output_path.parts or output_path.parts[0] != "rule" or ".." in output_path.parts:
+        raise RuntimeError("Adblock Clash output must stay under the rule directory")
+    if not provider_name.isascii() or not provider_name[0].isalnum() or any(not (character.isalnum() or character in "_-") for character in provider_name):
+        raise RuntimeError("Adblock Clash provider name is invalid")
+    return {"name": provider_name, "behavior": "domain", "url": f"{BASE_URL.rstrip('/')}/{output_path.as_posix()}"}
+
+
+def _rule_provider_intervals() -> dict[str, int]:
+    yaml_interval = RemoteRuleSource.__dataclass_fields__["interval"].default
+    if not isinstance(yaml_interval, int) or yaml_interval < 1 or INI_RULESET_INTERVAL < 1:
+        raise RuntimeError("Canonical custom rule provider intervals are invalid")
+    return {"yaml": yaml_interval, "ini": INI_RULESET_INTERVAL}
 
 
 def _profile_services(catalog) -> list[dict[str, object]]:
@@ -607,6 +648,8 @@ def build_runtime_data() -> dict[str, object]:
         "templates": _profile_templates(template_registry),
         "defaultProfiles": dict(template_registry.default_by_format),
         "accountProtection": dict(account_protection),
+        "adblockRuleProvider": _adblock_rule_provider(),
+        "ruleProviderIntervals": _rule_provider_intervals(),
         "baseProfiles": [
             {
                 "id": "ai-balanced",
