@@ -3,6 +3,7 @@
   "name": "mythic-rules-profile-service",
   "main": "./worker/index.mjs",
   "compatibility_date": "2026-08-26",
+  "minify": true,
   "keep_vars": true,
   "assets": {
     "directory": "./public",
