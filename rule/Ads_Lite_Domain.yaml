@@ -2,12 +2,12 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/internal/python/generate_adblock_outputs.py
 # CATEGORY: adblock
-# GENERATED_AT: 2026-10-30T10:16:13Z
-# TOTAL: 119203
+# GENERATED_AT: 2026-10-31T09:50:18Z
+# TOTAL: 119431
 # FORMAT: Clash Domain Rule Provider (Ads_Lite_Domain)
-# UPSTREAM oisd_small: 59948
+# UPSTREAM oisd_small: 60179
 # UPSTREAM oisd_small HOMEPAGE: https://oisd.nl/
-# UPSTREAM anti_ad_dnsmasq: 100686
+# UPSTREAM anti_ad_dnsmasq: 100682
 # UPSTREAM anti_ad_dnsmasq HOMEPAGE: https://github.com/privacy-protection-tools/anti-AD
 
 payload:
