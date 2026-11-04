@@ -89,6 +89,23 @@ These fields are independent. Status does not force them to match.
 
 After Apply, `runtime.source: local` with `distribution.selectedSource: github-raw` is expected: the installed files are local, and they were last fetched from GitHub.
 
+## Firewall State and Ordering
+
+In `enforcement: reject`, established/related conntrack state does not grant
+forwarding permission. Existing flows must still match an explicit local,
+scoped-gaming or verified tunnel allowance before the terminal kill switch.
+Other enforcement modes retain their state fast path after protected UDP
+rejection. The optional input DNS kill switch rejects non-loopback TCP/UDP 53
+before the input state accept; its default remains disabled.
+
+The base Guard chains remain at the input/forward hooks with priority `-150`;
+the scoped gaming wrong-egress check remains at forward priority `-151`.
+Priorities apply within each hook: a forward priority cannot precede an
+earlier prerouting hook. These rules do not establish an OUTPUT-path or
+fake-IP destination-enforcement capability. Local RFC1918 and scoped gaming
+exceptions currently cover IPv4; unclassified IPv6, including existing return
+flows without a verified exception, fails closed in strict reject mode.
+
 ## AdGuard Home Domain-Set Backend
 
 Guard currently reports `dns.domainSetBackend: unavailable` whenever AdGuard Home owns DNS. That is intentional. Resolver-sync is not implemented, so dest-set protection is not claimed, and fail-closed policy stays `state: degraded` / `enforcement: reject` when protection classes require it.

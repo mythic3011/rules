@@ -118,17 +118,23 @@ guard_kill_render() {
     printf 'add chain %s %s forward { type filter hook forward priority -150; policy accept; }\n' \
         "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE"
 
-    _guard_kill_add_rule input 'ct state established,related accept' est-in
     if [ "$_GUARD_UCI_DNS_KILL_SWITCH" = 1 ]; then
         _guard_kill_add_rule input 'iifname != "lo" udp dport 53 reject' dns-ks
         _guard_kill_add_rule input 'iifname != "lo" tcp dport 53 reject' dns-ks-tcp
     fi
+    _guard_kill_add_rule input 'ct state established,related accept' est-in
 
-    _guard_kill_add_rule forward 'ct state established,related accept' est
     _guard_kill_add_rule forward 'iifname "lo" accept' lo
     _guard_kill_add_rule forward 'udp dport { 67, 68 } accept' dhcp
     _guard_kill_add_rule forward 'ip daddr @lan_rfc1918 accept' lan-dst
     _guard_kill_add_rule forward 'udp dport @protected_udp reject' protected-udp
+    # In reject mode, conntrack state is not enough to authorize egress: an
+    # established direct flow must still reach the terminal reject. Keep
+    # the fast path only when no global reject is active, after all local and
+    # protected-port rules so it cannot bypass those decisions.
+    if [ "${_GUARD_POLICY_ENFORCEMENT:-}" != reject ]; then
+        _guard_kill_add_rule forward 'ct state established,related accept' est
+    fi
 }
 
 _guard_kill_valid_iface() {
