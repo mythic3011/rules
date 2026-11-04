@@ -106,6 +106,18 @@ fake-IP destination-enforcement capability. Local RFC1918 and scoped gaming
 exceptions currently cover IPv4; unclassified IPv6, including existing return
 flows without a verified exception, fails closed in strict reject mode.
 
+### Renderer cost
+
+Gaming destination filtering reads the protected-port list once per helper
+invocation, rather than reparsing the policy for each destination port. The
+order, duplicates and legacy destination-list fallback remain unchanged.
+With the canonical 353-port input, an isolated macOS shell benchmark reduced
+gaming-render parser subprocesses from 2,145 to 33. The safe-port output and
+complete synthetic Guard/gaming batch were byte-identical using the same
+firewall-order implementation. This measures renderer process overhead, not
+router packet latency or throughput; regression tests check bounded reads and
+output semantics rather than host-specific timing thresholds.
+
 ## AdGuard Home Domain-Set Backend
 
 Guard currently reports `dns.domainSetBackend: unavailable` whenever AdGuard Home owns DNS. That is intentional. Resolver-sync is not implemented, so dest-set protection is not claimed, and fail-closed policy stays `state: degraded` / `enforcement: reject` when protection classes require it.

@@ -4480,12 +4480,20 @@ guard_game_protected_udp_ports() {
 
 guard_game_safe_udp_destination_ports() {
     _guard_gsdp_ports=$(guard_game_udp_destination_ports)
+    [ -n "$_guard_gsdp_ports" ] || return 0
+    _guard_gsdp_protected=$(guard_game_protected_udp_ports)
     for _guard_gsdp_port in $_guard_gsdp_ports
     do
         [ -n "$_guard_gsdp_port" ] || continue
-        if guard_policy_port_in_list "$_guard_gsdp_port" gaming.protectedUdpPorts; then
-            continue
-        fi
+        _guard_gsdp_is_protected=0
+        for _guard_gsdp_protected_port in $_guard_gsdp_protected
+        do
+            if [ "$_guard_gsdp_port" = "$_guard_gsdp_protected_port" ]; then
+                _guard_gsdp_is_protected=1
+                break
+            fi
+        done
+        [ "$_guard_gsdp_is_protected" = 0 ] || continue
         printf '%s\n' "$_guard_gsdp_port"
     done
 }
