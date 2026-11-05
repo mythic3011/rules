@@ -1,0 +1,84 @@
+#!/bin/sh
+set -eu
+LC_ALL=C
+export LC_ALL
+umask 077
+
+CATALOG_FILE='/usr/share/openclash-guard/router-observations.v1.json'
+FILTER_FILE='/usr/share/openclash-guard/router-observations.jq'
+work=''
+producer=''
+
+fail() {
+	printf '{"ok":false,"error":"%s"}\n' "$1"
+	exit 0
+}
+
+cleanup() {
+	if [ -n "$producer" ]; then
+		kill -TERM "$producer" 2>/dev/null || true
+		wait "$producer" 2>/dev/null || true
+	fi
+	[ -z "$work" ] || rm -rf "$work"
+}
+
+[ "$#" -eq 1 ] && [ "$1" = snapshot ] || fail unsupported-command
+for tool in jq nft timeout head mkfifo; do
+	command -v "$tool" >/dev/null 2>&1 || fail dependency-unavailable
+done
+[ -r "$CATALOG_FILE" ] && [ -r "$FILTER_FILE" ] || fail catalog-unavailable
+jq -e -s 'length == 1 and (.[0] |
+	.version == 1 and .kind == "rule-counter-snapshot" and
+	.authorization == "READ_ONLY_NO_ROUTING_AUTHORITY" and
+	(.runtimePolicyPath | type == "string" and startswith("/")) and
+	(.limits | type == "object" and
+        keys == ["commandTimeoutSeconds", "killAfterSeconds", "maxInputBytes", "maxRecords", "maxSafeCounter", "ttlMs"] and
+        all(.[]; type == "number" and . > 0 and . == floor)) and
+    (.ruleReasons | type == "array" and all(.[];
+        (.id | type == "string" and test("^[a-z0-9-]+$")) and
+        (.chain | type == "string" and test("^[a-zA-Z0-9_]+$")) and
+        (.decision == "accept" or .decision == "reject" or .decision == "drop") and
+        (.label | type == "string"))) and
+    ([.ruleReasons[].id] | length == (unique | length)))' "$CATALOG_FILE" >/dev/null 2>&1 || fail catalog-invalid
+policy=$(jq -er '.runtimePolicyPath' "$CATALOG_FILE") || fail catalog-invalid
+max_bytes=$(jq -er '.limits.maxInputBytes' "$CATALOG_FILE") || fail catalog-invalid
+deadline=$(jq -er '.limits.commandTimeoutSeconds' "$CATALOG_FILE") || fail catalog-invalid
+kill_after=$(jq -er '.limits.killAfterSeconds' "$CATALOG_FILE") || fail catalog-invalid
+[ -f "$policy" ] && [ -r "$policy" ] || fail policy-unavailable
+work=$(mktemp -d /tmp/openclash-guard-observations.XXXXXX) || fail temporary-storage-unavailable
+trap cleanup EXIT
+trap 'exit 1' INT TERM
+head -c "$((max_bytes + 1))" "$policy" > "$work/policy.json" || fail policy-unavailable
+[ "$(wc -c < "$work/policy.json")" -le "$max_bytes" ] || fail policy-limit
+policy="$work/policy.json"
+timeout -k "$kill_after" "$deadline" jq -e -s 'length == 1 and (.[0] |
+	.schemaVersion == 1 and (.revision | type == "string" and test("^[a-f0-9]{64}$")) and
+	(.nft.family == "inet" or .nft.family == "ip" or .nft.family == "ip6") and
+	(.nft.table | type == "string" and length > 0 and length <= 128) and
+	(.nft.commentPrefix | type == "string" and length > 0 and length <= 128))' \
+	"$policy" >/dev/null 2>&1 || fail policy-invalid
+
+mkfifo "$work/input" || fail temporary-storage-unavailable
+# Bound both bytes and command lifetime. Preserve the producer exit status;
+# a failed nft command must never become a successful empty observation.
+timeout -k "$kill_after" "$deadline" nft -j list ruleset > "$work/input" 2>/dev/null &
+producer=$!
+if ! head -c "$((max_bytes + 1))" < "$work/input" > "$work/nft.json"; then
+	fail collection-failed
+fi
+if [ "$(wc -c < "$work/nft.json")" -gt "$max_bytes" ]; then
+	fail input-limit
+fi
+result=0
+wait "$producer" || result=$?
+producer=''
+[ "$result" -eq 0 ] || fail collection-failed
+now=$(date +%s) || fail clock-unavailable
+case "$now" in ''|*[!0-9]*) fail clock-unavailable ;; esac
+if ! timeout -k "$kill_after" "$deadline" jq -e -s \
+	--slurpfile catalog "$CATALOG_FILE" --slurpfile policy "$policy" \
+	--argjson now "$((now * 1000))" -f "$FILTER_FILE" "$work/nft.json" \
+	> "$work/result.json" 2>/dev/null; then
+	fail invalid-ruleset
+fi
+cat "$work/result.json"

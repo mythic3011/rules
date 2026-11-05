@@ -4,7 +4,7 @@
     "read": {
       "uci": [ "openclash_guard", "openclash_guard_devices" ],
       "ubus": {
-        "luci.openclash-guard": [ "getStatus", "getRegions", "getHistory", "trace" ],
+        "luci.openclash-guard": [ "getStatus", "getRegions", "getHistory", "trace", "getFirewallObservations" ],
         "luci.openclash-guard-devices": [ "getCatalog", "getDevices" ]
       }
     },

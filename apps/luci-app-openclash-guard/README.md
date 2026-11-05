@@ -11,6 +11,7 @@ The UI follows an operational-dashboard pattern similar to AdGuard Home: importa
 - **Overview** — summary cards for Guard, OpenClash, DNS, and fail-closed protection; 24-hour egress observations; per-service mini trends; recent events; routing intent; profile/distribution summary and quick links.
 - **Profile** — one HTTPS custom-template INI URL, including Profile Service `/p/<opaque-token>.ini` URLs, with a router-side fetch/format probe.
 - **Devices** — manual labels, catalog-defined roles, and built-in profile references, shown separately from tentative read-only suggestions. The edit dialog shows the stable Device ID used for forced SSH-key binding.
+- **Connections** — browser-only endpoint snapshot inspection, reported routes and matched rule types, readable attribution gaps, and a transient learning preview. Firewall verdicts remain unknown without router evidence. See the [connection observation guide](../../docs/openclash-guard-connection-observations.md).
 - **Routing** — direct/proxy region selection from the shared Region Registry and per-service route intent.
 - **DNS** — backend, resolver-sync intent, and fail-closed policy.
 - **Rules** — local direct/proxy rules and remote HTTPS rule-source URLs.

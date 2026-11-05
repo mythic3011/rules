@@ -29,6 +29,7 @@ for import_path in (ROOT, TESTS, ROOT / "internal" / "python"):
 
 from guard_test_helpers import BUNDLE, POLICY, TEMPLATES_FILE  # noqa: E402
 from test_openclash_guard import (  # noqa: E402
+    CLI_TIMEOUT_SECONDS,
     FAKE_CURL,
     FAKE_INITD,
     FAKE_NFT,
@@ -249,7 +250,7 @@ class OpenClashGuardBundleE2ETest(unittest.TestCase):
         self,
         *args: str,
         extra: Mapping[str, str] | None = None,
-        timeout: int = 20,
+        timeout: int = CLI_TIMEOUT_SECONDS,
     ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             ["/bin/sh", str(BUNDLE), *args],
@@ -435,7 +436,7 @@ puts JSON.generate(value)
             capture_output=True,
             text=True,
             env=self.env(),
-            timeout=20,
+            timeout=CLI_TIMEOUT_SECONDS,
             cwd=str(self.work),
             check=False,
         )
