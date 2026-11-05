@@ -49,5 +49,10 @@
     "title": "Devices",
     "order": 9,
     "action": { "type": "view", "path": "openclash-guard/devices" }
+  },
+  "admin/services/openclash-guard/connections": {
+    "title": "Connections",
+    "order": 10,
+    "action": { "type": "view", "path": "openclash-guard/connections" }
   }
 }
