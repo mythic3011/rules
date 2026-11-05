@@ -1090,6 +1090,73 @@ class GuardAppTests(unittest.TestCase):
             after_overlay["rules"]["activation"],
         )
 
+    def test_invalid_protected_ports_refuse_real_cli_apply_in_both_modes(self) -> None:
+        policy_path = self.work / "runtime-policy.json"
+        prefix = self.work / "prefix"
+        installed_bundle = prefix / "usr/bin/openclash-guard"
+        installed_bundle.parent.mkdir(parents=True)
+        installed_bundle.write_bytes(BUNDLE.read_bytes())
+        installed_bundle.chmod(0o755)
+        valid_policy = json.loads(POLICY.read_text(encoding="utf-8"))
+        invalid_policy = copy.deepcopy(valid_policy)
+        invalid_policy["gaming"]["protectedUdpPorts"] = [50000]
+        sentinel = self.stale_dir / "rules-ai-failclosed.conf"
+
+        for mode, healthy, expected_enforcement in (
+            ("allow-proxy", "1", "allow-proxy"),
+            ("reject", "0", "reject"),
+        ):
+            with self.subTest(mode=mode):
+                for path in self.svc_state.iterdir():
+                    path.unlink()
+                self._write_uci(self._default_uci())
+                self._write_nft()
+                if sentinel.exists():
+                    sentinel.unlink()
+                if mode == "allow-proxy":
+                    self._install_service("dnsmasq", enabled=True, running=True)
+                    self._install_service("openclash", enabled=True, running=True)
+
+                policy_path.write_text(
+                    json.dumps(valid_policy, indent=2) + "\n", encoding="utf-8"
+                )
+                extra = {
+                    "GUARD_PREFIX": str(prefix),
+                    "GUARD_POLICY_FILE": str(policy_path),
+                    "GUARD_TEMPLATES_FILE": str(RUNTIME_TEMPLATES),
+                    "GUARD_DISTRIBUTION_SOURCE": "disabled",
+                    "GUARD_OPENCLASH_HEALTHY": healthy,
+                    "GUARD_PROXY_HEALTHY": healthy,
+                }
+                valid_apply = self.run_guard("apply", extra=extra)
+                self.assertEqual(
+                    valid_apply.returncode, 0, valid_apply.stderr + valid_apply.stdout
+                )
+                mode_status = self.run_guard("status", "--json", extra=extra)
+                self.assertEqual(mode_status.returncode, 0, mode_status.stderr)
+                self.assertEqual(
+                    json.loads(mode_status.stdout)["enforcement"], expected_enforcement
+                )
+
+                nft_before = self.load_nft_state()
+                sentinel.write_text(
+                    "preserve this stale-rule sentinel\n", encoding="utf-8"
+                )
+                policy_path.write_text(
+                    json.dumps(invalid_policy, indent=2) + "\n", encoding="utf-8"
+                )
+                self.fetch_log.write_text("", encoding="utf-8")
+                rejected = self.run_guard("apply", extra=extra)
+
+                self.assertNotEqual(rejected.returncode, 0, rejected.stdout)
+                self.assertIn("invalid", rejected.stderr.lower())
+                self.assertEqual(self.load_nft_state(), nft_before)
+                self.assertEqual(
+                    sentinel.read_text(encoding="utf-8"),
+                    "preserve this stale-rule sentinel\n",
+                )
+                self.assertEqual(self.fetch_log.read_text(encoding="utf-8"), "")
+
     def test_no_args_without_controlling_tty_has_headless_guidance(self) -> None:
         result = self.run_guard()
         self.assertEqual(result.returncode, 2)

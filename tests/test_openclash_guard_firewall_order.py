@@ -29,6 +29,9 @@ json_list() {{
         *) return 1 ;;
     esac
 }}
+guard_policy_protected_udp_ports() {{
+    printf '%s\\n' '443 50000'
+}}
 guard_kill_render
 guard_kill_render_final
 '''

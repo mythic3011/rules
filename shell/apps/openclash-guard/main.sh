@@ -134,11 +134,15 @@ _guard_require_setup_for_apply() {
 
 _guard_write_batch() {
     _guard_wb=$1
-    : > "$_guard_wb"
+    if [ "${_GUARD_POLICY_PROTECTED_UDP_PORTS_VALID:-0}" != 1 ]; then
+        printf '%s\n' "openclash-guard: protected UDP policy was not validated" >&2
+        return 1
+    fi
+    : > "$_guard_wb" || return $?
     {
-        guard_kill_render
-        guard_game_render
-        guard_kill_render_final
+        guard_kill_render || return $?
+        guard_game_render || return $?
+        guard_kill_render_final || return $?
     } >> "$_guard_wb"
 }
 
@@ -152,6 +156,10 @@ guard_cmd_reconcile() {
         cli_error "nft is required"
         return 1
     fi
+    if [ "${_GUARD_POLICY_PROTECTED_UDP_PORTS_VALID:-0}" != 1 ]; then
+        cli_error "Apply is blocked because protected UDP policy was not validated"
+        return 1
+    fi
     guard_migrate_stale
     if [ "$_GUARD_UCI_ENABLED" != 1 ]; then
         guard_kill_delete_table
@@ -163,7 +171,11 @@ guard_cmd_reconcile() {
     if nft_table_exists "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE"; then
         _GUARD_NFT_TABLE_EXISTS=1
     fi
-    _guard_write_batch "$_guard_batch"
+    _guard_write_batch "$_guard_batch" || {
+        _guard_rc=$?
+        rm -f "$_guard_batch"
+        return "$_guard_rc"
+    }
     guard_kill_apply_batch "$_guard_batch"
     _guard_rc=$?
     rm -f "$_guard_batch"
@@ -535,6 +547,7 @@ _guard_dispatch() {
     _guard_dispatch_cmd=${1:-}
     [ -n "$_guard_dispatch_cmd" ] || return 2
     shift
+    guard_policy_clear_protected_udp_ports
     if _guard_cmd_needs_lock "$_guard_dispatch_cmd" "${1:-}" "${2:-}"; then
         _guard_lock_acquire || return $?
         trap _guard_lock_release EXIT INT TERM
@@ -556,6 +569,7 @@ _guard_dispatch() {
         rules) guard_cmd_rules "$@" || _guard_dispatch_rc=$? ;;
         *) guard_usage >&2; _guard_dispatch_rc=2 ;;
     esac
+    guard_policy_clear_protected_udp_ports
     _guard_lock_release
     trap - EXIT INT TERM
     return "$_guard_dispatch_rc"

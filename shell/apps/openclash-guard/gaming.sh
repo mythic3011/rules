@@ -36,13 +36,17 @@ guard_game_udp_destination_ports() {
 }
 
 guard_game_protected_udp_ports() {
+    if [ "${_GUARD_POLICY_PROTECTED_UDP_PORTS_VALID:-0}" = 1 ]; then
+        printf '%s\n' "$_GUARD_POLICY_PROTECTED_UDP_PORTS"
+        return 0
+    fi
     json_list "$_GUARD_POLICY_FILE" gaming.protectedUdpPorts 2>/dev/null || true
 }
 
 guard_game_safe_udp_destination_ports() {
     _guard_gsdp_ports=$(guard_game_udp_destination_ports)
     [ -n "$_guard_gsdp_ports" ] || return 0
-    _guard_gsdp_protected=$(guard_game_protected_udp_ports)
+    _guard_gsdp_protected=$(guard_policy_protected_udp_ports) || return $?
     for _guard_gsdp_port in $_guard_gsdp_ports
     do
         [ -n "$_guard_gsdp_port" ] || continue
@@ -205,7 +209,7 @@ _guard_game_render_scoped() {
     _guard_gr_srcs=$(guard_game_src_ips)
     [ -n "$_guard_gr_srcs" ] || return 0
     _guard_gr_source_ports=$(guard_game_udp_source_ports)
-    _guard_gr_destination_ports=$(guard_game_safe_udp_destination_ports)
+    _guard_gr_destination_ports=$(guard_game_safe_udp_destination_ports) || return $?
     if [ -z "$_guard_gr_source_ports" ] && [ -z "$_guard_gr_destination_ports" ]; then return 0; fi
 
     _guard_kill_add_set gaming_src ipv4_addr gaming-src interval
@@ -253,9 +257,9 @@ _guard_game_render_scoped() {
 guard_game_render() {
     _guard_game_dp_srcs=$(guard_game_src_ips)
     _guard_game_dp_sports=$(guard_game_udp_source_ports)
-    _guard_game_dp_dports=$(guard_game_safe_udp_destination_ports)
+    _guard_game_dp_dports=$(guard_game_safe_udp_destination_ports) || return $?
     _guard_game_dp_cidrs=$(json_list "$_GUARD_POLICY_FILE" gaming.destinationCidrs 2>/dev/null) || _guard_game_dp_cidrs=
-    _guard_game_dp_protected=$(guard_game_protected_udp_ports)
+    _guard_game_dp_protected=$(guard_policy_protected_udp_ports) || return $?
 
     guard_dataplane_prepare \
         "$_guard_game_dp_srcs" \
@@ -263,6 +267,6 @@ guard_game_render() {
         "$_guard_game_dp_dports" \
         "$_guard_game_dp_cidrs" \
         "$_guard_game_dp_protected" || return $?
-    _guard_game_render_scoped
+    _guard_game_render_scoped || return $?
     guard_dataplane_render
 }

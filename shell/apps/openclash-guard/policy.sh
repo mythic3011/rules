@@ -12,6 +12,8 @@ _GUARD_POLICY_STATE=disabled
 _GUARD_POLICY_ENFORCEMENT=reject
 _GUARD_POLICY_STATE_REASON=
 _GUARD_POLICY_DEGRADED_COMPONENTS=
+_GUARD_POLICY_PROTECTED_UDP_PORTS=
+_GUARD_POLICY_PROTECTED_UDP_PORTS_VALID=0
 
 _guard_policy_default_path() {
     if [ -n "${GUARD_POLICY_FILE:-}" ]; then
@@ -39,8 +41,138 @@ _guard_policy_class_field() {
     json_get "$_GUARD_POLICY_FILE" "protectionClasses.${_guard_pc_class}.${_guard_pc_field}"
 }
 
+_guard_policy_protected_udp_ports_from_file() {
+    _guard_ppf_file=${1:-}
+    _guard_ppf_items=$(json_array_items_typed "$_guard_ppf_file" gaming.protectedUdpPorts) || return $?
+    printf '%s\n' "$_guard_ppf_items" | awk -F '\t' '
+        function normalize_port(raw,    exp_pos, mantissa, exp_text, exp_negative, exp_value,
+                                exp_limit, i, int_part, frac_part, dot_pos, digits, scale,
+                                suffix, append, port_value) {
+            if (raw !~ /^(-)?(0|[1-9][0-9]*)([.][0-9]+)?([eE][+-]?[0-9]+)?$/ ||
+                substr(raw, 1, 1) == "-") {
+                return ""
+            }
+
+            exp_pos = match(raw, /[eE]/)
+            if (exp_pos > 0) {
+                mantissa = substr(raw, 1, exp_pos - 1)
+                exp_text = substr(raw, exp_pos + 1)
+                if (substr(exp_text, 1, 1) == "-") {
+                    exp_negative = 1
+                    exp_text = substr(exp_text, 2)
+                } else if (substr(exp_text, 1, 1) == "+") {
+                    exp_text = substr(exp_text, 2)
+                }
+            } else {
+                mantissa = raw
+                exp_text = "0"
+            }
+
+            exp_limit = length(raw) + 6
+            exp_value = 0
+            for (i = 1; i <= length(exp_text); i++) {
+                exp_value = exp_value * 10 + substr(exp_text, i, 1)
+                if (exp_value > exp_limit) {
+                    return ""
+                }
+            }
+            if (exp_negative) {
+                exp_value = -exp_value
+            }
+
+            dot_pos = index(mantissa, ".")
+            if (dot_pos > 0) {
+                int_part = substr(mantissa, 1, dot_pos - 1)
+                frac_part = substr(mantissa, dot_pos + 1)
+            } else {
+                int_part = mantissa
+                frac_part = ""
+            }
+            digits = int_part frac_part
+            sub(/^0+/, "", digits)
+            if (digits == "") {
+                return ""
+            }
+
+            scale = length(frac_part) - exp_value
+            if (scale > 0) {
+                if (scale >= length(digits)) {
+                    return ""
+                }
+                suffix = substr(digits, length(digits) - scale + 1)
+                if (suffix !~ /^0+$/) {
+                    return ""
+                }
+                digits = substr(digits, 1, length(digits) - scale)
+            } else if (scale < 0) {
+                append = -scale
+                if (length(digits) + append > 5) {
+                    return ""
+                }
+                for (i = 0; i < append; i++) {
+                    digits = digits "0"
+                }
+            }
+
+            sub(/^0+/, "", digits)
+            if (digits == "" || length(digits) > 5) {
+                return ""
+            }
+            port_value = digits + 0
+            if (port_value < 1 || port_value > 65535) {
+                return ""
+            }
+            return sprintf("%.0f", port_value)
+        }
+
+        NF != 3 || $2 != "number" {
+            invalid = 1
+            next
+        }
+        {
+            port = normalize_port($3)
+            if (port == "" || seen[port]++) {
+                invalid = 1
+                next
+            }
+            ports[count++] = port
+            if (port == "443") {
+                has443 = 1
+            }
+        }
+        END {
+            if (invalid || count < 1 || !has443) {
+                exit 1
+            }
+            for (i = 0; i < count; i++) {
+                print ports[i]
+            }
+        }
+    '
+}
+
+guard_policy_clear_protected_udp_ports() {
+    _GUARD_POLICY_PROTECTED_UDP_PORTS=
+    _GUARD_POLICY_PROTECTED_UDP_PORTS_VALID=0
+}
+
+guard_policy_protected_udp_ports() {
+    if [ "${_GUARD_POLICY_PROTECTED_UDP_PORTS_VALID:-0}" = 1 ]; then
+        printf '%s\n' "$_GUARD_POLICY_PROTECTED_UDP_PORTS"
+        return 0
+    fi
+    _guard_pp_file=${1:-${_GUARD_POLICY_FILE:-}}
+    _guard_policy_protected_udp_ports_from_file "$_guard_pp_file"
+}
+
 guard_policy_validate_file() {
+    _guard_policy_validate_file_impl "${1:-}" "" 0
+}
+
+_guard_policy_validate_file_impl() {
     _guard_pv_file=${1:-}
+    _guard_pv_protected=${2:-}
+    _guard_pv_has_protected=${3:-0}
     if [ -z "$_guard_pv_file" ] || [ ! -f "$_guard_pv_file" ]; then
         printf '%s\n' "guard_policy: missing policy file: ${_guard_pv_file:-}" >&2
         return 1
@@ -126,17 +258,36 @@ guard_policy_validate_file() {
         printf '%s\n' "guard_policy: missing gaming" >&2
         return 1
     fi
+    if [ "$_guard_pv_has_protected" != 1 ]; then
+        _guard_pv_protected=$(_guard_policy_protected_udp_ports_from_file "$_guard_pv_file") || {
+            printf '%s\n' "guard_policy: invalid gaming.protectedUdpPorts" >&2
+            return 1
+        }
+    fi
     return 0
 }
 
 guard_policy_load() {
     _guard_pl_path=${1:-$(_guard_policy_default_path)}
-    guard_policy_validate_file "$_guard_pl_path" || return $?
+    guard_policy_clear_protected_udp_ports
+    _GUARD_POLICY_FILE=
+    _GUARD_POLICY_PROTECTED_UDP_PORTS=$(_guard_policy_protected_udp_ports_from_file "$_guard_pl_path") || {
+        printf '%s\n' "guard_policy: invalid gaming.protectedUdpPorts" >&2
+        return 1
+    }
+    _guard_policy_validate_file_impl \
+        "$_guard_pl_path" \
+        "$_GUARD_POLICY_PROTECTED_UDP_PORTS" \
+        1 || {
+        guard_policy_clear_protected_udp_ports
+        return 1
+    }
     _GUARD_POLICY_FILE=$_guard_pl_path
-    _GUARD_NFT_FAMILY=$(json_get "$_GUARD_POLICY_FILE" nft.family)
-    _GUARD_NFT_TABLE=$(json_get "$_GUARD_POLICY_FILE" nft.table)
-    _GUARD_NFT_PREFIX=$(json_get "$_GUARD_POLICY_FILE" nft.commentPrefix)
+    _GUARD_NFT_FAMILY=$(json_get "$_GUARD_POLICY_FILE" nft.family) || return $?
+    _GUARD_NFT_TABLE=$(json_get "$_GUARD_POLICY_FILE" nft.table) || return $?
+    _GUARD_NFT_PREFIX=$(json_get "$_GUARD_POLICY_FILE" nft.commentPrefix) || return $?
     _GUARD_POLICY_REVISION=$(json_get "$_GUARD_POLICY_FILE" revision 2>/dev/null) || _GUARD_POLICY_REVISION=
+    _GUARD_POLICY_PROTECTED_UDP_PORTS_VALID=1
 }
 
 # Guard nft table lifecycle: active | absent | unavailable.
