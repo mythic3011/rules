@@ -98,6 +98,8 @@ queue drops, collector outages and acceleration gaps must remain visible.
 ## Open-source design references
 
 These are design inputs, not installed dependencies or verified integrations.
+The subsequent [pinned source audit](architecture/guard-observability-upstream-audit.md)
+records direct code evidence and the applied browser-lifecycle refinement.
 
 | Project | Relevant design | Application to Guard |
 | --- | --- | --- |
