@@ -316,8 +316,8 @@ class AtomicReconcileTests(GuardRuntimeHarness):
         show_calls = [call for call in self.uci_calls() if "show" in call and "openclash_guard" in call]
         self.assertEqual(len(show_calls), 3, "expected one availability probe and one before/after snapshot pair")
         batch = self.nft_batch.read_text(encoding="utf-8")
-        self.assertIn('iifname != "lo" udp dport 53 reject', batch)
-        self.assertIn("udp dport @protected_udp reject", batch)
+        self.assertIn('iifname != "lo" udp dport 53 counter reject', batch)
+        self.assertIn("udp dport @protected_udp counter reject", batch)
 
 
 if __name__ == "__main__":

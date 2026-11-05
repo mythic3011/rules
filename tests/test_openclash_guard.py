@@ -1486,7 +1486,7 @@ class GuardAppTests(unittest.TestCase):
         comments = self.rule_comments()
         self.assertTrue(any(c.endswith("kill-switch") for c in comments), comments)
         texts = self.rule_texts()
-        self.assertTrue(any(text.strip() == "reject" for text in texts), texts)
+        self.assertTrue(any(text.strip() == "counter reject" for text in texts), texts)
         self.assertFalse(any("accept remaining" in text for text in texts))
         decision = self.run_guard(
             "eval",

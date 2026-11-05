@@ -105,11 +105,11 @@ class ResolverSyncRendererTests(unittest.TestCase):
             output,
         )
         self.assertIn(
-            'oifname "wan" ip daddr @resolver_sync_v4 reject comment "openclash-guard:resolver-sync-v4"',
+            'oifname "wan" ip daddr @resolver_sync_v4 counter reject comment "openclash-guard:resolver-sync-v4"',
             output,
         )
         self.assertIn(
-            'oifname "wan" ip6 daddr @resolver_sync_v6 reject comment "openclash-guard:resolver-sync-v6"',
+            'oifname "wan" ip6 daddr @resolver_sync_v6 counter reject comment "openclash-guard:resolver-sync-v6"',
             output,
         )
         self.assertNotIn("resolver_sync_health", output)

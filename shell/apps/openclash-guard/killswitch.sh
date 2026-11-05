@@ -67,8 +67,17 @@ _guard_kill_add_elements() {
 }
 
 _guard_kill_add_rule() {
+    # Count only packets reaching the terminal verdict, after all match terms.
+    # In particular, placing a counter first would count non-matching traffic.
+    case $2 in
+        accept|reject|drop) _guard_kr_expr="counter $2" ;;
+        *' accept') _guard_kr_expr="${2% accept} counter accept" ;;
+        *' reject') _guard_kr_expr="${2% reject} counter reject" ;;
+        *' drop') _guard_kr_expr="${2% drop} counter drop" ;;
+        *) printf '%s\n' 'Guard rule lacks a supported terminal verdict' >&2; return 1 ;;
+    esac
     printf 'add rule %s %s %s %s comment "%s"\n' \
-        "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE" "$1" "$2" "$(_guard_kill_comment "$3")"
+        "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE" "$1" "$_guard_kr_expr" "$(_guard_kill_comment "$3")"
 }
 
 guard_kill_delete_table() {
@@ -137,10 +146,10 @@ _guard_kill_render_resolver_sync_cache() {
 _guard_kill_render_resolver_sync_rules() {
     [ "${_GUARD_DNS_BACKEND:-}" = adguardhome ] || return 0
     _guard_krrs_iface=$(_guard_resolver_sync_direct_iface 2>/dev/null) || return 0
-    printf 'add rule %s %s %s oifname "%s" ip daddr @%s reject comment "%s"\n' \
+    printf 'add rule %s %s %s oifname "%s" ip daddr @%s counter reject comment "%s"\n' \
         "$_GUARD_RESOLVER_SYNC_FAMILY" "$_GUARD_RESOLVER_SYNC_TABLE" "$_GUARD_RESOLVER_SYNC_CHAIN" \
         "$_guard_krrs_iface" "$_GUARD_RESOLVER_SYNC_V4_SET" "$_GUARD_RESOLVER_SYNC_V4_RULE_COMMENT"
-    printf 'add rule %s %s %s oifname "%s" ip6 daddr @%s reject comment "%s"\n' \
+    printf 'add rule %s %s %s oifname "%s" ip6 daddr @%s counter reject comment "%s"\n' \
         "$_GUARD_RESOLVER_SYNC_FAMILY" "$_GUARD_RESOLVER_SYNC_TABLE" "$_GUARD_RESOLVER_SYNC_CHAIN" \
         "$_guard_krrs_iface" "$_GUARD_RESOLVER_SYNC_V6_SET" "$_GUARD_RESOLVER_SYNC_V6_RULE_COMMENT"
 }

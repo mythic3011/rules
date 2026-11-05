@@ -63,7 +63,7 @@ guard_kill_render_final
         forward = self.rules_for(rules, "forward")
         comments = self.comments(forward)
 
-        self.assertFalse(any("ct state established,related accept" in line for line in forward))
+        self.assertFalse(any("ct state established,related counter accept" in line for line in forward))
         positions = {
             comment: comments.index(f"openclash-guard:{comment}")
             for comment in ("lo", "dhcp", "lan-dst", "protected-udp", "kill-switch")
@@ -83,7 +83,7 @@ guard_kill_render_final
         established = comments.index("openclash-guard:est")
 
         self.assertLess(protected, established)
-        self.assertIn("ct state established,related accept", forward[established])
+        self.assertIn("ct state established,related counter accept", forward[established])
         self.assertNotIn("openclash-guard:kill-switch", comments)
 
     def test_enabled_dns_rejects_precede_input_state_accept(self) -> None:
@@ -98,8 +98,16 @@ guard_kill_render_final
 
         self.assertLess(dns_udp, established)
         self.assertLess(dns_tcp, established)
-        self.assertIn('iifname != "lo" udp dport 53 reject', inputs[dns_udp])
-        self.assertIn('iifname != "lo" tcp dport 53 reject', inputs[dns_tcp])
+        self.assertIn('iifname != "lo" udp dport 53 counter reject', inputs[dns_udp])
+        self.assertIn('iifname != "lo" tcp dport 53 counter reject', inputs[dns_tcp])
+
+    def test_each_terminal_rule_counts_only_after_its_match_expression(self) -> None:
+        rules = self.render(enforcement="reject", global_failclosed=True, dns_kill_switch=True)
+        for rule in rules:
+            self.assertRegex(rule, r' counter (accept|reject|drop) comment "')
+            self.assertEqual(rule.count(" counter "), 1)
+        protected = next(rule for rule in rules if ':protected-udp"' in rule)
+        self.assertIn('udp dport @protected_udp counter reject', protected)
 
     def test_dns_kill_switch_remains_disabled_by_default(self) -> None:
         rules = self.render(

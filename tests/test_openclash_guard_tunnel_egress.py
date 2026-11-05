@@ -56,8 +56,8 @@ guard_kill_render_final
         )
         result = self.run_shell(script)
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
-        tunnel = 'meta mark 0x162 oifname "utun" accept comment "openclash-guard:tunnel-egress"'
-        kill = 'reject comment "openclash-guard:kill-switch"'
+        tunnel = 'meta mark 0x162 oifname "utun" counter accept comment "openclash-guard:tunnel-egress"'
+        kill = 'counter reject comment "openclash-guard:kill-switch"'
         self.assertIn(tunnel, result.stdout)
         self.assertIn(kill, result.stdout)
         self.assertLess(result.stdout.index(tunnel), result.stdout.index(kill))
@@ -74,7 +74,7 @@ guard_kill_render_final
         result = self.run_shell(script)
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         self.assertEqual(result.stdout.count('comment "openclash-guard:tunnel-egress"'), 1)
-        self.assertIn('meta mark 0x162 oifname "utun" accept', result.stdout)
+        self.assertIn('meta mark 0x162 oifname "utun" counter accept', result.stdout)
 
     def test_distinct_generic_marks_fail_closed(self) -> None:
         script = self.base_script(
@@ -88,7 +88,7 @@ guard_kill_render_final
         result = self.run_shell(script)
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         self.assertNotIn("tunnel-egress", result.stdout)
-        self.assertIn('reject comment "openclash-guard:kill-switch"', result.stdout)
+        self.assertIn('counter reject comment "openclash-guard:kill-switch"', result.stdout)
 
     def test_scoped_mark_does_not_authorize_tunnel_egress(self) -> None:
         script = self.base_script(
@@ -101,7 +101,7 @@ guard_kill_render_final
         result = self.run_shell(script)
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         self.assertNotIn("tunnel-egress", result.stdout)
-        self.assertIn('reject comment "openclash-guard:kill-switch"', result.stdout)
+        self.assertIn('counter reject comment "openclash-guard:kill-switch"', result.stdout)
 
     def test_unrelated_tun0_is_not_a_default_openclash_interface(self) -> None:
         script = self.base_script(
@@ -115,7 +115,7 @@ guard_kill_render_final
         result = self.run_shell(script)
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         self.assertNotIn("tunnel-egress", result.stdout)
-        self.assertIn('reject comment "openclash-guard:kill-switch"', result.stdout)
+        self.assertIn('counter reject comment "openclash-guard:kill-switch"', result.stdout)
 
     def test_explicit_tun0_override_can_authorize_existing_interface(self) -> None:
         script = self.base_script(
@@ -131,7 +131,7 @@ guard_kill_render_final
         )
         result = self.run_shell(script)
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
-        self.assertIn('meta mark 0x162 oifname "tun0" accept', result.stdout)
+        self.assertIn('meta mark 0x162 oifname "tun0" counter accept', result.stdout)
 
     def test_policy_reject_without_global_failclosed_does_not_block_forwarding(self) -> None:
         script = self.base_script(
@@ -173,7 +173,7 @@ guard_kill_render_final
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         self.assertNotIn("unexpected-nft-probe", result.stderr)
         self.assertNotIn("tunnel-egress", result.stdout)
-        self.assertIn('reject comment "openclash-guard:kill-switch"', result.stdout)
+        self.assertIn('counter reject comment "openclash-guard:kill-switch"', result.stdout)
 
 
 if __name__ == "__main__":

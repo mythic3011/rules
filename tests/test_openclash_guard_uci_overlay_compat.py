@@ -41,8 +41,8 @@ class UciOverlayRuntimeCompatibilityTests(GuardRuntimeHarness):
 
         self.assertEqual(dns_only.returncode, 0, dns_only.stdout + dns_only.stderr)
         dns_batch = self.nft_batch.read_text(encoding="utf-8")
-        self.assertIn('iifname != "lo" udp dport 53 reject', dns_batch)
-        self.assertIn('iifname != "lo" tcp dport 53 reject', dns_batch)
+        self.assertIn('iifname != "lo" udp dport 53 counter reject', dns_batch)
+        self.assertIn('iifname != "lo" tcp dport 53 counter reject', dns_batch)
         self.assertNotIn("comment \"openclash-guard:kill-switch\"", dns_batch)
 
         self.write_uci(
@@ -59,8 +59,8 @@ class UciOverlayRuntimeCompatibilityTests(GuardRuntimeHarness):
 
         self.assertEqual(global_kill.returncode, 0, global_kill.stdout + global_kill.stderr)
         kill_batch = self.nft_batch.read_text(encoding="utf-8")
-        self.assertIn('forward reject comment "openclash-guard:kill-switch"', kill_batch)
-        self.assertNotIn('iifname != "lo" udp dport 53 reject', kill_batch)
+        self.assertIn('forward counter reject comment "openclash-guard:kill-switch"', kill_batch)
+        self.assertNotIn('iifname != "lo" udp dport 53 counter reject', kill_batch)
 
     def test_udp_intent_is_reported_but_never_creates_direct_bypass_rules(self) -> None:
         scoped_client = "192.0.2.44"
@@ -79,7 +79,7 @@ class UciOverlayRuntimeCompatibilityTests(GuardRuntimeHarness):
 
         self.assertEqual(applied.returncode, 0, applied.stdout + applied.stderr)
         batch = self.nft_batch.read_text(encoding="utf-8")
-        self.assertIn("udp dport @protected_udp reject", batch)
+        self.assertIn("udp dport @protected_udp counter reject", batch)
         self.assertNotIn(scoped_client, batch)
         self.assertNotIn("gaming_direct", batch)
         self.assertNotIn("openclash_guard_gaming_", batch)
