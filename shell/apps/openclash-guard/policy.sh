@@ -263,7 +263,7 @@ _guard_policy_validate_file_impl() {
         return 1
     }
     if [ "$_guard_pv_capture" = 1 ]; then
-        printf '%s\n' "$_guard_pv_protected"
+        _GUARD_POLICY_PROTECTED_UDP_PORTS=$_guard_pv_protected
     fi
     return 0
 }
@@ -273,7 +273,7 @@ guard_policy_load() {
     guard_policy_clear_protected_udp_ports
     _GUARD_POLICY_FILE=
     json_cache_clear
-    _guard_pl_protected=$(_guard_policy_validate_file_impl "$_guard_pl_path" 1) || {
+    _guard_policy_validate_file_impl "$_guard_pl_path" 1 || {
         _guard_pl_rc=$?
         guard_policy_clear_protected_udp_ports
         return "$_guard_pl_rc"
@@ -298,7 +298,6 @@ guard_policy_load() {
         return "$_guard_pl_rc"
     }
     _GUARD_POLICY_REVISION=$(json_get "$_GUARD_POLICY_FILE" revision 2>/dev/null) || _GUARD_POLICY_REVISION=
-    _GUARD_POLICY_PROTECTED_UDP_PORTS=$_guard_pl_protected
     _GUARD_POLICY_PROTECTED_UDP_PORTS_VALID=1
 }
 

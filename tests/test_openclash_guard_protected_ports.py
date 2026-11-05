@@ -133,6 +133,27 @@ printf 'snapshot=%s\\n' "$_GUARD_POLICY_PROTECTED_UDP_PORTS"
         self.assertIn("valid=1", result.stdout)
         self.assertIn("snapshot=443\n50000", result.stdout)
 
+    def test_load_keeps_flat_json_cache_in_parent_for_followup_queries(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="guard-policy-cache-parent-") as temp:
+            path = Path(temp) / "policy.json"
+            self._write_policy(path, self.base)
+            script = f'''
+set -eu
+. "{JSON}"
+. "{POLICY_SOURCE}"
+guard_policy_load "$1"
+_json_flatten_awk() {{
+    printf 'unexpected policy reflatten after load\\n' >&2
+    return 97
+}}
+_guard_test_version=$(json_get "$1" schemaVersion)
+printf 'version=%s\\n' "$_guard_test_version"
+'''
+            result = self._run_shell(script, str(path))
+
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertEqual(result.stdout, "version=1\n")
+
     def test_failed_second_load_clears_previous_snapshot(self) -> None:
         with tempfile.TemporaryDirectory(prefix="guard-protected-reload-") as temp:
             valid_path = Path(temp) / "valid.json"
