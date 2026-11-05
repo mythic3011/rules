@@ -11,6 +11,8 @@ import unittest
 from pathlib import Path
 from typing import Any
 
+from test_openclash_guard import CLI_TIMEOUT_SECONDS
+
 
 ROOT = Path(__file__).resolve().parents[1]
 POLICY = ROOT / "tests" / "fixtures" / "synthetic" / "openclash-guard" / "policy.json"
@@ -242,7 +244,7 @@ class GuardRuntimeHarness(unittest.TestCase):
             ["/bin/sh", str(self.bundle_path), *args],
             capture_output=True,
             text=True,
-            timeout=20,
+            timeout=CLI_TIMEOUT_SECONDS,
             cwd=self.work,
             env=self.env(**overrides),
             check=False,
@@ -259,7 +261,7 @@ class GuardRuntimeHarness(unittest.TestCase):
             ["/bin/sh", str(script_path)],
             capture_output=True,
             text=True,
-            timeout=20,
+            timeout=CLI_TIMEOUT_SECONDS,
             cwd=self.work,
             env=self.env(**overrides),
             check=False,

@@ -150,6 +150,12 @@
       {
         "argv": [
           "{python}",
+          "internal/python/generate_router_observations.py"
+        ]
+      },
+      {
+        "argv": [
+          "{python}",
           "tools/shbundle.py",
           "check"
         ]

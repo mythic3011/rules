@@ -63,7 +63,7 @@ class LuCIOpenClashGuardContractTests(unittest.TestCase):
         acl = json.loads(ACL.read_text(encoding="utf-8"))["luci-app-openclash-guard"]
         read_methods = acl["read"]["ubus"]["luci.openclash-guard"]
         write_methods = acl["write"]["ubus"]["luci.openclash-guard"]
-        self.assertEqual(read_methods, ["getStatus", "getRegions", "getHistory", "trace"])
+        self.assertEqual(read_methods, ["getStatus", "getRegions", "getHistory", "trace", "getFirewallObservations"])
         self.assertEqual(write_methods, ["probeProfile", "clearHistory"])
         self.assertNotIn("probeProfile", read_methods)
         self.assertNotIn("clearHistory", read_methods)
