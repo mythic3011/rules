@@ -82,7 +82,7 @@ _json_flatten_awk() {
                 emit(path, typed_path, "", type)
             }
         }
-        function parse_string(    c, out) {
+        function parse_string(object_key,    c, out) {
             if (peek() != "\"") {
                 fail("expected string")
             }
@@ -98,6 +98,9 @@ _json_flatten_awk() {
                     return out
                 }
                 if (c == "\\") {
+                    if (mode == "typed" && object_key) {
+                        fail("escaped object key is unsupported in typed mode")
+                    }
                     if (pos > n) {
                         fail("unterminated string")
                     }
@@ -141,11 +144,14 @@ _json_flatten_awk() {
             }
             return raw
         }
-        function parse_object(prefix, typed_path,    key, child, typed_child, c, nkeys) {
+        function parse_object(prefix, typed_path,    key, child, typed_child, c, nkeys, object_id) {
             if (peek() != "{") {
                 fail("expected object")
             }
             pos++
+            if (mode == "typed") {
+                object_id = ++object_sequence
+            }
             emit_container(prefix, typed_path, "object")
             skip()
             nkeys = 0
@@ -158,7 +164,10 @@ _json_flatten_awk() {
             }
             while (pos <= n) {
                 skip()
-                key = parse_string()
+                key = parse_string(mode == "typed")
+                if (mode == "typed" && seen_object_keys[object_id SUBSEP key]++) {
+                    fail("duplicate JSON object key")
+                }
                 skip()
                 if (peek() != ":") {
                     fail("expected colon")
@@ -288,6 +297,8 @@ _json_flatten_awk() {
 
 # Return typed direct array items as index<TAB>type<TAB>raw-number. The typed
 # mode shares the flatten parser but leaves the default flattened API unchanged.
+# Typed documents require literal, unique object keys; escaped keys are refused
+# because the shared parser does not resolve every Unicode key spelling.
 json_array_items_typed() {
     _json_ait_file=${1:-}
     _json_ait_path=${2:-}
