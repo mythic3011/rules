@@ -32,6 +32,13 @@ POLICY_INVALID = FIXTURE_DIR / "policy-invalid.json"
 RUNTIME_POLICY = ROOT / "cfg" / "runtime" / "openclash-guard.json"
 RUNTIME_TEMPLATES = ROOT / "cfg" / "runtime" / "openclash-guard-templates.json"
 
+# End-to-end shell commands launch many real parser and fake UCI processes.
+# These are deadlock bounds, not latency assertions: host process startup under
+# load can exceed ten seconds even when every command completes successfully.
+# Setup performs several such operations. Unit-level deadlines stay separate.
+CLI_TIMEOUT_SECONDS = 60
+SETUP_TIMEOUT_SECONDS = 2 * CLI_TIMEOUT_SECONDS
+
 SPEC = importlib.util.spec_from_file_location("shbundle", SHBUNDLE_PATH)
 if SPEC is None or SPEC.loader is None:
     raise RuntimeError(f"Unable to load module from {SHBUNDLE_PATH}")
@@ -834,7 +841,7 @@ class GuardAppTests(unittest.TestCase):
             capture_output=True,
             text=True,
             env=self.env(extra),
-            timeout=10,
+            timeout=CLI_TIMEOUT_SECONDS,
             cwd=str(self.work),
             check=False,
         )
@@ -864,8 +871,7 @@ class GuardAppTests(unittest.TestCase):
             os.write(source_write, BUNDLE.read_bytes())
             os.close(source_write)
         chunks: list[bytes] = []
-        # Setup starts several UCI helpers; allow slower CI runners time to finish.
-        deadline = time.monotonic() + 30
+        deadline = time.monotonic() + SETUP_TIMEOUT_SECONDS
         input_sent = False
         while time.monotonic() < deadline:
             ready, _, _ = select.select([master], [], [], 0.1)

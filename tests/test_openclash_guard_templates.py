@@ -338,7 +338,7 @@ class TemplateAndInstallCliTests(unittest.TestCase):
         *args: str,
         extra: Mapping[str, str] | None = None,
         stdin: str | None = None,
-        timeout: int = 10,
+        timeout: int = guard_tests.CLI_TIMEOUT_SECONDS,
     ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             ["/bin/sh", str(BUNDLE), *args],
