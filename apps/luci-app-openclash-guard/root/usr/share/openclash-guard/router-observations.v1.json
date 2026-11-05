@@ -1,0 +1,124 @@
+{
+  "authorization": "READ_ONLY_NO_ROUTING_AUTHORITY",
+  "kind": "rule-counter-snapshot",
+  "limits": {
+    "commandTimeoutSeconds": 3,
+    "killAfterSeconds": 1,
+    "maxInputBytes": 2097152,
+    "maxRecords": 128,
+    "maxSafeCounter": 9007199254740991,
+    "ttlMs": 10000
+  },
+  "ruleReasons": [
+    {
+      "chain": "input",
+      "decision": "reject",
+      "id": "dns-ks",
+      "label": "Router DNS kill switch: UDP DNS"
+    },
+    {
+      "chain": "input",
+      "decision": "reject",
+      "id": "dns-ks-tcp",
+      "label": "Router DNS kill switch: TCP DNS"
+    },
+    {
+      "chain": "input",
+      "decision": "accept",
+      "id": "est-in",
+      "label": "Established or related router input"
+    },
+    {
+      "chain": "forward",
+      "decision": "reject",
+      "id": "resolver-sync-v4",
+      "label": "Resolver-protected IPv4 destination on direct WAN"
+    },
+    {
+      "chain": "forward",
+      "decision": "reject",
+      "id": "resolver-sync-v6",
+      "label": "Resolver-protected IPv6 destination on direct WAN"
+    },
+    {
+      "chain": "forward",
+      "decision": "accept",
+      "id": "lo",
+      "label": "Loopback forwarding exception"
+    },
+    {
+      "chain": "forward",
+      "decision": "accept",
+      "id": "dhcp",
+      "label": "DHCP forwarding exception"
+    },
+    {
+      "chain": "forward",
+      "decision": "accept",
+      "id": "lan-dst",
+      "label": "Private IPv4 destination exception"
+    },
+    {
+      "chain": "forward",
+      "decision": "reject",
+      "id": "protected-udp",
+      "label": "Protected UDP destination port"
+    },
+    {
+      "chain": "forward",
+      "decision": "accept",
+      "id": "est",
+      "label": "Established or related service-scoped forwarding"
+    },
+    {
+      "chain": "gaming_egress",
+      "decision": "reject",
+      "id": "game-udp-source-capability",
+      "label": "Gaming source-port flow lacks the direct-routing capability"
+    },
+    {
+      "chain": "gaming_egress",
+      "decision": "reject",
+      "id": "game-udp-source-egress",
+      "label": "Gaming source-port flow uses the wrong egress interface"
+    },
+    {
+      "chain": "forward",
+      "decision": "accept",
+      "id": "game-udp-source",
+      "label": "Scoped gaming source-port exception"
+    },
+    {
+      "chain": "gaming_egress",
+      "decision": "reject",
+      "id": "game-udp-destination-capability",
+      "label": "Gaming destination-port flow lacks the direct-routing capability"
+    },
+    {
+      "chain": "gaming_egress",
+      "decision": "reject",
+      "id": "game-udp-destination-egress",
+      "label": "Gaming destination-port flow uses the wrong egress interface"
+    },
+    {
+      "chain": "forward",
+      "decision": "accept",
+      "id": "game-udp-destination",
+      "label": "Scoped gaming destination-port exception"
+    },
+    {
+      "chain": "forward",
+      "decision": "accept",
+      "id": "tunnel-egress",
+      "label": "Marked OpenClash tunnel egress exception"
+    },
+    {
+      "chain": "forward",
+      "decision": "reject",
+      "id": "kill-switch",
+      "label": "Global fail-closed policy"
+    }
+  ],
+  "runtimePolicyPath": "/etc/openclash-guard/openclash-guard.json",
+  "version": 1
+}

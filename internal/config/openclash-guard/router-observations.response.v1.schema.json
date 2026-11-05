@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:openclash-guard:router-observations:response:v1",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "error"],
+      "properties": {
+        "ok": { "const": false },
+        "error": { "enum": ["unsupported-command", "dependency-unavailable", "catalog-unavailable", "catalog-invalid", "policy-unavailable", "policy-limit", "policy-invalid", "temporary-storage-unavailable", "collection-failed", "input-limit", "clock-unavailable", "invalid-ruleset"] }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "version", "kind", "authorization", "observedAtMs", "ttlMs", "source", "policy", "coverage", "rules"],
+      "properties": {
+        "ok": { "const": true },
+        "version": { "const": 1 },
+        "kind": { "const": "rule-counter-snapshot" },
+        "authorization": { "const": "READ_ONLY_NO_ROUTING_AUTHORITY" },
+        "observedAtMs": { "type": "integer", "minimum": 0 },
+        "ttlMs": { "type": "integer", "minimum": 1 },
+        "source": { "const": "live-nft-snapshot" },
+        "policy": {
+          "type": "object", "additionalProperties": false,
+          "required": ["configuredRevision", "appliedRevision", "binding"],
+          "properties": {
+            "configuredRevision": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+            "appliedRevision": { "type": "null" },
+            "binding": { "const": "unverified" }
+          }
+        },
+        "coverage": {
+          "type": "object", "additionalProperties": false,
+          "required": ["status", "scope", "connectionAttribution", "ruleSemanticsVerified", "offloadCoverage", "flowtablesPresent", "hardwareOffloadFlagPresent", "targetTablePresent", "ownedRuleCount", "recognizedRuleCount", "unknownRuleCount", "counterUnavailableCount", "truncated", "counterLifetime"],
+          "properties": {
+            "status": { "const": "partial" },
+            "scope": { "type": "string" },
+            "connectionAttribution": { "const": "unavailable" },
+            "ruleSemanticsVerified": { "const": false },
+            "offloadCoverage": { "const": "unverified" },
+            "flowtablesPresent": { "type": "boolean" },
+            "hardwareOffloadFlagPresent": { "type": "boolean" },
+            "targetTablePresent": { "type": "boolean" },
+            "ownedRuleCount": { "type": "integer", "minimum": 0 },
+            "recognizedRuleCount": { "type": "integer", "minimum": 0 },
+            "unknownRuleCount": { "type": "integer", "minimum": 0 },
+            "counterUnavailableCount": { "type": "integer", "minimum": 0 },
+            "truncated": { "type": "boolean" },
+            "counterLifetime": { "type": "string" }
+          }
+        },
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["ruleId", "chain", "handle", "decision", "reason", "reasonBinding", "status", "packets", "bytes"],
+            "properties": {
+              "ruleId": { "type": "string" },
+              "chain": { "type": "string" },
+              "handle": { "type": ["integer", "null"], "minimum": 0 },
+              "decision": { "enum": ["accept", "reject", "drop", "unknown"] },
+              "reason": { "type": "string" },
+              "reasonBinding": { "const": "catalog-reference-only" },
+              "status": { "enum": ["counter-observed", "counter-unavailable", "counter-invalid", "rule-shape-mismatch"] },
+              "packets": { "type": ["integer", "null"], "minimum": 0 },
+              "bytes": { "type": ["integer", "null"], "minimum": 0 }
+            },
+            "if": { "properties": { "status": { "const": "counter-observed" } } },
+            "then": { "properties": { "packets": { "type": "integer" }, "bytes": { "type": "integer" } } },
+            "else": { "properties": { "packets": { "type": "null" }, "bytes": { "type": "null" } } }
+          }
+        }
+      }
+    }
+  ]
+}
