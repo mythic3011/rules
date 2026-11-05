@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -45,6 +46,36 @@ class DeviceProfileBackendTest(unittest.TestCase):
         self.helper = self.temp_root / "openclash-guard-devices"
         self.helper.write_text(helper_text, encoding="utf-8")
         self.helper.chmod(0o755)
+
+        # Ubuntu 26 test hosts can use uutils coreutils 0.10.0, whose mkdir
+        # can report success when another process creates a path after its
+        # existence check:
+        # https://github.com/uutils/coreutils/blob/0.10.0/src/uu/mkdir/src/mkdir.rs#L342
+        # Use the kernel's atomic mkdir syscall through Python in this private
+        # test PATH; production still uses the target router's mkdir command.
+        mkdir_impl = self.bin_dir / "mkdir-atomic.py"
+        mkdir_impl.write_text(
+            "import os\n"
+            "import sys\n"
+            "\n"
+            "arguments = sys.argv[1:]\n"
+            "if len(arguments) != 3 or arguments[0] != '-m':\n"
+            "    print('mkdir test shim expects: -m MODE PATH', file=sys.stderr)\n"
+            "    raise SystemExit(2)\n"
+            "try:\n"
+            "    os.mkdir(arguments[2], int(arguments[1], 8))\n"
+            "except OSError as error:\n"
+            "    print(f'mkdir: cannot create directory {arguments[2]!r}: {error.strerror}', file=sys.stderr)\n"
+            "    raise SystemExit(1)\n",
+            encoding="utf-8",
+        )
+        mkdir = self.bin_dir / "mkdir"
+        mkdir.write_text(
+            "#!/bin/sh\n"
+            f"exec {shlex.quote(sys.executable)} {shlex.quote(str(mkdir_impl))} \"$@\"\n",
+            encoding="utf-8",
+        )
+        mkdir.chmod(0o755)
 
         uci = self.bin_dir / "uci"
         uci.write_text(
@@ -299,16 +330,40 @@ class DeviceProfileBackendTest(unittest.TestCase):
         assert older_process.stdin is not None and newer_process.stdin is not None
         older_process.stdin.write(self.payload(older))
         older_process.stdin.close()
+        older_process.stdin = None
         newer_process.stdin.write(self.payload(newer))
         newer_process.stdin.close()
+        newer_process.stdin = None
         time.sleep(0.25)
         blocker.rmdir()
 
-        older_process.communicate(timeout=5)
-        _, newer_stderr = newer_process.communicate(timeout=5)
-        self.assertEqual(newer_process.returncode, 0, newer_stderr.decode())
+        older_stdout, older_stderr = older_process.communicate(timeout=5)
+        newer_stdout, newer_stderr = newer_process.communicate(timeout=5)
+
+        def failure_context(published_timestamp: Any) -> str:
+            return (
+                f"older(pid={older_process.pid}, rc={older_process.returncode}, "
+                f"stderr={older_stderr.decode('utf-8', errors='replace')!r}, "
+                f"observed_at_ms={older['observed_at_ms']}); "
+                f"newer(pid={newer_process.pid}, rc={newer_process.returncode}, "
+                f"stderr={newer_stderr.decode('utf-8', errors='replace')!r}, "
+                f"observed_at_ms={newer['observed_at_ms']}); "
+                f"published_observed_at_ms={published_timestamp}"
+            )
+
+        self.assertEqual(
+            newer_process.returncode,
+            0,
+            failure_context(None) if newer_process.returncode != 0 else "",
+        )
         published = json.loads((self.cache_dir / "device_1.json").read_text(encoding="utf-8"))
-        self.assertEqual(published["observed_at_ms"], newer["observed_at_ms"])
+        self.assertEqual(
+            published["observed_at_ms"],
+            newer["observed_at_ms"],
+            failure_context(published.get("observed_at_ms"))
+            if published.get("observed_at_ms") != newer["observed_at_ms"]
+            else "",
+        )
 
 
 if __name__ == "__main__":

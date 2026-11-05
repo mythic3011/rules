@@ -32,7 +32,7 @@ guard_game_udp_destination_ports() {
 }
 
 guard_game_protected_udp_ports() {
-    json_list "$_GUARD_POLICY_FILE" gaming.protectedUdpPorts 2>/dev/null || true
+    guard_policy_protected_udp_ports
 }
 
 guard_game_safe_udp_destination_ports() {
@@ -42,6 +42,9 @@ guard_game_safe_udp_destination_ports() {
         [ -n "$_guard_gsdp_port" ] || continue
         if guard_policy_port_in_list "$_guard_gsdp_port" gaming.protectedUdpPorts; then
             continue
+        else
+            _guard_gsdp_rc=$?
+            [ "$_guard_gsdp_rc" -eq 1 ] || return "$_guard_gsdp_rc"
         fi
         printf '%s\n' "$_guard_gsdp_port"
     done
@@ -156,8 +159,13 @@ guard_game_flow_eligible() {
     esac
     # Protected ports describe the remote/destination endpoint. A trusted
     # source-port exception must never override this fail-closed boundary.
-    if [ -n "$_guard_gf_dport" ] && guard_policy_port_in_list "$_guard_gf_dport" gaming.protectedUdpPorts; then
-        return 1
+    if [ -n "$_guard_gf_dport" ]; then
+        if guard_policy_port_in_list "$_guard_gf_dport" gaming.protectedUdpPorts; then
+            return 1
+        else
+            _guard_gf_protected_rc=$?
+            [ "$_guard_gf_protected_rc" -eq 1 ] || return "$_guard_gf_protected_rc"
+        fi
     fi
     _guard_gf_port_match=0
     if [ -n "$_guard_gf_sport" ] && guard_game_source_port_enabled "$_guard_gf_sport"; then
@@ -193,7 +201,7 @@ _guard_game_render_scoped() {
     _guard_gr_srcs=$(guard_game_src_ips)
     [ -n "$_guard_gr_srcs" ] || return 0
     _guard_gr_source_ports=$(guard_game_udp_source_ports)
-    _guard_gr_destination_ports=$(guard_game_safe_udp_destination_ports)
+    _guard_gr_destination_ports=$(guard_game_safe_udp_destination_ports) || return $?
     if [ -z "$_guard_gr_source_ports" ] && [ -z "$_guard_gr_destination_ports" ]; then return 0; fi
 
     _guard_kill_add_set gaming_src ipv4_addr gaming-src interval
@@ -241,9 +249,9 @@ _guard_game_render_scoped() {
 guard_game_render() {
     _guard_game_dp_srcs=$(guard_game_src_ips)
     _guard_game_dp_sports=$(guard_game_udp_source_ports)
-    _guard_game_dp_dports=$(guard_game_safe_udp_destination_ports)
+    _guard_game_dp_dports=$(guard_game_safe_udp_destination_ports) || return $?
     _guard_game_dp_cidrs=$(json_list "$_GUARD_POLICY_FILE" gaming.destinationCidrs 2>/dev/null) || _guard_game_dp_cidrs=
-    _guard_game_dp_protected=$(guard_game_protected_udp_ports)
+    _guard_game_dp_protected=$(guard_policy_protected_udp_ports) || return $?
 
     guard_dataplane_prepare \
         "$_guard_game_dp_srcs" \
@@ -251,6 +259,6 @@ guard_game_render() {
         "$_guard_game_dp_dports" \
         "$_guard_game_dp_cidrs" \
         "$_guard_game_dp_protected" || return $?
-    _guard_game_render_scoped
+    _guard_game_render_scoped || return $?
     guard_dataplane_render
 }

@@ -209,9 +209,9 @@ guard_game_flow_eligible udp 9999 3074 10.0.0.11 203.0.113.10 || exit 21
         start = text.index("_guard_write_batch() {")
         end = text.index("\nguard_cmd_reconcile()", start)
         body = text[start:end]
-        base = body.index("        guard_kill_render\n")
-        gaming = body.index("        guard_game_render\n")
-        final = body.index("        guard_kill_render_final\n")
+        base = body.index("        guard_kill_render || return $?\n")
+        gaming = body.index("        guard_game_render || return $?\n")
+        final = body.index("        guard_kill_render_final || return $?\n")
         self.assertLess(base, gaming)
         self.assertLess(gaming, final)
         self.assertNotIn("guard_kill_render_final", GAMING.read_text(encoding="utf-8"))
