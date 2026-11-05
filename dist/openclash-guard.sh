@@ -1260,7 +1260,9 @@ _json_path_simple() {
 }
 
 _json_flatten_awk() {
-    awk -v max_depth="$_JSON_MAX_DEPTH" '
+    _json_fa_mode=${2:-flat}
+    _json_fa_target=${3:-}
+    awk -v mode="$_json_fa_mode" -v target="$_json_fa_target" -v max_depth="$_JSON_MAX_DEPTH" '
         {
             src = src $0 "\n"
         }
@@ -1304,13 +1306,38 @@ _json_flatten_awk() {
             }
             return out
         }
-        function emit(path, val) {
+        function emit(path, typed_path, val, type, prefix, rest) {
+            if (mode == "typed") {
+                if (typed_path == target_path) {
+                    print "root\t" type
+                    return
+                }
+                prefix = target_path SUBSEP
+                if (index(typed_path, prefix) != 1) {
+                    return
+                }
+                rest = substr(typed_path, length(prefix) + 1)
+                if (rest !~ /^[0-9]+$/) {
+                    return
+                }
+                if (type == "number") {
+                    print "item\t" (rest + 0) "\t" type "\t" val
+                } else {
+                    print "item\t" (rest + 0) "\t" type "\t"
+                }
+                return
+            }
             if (path == "") {
                 return
             }
             print path "\t" escape_frame(val)
         }
-        function parse_string(    c, out, hex) {
+        function emit_container(path, typed_path, type) {
+            if (mode == "typed") {
+                emit(path, typed_path, "", type)
+            }
+        }
+        function parse_string(object_key,    c, out, hex) {
             if (peek() != "\"") {
                 fail("expected string")
             }
@@ -1323,6 +1350,9 @@ _json_flatten_awk() {
                     return out
                 }
                 if (c == "\\") {
+                    if (mode == "typed" && object_key) {
+                        fail("escaped object keys are unsupported in typed mode")
+                    }
                     if (pos > n) {
                         fail("unterminated string")
                     }
@@ -1386,25 +1416,32 @@ _json_flatten_awk() {
                 fail("JSON nesting exceeds supported depth")
             }
         }
-        function parse_object(prefix,    key, child, c, nkeys) {
+        function parse_object(prefix, typed_path,    key, child, typed_child, c, nkeys, object_id) {
             if (peek() != "{") {
                 fail("expected object")
             }
             enter_container()
             pos++
+            if (mode == "typed") {
+                object_id = ++object_sequence
+            }
+            emit_container(prefix, typed_path, "object")
             skip()
             nkeys = 0
             if (peek() == "}") {
                 pos++
-                if (prefix != "") {
-                    emit(prefix, "{}")
+                if (prefix != "" && mode != "typed") {
+                    emit(prefix, typed_path, "{}", "object")
                 }
                 depth--
                 return
             }
             while (pos <= n) {
                 skip()
-                key = parse_string()
+                key = parse_string(mode == "typed")
+                if (mode == "typed" && seen_object_keys[object_id SUBSEP key]++) {
+                    fail("duplicate JSON object key")
+                }
                 if (key ~ /[[:cntrl:]]/) {
                     fail("object key contains unsupported control characters")
                 }
@@ -1419,7 +1456,12 @@ _json_flatten_awk() {
                 } else {
                     child = prefix "." key
                 }
-                parse_value(child)
+                if (mode == "typed") {
+                    typed_child = typed_path == "" ? key : typed_path SUBSEP key
+                } else {
+                    typed_child = ""
+                }
+                parse_value(child, typed_child)
                 nkeys++
                 skip()
                 c = peek()
@@ -1436,18 +1478,19 @@ _json_flatten_awk() {
             }
             fail("unterminated object")
         }
-        function parse_array(prefix,    i, child, c) {
+        function parse_array(prefix, typed_path,    i, child, typed_child, c) {
             if (peek() != "[") {
                 fail("expected array")
             }
             enter_container()
             pos++
+            emit_container(prefix, typed_path, "array")
             skip()
             i = 0
             if (peek() == "]") {
                 pos++
-                if (prefix != "") {
-                    emit(prefix, "[]")
+                if (prefix != "" && mode != "typed") {
+                    emit(prefix, typed_path, "[]", "array")
                 }
                 depth--
                 return
@@ -1455,7 +1498,12 @@ _json_flatten_awk() {
             while (pos <= n) {
                 skip()
                 child = prefix "." i
-                parse_value(child)
+                if (mode == "typed") {
+                    typed_child = typed_path == "" ? i : typed_path SUBSEP i
+                } else {
+                    typed_child = ""
+                }
+                parse_value(child, typed_child)
                 i++
                 skip()
                 c = peek()
@@ -1472,33 +1520,50 @@ _json_flatten_awk() {
             }
             fail("unterminated array")
         }
-        function parse_value(prefix,    c) {
+        function parse_value(prefix, typed_path,    c, raw, type) {
             skip()
             c = peek()
             if (c == "{") {
-                parse_object(prefix)
+                parse_object(prefix, typed_path)
                 return
             }
             if (c == "[") {
-                parse_array(prefix)
+                parse_array(prefix, typed_path)
                 return
             }
             if (c == "\"") {
-                emit(prefix, parse_string())
+                emit(prefix, typed_path, parse_string(), "string")
                 return
             }
-            emit(prefix, parse_literal())
+            raw = parse_literal()
+            if (raw == "true" || raw == "false") {
+                type = "boolean"
+            } else if (raw == "null") {
+                type = "null"
+            } else {
+                type = "number"
+            }
+            emit(prefix, typed_path, raw, type)
         }
         END {
             n = length(src)
             pos = 1
             bad = 0
             depth = 0
+            if (mode == "typed") {
+                if (target == "") {
+                    fail("missing typed JSON path")
+                }
+                target_count = split(target, target_parts, /[.]/)
+                for (i = 1; i <= target_count; i++) {
+                    target_path = i == 1 ? target_parts[i] : target_path SUBSEP target_parts[i]
+                }
+            }
             skip()
             if (pos > n) {
                 fail("empty JSON")
             }
-            parse_value("")
+            parse_value("", "")
             skip()
             if (pos <= n && peek() != "") {
                 fail("trailing JSON content")
@@ -1507,8 +1572,53 @@ _json_flatten_awk() {
     ' "$1"
 }
 
+# Return direct array entries as index<TAB>type<TAB>raw-number. Structural
+# paths keep dotted JSON keys from impersonating nested policy fields.
+json_array_items_typed() {
+    _json_ait_file=${1:-}
+    _json_ait_path=${2:-}
+    _json_require_file "$_json_ait_file" || return $?
+    if [ -z "$_json_ait_path" ]; then
+        printf '%s\n' "json_array_items_typed: missing path" >&2
+        return 2
+    fi
+    _json_ait_path=$(_json_normalize_path "$_json_ait_path")
+    _json_path_simple "$_json_ait_path" || return 2
+    _json_ait_flat=$(_json_flatten_awk "$_json_ait_file" typed "$_json_ait_path") || return $?
+    printf '%s\n' "$_json_ait_flat" | awk -F '\t' '
+        $0 == "" { next }
+        $1 == "root" {
+            roots++
+            root_type = $2
+            next
+        }
+        $1 == "item" {
+            item_index = $2 + 0
+            if (item_index != count) {
+                bad = 1
+            }
+            items[count++] = $2 "\t" $3 "\t" ($4 == "" ? "" : $4)
+            next
+        }
+        { bad = 1 }
+        END {
+            if (roots != 1 || root_type != "array" || bad) {
+                exit 1
+            }
+            for (i = 0; i < count; i++) {
+                print items[i]
+            }
+        }
+    '
+}
+
 _JSON_FLAT_PATH=
 _JSON_FLAT_DATA=
+
+json_cache_clear() {
+    _JSON_FLAT_PATH=
+    _JSON_FLAT_DATA=
+}
 
 json_load() {
     _json_require_file "${1:-}" || return $?
@@ -2455,6 +2565,8 @@ _GUARD_POLICY_ENFORCEMENT=reject
 _GUARD_POLICY_GLOBAL_FAILCLOSED=0
 _GUARD_POLICY_STATE_REASON=
 _GUARD_POLICY_DEGRADED_COMPONENTS=
+_GUARD_POLICY_PROTECTED_UDP_PORTS=
+_GUARD_POLICY_PROTECTED_UDP_PORTS_VALID=0
 
 _guard_policy_default_path() {
     if [ -n "${GUARD_POLICY_FILE:-}" ]; then
@@ -2482,8 +2594,137 @@ _guard_policy_class_field() {
     json_get "$_GUARD_POLICY_FILE" "protectionClasses.${_guard_pc_class}.${_guard_pc_field}"
 }
 
+_guard_policy_protected_udp_ports_from_file() {
+    _guard_ppf_file=${1:-}
+    _guard_ppf_items=$(json_array_items_typed "$_guard_ppf_file" gaming.protectedUdpPorts) || return $?
+    printf '%s\n' "$_guard_ppf_items" | awk -F '\t' '
+        function normalize_port(raw,    exp_pos, mantissa, exp_text, exp_negative, exp_value,
+                                exp_limit, i, int_part, frac_part, dot_pos, digits, scale,
+                                suffix, append, port_value) {
+            if (raw !~ /^(-)?(0|[1-9][0-9]*)([.][0-9]+)?([eE][+-]?[0-9]+)?$/ ||
+                substr(raw, 1, 1) == "-") {
+                return ""
+            }
+
+            exp_pos = match(raw, /[eE]/)
+            if (exp_pos > 0) {
+                mantissa = substr(raw, 1, exp_pos - 1)
+                exp_text = substr(raw, exp_pos + 1)
+                if (substr(exp_text, 1, 1) == "-") {
+                    exp_negative = 1
+                    exp_text = substr(exp_text, 2)
+                } else if (substr(exp_text, 1, 1) == "+") {
+                    exp_text = substr(exp_text, 2)
+                }
+            } else {
+                mantissa = raw
+                exp_text = "0"
+            }
+
+            exp_limit = length(raw) + 6
+            exp_value = 0
+            for (i = 1; i <= length(exp_text); i++) {
+                exp_value = exp_value * 10 + substr(exp_text, i, 1)
+                if (exp_value > exp_limit) {
+                    return ""
+                }
+            }
+            if (exp_negative) {
+                exp_value = -exp_value
+            }
+
+            dot_pos = index(mantissa, ".")
+            if (dot_pos > 0) {
+                int_part = substr(mantissa, 1, dot_pos - 1)
+                frac_part = substr(mantissa, dot_pos + 1)
+            } else {
+                int_part = mantissa
+                frac_part = ""
+            }
+            digits = int_part frac_part
+            sub(/^0+/, "", digits)
+            if (digits == "") {
+                return ""
+            }
+
+            scale = length(frac_part) - exp_value
+            if (scale > 0) {
+                if (scale >= length(digits)) {
+                    return ""
+                }
+                suffix = substr(digits, length(digits) - scale + 1)
+                if (suffix !~ /^0+$/) {
+                    return ""
+                }
+                digits = substr(digits, 1, length(digits) - scale)
+            } else if (scale < 0) {
+                append = -scale
+                if (length(digits) + append > 5) {
+                    return ""
+                }
+                for (i = 0; i < append; i++) {
+                    digits = digits "0"
+                }
+            }
+
+            sub(/^0+/, "", digits)
+            if (digits == "" || length(digits) > 5) {
+                return ""
+            }
+            port_value = digits + 0
+            if (port_value < 1 || port_value > 65535) {
+                return ""
+            }
+            return sprintf("%.0f", port_value)
+        }
+
+        NF != 3 || $2 != "number" {
+            invalid = 1
+            next
+        }
+        {
+            port = normalize_port($3)
+            if (port == "" || seen[port]++) {
+                invalid = 1
+                next
+            }
+            ports[count++] = port
+            if (port == "443") {
+                has443 = 1
+            }
+        }
+        END {
+            if (invalid || count < 1 || !has443) {
+                exit 1
+            }
+            for (i = 0; i < count; i++) {
+                print ports[i]
+            }
+        }
+    '
+}
+
+guard_policy_clear_protected_udp_ports() {
+    _GUARD_POLICY_PROTECTED_UDP_PORTS=
+    _GUARD_POLICY_PROTECTED_UDP_PORTS_VALID=0
+}
+
+guard_policy_protected_udp_ports() {
+    if [ "${_GUARD_POLICY_PROTECTED_UDP_PORTS_VALID:-0}" != 1 ]; then
+        printf '%s\n' "guard_policy: protected UDP ports are not loaded and validated" >&2
+        return 1
+    fi
+    printf '%s\n' "$_GUARD_POLICY_PROTECTED_UDP_PORTS"
+}
+
 guard_policy_validate_file() {
+    json_cache_clear
+    _guard_policy_validate_file_impl "${1:-}" 0
+}
+
+_guard_policy_validate_file_impl() {
     _guard_pv_file=${1:-}
+    _guard_pv_capture=${2:-0}
     if [ -z "$_guard_pv_file" ] || [ ! -f "$_guard_pv_file" ]; then
         printf '%s\n' "guard_policy: missing policy file: ${_guard_pv_file:-}" >&2
         return 1
@@ -2569,17 +2810,48 @@ guard_policy_validate_file() {
         printf '%s\n' "guard_policy: missing gaming" >&2
         return 1
     fi
+    _guard_pv_protected=$(_guard_policy_protected_udp_ports_from_file "$_guard_pv_file") || {
+        printf '%s\n' "guard_policy: invalid gaming.protectedUdpPorts" >&2
+        return 1
+    }
+    if [ "$_guard_pv_capture" = 1 ]; then
+        printf '%s\n' "$_guard_pv_protected"
+    fi
     return 0
 }
 
 guard_policy_load() {
     _guard_pl_path=${1:-$(_guard_policy_default_path)}
-    guard_policy_validate_file "$_guard_pl_path" || return $?
+    guard_policy_clear_protected_udp_ports
+    _GUARD_POLICY_FILE=
+    json_cache_clear
+    _guard_pl_protected=$(_guard_policy_validate_file_impl "$_guard_pl_path" 1) || {
+        _guard_pl_rc=$?
+        guard_policy_clear_protected_udp_ports
+        return "$_guard_pl_rc"
+    }
     _GUARD_POLICY_FILE=$_guard_pl_path
-    _GUARD_NFT_FAMILY=$(json_get "$_GUARD_POLICY_FILE" nft.family)
-    _GUARD_NFT_TABLE=$(json_get "$_GUARD_POLICY_FILE" nft.table)
-    _GUARD_NFT_PREFIX=$(json_get "$_GUARD_POLICY_FILE" nft.commentPrefix)
+    _GUARD_NFT_FAMILY=$(json_get "$_GUARD_POLICY_FILE" nft.family) || {
+        _guard_pl_rc=$?
+        _GUARD_POLICY_FILE=
+        guard_policy_clear_protected_udp_ports
+        return "$_guard_pl_rc"
+    }
+    _GUARD_NFT_TABLE=$(json_get "$_GUARD_POLICY_FILE" nft.table) || {
+        _guard_pl_rc=$?
+        _GUARD_POLICY_FILE=
+        guard_policy_clear_protected_udp_ports
+        return "$_guard_pl_rc"
+    }
+    _GUARD_NFT_PREFIX=$(json_get "$_GUARD_POLICY_FILE" nft.commentPrefix) || {
+        _guard_pl_rc=$?
+        _GUARD_POLICY_FILE=
+        guard_policy_clear_protected_udp_ports
+        return "$_guard_pl_rc"
+    }
     _GUARD_POLICY_REVISION=$(json_get "$_GUARD_POLICY_FILE" revision 2>/dev/null) || _GUARD_POLICY_REVISION=
+    _GUARD_POLICY_PROTECTED_UDP_PORTS=$_guard_pl_protected
+    _GUARD_POLICY_PROTECTED_UDP_PORTS_VALID=1
 }
 
 # Guard nft table lifecycle: active | absent | unavailable.
@@ -2670,7 +2942,14 @@ guard_policy_refresh_state() {
 guard_policy_port_in_list() {
     _guard_pil_port=$1
     _guard_pil_path=$2
-    _guard_pil_items=$(json_list "$_GUARD_POLICY_FILE" "$_guard_pil_path" 2>/dev/null) || _guard_pil_items=
+    if [ "$_guard_pil_path" = gaming.protectedUdpPorts ]; then
+        if [ "${_GUARD_POLICY_PROTECTED_UDP_PORTS_VALID:-0}" != 1 ]; then
+            return 2
+        fi
+        _guard_pil_items=$_GUARD_POLICY_PROTECTED_UDP_PORTS
+    else
+        _guard_pil_items=$(json_list "$_GUARD_POLICY_FILE" "$_guard_pil_path" 2>/dev/null) || _guard_pil_items=
+    fi
     for _guard_pil_item in $_guard_pil_items
     do
         if [ "$_guard_pil_item" = "$_guard_pil_port" ]; then
@@ -6478,18 +6757,7 @@ guard_kill_render() {
     _guard_kill_add_set lan_rfc1918 ipv4_addr lan interval
     _guard_kill_add_elements lan_rfc1918 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
     _guard_kill_add_set protected_udp inet_service protected-udp
-    _guard_ku_ports=$(json_list "$_GUARD_POLICY_FILE" gaming.protectedUdpPorts 2>/dev/null) || _guard_ku_ports=
-    _guard_ku_has443=0
-    for _guard_ku_port in $_guard_ku_ports
-    do
-        if [ "$_guard_ku_port" = 443 ]; then
-            _guard_ku_has443=1
-            break
-        fi
-    done
-    if [ "$_guard_ku_has443" != 1 ]; then
-        _guard_ku_ports="$_guard_ku_ports 443"
-    fi
+    _guard_ku_ports=$(guard_policy_protected_udp_ports) || return $?
     # shellcheck disable=SC2086
     _guard_kill_add_elements protected_udp $_guard_ku_ports
     _guard_kill_render_resolver_sync_sets || return $?
@@ -7022,7 +7290,7 @@ guard_game_udp_destination_ports() {
 }
 
 guard_game_protected_udp_ports() {
-    json_list "$_GUARD_POLICY_FILE" gaming.protectedUdpPorts 2>/dev/null || true
+    guard_policy_protected_udp_ports
 }
 
 guard_game_safe_udp_destination_ports() {
@@ -7032,6 +7300,9 @@ guard_game_safe_udp_destination_ports() {
         [ -n "$_guard_gsdp_port" ] || continue
         if guard_policy_port_in_list "$_guard_gsdp_port" gaming.protectedUdpPorts; then
             continue
+        else
+            _guard_gsdp_rc=$?
+            [ "$_guard_gsdp_rc" -eq 1 ] || return "$_guard_gsdp_rc"
         fi
         printf '%s\n' "$_guard_gsdp_port"
     done
@@ -7146,8 +7417,13 @@ guard_game_flow_eligible() {
     esac
     # Protected ports describe the remote/destination endpoint. A trusted
     # source-port exception must never override this fail-closed boundary.
-    if [ -n "$_guard_gf_dport" ] && guard_policy_port_in_list "$_guard_gf_dport" gaming.protectedUdpPorts; then
-        return 1
+    if [ -n "$_guard_gf_dport" ]; then
+        if guard_policy_port_in_list "$_guard_gf_dport" gaming.protectedUdpPorts; then
+            return 1
+        else
+            _guard_gf_protected_rc=$?
+            [ "$_guard_gf_protected_rc" -eq 1 ] || return "$_guard_gf_protected_rc"
+        fi
     fi
     _guard_gf_port_match=0
     if [ -n "$_guard_gf_sport" ] && guard_game_source_port_enabled "$_guard_gf_sport"; then
@@ -7183,7 +7459,7 @@ _guard_game_render_scoped() {
     _guard_gr_srcs=$(guard_game_src_ips)
     [ -n "$_guard_gr_srcs" ] || return 0
     _guard_gr_source_ports=$(guard_game_udp_source_ports)
-    _guard_gr_destination_ports=$(guard_game_safe_udp_destination_ports)
+    _guard_gr_destination_ports=$(guard_game_safe_udp_destination_ports) || return $?
     if [ -z "$_guard_gr_source_ports" ] && [ -z "$_guard_gr_destination_ports" ]; then return 0; fi
 
     _guard_kill_add_set gaming_src ipv4_addr gaming-src interval
@@ -7231,9 +7507,9 @@ _guard_game_render_scoped() {
 guard_game_render() {
     _guard_game_dp_srcs=$(guard_game_src_ips)
     _guard_game_dp_sports=$(guard_game_udp_source_ports)
-    _guard_game_dp_dports=$(guard_game_safe_udp_destination_ports)
+    _guard_game_dp_dports=$(guard_game_safe_udp_destination_ports) || return $?
     _guard_game_dp_cidrs=$(json_list "$_GUARD_POLICY_FILE" gaming.destinationCidrs 2>/dev/null) || _guard_game_dp_cidrs=
-    _guard_game_dp_protected=$(guard_game_protected_udp_ports)
+    _guard_game_dp_protected=$(guard_policy_protected_udp_ports) || return $?
 
     guard_dataplane_prepare \
         "$_guard_game_dp_srcs" \
@@ -7241,7 +7517,7 @@ guard_game_render() {
         "$_guard_game_dp_dports" \
         "$_guard_game_dp_cidrs" \
         "$_guard_game_dp_protected" || return $?
-    _guard_game_render_scoped
+    _guard_game_render_scoped || return $?
     guard_dataplane_render
 }
 # END MODULE: guard-gaming
@@ -10645,15 +10921,20 @@ _guard_require_atomic_overlay_for_apply() {
 
 _guard_write_batch() {
     _guard_wb=$1
-    : > "$_guard_wb"
+    if [ "${_GUARD_POLICY_PROTECTED_UDP_PORTS_VALID:-0}" != 1 ]; then
+        printf '%s\n' "openclash-guard: protected UDP policy was not validated" >&2
+        return 1
+    fi
+    : > "$_guard_wb" || return $?
     {
-        guard_kill_render
-        guard_game_render
-        guard_kill_render_final
+        guard_kill_render || return $?
+        guard_game_render || return $?
+        guard_kill_render_final || return $?
     } >> "$_guard_wb"
 }
 
 guard_cmd_reconcile() {
+    guard_policy_clear_protected_udp_ports
     if [ "${_GUARD_PREFLIGHT_COMPLETE:-0}" != 1 ]; then
         guard_preflight_run
     fi
@@ -10675,7 +10956,11 @@ guard_cmd_reconcile() {
     if nft_table_exists "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE"; then
         _GUARD_NFT_TABLE_EXISTS=1
     fi
-    _guard_write_batch "$_guard_batch"
+    _guard_write_batch "$_guard_batch" || {
+        _guard_rc=$?
+        rm -f "$_guard_batch"
+        return "$_guard_rc"
+    }
     guard_kill_apply_batch "$_guard_batch"
     _guard_rc=$?
     rm -f "$_guard_batch"

@@ -30,12 +30,8 @@ _GUARD_DNS_BACKEND=dnsmasq
 _GUARD_POLICY_ENFORCEMENT={enforcement}
 _GUARD_POLICY_GLOBAL_FAILCLOSED={1 if global_failclosed else 0}
 _GUARD_UCI_DNS_KILL_SWITCH={1 if dns_kill_switch else 0}
-_GUARD_POLICY_FILE=/tmp/openclash-guard-order-test-policy.json
-json_list() {{
-    case ${{2:-}} in
-        gaming.protectedUdpPorts) printf '%s\\n' 443 ;;
-        *) return 1 ;;
-    esac
+guard_policy_protected_udp_ports() {{
+    printf '%s\\n' 443
 }}
 nft() {{ echo unexpected-nft-probe >&2; return 99; }}
 guard_kill_render

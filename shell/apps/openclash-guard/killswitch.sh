@@ -159,18 +159,7 @@ guard_kill_render() {
     _guard_kill_add_set lan_rfc1918 ipv4_addr lan interval
     _guard_kill_add_elements lan_rfc1918 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
     _guard_kill_add_set protected_udp inet_service protected-udp
-    _guard_ku_ports=$(json_list "$_GUARD_POLICY_FILE" gaming.protectedUdpPorts 2>/dev/null) || _guard_ku_ports=
-    _guard_ku_has443=0
-    for _guard_ku_port in $_guard_ku_ports
-    do
-        if [ "$_guard_ku_port" = 443 ]; then
-            _guard_ku_has443=1
-            break
-        fi
-    done
-    if [ "$_guard_ku_has443" != 1 ]; then
-        _guard_ku_ports="$_guard_ku_ports 443"
-    fi
+    _guard_ku_ports=$(guard_policy_protected_udp_ports) || return $?
     # shellcheck disable=SC2086
     _guard_kill_add_elements protected_udp $_guard_ku_ports
     _guard_kill_render_resolver_sync_sets || return $?
