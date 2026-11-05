@@ -60,7 +60,7 @@ does not prove that acceleration is disabled or that all traffic traverses
 Guard. Counter instrumentation does not fix the reproduced offload bypass.
 Strict offload lifecycle changes remain a separate operator decision.
 
-## Unsigned counter candidate
+## Counter candidate and protected signing
 
 At the operator's explicit request, the terminal rules emitted by
 `shell/apps/openclash-guard/killswitch.sh`, including gaming rules using its
@@ -73,16 +73,21 @@ accounting has runtime cost; no router throughput improvement is claimed.
 The distribution sequence advances from 8 to 9. The deterministic bundle,
 manifest, checksum and release metadata are regenerated; the old detached
 signature is removed because it cannot authenticate the new bytes. This is
-an unsigned local candidate, not a deployed or signed release. LuCI helper
-files are packaged separately from the four signed runtime artifact roles.
+a signed sequence-9 candidate after protected workflow run
+[42093170319](https://github.com/mythic3011/rules/actions/runs/42093170319).
+The workflow verified trusted regeneration and the detached signature, then
+published signature-only commit `0de58e02` with expected key fingerprint
+`66215942e340d69f`. Artifact hashes and sizes were checked again afterward.
+This is not a deployment or live-router acceptance. LuCI helper files are
+packaged separately from the four signed runtime artifact roles.
 
 The protected signer requires generator/tool/dependency changes to match
-trusted main. This branch adds a generator and development schema dependency,
-so those implementation changes must first pass normal review and enter
-trusted main. Then prepare/rebase a next-sequence candidate against the current
-trusted sequence and qualify it with the trusted signer. Neither manual
-dispatch nor this local candidate bypasses that gate. See
-[release signing](openclash-guard-release-signing.md).
+trusted main. The required observation generator/contracts/dependency landed
+through [#167](https://github.com/mythic3011/rules/pull/167), after signed
+sequence-8 [#164](https://github.com/mythic3011/rules/pull/164). Both prerequisites
+are merged, and the candidate incorporates trusted main
+`131076751b2993a366b2610491b34714fe2d4f77`. The protected signer was used without
+changing its gates. See [release signing](openclash-guard-release-signing.md).
 
 ## Verification evidence
 
