@@ -29,7 +29,9 @@ _json_path_simple() {
 }
 
 _json_flatten_awk() {
-    awk -v max_depth="$_JSON_MAX_DEPTH" '
+    _json_fa_mode=${2:-flat}
+    _json_fa_target=${3:-}
+    awk -v mode="$_json_fa_mode" -v target="$_json_fa_target" -v max_depth="$_JSON_MAX_DEPTH" '
         {
             src = src $0 "\n"
         }
@@ -73,13 +75,38 @@ _json_flatten_awk() {
             }
             return out
         }
-        function emit(path, val) {
+        function emit(path, typed_path, val, type, prefix, rest) {
+            if (mode == "typed") {
+                if (typed_path == target_path) {
+                    print "root\t" type
+                    return
+                }
+                prefix = target_path SUBSEP
+                if (index(typed_path, prefix) != 1) {
+                    return
+                }
+                rest = substr(typed_path, length(prefix) + 1)
+                if (rest !~ /^[0-9]+$/) {
+                    return
+                }
+                if (type == "number") {
+                    print "item\t" (rest + 0) "\t" type "\t" val
+                } else {
+                    print "item\t" (rest + 0) "\t" type "\t"
+                }
+                return
+            }
             if (path == "") {
                 return
             }
             print path "\t" escape_frame(val)
         }
-        function parse_string(    c, out, hex) {
+        function emit_container(path, typed_path, type) {
+            if (mode == "typed") {
+                emit(path, typed_path, "", type)
+            }
+        }
+        function parse_string(object_key,    c, out, hex) {
             if (peek() != "\"") {
                 fail("expected string")
             }
@@ -92,6 +119,9 @@ _json_flatten_awk() {
                     return out
                 }
                 if (c == "\\") {
+                    if (mode == "typed" && object_key) {
+                        fail("escaped object keys are unsupported in typed mode")
+                    }
                     if (pos > n) {
                         fail("unterminated string")
                     }
@@ -155,25 +185,32 @@ _json_flatten_awk() {
                 fail("JSON nesting exceeds supported depth")
             }
         }
-        function parse_object(prefix,    key, child, c, nkeys) {
+        function parse_object(prefix, typed_path,    key, child, typed_child, c, nkeys, object_id) {
             if (peek() != "{") {
                 fail("expected object")
             }
             enter_container()
             pos++
+            if (mode == "typed") {
+                object_id = ++object_sequence
+            }
+            emit_container(prefix, typed_path, "object")
             skip()
             nkeys = 0
             if (peek() == "}") {
                 pos++
-                if (prefix != "") {
-                    emit(prefix, "{}")
+                if (prefix != "" && mode != "typed") {
+                    emit(prefix, typed_path, "{}", "object")
                 }
                 depth--
                 return
             }
             while (pos <= n) {
                 skip()
-                key = parse_string()
+                key = parse_string(mode == "typed")
+                if (mode == "typed" && seen_object_keys[object_id SUBSEP key]++) {
+                    fail("duplicate JSON object key")
+                }
                 if (key ~ /[[:cntrl:]]/) {
                     fail("object key contains unsupported control characters")
                 }
@@ -188,7 +225,12 @@ _json_flatten_awk() {
                 } else {
                     child = prefix "." key
                 }
-                parse_value(child)
+                if (mode == "typed") {
+                    typed_child = typed_path == "" ? key : typed_path SUBSEP key
+                } else {
+                    typed_child = ""
+                }
+                parse_value(child, typed_child)
                 nkeys++
                 skip()
                 c = peek()
@@ -205,18 +247,19 @@ _json_flatten_awk() {
             }
             fail("unterminated object")
         }
-        function parse_array(prefix,    i, child, c) {
+        function parse_array(prefix, typed_path,    i, child, typed_child, c) {
             if (peek() != "[") {
                 fail("expected array")
             }
             enter_container()
             pos++
+            emit_container(prefix, typed_path, "array")
             skip()
             i = 0
             if (peek() == "]") {
                 pos++
-                if (prefix != "") {
-                    emit(prefix, "[]")
+                if (prefix != "" && mode != "typed") {
+                    emit(prefix, typed_path, "[]", "array")
                 }
                 depth--
                 return
@@ -224,7 +267,12 @@ _json_flatten_awk() {
             while (pos <= n) {
                 skip()
                 child = prefix "." i
-                parse_value(child)
+                if (mode == "typed") {
+                    typed_child = typed_path == "" ? i : typed_path SUBSEP i
+                } else {
+                    typed_child = ""
+                }
+                parse_value(child, typed_child)
                 i++
                 skip()
                 c = peek()
@@ -241,33 +289,50 @@ _json_flatten_awk() {
             }
             fail("unterminated array")
         }
-        function parse_value(prefix,    c) {
+        function parse_value(prefix, typed_path,    c, raw, type) {
             skip()
             c = peek()
             if (c == "{") {
-                parse_object(prefix)
+                parse_object(prefix, typed_path)
                 return
             }
             if (c == "[") {
-                parse_array(prefix)
+                parse_array(prefix, typed_path)
                 return
             }
             if (c == "\"") {
-                emit(prefix, parse_string())
+                emit(prefix, typed_path, parse_string(), "string")
                 return
             }
-            emit(prefix, parse_literal())
+            raw = parse_literal()
+            if (raw == "true" || raw == "false") {
+                type = "boolean"
+            } else if (raw == "null") {
+                type = "null"
+            } else {
+                type = "number"
+            }
+            emit(prefix, typed_path, raw, type)
         }
         END {
             n = length(src)
             pos = 1
             bad = 0
             depth = 0
+            if (mode == "typed") {
+                if (target == "") {
+                    fail("missing typed JSON path")
+                }
+                target_count = split(target, target_parts, /[.]/)
+                for (i = 1; i <= target_count; i++) {
+                    target_path = i == 1 ? target_parts[i] : target_path SUBSEP target_parts[i]
+                }
+            }
             skip()
             if (pos > n) {
                 fail("empty JSON")
             }
-            parse_value("")
+            parse_value("", "")
             skip()
             if (pos <= n && peek() != "") {
                 fail("trailing JSON content")
@@ -276,8 +341,53 @@ _json_flatten_awk() {
     ' "$1"
 }
 
+# Return direct array entries as index<TAB>type<TAB>raw-number. Structural
+# paths keep dotted JSON keys from impersonating nested policy fields.
+json_array_items_typed() {
+    _json_ait_file=${1:-}
+    _json_ait_path=${2:-}
+    _json_require_file "$_json_ait_file" || return $?
+    if [ -z "$_json_ait_path" ]; then
+        printf '%s\n' "json_array_items_typed: missing path" >&2
+        return 2
+    fi
+    _json_ait_path=$(_json_normalize_path "$_json_ait_path")
+    _json_path_simple "$_json_ait_path" || return 2
+    _json_ait_flat=$(_json_flatten_awk "$_json_ait_file" typed "$_json_ait_path") || return $?
+    printf '%s\n' "$_json_ait_flat" | awk -F '\t' '
+        $0 == "" { next }
+        $1 == "root" {
+            roots++
+            root_type = $2
+            next
+        }
+        $1 == "item" {
+            item_index = $2 + 0
+            if (item_index != count) {
+                bad = 1
+            }
+            items[count++] = $2 "\t" $3 "\t" ($4 == "" ? "" : $4)
+            next
+        }
+        { bad = 1 }
+        END {
+            if (roots != 1 || root_type != "array" || bad) {
+                exit 1
+            }
+            for (i = 0; i < count; i++) {
+                print items[i]
+            }
+        }
+    '
+}
+
 _JSON_FLAT_PATH=
 _JSON_FLAT_DATA=
+
+json_cache_clear() {
+    _JSON_FLAT_PATH=
+    _JSON_FLAT_DATA=
+}
 
 json_load() {
     _json_require_file "${1:-}" || return $?

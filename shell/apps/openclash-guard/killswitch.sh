@@ -159,18 +159,7 @@ guard_kill_render() {
     _guard_kill_add_set lan_rfc1918 ipv4_addr lan interval
     _guard_kill_add_elements lan_rfc1918 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
     _guard_kill_add_set protected_udp inet_service protected-udp
-    _guard_ku_ports=$(json_list "$_GUARD_POLICY_FILE" gaming.protectedUdpPorts 2>/dev/null) || _guard_ku_ports=
-    _guard_ku_has443=0
-    for _guard_ku_port in $_guard_ku_ports
-    do
-        if [ "$_guard_ku_port" = 443 ]; then
-            _guard_ku_has443=1
-            break
-        fi
-    done
-    if [ "$_guard_ku_has443" != 1 ]; then
-        _guard_ku_ports="$_guard_ku_ports 443"
-    fi
+    _guard_ku_ports=$(guard_policy_protected_udp_ports) || return $?
     # shellcheck disable=SC2086
     _guard_kill_add_elements protected_udp $_guard_ku_ports
     _guard_kill_render_resolver_sync_sets || return $?
@@ -181,22 +170,27 @@ guard_kill_render() {
     printf 'add chain %s %s forward { type filter hook forward priority -150; policy accept; }\n' \
         "$_GUARD_NFT_FAMILY" "$_GUARD_NFT_TABLE"
 
-    _guard_kill_add_rule input 'ct state established,related accept' est-in
     if [ "$_GUARD_UCI_DNS_KILL_SWITCH" = 1 ]; then
         _guard_kill_add_rule input 'iifname != "lo" udp dport 53 reject' dns-ks
         _guard_kill_add_rule input 'iifname != "lo" tcp dport 53 reject' dns-ks-tcp
     fi
+    _guard_kill_add_rule input 'ct state established,related accept' est-in
 
     # Put resolver-derived direct-WAN rejects before the established-flow accept.
     # If an already-open direct connection becomes a protected destination after
     # a DNS observation, it must not bypass the resolver-sync kill switch merely
     # because conntrack already considers the flow established.
     _guard_kill_render_resolver_sync_rules || return $?
-    _guard_kill_add_rule forward 'ct state established,related accept' est
     _guard_kill_add_rule forward 'iifname "lo" accept' lo
     _guard_kill_add_rule forward 'udp dport { 67, 68 } accept' dhcp
     _guard_kill_add_rule forward 'ip daddr @lan_rfc1918 accept' lan-dst
     _guard_kill_add_rule forward 'udp dport @protected_udp reject' protected-udp
+    # Keep stateful forwarding in service-scoped reject mode, but do not let
+    # established flows bypass the terminal reject when the global policy is
+    # fail-closed. Resolver and protected-port decisions stay ahead of this.
+    if [ "${_GUARD_POLICY_GLOBAL_FAILCLOSED:-0}" != 1 ]; then
+        _guard_kill_add_rule forward 'ct state established,related accept' est
+    fi
 }
 
 _guard_kill_valid_iface() {
