@@ -38,8 +38,12 @@ Files remain in the browser tab. The view makes no requests, uploads no metadata
 and writes no router or browser storage. It accepts at most 2 MiB and displays up
 to 200 records from each collection. It clears expired observations on its
 one-second poll, accepts no future timestamps, and caps display freshness at 30
-seconds even if a file claims a longer TTL. Clock rollback also clears a loaded
-snapshot. Clear observations discards current data and fences in-flight reads.
+seconds even if a file claims a longer TTL. At import, the remaining validity
+is also bounded by a monotonic clock, so moving wall time backward cannot
+extend that remaining lifetime. Visibility changes check expiry immediately;
+leaving the page clears observations and fences in-flight reads, including a
+page restored from the browser's back/forward cache. Clear observations also
+discards current data and fences in-flight reads.
 The original endpoint export remains on the operator's disk until deleted.
 This is a manual local handoff, not a live router/endpoint telemetry service.
 

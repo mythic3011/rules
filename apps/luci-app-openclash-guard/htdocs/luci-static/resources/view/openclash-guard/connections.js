@@ -99,11 +99,15 @@ return view.extend({
 	render: function() {
 		var snapshot = null;
 		var generation = 0;
+		var receivedAt = 0;
+		var remainingLifetime = 0;
 		var notice = E('p', { 'role': 'status', 'aria-live': 'polite' }, [ _('No endpoint snapshot loaded. No connection verdicts are available.') ]);
 		var content = E('div');
 		var input = E('input', { 'type': 'file', 'accept': '.json,application/json', 'aria-label': _('Choose a local endpoint snapshot') });
 		function clear(message) {
 			snapshot = null;
+			receivedAt = 0;
+			remainingLifetime = 0;
 			input.value = '';
 			dom.content(content, []);
 			notice.textContent = message;
@@ -119,10 +123,15 @@ return view.extend({
 			try {
 				var parsed = JSON.parse(await file.text());
 				if (current !== generation) return;
-				if (!currentSnapshot(parsed, Date.now())) {
+				var now = Date.now();
+				if (!currentSnapshot(parsed, now)) {
 					clear(_('Snapshot unavailable: unsupported, expired, future-dated, or invalid. Export a fresh endpoint snapshot.'));
 					return;
 				}
+				// Wall time checks the producer's timestamp; monotonic time prevents
+				// a later wall-clock correction from extending the remaining TTL.
+				receivedAt = performance.now();
+				remainingLifetime = Math.min(parsed.ttl_ms, MAX_DISPLAY_AGE_MS) - (now - parsed.observed_at_ms);
 				snapshot = parsed;
 				dom.content(content, [ observations(snapshot) ]);
 				notice.textContent = _('Local advisory snapshot loaded. It will clear when its validity expires.');
@@ -130,9 +139,18 @@ return view.extend({
 				if (current === generation) clear(_('Unable to read a valid endpoint snapshot.'));
 			}
 		});
-		poll.add(function() {
-			if (snapshot && !currentSnapshot(snapshot, Date.now())) clear(_('Snapshot expired. Export a fresh snapshot; previous connection associations have been cleared.'));
-		}, 1);
+		function expireSnapshot() {
+			if (!snapshot) return;
+			var elapsed = performance.now() - receivedAt;
+			if (!currentSnapshot(snapshot, Date.now()) || elapsed < 0 || elapsed >= remainingLifetime)
+				clear(_('Snapshot expired. Export a fresh snapshot; previous connection associations have been cleared.'));
+		}
+		poll.add(expireSnapshot, 1);
+		document.addEventListener('visibilitychange', expireSnapshot);
+		window.addEventListener('pagehide', function() {
+			generation++;
+			clear(_('Snapshot cleared on leaving this page.'));
+		});
 		return E('div', {}, [
 			E('h2', {}, [ _('Connection observations') ]),
 			E('p', {}, [ _('Inspect a local endpoint-agent snapshot to understand reported application routes and matching rules. The file stays in this browser tab; nothing is uploaded, saved to router storage, or used to change routing.') ]),

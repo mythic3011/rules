@@ -14,14 +14,25 @@ function walk(node, predicate) {
 function fixture() {
 	const { E, scalarHtmlContexts } = makeEFixture();
 	let tick;
+	let wallOverride;
+	let monotonicOverride;
+	const pageListeners = new Map();
+	const documentListeners = new Map();
 	const component = evaluateLuCIView(source, {
 		view: { extend: value => value }, E, _: makeTranslator(),
+		Date: { now: () => wallOverride ?? Date.now() },
+		performance: { now: () => monotonicOverride ?? performance.now() },
+		window: { addEventListener: (name, callback) => pageListeners.set(name, callback) },
+		document: { addEventListener: (name, callback) => documentListeners.set(name, callback) },
 		poll: { add: callback => { tick = callback; } },
 		dom: { content: (node, children) => { node.children = children; } }
 	});
 	const tree = component.render();
 	const input = walk(tree, node => node.tag === 'input');
 	return { tree, scalarHtmlContexts, tick: () => tick(),
+		setClock: (wall, monotonic) => { wallOverride = wall; monotonicOverride = monotonic; },
+		pagehide: () => pageListeners.get('pagehide')?.(),
+		visibilitychange: () => documentListeners.get('visibilitychange')?.(),
 		loadFile: file => {
 			input.files = [ file ];
 			return input.listeners[0].listener();
@@ -95,4 +106,35 @@ test('clearing observations fences a pending file read', async () => {
 	await pending;
 	assert.equal(containsTextNode(f.tree, '/fixture/client'), false);
 	assert.ok(containsTextNode(f.tree, 'Snapshot cleared.'));
+});
+
+test('wall-clock correction cannot extend a snapshot beyond its original remaining lifetime', async () => {
+	const f = fixture(); const s = snapshot();
+	// The snapshot is already twenty seconds old when selected.
+	f.setClock(s.observed_at_ms + 20000, 1000);
+	await f.load(s);
+	assert.ok(containsTextNode(f.tree, '/fixture/client'));
+	// Eleven real seconds later the wall clock has moved backward within the TTL.
+	f.setClock(s.observed_at_ms + 5000, 12000);
+	f.tick();
+	assert.equal(containsTextNode(f.tree, '/fixture/client'), false);
+});
+
+test('returning to a suspended tab checks expiration immediately', async () => {
+	const f = fixture(); const s = snapshot();
+	f.setClock(s.observed_at_ms, 0);
+	await f.load(s);
+	f.setClock(s.observed_at_ms + 31000, 31000);
+	f.visibilitychange();
+	assert.equal(containsTextNode(f.tree, '/fixture/client'), false);
+});
+
+test('leaving the page clears observations and fences late file reads', async () => {
+	const f = fixture(); let complete;
+	await f.load(snapshot());
+	f.pagehide();
+	assert.equal(containsTextNode(f.tree, '/fixture/client'), false);
+	const pending = f.loadFile({ size: 100, text: () => new Promise(resolve => { complete = resolve; }) });
+	f.pagehide(); complete(JSON.stringify(snapshot())); await pending;
+	assert.equal(containsTextNode(f.tree, '/fixture/client'), false);
 });
