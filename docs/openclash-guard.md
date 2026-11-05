@@ -137,3 +137,6 @@ See [the resolver-sync capability contract](openclash-guard-resolver-sync-contra
 - `dist/manifest.json` and `dist/openclash-guard.sha256` describe the built application.
 
 The application is generated from modular sources under `shell/`; do not edit `dist/openclash-guard.sh` directly.
+
+Read-only LuCI rule counters and their coverage limits are documented in
+[router observations](openclash-guard-router-observations.md).
