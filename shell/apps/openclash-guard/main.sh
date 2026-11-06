@@ -6,7 +6,7 @@ _GUARD_JSON=0
 _GUARD_LOCK_HELD=0
 
 guard_usage() {
-    printf '%s\n' "usage: openclash-guard apply|reconcile|status|doctor [SERVICE]|health-check|version-check|integrity-check|refresh|remove|eval|template|install|uninstall|geo|rules [--json] [--yes] [--dry-run] [--policy-file FILE]"
+    printf '%s\n' "usage: openclash-guard apply|reconcile|status|doctor [SERVICE]|health-check|version-check|integrity-check|refresh|remove|eval|template|install|uninstall|geo|dns|rules [--json] [--yes] [--dry-run] [--policy-file FILE]"
 }
 
 _guard_lock_path() {
@@ -595,7 +595,7 @@ guard_cmd_eval() {
 
 _guard_cmd_needs_lock() {
     case $1 in
-        status|doctor|health-check|version-check|integrity-check|eval|geo)
+        status|doctor|health-check|version-check|integrity-check|eval|geo|dns)
             return 1
             ;;
         rules)
@@ -651,6 +651,7 @@ _guard_dispatch() {
         install) guard_cmd_install "$@" || _guard_dispatch_rc=$? ;;
         uninstall) guard_cmd_uninstall "$@" || _guard_dispatch_rc=$? ;;
         geo) guard_cmd_geo "$@" || _guard_dispatch_rc=$? ;;
+        dns) guard_cmd_dns "$@" || _guard_dispatch_rc=$? ;;
         rules) guard_cmd_rules "$@" || _guard_dispatch_rc=$? ;;
         *) guard_usage >&2; _guard_dispatch_rc=2 ;;
     esac
@@ -695,7 +696,7 @@ main() {
                 guard_usage
                 return 0
                 ;;
-            apply|reconcile|status|doctor|health-check|version-check|integrity-check|refresh|remove|eval|template|install|uninstall|geo|rules)
+            apply|reconcile|status|doctor|health-check|version-check|integrity-check|refresh|remove|eval|template|install|uninstall|geo|dns|rules)
                 [ -z "$_guard_cmd" ] || break
                 _guard_cmd=$1
                 shift
