@@ -4255,9 +4255,9 @@ _guard_resolver_probe_prepare_auth() {
     _guard_rp_pa_file=${GUARD_MIHOMO_API_TOKEN_FILE:-}
     [ -n "$_guard_rp_pa_file" ] || return 0
     [ -f "$_guard_rp_pa_file" ] && [ ! -L "$_guard_rp_pa_file" ] || return 1
-    command -v stat >/dev/null 2>&1 || return 1
-    _guard_rp_pa_mode=$(stat -c '%a' "$_guard_rp_pa_file" 2>/dev/null) || return 1
-    case $_guard_rp_pa_mode in [4-7]00) ;; *) return 1 ;; esac
+    _guard_rp_pa_private=$(find "$_guard_rp_pa_file" -maxdepth 0 -type f \
+        \( -perm 0400 -o -perm 0500 -o -perm 0600 -o -perm 0700 \) -print 2>/dev/null) || return 1
+    [ "$_guard_rp_pa_private" = "$_guard_rp_pa_file" ] || return 1
     _guard_rp_pa_token=$(cat "$_guard_rp_pa_file" 2>/dev/null) || return 1
     [ -n "$_guard_rp_pa_token" ] || return 1
     [ "${#_guard_rp_pa_token}" -le 256 ] || return 1
