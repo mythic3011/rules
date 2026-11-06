@@ -106,6 +106,32 @@ class UpstreamHostSnapshotTest(unittest.TestCase):
             )
             self.assertEqual(path.read_text(encoding="utf-8"), first)
 
+    def test_failed_refresh_preserves_last_good_snapshot_byte_for_byte(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            catalog_dir = Path(temp) / "ai-routing"
+            shutil.copytree(ROOT / "internal" / "config" / "ai-routing", catalog_dir)
+            profile_path = catalog_dir / "profile.json"
+            profile = json.loads(profile_path.read_text(encoding="utf-8"))
+            profile["adguardHome"]["upstreamBaseUrl"] = "https://example.test/data"
+            profile["adguardHome"]["upstreamLists"] = ["category-ai"]
+            profile_path.write_text(json.dumps(profile, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+            path = refresh_upstream_host_snapshot(
+                catalog_dir=catalog_dir,
+                fetch_text=lambda _: "full:service.ai.test\nshared.ai.test\n",
+                now=datetime(2026, 8, 24, tzinfo=timezone.utc),
+            )
+            previous = path.read_bytes()
+
+            with self.assertRaisesRegex(RuntimeError, "Invalid upstream full domain"):
+                refresh_upstream_host_snapshot(
+                    catalog_dir=catalog_dir,
+                    fetch_text=lambda _: "full:invalid_domain.test\n",
+                    now=datetime(2026, 8, 25, tzinfo=timezone.utc),
+                )
+
+            self.assertEqual(path.read_bytes(), previous)
+
 
 if __name__ == "__main__":
     unittest.main()

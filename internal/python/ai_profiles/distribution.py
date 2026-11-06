@@ -184,6 +184,7 @@ def managed_output_paths(*, include_process_rules: bool = False, catalog: Catalo
     # Lazy import keeps settings -> distribution config loading acyclic.
     from .catalog import load_catalog
     from .settings import AI_DISTRIBUTION_PATH
+    from .blocking import OUTPUT_PATH
 
     catalog = catalog or load_catalog()
     distribution = load_distribution(AI_DISTRIBUTION_PATH)
@@ -193,6 +194,9 @@ def managed_output_paths(*, include_process_rules: bool = False, catalog: Catalo
         "cfg/yaml/Custom_Clash_AI_Strict.yaml",
     ]
     paths.extend(f"rule/{service.file}" for service in catalog.services if service.payload)
+    if catalog.adguard_home is not None:
+        paths.append(f"rule/{catalog.adguard_home.output_file}")
+        paths.append(OUTPUT_PATH)
     paths.extend(f"rule/{rule.file}" for rule in catalog.companion_rulesets)
     if include_process_rules:
         paths.extend(f"rule/{rule.file}" for rule in catalog.process_rulesets)
@@ -206,6 +210,7 @@ def managed_output_paths(*, include_process_rules: bool = False, catalog: Catalo
 def managed_git_pathspecs(*, include_process_rules: bool = False, catalog: Catalog | None = None) -> tuple[str, ...]:
     from .catalog import load_catalog
     from .settings import AI_DISTRIBUTION_PATH
+    from .blocking import OUTPUT_PATH
 
     catalog = catalog or load_catalog()
     distribution = load_distribution(AI_DISTRIBUTION_PATH)
@@ -215,6 +220,9 @@ def managed_git_pathspecs(*, include_process_rules: bool = False, catalog: Catal
         "cfg/yaml/Custom_Clash_AI_Strict.yaml",
         ":(glob)rule/AI_*_Classical.yaml",
     ]
+    if catalog.adguard_home is not None:
+        specs.append(f"rule/{catalog.adguard_home.output_file}")
+        specs.append(OUTPUT_PATH)
     specs.extend(f"rule/{rule.file}" for rule in catalog.companion_rulesets)
     if include_process_rules:
         specs.extend(f"rule/{rule.file}" for rule in catalog.process_rulesets)

@@ -25,7 +25,10 @@ class AdGuardHostsTest(unittest.TestCase):
         lines = rendered.splitlines()
         self.assertIn("jules.google.com", lines)
         self.assertIn("jules.googleapis.com", lines)
-        self.assertNotIn("||jules.google.com^", rendered)
+        self.assertTrue(any(
+            rule.kind == "exact" and rule.domain == "jules.google.com" and rule.service_id == "jules"
+            for rule in plan.rules
+        ))
         self.assertIn("||copilot.com^", rendered)
         self.assertIn("||notebooklm.google^", rendered)
         self.assertIn("generativelanguage.googleapis.com", lines)
@@ -107,7 +110,7 @@ class AdGuardHostsTest(unittest.TestCase):
             services_path.write_text(json.dumps(document, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
             plan = compile_adguard_home_plan(load_catalog(catalog_dir))
-            jules_rules = [rule for rule in plan.rules if rule.domain == "jules.google.com"]
+            jules_rules = [rule for rule in plan.rules if rule.domain == "jules.google.com" and rule.kind == "exact"]
             self.assertEqual(len(jules_rules), 1)
 
 

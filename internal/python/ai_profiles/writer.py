@@ -6,6 +6,7 @@ import stat
 from pathlib import Path
 
 from .catalog import load_catalog
+from .blocking import write_ai_service_blocking_policy
 from .compiler import compile_adguard_home_plan
 from .process_rules import dedupe_process_names, load_process_rule_source
 from .render.adguard import render_adguard_home
@@ -77,6 +78,7 @@ def write_rule_outputs() -> None:
             RULE_DIR / adguard_plan.output_file,
             render_adguard_home(adguard_plan),
         )
+        write_ai_service_blocking_policy()
 
     for service in catalog.services:
         if not service.payload:

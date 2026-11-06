@@ -1,0 +1,2717 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "repository": "mythic3011/rules",
+    "files": [
+      {
+        "path": "internal/config/ai-routing/catalogs/services.json",
+        "sha256": "ab8353602dec6064611d8e555cfdcb3116c56826144a7d310182ee836fdfed2c"
+      },
+      {
+        "path": "internal/config/ai-routing/sources/adguard-upstream.json",
+        "sha256": "41ea8d1aff320a9cbf495b2bc7949bfbf27b5226cf54dc264d7bd8954a564da8"
+      }
+    ]
+  },
+  "upstream": {
+    "snapshotRefreshedAt": "2026-11-06T16:28:02.803732Z",
+    "baseUrl": "https://raw.githubusercontent.com/v2fly/domain-list-community/master/data",
+    "rootLists": [
+      "google-deepmind",
+      "category-ai-!cn",
+      "category-ai-cn"
+    ]
+  },
+  "coverage": {
+    "complete": false,
+    "reasons": [
+      "no_canonical_dynamic_ip_feed",
+      "unmaterialized_geosite_sources",
+      "unsupported_domain_matcher"
+    ]
+  },
+  "domains": [
+    {
+      "match": "exact",
+      "value": "ai.google.dev",
+      "services": [
+        "upstream:google-deepmind"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "ai.zhaomi.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "aiplatform.googleapis.com",
+      "services": [
+        "vertex-ai"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "alkalicore-pa.clients6.google.com",
+      "services": [
+        "upstream:google-deepmind"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "alkalimakersuite-pa.clients6.google.com",
+      "services": [
+        "upstream:google-deepmind"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "anthropic-com.ghost.io",
+      "services": [
+        "claude"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "anthropic.auth0.com",
+      "services": [
+        "claude"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "anthropic.com.cdn.cloudflare.net",
+      "services": [
+        "claude"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "antigravity-pa.googleapis.com",
+      "services": [
+        "upstream:google-deepmind"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "antigravity.googleapis.com",
+      "services": [
+        "upstream:google-deepmind"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "appsgenaiserver-pa.clients.google.com",
+      "services": [
+        "upstream:google-deepmind"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "appsgenaiserver-pa.clients6.google.com",
+      "services": [
+        "upstream:google-deepmind"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "appsgenaiserver-pa.googleapis.com",
+      "services": [
+        "upstream:google-deepmind"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "browser-intake-datadoghq.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "browser-intake-us5-datadoghq.com",
+      "services": [
+        "claude"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "cdn.usefathom.com",
+      "services": [
+        "claude"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "cloudaicompanion.googleapis.com",
+      "services": [
+        "android-studio-ai"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "cloudcode-pa.googleapis.com",
+      "services": [
+        "android-studio-ai"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "copilot-proxy.githubusercontent.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "copilot-telemetry-service.githubusercontent.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "copilot-telemetry.githubusercontent.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "copilot-workspace.githubnext.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "copilotprodattachments.blob.core.windows.net",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "cueme-api.quark.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "daily-cloudcode-pa.googleapis.com",
+      "services": [
+        "upstream:google-deepmind"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "geller-pa.googleapis.com",
+      "services": [
+        "gemini"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "gemini.google.com",
+      "services": [
+        "gemini"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "geminicloudassist.googleapis.com",
+      "services": [
+        "gemini-cloud"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "geminiweb-pa.clients.google.com",
+      "services": [
+        "upstream:google-deepmind"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "geminiweb-pa.clients6.google.com",
+      "services": [
+        "upstream:google-deepmind"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "generativelanguage.googleapis.com",
+      "services": [
+        "gemini"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "jules.google.com",
+      "services": [
+        "jules"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "jules.googleapis.com",
+      "services": [
+        "jules"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "notebooklm-pa.googleapis.com",
+      "services": [
+        "notebooklm"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "notebooklm.googleapis.com",
+      "services": [
+        "notebooklm"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "o33249.ingest.sentry.io",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "o33249.ingest.us.sentry.io",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "openai.qualtrics.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "openaiapi-site.azureedge.net",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "openaiassets.blob.core.windows.net",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "openaicom-api-bdcpf8c6d2e9atf6.z01.azurefd.net",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "openaicom.imgix.net",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "openaicomproductionae4b.blob.core.windows.net",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "ppl-ai-file-upload.s3.amazonaws.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "pplx-res.cloudinary.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "proactivebackend-pa.googleapis.com",
+      "services": [
+        "gemini"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "production-openaicom-storage.azureedge.net",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "robinfrontend-pa.googleapis.com",
+      "services": [
+        "gemini"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "servd-anthropic-website.b-cdn.net",
+      "services": [
+        "claude"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "stitch.withgoogle.com",
+      "services": [
+        "stitch"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "storage.googleapis.com",
+      "services": [
+        "flow-music"
+      ]
+    },
+    {
+      "match": "exact",
+      "value": "webchannel-alkalimakersuite-pa.clients6.google.com",
+      "services": [
+        "upstream:google-deepmind"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "agentclientprotocol.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "ai-indeed.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "ai.google.dev",
+      "services": [
+        "gemini"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "ai.studio",
+      "services": [
+        "gemini"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "aicode.googleapis.com",
+      "services": [
+        "upstream:google-deepmind"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "aida.googleapis.com",
+      "services": [
+        "upstream:google-deepmind"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "aisandbox-pa.googleapis.com",
+      "services": [
+        "upstream:google-deepmind"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "aispeech.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "aistudio.google.com",
+      "services": [
+        "gemini"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "ant.dev",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "antafu.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "antaq.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "anthropic.com",
+      "services": [
+        "claude"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "anthropic.team",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "antigravity-unleash.goog",
+      "services": [
+        "antigravity"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "antigravity.google",
+      "services": [
+        "antigravity"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "antspace.dev",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "anythingllm.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "aorizon.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "api-building.fun",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "arena.ai",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "artificialanalysis.ai",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "askdiandian.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "baichuan-ai.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "bard.google.com",
+      "services": [
+        "upstream:google-deepmind"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "bigmodel.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "building.fun",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "butterfly-static.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "butterflyai.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "cerebras.ai",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "chat.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "chatbotclaude.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "chatglm.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "chatgpt.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "chatgpt.livekit.cloud",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "chatgpt.site",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "chutes.ai",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "cici.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "ciciai.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "ciciaicdn.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "clau.de",
+      "services": [
+        "claude"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "claude.ai",
+      "services": [
+        "claude"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "claude.app",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "claude.com",
+      "services": [
+        "claude"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "claude.dev",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "claude.new",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "claude.site",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "claudeacademy.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "claudemcpclient.com",
+      "services": [
+        "claude"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "claudemcpcontent.com",
+      "services": [
+        "claude"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "claudepages.dev",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "claudestudio.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "claudeusercontent.com",
+      "services": [
+        "claude"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "clawhub-mirror.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "clawhub.ai",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "cline.bot",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "clipdrop.co",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "cloudcode-pa.googleapis.com",
+      "services": [
+        "antigravity"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "codebuddy.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "codeium.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "codeiumdata.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "coderabbit.ai",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "coderabbit.gallery.vsassets.io",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "cohere.ai",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "cohere.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "comfy.org",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "comfyci.org",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "comfyregistry.org",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "commandcode.ai",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "context7.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "copilot-stg.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "copilot.cloud.microsoft",
+      "services": [
+        "copilot"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "copilot.com",
+      "services": [
+        "copilot"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "copilot.microsoft.com",
+      "services": [
+        "copilot"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "coze-dns-01.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "coze.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "coze.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "coze.email",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "coze.site",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "cozeapp.net",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "cozebaas.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "cozebuild.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "cozecdn.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "cozedeploy.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "cozefn.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "cozeide.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "cozesdk.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "cozetest.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "cozetest2.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "cozetest3.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "crewai.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "crixet.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "cueme.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "cursor-cdn.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "cursor.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "cursor.sh",
+      "services": [
+        "cursor"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "cursorapi.com",
+      "services": [
+        "cursor"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "cursorvm.com",
+      "services": [
+        "cursor"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "daily-cloudcode-pa.googleapis.com",
+      "services": [
+        "antigravity"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "dbbuilding.fun",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "deepmind.com",
+      "services": [
+        "upstream:google-deepmind"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "deepmind.google",
+      "services": [
+        "upstream:google-deepmind"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "deepseek.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "deepseeksvc.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "deepwiki.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "deepwiki.org",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "devin.ai",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "diabrowser.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "diabrowser.engineering",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "diandianlife.top",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "dify.ai",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "dola.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "doubao-dev.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "doubao.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "doubaoapps.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "doubaocdn.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "doudou.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "dreamgen.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "duck.ai",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "dui.ai",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "duiopen.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "dumate.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "elevenlabs.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "elevenlabs.io",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "envato-static.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "envato.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "envatousercontent.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "favonis.cloud",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "favonis.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "favonis.space",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "faxingbao.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "flow.google",
+      "services": [
+        "upstream:google-deepmind"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "flow.google.com",
+      "services": [
+        "upstream:google-deepmind"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "gateway.ai.cloudflare.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "geller-pa.googleapis.com",
+      "services": [
+        "upstream:google-deepmind"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "gemini.google",
+      "services": [
+        "gemini"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "gemini.google.com",
+      "services": [
+        "upstream:google-deepmind"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "gemini.gstatic.com",
+      "services": [
+        "gemini"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "generativeai.google",
+      "services": [
+        "gemini"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "generativelanguage.googleapis.com",
+      "services": [
+        "upstream:google-deepmind"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "githubcopilot.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "grazie.ai",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "grazie.aws.intellij.net",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "grok.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "grok.x.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "grokipedia.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "groq.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "h2o.ai",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "hailuoai.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "happyhorse.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "happyshrimp.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "hf.co",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "hf.space",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "hi-butterfly.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "host.livekit.cloud",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "huggingface.co",
+      "services": [
+        "huggingface"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "hunyuan.tencent.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "instreet.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "intercom.io",
+      "services": [
+        "claude"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "intercomcdn.com",
+      "services": [
+        "claude"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "jasper.ai",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "jetbrains.ai",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "jules.google",
+      "services": [
+        "upstream:google-deepmind"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "jules.google.com",
+      "services": [
+        "upstream:google-deepmind"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "kakaxing.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "kechuangai.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "kimi.ai",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "kimi.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "kiro.dev",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "kling-ai.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "klingai.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "labs.google",
+      "services": [
+        "google-labs"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "labs.google.com",
+      "services": [
+        "upstream:google-deepmind"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "labstailwind.pa.googleapis.com",
+      "services": [
+        "upstream:google-deepmind"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "langchain.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "liblib.art",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "liblib.cloud",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "liblib.tv",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "linka2a.net",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "liveperson.net",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "lmstudio.ai",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "lovart.ai",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "lpsnmedia.net",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "magnific.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "makersuite.google.com",
+      "services": [
+        "gemini"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "manus.im",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "manuscdn.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "maoxiangai.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "marscode.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "marscode.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "marscode.com.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "mcbaas.work",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "mcdemo.show",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "mchost.guru",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "mcprev.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "mcpworld.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "meta.ai",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "meta.law",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "metaaiusercontent.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "metaaivm.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "metaso.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "miaibox.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "miaoda.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "miaoyanai.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "midjourney.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "minimax.io",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "minimaxi.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "mirasim.ai",
+      "services": [
+        "mirasim"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "mistral.ai",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "moonshot.ai",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "moonshot.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "mozilla.ai",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "muse.ai",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "myparallelstory.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "n.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "namiso.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "notebook.google",
+      "services": [
+        "notebooklm"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "notebook.google.com",
+      "services": [
+        "notebooklm"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "notebooklm.cloud.google.com",
+      "services": [
+        "notebooklm"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "notebooklm.google",
+      "services": [
+        "notebooklm"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "notebooklm.google.com",
+      "services": [
+        "notebooklm"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "notegpt.io",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "nousresearch.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "novelai.net",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "oaistatic.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "oaistatsig.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "oaiusercontent.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "obriccloud.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "obricclouddw.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "oceancloudapi.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "ollama.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "opal.google",
+      "services": [
+        "upstream:google-deepmind"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "opal.google.com",
+      "services": [
+        "upstream:google-deepmind"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "openai.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "openai.com.cdn.cloudflare.net",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "openai.org",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "openart.ai",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "openclaw.ai",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "opencode.ai",
+      "services": [
+        "opencode"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "openrouter.ai",
+      "services": [
+        "openrouter"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "openspec.dev",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "oystermercury.top",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "perplexity.ai",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "perplexity.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "picpic-ai.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "pixeldance.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "plannotator.ai",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "poe.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "poecdn.net",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "pplx.ai",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "proactivebackend-pa.googleapis.com",
+      "services": [
+        "upstream:google-deepmind"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "qianwen.aliyun.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "qianwen.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "qianwenai.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "qoder.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "qwen.ai",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "qwenlm.ai",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "robinfrontend-pa.googleapis.com",
+      "services": [
+        "upstream:google-deepmind"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "rwkv.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "rwkv.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "safeskill.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "senseaudio.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "senseavatar.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "sensecore.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "sensefoundry.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "sensenova.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "sensetime.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "sentry.io",
+      "services": [
+        "claude"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "shunjing.xin",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "sider.ai",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "skillhub.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "sleeplesshorizon.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "sora.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "spicywriter.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "statsigapi.net",
+      "services": [
+        "claude"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "stitch.withgoogle.com",
+      "services": [
+        "upstream:google-deepmind"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "syntx.ai",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "talkai.info",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "tapnow.ai",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "tapnow.top",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "tcwqqdy.guru",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "themeforest.net",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "tiangong.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "tongyi.aliyun.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "tongyi.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "trae.ai",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "trae.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "trae.com.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "trae.guru",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "tripo3d.ai",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "turn.livekit.cloud",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "typesafe.ai",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "windsurf.build",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "windsurf.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "workbuddy.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "x.ai",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "xiaoaiassist.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "xiaohuanxiong.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "xiaomimimo.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "xiezuocat.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "xinghuo.xfyun.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "xingyeai.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "yiyan.baidu.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "yoma.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "youmind.ai",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "youmind.com",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "youmind.site",
+      "services": [
+        "upstream:category-ai-!cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "yuanbao.tencent.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "yuanqi.tencent.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "yzsgo.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "z.ai",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "zhiexa.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "zhipuai.cn",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    },
+    {
+      "match": "suffix",
+      "value": "zhipucn.com",
+      "services": [
+        "upstream:category-ai-cn"
+      ]
+    }
+  ],
+  "ipv4Cidrs": [
+    {
+      "cidr": "153.61.208.0/20",
+      "services": [
+        "claude"
+      ]
+    },
+    {
+      "cidr": "153.61.224.0/22",
+      "services": [
+        "claude"
+      ]
+    },
+    {
+      "cidr": "160.79.104.0/21",
+      "services": [
+        "claude"
+      ]
+    }
+  ],
+  "ipv6Cidrs": [
+    {
+      "cidr": "2607:6bc0::/32",
+      "services": [
+        "claude"
+      ]
+    }
+  ],
+  "unsupportedRules": [
+    {
+      "serviceId": "ai-cn-other",
+      "kind": "GEOSITE",
+      "value": "category-ai-cn",
+      "reason": "geosite_source_not_materialized_in_service_catalog"
+    },
+    {
+      "serviceId": "ai-other",
+      "kind": "GEOSITE",
+      "value": "category-ai-!cn",
+      "reason": "geosite_source_not_materialized_in_service_catalog"
+    },
+    {
+      "serviceId": "ai-other",
+      "kind": "GEOSITE",
+      "value": "google-deepmind",
+      "reason": "geosite_source_not_materialized_in_service_catalog"
+    },
+    {
+      "serviceId": "chatgpt",
+      "kind": "GEOSITE",
+      "value": "openai",
+      "reason": "geosite_source_not_materialized_in_service_catalog"
+    },
+    {
+      "serviceId": "claude",
+      "kind": "DOMAIN-KEYWORD",
+      "value": "datadog",
+      "reason": "keyword_match_has_no_safe_dns_suffix_equivalent"
+    },
+    {
+      "serviceId": "claude",
+      "kind": "DOMAIN-KEYWORD",
+      "value": "sentry",
+      "reason": "keyword_match_has_no_safe_dns_suffix_equivalent"
+    },
+    {
+      "serviceId": "claude",
+      "kind": "DOMAIN-KEYWORD",
+      "value": "sift",
+      "reason": "keyword_match_has_no_safe_dns_suffix_equivalent"
+    },
+    {
+      "serviceId": "claude",
+      "kind": "GEOSITE",
+      "value": "anthropic",
+      "reason": "geosite_source_not_materialized_in_service_catalog"
+    },
+    {
+      "serviceId": "claude",
+      "kind": "GEOSITE",
+      "value": "category-ntp",
+      "reason": "geosite_source_not_materialized_in_service_catalog"
+    },
+    {
+      "serviceId": "copilot",
+      "kind": "GEOSITE",
+      "value": "github-copilot",
+      "reason": "geosite_source_not_materialized_in_service_catalog"
+    },
+    {
+      "serviceId": "grok",
+      "kind": "GEOSITE",
+      "value": "xai",
+      "reason": "geosite_source_not_materialized_in_service_catalog"
+    },
+    {
+      "serviceId": "perplexity",
+      "kind": "GEOSITE",
+      "value": "perplexity",
+      "reason": "geosite_source_not_materialized_in_service_catalog"
+    },
+    {
+      "serviceId": "poe",
+      "kind": "GEOSITE",
+      "value": "poe",
+      "reason": "geosite_source_not_materialized_in_service_catalog"
+    },
+    {
+      "serviceId": "upstream:category-ai-!cn",
+      "kind": "DOMAIN-REGEX",
+      "value": "^chatgpt-async-webps-prod-\\S+-\\d+\\.webpubsub\\.azure\\.com$",
+      "reason": "regex_requires_a_separate_reviewed_matcher"
+    },
+    {
+      "serviceId": "vertex-ai",
+      "kind": "DOMAIN-KEYWORD",
+      "value": "-aiplatform.googleapis.com",
+      "reason": "keyword_match_has_no_safe_dns_suffix_equivalent"
+    }
+  ]
+}

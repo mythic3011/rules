@@ -29,3 +29,7 @@ Use upstream sources only when their match scope fits the destination group. For
 ## DNS output
 
 `profile.json#adguardHome.outputFile` declares the generated AdGuard Home list (`rule/host.txt`). It combines local domain rules with the checked-in upstream snapshot. The output uses AdGuard DNS filtering syntax and blocks matching names at resolution time; it does not reproduce proxy routing. Snapshot refresh is separate from deterministic generation.
+
+The same projection generates `rule/AI_Service_Blocking.json` for downstream AdGuard and firewall adapters. It contains exact/suffix domains and literal IPv4/IPv6 CIDRs supported by the current typed catalog, source-file SHA-256 values, upstream snapshot metadata, and explicit unsupported-rule records. `coverage.complete` remains `false` while catalog services still depend on GEOSITE or keyword/regex matchers and no canonical dynamic IP feed exists. Consumers must preserve that incomplete state; do not turn unsupported rules into guessed suffixes or resolve domain names into shared CDN IPs.
+
+Network refresh uses the explicit `make refresh` workflow. It resolves the configured AdGuard Home domain lists before atomically replacing the checked-in snapshot; failed fetches or parsing leave the previous snapshot byte-for-byte intact. Ordinary generation remains offline and deterministic for a fixed source tree.

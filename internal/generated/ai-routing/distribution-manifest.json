@@ -184,6 +184,24 @@
       }
     },
     {
+      "path": "rule/host.txt",
+      "urls": {
+        "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/host.txt",
+        "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/rule/host.txt",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/rule/host.txt",
+        "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/rule/host.txt"
+      }
+    },
+    {
+      "path": "rule/AI_Service_Blocking.json",
+      "urls": {
+        "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_Service_Blocking.json",
+        "cdn": "https://cdn.jsdelivr.net/gh/mythic3011/rules@main/rule/AI_Service_Blocking.json",
+        "raw": "https://raw.githubusercontent.com/mythic3011/rules/refs/heads/main/rule/AI_Service_Blocking.json",
+        "immutable": "https://cdn.jsdelivr.net/gh/mythic3011/rules@{sha}/rule/AI_Service_Blocking.json"
+      }
+    },
+    {
       "path": "rule/Privacy_Guard_Classical.yaml",
       "urls": {
         "rolling": "https://testingcf.jsdelivr.net/gh/mythic3011/rules@main/rule/Privacy_Guard_Classical.yaml",
