@@ -439,6 +439,24 @@ class ResolverProbeTests(unittest.TestCase):
         self.assertNotIn("test-private-token", result.stdout + result.stderr)
         self.assert_private_workdirs_removed()
 
+    def test_invalid_authorization_cannot_add_headers_or_config(self) -> None:
+        token_file = self.root / "controller-token"
+        (self.bin / "stat").write_text("#!/bin/sh\nprintf '600\\n'\n", encoding="utf-8")
+        (self.bin / "stat").chmod(0o755)
+        for value in ('bad\nheader', 'bad\rheader', 'bad\theader', 'bad"header', 'bad\\header', 'badéheader'):
+            with self.subTest(value=value):
+                token_file.write_text(value, encoding="utf-8")
+                token_file.chmod(0o600)
+                result = self.run_probe(
+                    *self.standard_args("chatgpt/chatgpt.com/A"),
+                    "--token-file", str(token_file),
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(json.loads(result.stdout)["reason"], "credential-unavailable")
+                self.assertEqual(self.requests.read_text(encoding="utf-8"), "")
+                self.assertFalse(self.out.exists())
+                self.assert_private_workdirs_removed()
+
 
 if __name__ == "__main__":
     unittest.main()

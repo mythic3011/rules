@@ -71,8 +71,8 @@ _guard_resolver_probe_prepare_auth() {
     [ -n "$_guard_rp_pa_token" ] || return 1
     [ "${#_guard_rp_pa_token}" -le 256 ] || return 1
     case $_guard_rp_pa_token in *'"'*|*'\'*) return 1 ;; esac
-    _guard_rp_pa_control=$(printf '%s' "$_guard_rp_pa_token" | LC_ALL=C tr -d '[:print:]')
-    [ -z "$_guard_rp_pa_control" ] || return 1
+    _guard_rp_pa_control=$(printf '%s' "$_guard_rp_pa_token" | LC_ALL=C tr -d '\040-\176' && printf '.') || return 1
+    [ "$_guard_rp_pa_control" = . ] || return 1
     _GUARD_RESOLVER_PROBE_AUTH_CONFIG=$(file_mktemp "$_guard_rp_pa_work") || return 1
     (umask 077; printf 'header = "Authorization: Bearer %s"\n' "$_guard_rp_pa_token" > "$_GUARD_RESOLVER_PROBE_AUTH_CONFIG") || return 1
     chmod 0600 "$_GUARD_RESOLVER_PROBE_AUTH_CONFIG" || return 1
