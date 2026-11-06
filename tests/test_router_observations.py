@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -14,7 +13,7 @@ from jsonschema import Draft202012Validator
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "apps/luci-app-openclash-guard/root"
 sys.path.insert(0, str(ROOT / "internal/python"))
-from generate_router_observations import OUTPUT, SOURCE, render_catalog
+from generate_router_observations import OUTPUT, render_catalog
 
 
 class RouterObservationTests(unittest.TestCase):
