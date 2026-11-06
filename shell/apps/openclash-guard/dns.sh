@@ -104,6 +104,24 @@ guard_dns_domain_set_backend() {
     esac
 }
 
+guard_cmd_dns() {
+    _guard_dns_cmd=${1:-}
+    [ -n "$_guard_dns_cmd" ] || {
+        printf '%s\n' 'usage: dns probe --api-base http://LOOPBACK:PORT [--token-file FILE] [--max-probes N] --target SERVICE/DOMAIN/TYPE ...' >&2
+        return 2
+    }
+    shift
+    case $_guard_dns_cmd in
+        probe)
+            guard_resolver_probe_run "$@"
+            ;;
+        *)
+            printf 'unknown dns command: %s\n' "$_guard_dns_cmd" >&2
+            return 2
+            ;;
+    esac
+}
+
 _guard_dns_add_bypass_client() {
     _guard_dns_client=$1
     [ -n "$_guard_dns_client" ] || return 0

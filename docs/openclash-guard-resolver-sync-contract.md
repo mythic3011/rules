@@ -86,6 +86,23 @@ Capability verification may:
 
 It must not create or flush tables, add/delete sets or rules, restart DNS/OpenClash services, rewrite producer state, or scrape the AdGuard Home query log.
 
+## Query-log-free diagnostic probe
+
+The separate diagnostic command can sample known selector apexes without enabling or reading AdGuard Home query logs:
+
+```text
+openclash-guard dns probe --api-base http://127.0.0.1:PORT \
+  --max-probes 4 --target chatgpt/chatgpt.com/A
+```
+
+`--api-base` is required and accepts only an HTTP loopback address (`127.0.0.1` or `[::1]`) with a port and no path. The adapter sends only `GET /dns/query?name=…&type=A|AAAA` requests. An API bearer credential may be supplied through `--token-file FILE` or `GUARD_MIHOMO_API_TOKEN_FILE`; that file must be regular, non-symlink, and owner-readable only. Its contents are never included in a command argument or output.
+
+Each `--target` must name an exact apex from the selector inventory embedded in the signed Guard bundle, using `SERVICE/DOMAIN/A` or `SERVICE/DOMAIN/AAAA`. Arbitrary subdomains are rejected because an apex probe cannot represent a suffix selector's full coverage. The default budget is four requests and the hard maximum is eight. The command is on demand and does not change DNS service configuration or firewall state.
+
+The private snapshot is written to `/var/run/openclash-guard/resolver-probe.json` (override with `GUARD_RESOLVER_PROBE_FILE`) using mode `0600`. It contains only the explicitly requested service/domain and validated A/AAAA addresses with the remaining minimum answer-chain TTL at snapshot time and expiration epoch. No client address, username, or client query is collected. Stdout reports counts and a status code only. Publication uses same-filesystem `mv -T`; an existing symlink, directory, special file, raced-in directory, or system without safe `mv -T` support fails closed and leaves the last-good snapshot intact.
+
+Every probe snapshot remains `partial`, declares `fullSelectorCoverage: false`, and sets `enforcementReady: false`. It never writes the resolver-sync cache/state or nft sets and is never read by `guard_resolver_sync_backend`; it cannot promote `dns.domainSetBackend`. NODATA is a completed probe with zero addresses. Truncated, malformed, mismatched-owner, fake-IP, or unavailable responses fail the run and preserve the last-good snapshot. Consumers must check `expiresAtEpoch`; an old snapshot is diagnostic evidence only and cannot permit traffic or readiness.
+
 ## Producer behavior
 
 The producer side of this contract:

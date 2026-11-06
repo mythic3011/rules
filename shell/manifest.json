@@ -131,12 +131,21 @@
         "guard-resolver-sync-data"
       ]
     },
+    "guard-resolver-probe": {
+      "path": "shell/apps/openclash-guard/resolver-probe.sh",
+      "depends": [
+        "json",
+        "file",
+        "guard-resolver-sync"
+      ]
+    },
     "guard-dns": {
       "path": "shell/apps/openclash-guard/dns.sh",
       "depends": [
         "service",
         "env",
-        "guard-resolver-sync"
+        "guard-resolver-sync",
+        "guard-resolver-probe"
       ]
     },
     "guard-geo": {
@@ -350,6 +359,7 @@
         "guard-uci-overlay-resolve",
         "guard-resolver-sync-data",
         "guard-resolver-sync",
+        "guard-resolver-probe",
         "guard-environment",
         "guard-policy",
         "guard-dns",

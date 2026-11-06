@@ -121,13 +121,15 @@ The terminal `openclash-guard:kill-switch` forward reject is intentionally narro
 
 ## AdGuard Home Domain-Set Backend
 
-Guard includes a bounded AdGuard Home resolver-sync producer. It reads query-log records through the structured control API, validates IPv4 and IPv6 answers, applies TTL-bounded timeouts, and updates Guard-owned nft sets. The producer runs through `openclash-guard rules sync watch`; it does not depend on OpenClash's process lifecycle.
+Guard does not enable AdGuard Home query logging. With query logging disabled, the existing `adguardhome-resolver-sync` enforcement backend remains `unavailable`, and policies that require that backend remain degraded and fail closed.
+
+For diagnostics, `openclash-guard dns probe` can query a bounded, explicit selection of canonical selector apexes through Mihomo's loopback DNS API. It stores a private snapshot with answer addresses and TTL expiry times, while its stdout contains counts only. The snapshot is always marked partial and `enforcementReady: false`; the command does not write nft sets, change Guard readiness, or collect client queries. It is not a replacement enforcement backend.
 
 Guard reports `adguardhome-resolver-sync` only when the producer state is fresh and matches the running selector revision, both owned timeout sets are present, and both exact direct-WAN consumer rules are visible. Missing or incomplete evidence keeps the backend `unavailable`; policies that require the backend remain degraded and fail closed. Capability verification is read-only.
 
 The dnsmasq path continues to report `dnsmasq-nftset` when dnsmasq owns DNS. Guard does not edit dnsmasq configuration itself.
 
-See [the resolver-sync capability contract](openclash-guard-resolver-sync-contract.md) for the state schema, set ownership, health checks, and read-only verification boundary.
+See [the resolver-sync capability contract](openclash-guard-resolver-sync-contract.md) for the state schema, diagnostic probe interface, set ownership, health checks, and read-only verification boundary.
 
 ## Public Surfaces
 
