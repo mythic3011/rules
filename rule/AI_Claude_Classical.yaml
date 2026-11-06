@@ -3,8 +3,8 @@
 # SOURCE: https://github.com/mythic3011/rules/blob/main/internal/python/generate_ai_profiles.py
 # RULE-PROVIDER: AI_Claude_Classical
 # GROUP: 🔐 Claude Account Guard
-# TOTAL: 22
-# SOURCE-DIGEST: 2b6b379871b50078e6354f0ec60b74e2e41c81685c37423ccbf0c8c4cfc235f9
+# TOTAL: 24
+# SOURCE-DIGEST: f306a006ea2f57a0d2c1cfc984159ecce03d74d1a6e0351b5ea60259bc826976
 
 payload:
   - "DOMAIN-SUFFIX,anthropic.com"
@@ -28,4 +28,6 @@ payload:
   - "DOMAIN-KEYWORD,sentry"
   - "DOMAIN-KEYWORD,sift"
   - "IP-CIDR,160.79.104.0/21"
+  - "IP-CIDR,153.61.224.0/22"
+  - "IP-CIDR,153.61.208.0/20"
   - "IP-CIDR6,2607:6bc0::/32"

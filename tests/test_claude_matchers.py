@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ipaddress
 import unittest
 
 import yaml
@@ -34,6 +35,8 @@ EXPECTED_MATCHERS = (
     "DOMAIN-KEYWORD,sentry",
     "DOMAIN-KEYWORD,sift",
     "IP-CIDR,160.79.104.0/21",
+    "IP-CIDR,153.61.224.0/22",
+    "IP-CIDR,153.61.208.0/20",
     "IP-CIDR6,2607:6bc0::/32",
 )
 
@@ -48,6 +51,24 @@ class ClaudeMatchersTest(unittest.TestCase):
         self.assertEqual(self.claude.payload, EXPECTED_MATCHERS)
         self.assertEqual(len(self.claude.payload), len(set(self.claude.payload)))
         self.assertEqual(self.claude.geosites, ("anthropic", "category-ntp"))
+
+    def test_documented_ipv4_ranges_are_covered(self) -> None:
+        # https://platform.claude.com/docs/en/api/ip-addresses
+        networks = [
+            ipaddress.ip_network(rule.split(",")[1])
+            for rule in self.claude.payload
+            if rule.startswith("IP-CIDR,")
+        ]
+        for cidr in (
+            "160.79.104.0/23",
+            "153.61.224.0/22",
+            "160.79.104.0/21",
+            "153.61.208.0/20",
+        ):
+            with self.subTest(cidr=cidr):
+                self.assertTrue(
+                    any(ipaddress.ip_network(cidr).subnet_of(network) for network in networks)
+                )
 
     def test_claude_routes_target_the_account_guard(self) -> None:
         claude_rules = [

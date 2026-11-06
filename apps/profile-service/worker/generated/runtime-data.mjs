@@ -5691,6 +5691,8 @@ export default {
           "DOMAIN-KEYWORD,sentry",
           "DOMAIN-KEYWORD,sift",
           "IP-CIDR,160.79.104.0/21",
+          "IP-CIDR,153.61.224.0/22",
+          "IP-CIDR,153.61.208.0/20",
           "IP-CIDR6,2607:6bc0::/32"
         ]
       },
@@ -7254,6 +7256,8 @@ export default {
               "DOMAIN-KEYWORD,sentry",
               "DOMAIN-KEYWORD,sift",
               "IP-CIDR,160.79.104.0/21",
+              "IP-CIDR,153.61.224.0/22",
+              "IP-CIDR,153.61.208.0/20",
               "IP-CIDR6,2607:6bc0::/32"
             ]
           },
@@ -8753,6 +8757,8 @@ export default {
               "DOMAIN-KEYWORD,sentry",
               "DOMAIN-KEYWORD,sift",
               "IP-CIDR,160.79.104.0/21",
+              "IP-CIDR,153.61.224.0/22",
+              "IP-CIDR,153.61.208.0/20",
               "IP-CIDR6,2607:6bc0::/32"
             ]
           },
