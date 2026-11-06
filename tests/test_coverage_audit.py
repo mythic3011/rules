@@ -17,10 +17,14 @@ from ai_profiles.upstream_sources import load_upstream_source_manifest
 
 class CoverageAuditTest(unittest.TestCase):
     def test_missing_snapshot_is_warning_not_silent(self) -> None:
-        findings = audit_rule_coverage(
-            load_catalog(),
-            ini_plan_path=ROOT / "internal" / "generated" / "ai-routing" / "hk.ini-mvp-plan.json",
-        )
+        with tempfile.TemporaryDirectory() as temp:
+            catalog_dir = Path(temp) / "ai-routing"
+            shutil.copytree(ROOT / "internal" / "config" / "ai-routing", catalog_dir)
+            (catalog_dir / "sources" / "adguard-upstream.json").unlink()
+            findings = audit_rule_coverage(
+                load_catalog(catalog_dir),
+                ini_plan_path=ROOT / "internal" / "generated" / "ai-routing" / "hk.ini-mvp-plan.json",
+            )
         codes = {item.code for item in findings}
         self.assertIn("missing-adguard-snapshot", codes)
         self.assertFalse(any(item.severity == "error" for item in findings))

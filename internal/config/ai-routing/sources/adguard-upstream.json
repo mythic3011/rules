@@ -1,11 +1,1722 @@
 {
   "schemaVersion": 1,
-  "refreshedAt": "",
+  "refreshedAt": "2026-11-06T16:28:02.803732Z",
   "baseUrl": "https://raw.githubusercontent.com/v2fly/domain-list-community/master/data",
   "rootLists": [
     "google-deepmind",
     "category-ai-!cn",
     "category-ai-cn"
   ],
-  "rules": []
+  "rules": [
+    {
+      "kind": "suffix",
+      "domain": "deepmind.com",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "suffix",
+      "domain": "deepmind.google",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "suffix",
+      "domain": "geller-pa.googleapis.com",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "suffix",
+      "domain": "generativelanguage.googleapis.com",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "suffix",
+      "domain": "proactivebackend-pa.googleapis.com",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "suffix",
+      "domain": "robinfrontend-pa.googleapis.com",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "exact",
+      "domain": "ai.google.dev",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "exact",
+      "domain": "alkalicore-pa.clients6.google.com",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "exact",
+      "domain": "alkalimakersuite-pa.clients6.google.com",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "exact",
+      "domain": "webchannel-alkalimakersuite-pa.clients6.google.com",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "suffix",
+      "domain": "generativeai.google",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "suffix",
+      "domain": "makersuite.google.com",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "suffix",
+      "domain": "ai.studio",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "suffix",
+      "domain": "aistudio.google.com",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "suffix",
+      "domain": "bard.google.com",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "suffix",
+      "domain": "gemini.google",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "suffix",
+      "domain": "gemini.google.com",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "suffix",
+      "domain": "gemini.gstatic.com",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "exact",
+      "domain": "geminiweb-pa.clients.google.com",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "exact",
+      "domain": "geminiweb-pa.clients6.google.com",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "exact",
+      "domain": "appsgenaiserver-pa.clients.google.com",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "exact",
+      "domain": "appsgenaiserver-pa.clients6.google.com",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "exact",
+      "domain": "appsgenaiserver-pa.googleapis.com",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "exact",
+      "domain": "cloudaicompanion.googleapis.com",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "exact",
+      "domain": "cloudcode-pa.googleapis.com",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "exact",
+      "domain": "daily-cloudcode-pa.googleapis.com",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "exact",
+      "domain": "notebooklm-pa.googleapis.com",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "exact",
+      "domain": "notebooklm.googleapis.com",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "suffix",
+      "domain": "labstailwind.pa.googleapis.com",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "suffix",
+      "domain": "notebook.google",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "suffix",
+      "domain": "notebook.google.com",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "suffix",
+      "domain": "notebooklm.google",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "suffix",
+      "domain": "notebooklm.google.com",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "suffix",
+      "domain": "jules.google",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "suffix",
+      "domain": "jules.google.com",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "suffix",
+      "domain": "labs.google",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "suffix",
+      "domain": "labs.google.com",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "suffix",
+      "domain": "flow.google",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "suffix",
+      "domain": "flow.google.com",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "suffix",
+      "domain": "aisandbox-pa.googleapis.com",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "suffix",
+      "domain": "aicode.googleapis.com",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "suffix",
+      "domain": "aida.googleapis.com",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "suffix",
+      "domain": "opal.google",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "suffix",
+      "domain": "opal.google.com",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "exact",
+      "domain": "antigravity-pa.googleapis.com",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "exact",
+      "domain": "antigravity.googleapis.com",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "suffix",
+      "domain": "antigravity.google",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "suffix",
+      "domain": "antigravity-unleash.goog",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "suffix",
+      "domain": "stitch.withgoogle.com",
+      "sourceList": "google-deepmind"
+    },
+    {
+      "kind": "suffix",
+      "domain": "ant.dev",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "anthropic.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "anthropic.team",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "antspace.dev",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "chatbotclaude.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "clau.de",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "claude.ai",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "claude.app",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "claude.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "claude.dev",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "claude.new",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "claude.site",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "claudeacademy.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "claudemcpclient.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "claudemcpcontent.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "claudepages.dev",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "claudestudio.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "claudeusercontent.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "exact",
+      "domain": "servd-anthropic-website.b-cdn.net",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "cici.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "ciciai.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "ciciaicdn.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "dola.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "coze.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "marscode.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "trae.ai",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "cerebras.ai",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "oystermercury.top",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "comfy.org",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "comfyci.org",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "comfyregistry.org",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "cursor-cdn.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "cursor.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "cursor.sh",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "cursorapi.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "cursorvm.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "elevenlabs.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "elevenlabs.io",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "envato-static.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "envato.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "envatousercontent.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "themeforest.net",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "githubcopilot.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "exact",
+      "domain": "copilot-proxy.githubusercontent.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "exact",
+      "domain": "copilot-workspace.githubnext.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "exact",
+      "domain": "copilotprodattachments.blob.core.windows.net",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "exact",
+      "domain": "copilot-telemetry-service.githubusercontent.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "exact",
+      "domain": "copilot-telemetry.githubusercontent.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "groq.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "hf.co",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "hf.space",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "huggingface.co",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "grazie.ai",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "grazie.aws.intellij.net",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "jetbrains.ai",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "liveperson.net",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "lpsnmedia.net",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "manus.im",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "manuscdn.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "chat.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "chatgpt.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "chatgpt.site",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "crixet.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "oaistatic.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "oaistatsig.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "oaiusercontent.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "openai.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "openai.org",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "sora.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "openai.com.cdn.cloudflare.net",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "exact",
+      "domain": "openaiapi-site.azureedge.net",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "exact",
+      "domain": "openaiassets.blob.core.windows.net",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "exact",
+      "domain": "openaicom-api-bdcpf8c6d2e9atf6.z01.azurefd.net",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "exact",
+      "domain": "openaicom.imgix.net",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "exact",
+      "domain": "openaicomproductionae4b.blob.core.windows.net",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "exact",
+      "domain": "production-openaicom-storage.azureedge.net",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "regex",
+      "domain": "^chatgpt-async-webps-prod-\\S+-\\d+\\.webpubsub\\.azure\\.com$",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "exact",
+      "domain": "browser-intake-datadoghq.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "exact",
+      "domain": "o33249.ingest.sentry.io",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "exact",
+      "domain": "o33249.ingest.us.sentry.io",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "exact",
+      "domain": "openai.qualtrics.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "chatgpt.livekit.cloud",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "host.livekit.cloud",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "turn.livekit.cloud",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "perplexity.ai",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "perplexity.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "pplx.ai",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "exact",
+      "domain": "ppl-ai-file-upload.s3.amazonaws.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "exact",
+      "domain": "pplx-res.cloudinary.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "poe.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "poecdn.net",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "codeium.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "codeiumdata.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "windsurf.build",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "windsurf.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "grok.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "grok.x.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "grokipedia.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "x.ai",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "youmind.ai",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "youmind.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "youmind.site",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "coderabbit.ai",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "coderabbit.gallery.vsassets.io",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "cohere.ai",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "cohere.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "copilot-stg.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "copilot.cloud.microsoft",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "copilot.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "copilot.microsoft.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "deepwiki.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "deepwiki.org",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "clipdrop.co",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "jasper.ai",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "typesafe.ai",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "kimi.ai",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "moonshot.ai",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "meta.ai",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "metaaivm.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "metaaiusercontent.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "muse.ai",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "agentclientprotocol.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "anythingllm.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "arena.ai",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "artificialanalysis.ai",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "chutes.ai",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "clawhub.ai",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "cline.bot",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "commandcode.ai",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "context7.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "crewai.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "devin.ai",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "diabrowser.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "diabrowser.engineering",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "dify.ai",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "dreamgen.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "duck.ai",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "gateway.ai.cloudflare.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "h2o.ai",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "kiro.dev",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "langchain.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "lmstudio.ai",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "lovart.ai",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "magnific.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "midjourney.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "minimax.io",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "mistral.ai",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "mozilla.ai",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "notegpt.io",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "nousresearch.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "novelai.net",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "ollama.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "openart.ai",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "openclaw.ai",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "opencode.ai",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "openrouter.ai",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "openspec.dev",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "plannotator.ai",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "qoder.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "sider.ai",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "spicywriter.com",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "syntx.ai",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "talkai.info",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "tapnow.ai",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "tripo3d.ai",
+      "sourceList": "category-ai-!cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "askdiandian.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "diandianlife.top",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "deepseek.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "deepseeksvc.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "butterfly-static.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "butterflyai.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "coze-dns-01.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "coze.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "coze.email",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "coze.site",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "cozeapp.net",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "cozebaas.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "cozebuild.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "cozecdn.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "cozedeploy.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "cozefn.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "cozeide.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "cozesdk.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "cozetest.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "cozetest2.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "cozetest3.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "dbbuilding.fun",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "building.fun",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "instreet.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "doubao-dev.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "doubao.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "doubaoapps.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "doubaocdn.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "hi-butterfly.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "maoxiangai.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "myparallelstory.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "oceancloudapi.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "obriccloud.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "obricclouddw.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "picpic-ai.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "pixeldance.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "api-building.fun",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "doudou.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "marscode.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "marscode.com.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "mcbaas.work",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "mcdemo.show",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "mchost.guru",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "mcprev.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "tcwqqdy.guru",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "trae.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "trae.com.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "trae.guru",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "yoma.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "miaibox.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "xiaoaiassist.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "xiaomimimo.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "liblib.art",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "liblib.cloud",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "liblib.tv",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "rwkv.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "rwkv.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "tapnow.top",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "qianwen.aliyun.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "qianwen.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "qianwenai.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "qwen.ai",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "qwenlm.ai",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "tongyi.aliyun.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "tongyi.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "antafu.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "antaq.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "aorizon.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "happyhorse.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "happyshrimp.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "sleeplesshorizon.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "yiyan.baidu.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "dumate.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "miaoda.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "mcpworld.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "tiangong.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "bigmodel.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "chatglm.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "z.ai",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "zhipuai.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "zhipucn.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "kimi.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "moonshot.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "xinghuo.xfyun.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "hailuoai.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "minimaxi.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "xingyeai.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "codebuddy.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "workbuddy.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "hunyuan.tencent.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "yuanbao.tencent.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "yuanqi.tencent.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "baichuan-ai.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "cueme.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "exact",
+      "domain": "cueme-api.quark.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "n.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "namiso.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "exact",
+      "domain": "ai.zhaomi.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "miaoyanai.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "faxingbao.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "kechuangai.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "kling-ai.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "klingai.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "meta.law",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "metaso.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "xiezuocat.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "aispeech.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "dui.ai",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "duiopen.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "senseaudio.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "senseavatar.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "sensecore.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "sensefoundry.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "sensenova.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "sensetime.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "xiaohuanxiong.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "clawhub-mirror.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "skillhub.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "safeskill.cn",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "zhiexa.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "linka2a.net",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "yzsgo.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "shunjing.xin",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "kakaxing.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "favonis.cloud",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "favonis.com",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "favonis.space",
+      "sourceList": "category-ai-cn"
+    },
+    {
+      "kind": "suffix",
+      "domain": "ai-indeed.com",
+      "sourceList": "category-ai-cn"
+    }
+  ]
 }
