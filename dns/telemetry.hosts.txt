@@ -2,14 +2,14 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/internal/python/generate_adblock_outputs.py
 # CATEGORY: telemetry
-# GENERATED_AT: 2026-11-07T10:29:30Z
-# TOTAL: 2100
+# GENERATED_AT: 2026-11-08T10:36:57Z
+# TOTAL: 2104
 # FORMAT: hosts
 # UPSTREAM hagezi_native_apple: 104
 # UPSTREAM hagezi_native_apple HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_huawei: 135
 # UPSTREAM hagezi_native_huawei HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_oppo_realme: 492
+# UPSTREAM hagezi_native_oppo_realme: 496
 # UPSTREAM hagezi_native_oppo_realme HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_samsung: 201
 # UPSTREAM hagezi_native_samsung HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -775,6 +775,7 @@
 0.0.0.0 frontier.capcutw.us.edgesuite.net
 0.0.0.0 frontier.us.capcut.com
 0.0.0.0 fwtracks.freshmarketer.com
+0.0.0.0 fxltsbl.com
 0.0.0.0 gallery.cdn.pandora.xiaomi.com
 0.0.0.0 gamebox.sec.intl.miui.com
 0.0.0.0 gamebox.sec.miui.com
@@ -851,6 +852,7 @@
 0.0.0.0 hybrid.miui.com
 0.0.0.0 i-cn01a.ocloud.heytapmobi.com
 0.0.0.0 i-in.browser.heytapmobile.com
+0.0.0.0 i-insurance.finzfin.com
 0.0.0.0 i-sg.browser.heytapmobile.com
 0.0.0.0 i-sg01a.ocloud.heytapmobi.com
 0.0.0.0 i-th.browser.heytapmobile.com
@@ -1440,6 +1442,7 @@
 0.0.0.0 nsp-logservice-weardevice-p51-drcn.obs.cn-north-2.myhuaweicloud.com
 0.0.0.0 o2o.api.xiaomi.com
 0.0.0.0 obus-cn.dc.heytapmobi.com
+0.0.0.0 obus-conf-cn.heytapmobi.com
 0.0.0.0 obus-conf-fr.heytapmobile.com
 0.0.0.0 obus-conf-in.heytapmobile.com
 0.0.0.0 obus-conf-sg.heytapmobile.com
@@ -1550,6 +1553,7 @@
 0.0.0.0 ptmi.gitv.pandora.xiaomi.com
 0.0.0.0 pull.mitv.pandora.xiaomi.com
 0.0.0.0 puma-api.ptqy.gitv.tv
+0.0.0.0 push-ads-cn.heytapmobi.com
 0.0.0.0 push-dc-us.heytapmobile.com
 0.0.0.0 push.heytapmobile.com
 0.0.0.0 qiye.xiaomi.com
