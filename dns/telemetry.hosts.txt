@@ -2,14 +2,14 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/internal/python/generate_adblock_outputs.py
 # CATEGORY: telemetry
-# GENERATED_AT: 2026-11-09T11:53:01Z
-# TOTAL: 2104
+# GENERATED_AT: 2026-11-10T11:26:50Z
+# TOTAL: 2108
 # FORMAT: hosts
 # UPSTREAM hagezi_native_apple: 104
 # UPSTREAM hagezi_native_apple HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_huawei: 135
+# UPSTREAM hagezi_native_huawei: 146
 # UPSTREAM hagezi_native_huawei HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_oppo_realme: 496
+# UPSTREAM hagezi_native_oppo_realme: 489
 # UPSTREAM hagezi_native_oppo_realme HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_samsung: 201
 # UPSTREAM hagezi_native_samsung HOMEPAGE: https://github.com/hagezi/dns-blocklists
@@ -46,7 +46,6 @@
 0.0.0.0 activity.browser.intl.miui.com
 0.0.0.0 activity.hybrid.xiaomi.com
 0.0.0.0 ad-drcn.media.dbankcloud.cn
-0.0.0.0 ad-drcn.media.dbankcloud.ru
 0.0.0.0 ad-format-i18n.tiktokv.com
 0.0.0.0 ad-format-ie.tiktokv.eu
 0.0.0.0 ad-format-ru.tiktokv.com
@@ -249,14 +248,11 @@
 0.0.0.0 api-analytics.samsungknox.com
 0.0.0.0 api-cn.cdo.heytapmobi.com
 0.0.0.0 api-gl.cdo.heytapmobi.com
-0.0.0.0 api-gl.cdo.heytapmobile.com
-0.0.0.0 api-id.cdo.heytapmobile.com
 0.0.0.0 api-id.game.heytapmobi.com
 0.0.0.0 api-id.game.heytapmobile.com
 0.0.0.0 api-id.play.heytapmobile.com
 0.0.0.0 api-id.theme.heytapmobi.com
 0.0.0.0 api-id.theme.heytapmobile.com
-0.0.0.0 api-in.cdo.heytapmobile.com
 0.0.0.0 api-rec.stellar.intl.miui.com
 0.0.0.0 api-samsung.swypeconnect.com
 0.0.0.0 api.accelerator.intl.miui.com
@@ -293,6 +289,12 @@
 0.0.0.0 api.xmpush.xiaomi.com
 0.0.0.0 apisnd.heytapmobi.com
 0.0.0.0 apkrep.ff.avast.sec.miui.com
+0.0.0.0 apm-ap.yun.hihonor.com
+0.0.0.0 apm-eu.yun.hihonor.com
+0.0.0.0 apm-fr.yun.hihonor.com
+0.0.0.0 apm-ru.yun.hihonor.com
+0.0.0.0 apm-sg.yun.hihonor.com
+0.0.0.0 apm.yun.hihonor.com
 0.0.0.0 app-events.infoapps.apple.com
 0.0.0.0 app.bugsnag.com
 0.0.0.0 app.getsentry.com
@@ -390,8 +392,6 @@
 0.0.0.0 browser.miui.com
 0.0.0.0 browser.sentry-cdn.com
 0.0.0.0 browsercfg-drcn.cloud.dbankcloud.cn
-0.0.0.0 browserfiles.heytapmobile.com
-0.0.0.0 bsf.sc.heytapmobile.com
 0.0.0.0 bsp-di-in.heytapmobile.com
 0.0.0.0 bsp.sasdc.pandora.xiaomi.com
 0.0.0.0 bss.pandora.xiaomi.com
@@ -413,6 +413,7 @@
 0.0.0.0 cdn.fds.api.xiaomi.com
 0.0.0.0 cdn1.static.home.miui.com
 0.0.0.0 cdna.sec.miui.com
+0.0.0.0 cdo.heytapmobile.com
 0.0.0.0 channelusa.samsung.com
 0.0.0.0 child.sec.miui.com
 0.0.0.0 chong.sec.miui.com
@@ -554,23 +555,17 @@
 0.0.0.0 conf-in-dc.heytapdl.com
 0.0.0.0 conf-in-dc.heytapmobile.com
 0.0.0.0 conf-sg-dc.heytapdl.com
-0.0.0.0 conn-service-cn-01.allawntech.com
 0.0.0.0 conn-service-cn-03.allawntech.com
 0.0.0.0 conn-service-cn-04.allawntech.com
 0.0.0.0 conn-service-cn-05.allawntech.com
 0.0.0.0 conn-service-cn-07.allawntech.com
 0.0.0.0 conn-service-cn-08.allawntech.com
-0.0.0.0 conn-service-eu-01.allawnos.com
-0.0.0.0 conn-service-eu-02.allawnos.com
 0.0.0.0 conn-service-eu-03.allawnos.com
 0.0.0.0 conn-service-eu-04.allawnos.com
 0.0.0.0 conn-service-eu-05.allawnos.com
 0.0.0.0 conn-service-eu-07.allawnos.com
 0.0.0.0 conn-service-eu-08.allawnos.com
 0.0.0.0 conn-service-gl-01.allawntech.com
-0.0.0.0 conn-service-gl-03.allawntech.com
-0.0.0.0 conn-service-gl-04.allawntech.com
-0.0.0.0 conn-service-in-01.allawnos.com
 0.0.0.0 conn-service-in-03.allawnos.com
 0.0.0.0 conn-service-in-04.allawnos.com
 0.0.0.0 conn-service-in-05.allawnos.com
@@ -797,6 +792,7 @@
 0.0.0.0 gpm-mon-va-useast2a.byteoversea.com
 0.0.0.0 gpm-mon-va.byteoversea.com
 0.0.0.0 graffiti-tags.apple.com
+0.0.0.0 grayr.abx.ipd.hihonor.com
 0.0.0.0 grs-dbankcloud-asia-dra.appacc-region.dbankedge.cn
 0.0.0.0 grs-dbankcloud-asia-dra.appacc.dbankedge.cn
 0.0.0.0 grs-dbankcloud-com-dra.appacc-region.dbankedge.cn
@@ -835,6 +831,7 @@
 0.0.0.0 haohuo.snssdk.com
 0.0.0.0 hd.xiaomi.com
 0.0.0.0 heyue.xiaomi.com
+0.0.0.0 hihonor.api.useinsider.com
 0.0.0.0 hisearch-dra-dt-dbankcloud-com-dra.appacc-region.dbankedge.cn
 0.0.0.0 hisearch-dra-dt-dbankcloud-com-dra.appacc.dbankedge.cn
 0.0.0.0 hisearch-dra-dt-dbankcloud-com-dra.edge.dbankedge.cn
@@ -962,6 +959,7 @@
 0.0.0.0 iphonesubmissions.apple.com
 0.0.0.0 iphonesubmissions.apple.com.akadns.net
 0.0.0.0 iphonesubmissions.v.aaplimg.com
+0.0.0.0 jscatch-sg-frontend.heytapmobile.com
 0.0.0.0 jupiter.intl.sys.miui.com
 0.0.0.0 jupiter.rus.sys.miui.com
 0.0.0.0 jupiter.sys.miui.com
@@ -1294,7 +1292,6 @@
 0.0.0.0 metrics-dra.dt.dbankcloud.cn
 0.0.0.0 metrics-dra.dt.dbankcloud.com
 0.0.0.0 metrics-drcn.dt.dbankcloud.cn
-0.0.0.0 metrics-drcn.dt.dbankcloud.com
 0.0.0.0 metrics-dre.data.dbankcloud.cn
 0.0.0.0 metrics-dre.dt.dbankcloud.cn
 0.0.0.0 metrics.apple.com
@@ -1448,6 +1445,8 @@
 0.0.0.0 obus-conf-sg.heytapmobile.com
 0.0.0.0 obus-conf-us.heytapmobile.com
 0.0.0.0 obus-config-cn.heytapmobi.com
+0.0.0.0 obus-config-in.heytapmobile.com
+0.0.0.0 obus-config-sg.heytapmobile.com
 0.0.0.0 obus-dc-eu.heytapmobile.com
 0.0.0.0 obus-dc-ru.heytapmobile.com
 0.0.0.0 obus-dc-us.heytapmobile.com
@@ -1473,6 +1472,8 @@
 0.0.0.0 obus-dcyitai-cn.heytapmobi.com
 0.0.0.0 obus-dcyitai-in.heytapmobi.com
 0.0.0.0 obus-dcyitai-sg.heytapmobile.com
+0.0.0.0 obus-hid-in.heytapmobile.com
+0.0.0.0 obus-hid-sg.heytapmobile.com
 0.0.0.0 obus-jssdk-cn.heytapmobi.com
 0.0.0.0 obus-jssdk-fr.heytapmobile.com
 0.0.0.0 obus-jssdk-in.heytapmobile.com
@@ -1482,6 +1483,7 @@
 0.0.0.0 omes-sec.heytapmobi.com
 0.0.0.0 omes-sec.heytapmobile.com
 0.0.0.0 onrt-stsdk.vivoglobal.com
+0.0.0.0 opay.heytapmobile.com
 0.0.0.0 open.snssdk.com
 0.0.0.0 openapi.vip.ptqy.gitv.tv
 0.0.0.0 openlocation-drcn-platform-dbankcloud-com-drcn.appacc.dbankedge.cn
@@ -1566,16 +1568,16 @@
 0.0.0.0 redirect.pandora.xiaomi.com
 0.0.0.0 regi.di.atlas.samsung.com
 0.0.0.0 register.xmpush.global.xiaomi.com
-0.0.0.0 report-eu.uc.heytapmobile.com
-0.0.0.0 report-in.opay.heytapmobile.com
-0.0.0.0 report-in.uc.heytapmobile.com
-0.0.0.0 report-sg.opay.heytapmobile.com
-0.0.0.0 report-sg.uc.heytapmobile.com
+0.0.0.0 remoteconfig-dra.platform.hihonorcloud.com
+0.0.0.0 remoteconfig-drcn.platform.hihonorcloud.com
+0.0.0.0 remoteconfig-dre.platform.hihonorcloud.com
+0.0.0.0 remoteconfig-uat-drcn.platform.hihonorcloud.com
 0.0.0.0 report.gras.samsungdm.com
 0.0.0.0 report.n.xiaomi.com
 0.0.0.0 resolver.gslb.mi-idc.com
 0.0.0.0 resolver.mi.xiaomi.com
 0.0.0.0 resolver.msg.global.xiaomi.net
+0.0.0.0 rms-behavior-collect-drcn.hihonorcdn.com
 0.0.0.0 rnd-cbgpas01.huawei.com
 0.0.0.0 ro-up.vivoglobal.com
 0.0.0.0 rtc-logger-i18n.tiktokv.com
@@ -1810,6 +1812,7 @@
 0.0.0.0 sau-server-in.allawnos.com
 0.0.0.0 sau-server-sg.allawnos.com
 0.0.0.0 sau-server-us.allawnos.com
+0.0.0.0 sc.heytapmobile.com
 0.0.0.0 sca.samsung.com
 0.0.0.0 sdfp.snssdk.com
 0.0.0.0 sdk-cache.video.ptqy.gitv.tv
@@ -2024,6 +2027,7 @@
 0.0.0.0 u-id.cpc.heytapmobile.com
 0.0.0.0 uba.huaweicloud.com
 0.0.0.0 ubacollect-drcn.cloud.dbankcloud.cn
+0.0.0.0 uc.heytapmobile.com
 0.0.0.0 ug-sg.byteoversea.com
 0.0.0.0 ug-sg.capcutapi.com
 0.0.0.0 ug-va.capcutapi.com
