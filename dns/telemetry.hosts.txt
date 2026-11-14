@@ -2,22 +2,22 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/internal/python/generate_adblock_outputs.py
 # CATEGORY: telemetry
-# GENERATED_AT: 2026-11-13T11:17:13Z
-# TOTAL: 2163
+# GENERATED_AT: 2026-11-14T10:42:50Z
+# TOTAL: 2266
 # FORMAT: hosts
 # UPSTREAM hagezi_native_apple: 104
 # UPSTREAM hagezi_native_apple HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_huawei: 146
+# UPSTREAM hagezi_native_huawei: 148
 # UPSTREAM hagezi_native_huawei HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_oppo_realme: 491
+# UPSTREAM hagezi_native_oppo_realme: 522
 # UPSTREAM hagezi_native_oppo_realme HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_samsung: 201
 # UPSTREAM hagezi_native_samsung HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_tiktok: 545
+# UPSTREAM hagezi_native_tiktok: 547
 # UPSTREAM hagezi_native_tiktok HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_vivo: 243
+# UPSTREAM hagezi_native_vivo: 303
 # UPSTREAM hagezi_native_vivo HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_xiaomi: 402
+# UPSTREAM hagezi_native_xiaomi: 410
 # UPSTREAM hagezi_native_xiaomi HOMEPAGE: https://github.com/hagezi/dns-blocklists
 
 0.0.0.0 0001-metrics1-data-hicloud-com.geac.dbankedge.cn
@@ -112,6 +112,7 @@
 0.0.0.0 ads-marketing-vivofs.vivo.com.cn
 0.0.0.0 ads-marketing-vivofs.vivo.com.cn.ctdns.cn
 0.0.0.0 ads-ru.tiktok.com
+0.0.0.0 ads-service.tiktok.com
 0.0.0.0 ads-sg.business-tiktok.com
 0.0.0.0 ads-sg.tiktok.com
 0.0.0.0 ads-ttp2.tiktokw.eu
@@ -142,6 +143,7 @@
 0.0.0.0 advp.apple.com
 0.0.0.0 adx-ads-fr.heytapmobile.com
 0.0.0.0 adx-ads-ru.heytapmobile.com
+0.0.0.0 adx-ads.realmemobile.com
 0.0.0.0 adx-dra-op-dbankcloud-com-dra.appacc.dbankedge.cn
 0.0.0.0 adx-dra-op-dbankcloud-com-dra.edge.dbankedge.cn
 0.0.0.0 adx-dra-op-dbankcloud-com-dra.region.dbankedge.cn
@@ -156,6 +158,7 @@
 0.0.0.0 adx-dre.op.hicloud.com
 0.0.0.0 adx-drru.op.dbankcloud.com
 0.0.0.0 adx-drru.op.hicloud.com
+0.0.0.0 adx-in-ads.realmemobile.com
 0.0.0.0 adx-op-fr-heytapmobilea-a7bbf.fr-w01.cngw.heytapmobile.com
 0.0.0.0 adx-op-fr.heytapmobile.com
 0.0.0.0 adx-op-in.heytapmobile.com
@@ -166,6 +169,7 @@
 0.0.0.0 adx-u-ru.heytapmobile.com
 0.0.0.0 adx-u-sg.heytapmobile.com
 0.0.0.0 adx-union-sg.heytapmobile.com
+0.0.0.0 adx-union-us.heytapmobile.com
 0.0.0.0 adx.ads.oppomobile.com
 0.0.0.0 adx.tv.mi.com
 0.0.0.0 adxh3-op-sg.heytapmobile.com
@@ -176,6 +180,7 @@
 0.0.0.0 album-cn01a.ocloud.heytapmobi.com
 0.0.0.0 album-sg01a.ocloud.heytapmobi.com
 0.0.0.0 alliance-adreq-asia.vivoglobal.com
+0.0.0.0 alliance-adreq-in.vivoglobal.com
 0.0.0.0 analytics-api.samsunghealthcn.com
 0.0.0.0 analytics-attribution-va.tiktok.com
 0.0.0.0 analytics-attribution-va.tiktok.com.edgekey.net
@@ -246,7 +251,6 @@
 0.0.0.0 analytics16-normal.tiktok.com.edgesuite.net
 0.0.0.0 api-adservices.apple.com
 0.0.0.0 api-analytics-qa.samsungknox.com
-0.0.0.0 api-analytics.samsungknox.com
 0.0.0.0 api-cn.cdo.heytapmobi.com
 0.0.0.0 api-gl.cdo.heytapmobi.com
 0.0.0.0 api-id.game.heytapmobi.com
@@ -323,6 +327,7 @@
 0.0.0.0 asia-adsjssdk.vivoglobal.com
 0.0.0.0 asia-album-api.vivoglobal.com
 0.0.0.0 asia-analyzer-appstore.vivoglobal.com
+0.0.0.0 asia-api-stsdk.vivoglobal.com
 0.0.0.0 asia-commonitor-stsdk.vivoglobal.com
 0.0.0.0 asia-comonrt-stsdk.vivoglobal.com
 0.0.0.0 asia-comort-stsdk.vivoglobal.com
@@ -334,6 +339,7 @@
 0.0.0.0 asia-exstsdk.vivoglobal.com
 0.0.0.0 asia-monitor-stsdk.vivoglobal.com
 0.0.0.0 asia-news-abroad-backstage-interface.vivoglobal.com
+0.0.0.0 asia-nrt-stsdk.vivoglobal.com
 0.0.0.0 asia-onrt-stsdk.vivoglobal.com
 0.0.0.0 asia-ort-stsdk.vivoglobal.com
 0.0.0.0 asia-os-config-appstore.vivoglobal.com
@@ -341,6 +347,7 @@
 0.0.0.0 asia-pnrt-stsdk.vivoglobal.com
 0.0.0.0 asia-prt-stsdk.vivoglobal.com
 0.0.0.0 asia-romsp-unifyconfig.vivoglobal.com
+0.0.0.0 asia-rt-stsdk.vivoglobal.com
 0.0.0.0 asia-st-exappupgrade.vivoglobal.com
 0.0.0.0 asia-st-sl.vivoglobal.com
 0.0.0.0 asia-stsdk.vivoglobal.com
@@ -352,6 +359,11 @@
 0.0.0.0 asia-vpushonrt-stsdk.vivoglobal.com
 0.0.0.0 asia-vpushort-stsdk.vivoglobal.com
 0.0.0.0 at.tv.global.mi.com
+0.0.0.0 au-analyzer-appstore.vivoglobal.com
+0.0.0.0 au-err-up.vivoglobal.com
+0.0.0.0 au-nrt-stsdk.vivoglobal.com
+0.0.0.0 au-ort-stsdk.vivoglobal.com
+0.0.0.0 au-pnrt-stsdk.vivoglobal.com
 0.0.0.0 au.ff.avast.sec.miui.com
 0.0.0.0 au.tv.global.mi.com
 0.0.0.0 auth.api.gitv.tv
@@ -362,6 +374,7 @@
 0.0.0.0 awsusor0-cdn.fds-ssl.api.xiaomi.com
 0.0.0.0 az.appstore.vivo.com.cn
 0.0.0.0 b2banalytics.samsungknox.com
+0.0.0.0 bdapi-ads-in.heytapmobile.com
 0.0.0.0 bdapi-ads-sg.heytapmobile.com
 0.0.0.0 bdapi-ads.realmemobile.com
 0.0.0.0 bdapi-in-ads.realmemobile.com
@@ -377,7 +390,9 @@
 0.0.0.0 bossadmin.pandora.xiaomi.com
 0.0.0.0 box.pandora.xiaomi.com
 0.0.0.0 bpu.samsungelectronics.com
+0.0.0.0 br-miuilog.sms.intl.xiaomi.com
 0.0.0.0 br-p.vivoglobal.com
+0.0.0.0 br.ekatox.com
 0.0.0.0 br.tv.global.mi.com
 0.0.0.0 browser-api-br.heytapmobile.com
 0.0.0.0 browser-api-fr.heytapmobile.com
@@ -399,6 +414,7 @@
 0.0.0.0 browser.sentry-cdn.com
 0.0.0.0 browsercfg-drcn.cloud.dbankcloud.cn
 0.0.0.0 bsp-di-in.heytapmobile.com
+0.0.0.0 bsp-di-us.heytapmobile.com
 0.0.0.0 bsp.sasdc.pandora.xiaomi.com
 0.0.0.0 bss.pandora.xiaomi.com
 0.0.0.0 bugreport.pt.xiaomi.com
@@ -427,6 +443,16 @@
 0.0.0.0 child.sec.miui.com
 0.0.0.0 chong.sec.miui.com
 0.0.0.0 ck.ads.oppomobile.com
+0.0.0.0 cl-api-stsdk.vivoglobal.com
+0.0.0.0 cl-err-up.vivoglobal.com
+0.0.0.0 cl-monitor-stsdk.vivoglobal.com
+0.0.0.0 cl-nrt-stsdk.vivoglobal.com
+0.0.0.0 cl-onrt-stsdk.vivoglobal.com
+0.0.0.0 cl-ort-stsdk.vivoglobal.com
+0.0.0.0 cl-pnrt-stsdk.vivoglobal.com
+0.0.0.0 cl-prt-stsdk.vivoglobal.com
+0.0.0.0 cl-st-sl.vivoglobal.com
+0.0.0.0 cl-stsdk.vivoglobal.com
 0.0.0.0 cl-vcode-api.vivoglobal.com
 0.0.0.0 cl.tv.global.mi.com
 0.0.0.0 claritybt.freshmarketer.com
@@ -549,11 +575,15 @@
 0.0.0.0 cname-in-ctdbonrt-stsdk.vivoglobal.com
 0.0.0.0 cname-sin01-stsdk09.vivoglobal.com
 0.0.0.0 co-album-api.vivoglobal.com
+0.0.0.0 co-api-stsdk.vivoglobal.com
 0.0.0.0 co-cota.vivoglobal.com
 0.0.0.0 co-domaincfg.vivoglobal.com
+0.0.0.0 co-monitor-stsdk.vivoglobal.com
+0.0.0.0 co-nrt-stsdk.vivoglobal.com
 0.0.0.0 co-onrt-stsdk.vivoglobal.com
 0.0.0.0 co-ort-stsdk.vivoglobal.com
 0.0.0.0 co-pnrt-stsdk.vivoglobal.com
+0.0.0.0 co-prt-stsdk.vivoglobal.com
 0.0.0.0 co-romsp-unifyconfig.vivoglobal.com
 0.0.0.0 co-st-sl.vivoglobal.com
 0.0.0.0 co-stsdk.vivoglobal.com
@@ -618,6 +648,7 @@
 0.0.0.0 cupid.ptqy.gitv.tv
 0.0.0.0 d.g.mi.com
 0.0.0.0 d.xiaomi.com
+0.0.0.0 data-ads.realmemobile.com
 0.0.0.0 data.ads.oppomobile.com
 0.0.0.0 data.game.xiaomi.com
 0.0.0.0 data.hicloud.com
@@ -632,6 +663,7 @@
 0.0.0.0 datacollector-dre.dt.dbankcloud.cn
 0.0.0.0 dc-dragate-cn.heytapmobi.com
 0.0.0.0 dc-dragate-sg.heytapmobile.com
+0.0.0.0 dc-stat-eu.heytapmobile.com
 0.0.0.0 dc-stat-in.heytapmobile.com
 0.0.0.0 dc.di.atlas.samsung.com
 0.0.0.0 dc.di.runestone.samsung.com
@@ -692,6 +724,7 @@
 0.0.0.0 dvb.pre.pandora.xiaomi.com
 0.0.0.0 e.mi.com
 0.0.0.0 eap-log-in.allawnos.com
+0.0.0.0 eap-log-ru.allawnos.com
 0.0.0.0 eap-log-sg.allawnos.com
 0.0.0.0 eg.tv.global.mi.com
 0.0.0.0 ehg-samsungusa.hitbox.com
@@ -702,14 +735,17 @@
 0.0.0.0 es.tv.global.mi.com
 0.0.0.0 eu-album-api.vivoglobal.com
 0.0.0.0 eu-api-stsdk.vivoglobal.com
+0.0.0.0 eu-cfg-stsdk.vivoglobal.com
 0.0.0.0 eu-cota.vivoglobal.com
 0.0.0.0 eu-domaincfg.vivoglobal.com
 0.0.0.0 eu-errup.vivoglobal.com
+0.0.0.0 eu-monitor-stsdk.vivoglobal.com
 0.0.0.0 eu-nrt-stsdk.vivoglobal.com
 0.0.0.0 eu-onrt-stsdk.vivoglobal.com
 0.0.0.0 eu-ort-stsdk.vivoglobal.com
 0.0.0.0 eu-p.vivoglobal.com
 0.0.0.0 eu-pnrt-stsdk.vivoglobal.com
+0.0.0.0 eu-prt-stsdk.vivoglobal.com
 0.0.0.0 eu-romsp-unifyconfig.vivoglobal.com
 0.0.0.0 eu-st-sl.vivoglobal.com
 0.0.0.0 eu-stsdk.vivoglobal.com
@@ -761,9 +797,6 @@
 0.0.0.0 fbs.smoot.apple.com
 0.0.0.0 featureinfo-service-sg.allawnos.com
 0.0.0.0 feedback.miui.com
-0.0.0.0 feedback.pt.intl.xiaomi.com
-0.0.0.0 feedback.pt.rus.xiaomi.com
-0.0.0.0 feedback.pt.xiaomi.com
 0.0.0.0 feedbackws.fe.apple-dns.cn
 0.0.0.0 feedbackws.fe.apple-dns.net
 0.0.0.0 feedbackws.fe2.apple-dns.net
@@ -793,14 +826,19 @@
 0.0.0.0 frontier.us.capcut.com
 0.0.0.0 fwtracks.freshmarketer.com
 0.0.0.0 fxltsbl.com
+0.0.0.0 g-api-eu.ekatox.com
+0.0.0.0 g-api-in.ekatox.com
+0.0.0.0 g-api-ru.ekatox.com
 0.0.0.0 gallery.cdn.pandora.xiaomi.com
 0.0.0.0 gamebox.sec.intl.miui.com
 0.0.0.0 gamebox.sec.miui.com
 0.0.0.0 gb.tv.global.mi.com
 0.0.0.0 geofence.sys.miui.com
+0.0.0.0 gld.samsungosp.com
 0.0.0.0 global-ad-extranet-pri-azams.alb.xiaomi.com
 0.0.0.0 global-ad-extranet-pri-azpn.alb.xiaomi.com
 0.0.0.0 global-ad-intl-pri-alisgp.alb.xiaomi.com
+0.0.0.0 global-ad-pri-alisgp.alb.xiaomi.com
 0.0.0.0 globalcolor-service-eu.allawnos.com
 0.0.0.0 globalcolor-service-in.allawnos.com
 0.0.0.0 globalcolor-service-sg.allawnos.com
@@ -854,6 +892,12 @@
 0.0.0.0 haohuo.snssdk.com
 0.0.0.0 hd.xiaomi.com
 0.0.0.0 heyue.xiaomi.com
+0.0.0.0 hg-br.ekatox.com
+0.0.0.0 hg-eu.ekatox.com
+0.0.0.0 hg-id.ekatox.com
+0.0.0.0 hg-sa.ekatox.com
+0.0.0.0 hg-sg.ekatox.com
+0.0.0.0 hg-us.ekatox.com
 0.0.0.0 hihonor.api.useinsider.com
 0.0.0.0 hisearch-dra-dt-dbankcloud-com-dra.appacc-region.dbankedge.cn
 0.0.0.0 hisearch-dra-dt-dbankcloud-com-dra.appacc.dbankedge.cn
@@ -908,7 +952,9 @@
 0.0.0.0 icota-service-eu.allawnos.com
 0.0.0.0 icota-service-in.allawnos.com
 0.0.0.0 id-analyzer-appstore.vivoglobal.com
+0.0.0.0 id-miuilog.sms.intl.xiaomi.com
 0.0.0.0 id-third-appstore.vivoglobal.com
+0.0.0.0 id.ekatox.com
 0.0.0.0 id.push.heytapmobi.com
 0.0.0.0 id.tv.global.mi.com
 0.0.0.0 idiagnostics-mdn1.apple.com
@@ -928,6 +974,11 @@
 0.0.0.0 ifsau-eu.coloros.com
 0.0.0.0 ifsau-in.coloros.com
 0.0.0.0 ifsau.coloros.com
+0.0.0.0 il-api-stsdk.vivoglobal.com
+0.0.0.0 il-onrt-stsdk.vivoglobal.com
+0.0.0.0 il-pnrt-stsdk.vivoglobal.com
+0.0.0.0 il-prt-stsdk.vivoglobal.com
+0.0.0.0 il-st-sl.vivoglobal.com
 0.0.0.0 image.box.xiaomi.com
 0.0.0.0 image.cdn.mvideo.xiaomi.com
 0.0.0.0 image.cdn.pandora.xiaomi.com
@@ -939,6 +990,7 @@
 0.0.0.0 in-adlog.vivoglobal.com
 0.0.0.0 in-adreq.vivoglobal.com
 0.0.0.0 in-adsjssdk.vivoglobal.com
+0.0.0.0 in-analyzer-appstore.vivoglobal.com
 0.0.0.0 in-api-stsdk.vivoglobal.com
 0.0.0.0 in-apponrt-stsdk.vivoglobal.com
 0.0.0.0 in-apport-stsdk.vivoglobal.com
@@ -990,12 +1042,15 @@
 0.0.0.0 iphonesubmissions.v.aaplimg.com
 0.0.0.0 iq.tv.global.mi.com
 0.0.0.0 it.tv.global.mi.com
+0.0.0.0 jscatch-in-frontend.heytapmobile.com
 0.0.0.0 jscatch-sg-frontend.heytapmobile.com
 0.0.0.0 jupiter.intl.sys.miui.com
 0.0.0.0 jupiter.rus.sys.miui.com
 0.0.0.0 jupiter.sys.miui.com
 0.0.0.0 kpu.samsungelectronics.com
 0.0.0.0 kuyun.com
+0.0.0.0 kz-analyzer-appstore.vivoglobal.com
+0.0.0.0 kz-api-stsdk.vivoglobal.com
 0.0.0.0 kz-cname-sin01-bigdata.vivoglobal.com
 0.0.0.0 kz-cota.vivoglobal.com
 0.0.0.0 kz-err-up.vivoglobal.com
@@ -1159,6 +1214,7 @@
 0.0.0.0 log32-normal-zr.tiktokv.com
 0.0.0.0 log32-normal.capcutapi.com
 0.0.0.0 log32-normal.tiktokv.com
+0.0.0.0 log53-normal-c-useast1a.tiktokv.com
 0.0.0.0 log58-normal-alisg.tiktokv.com
 0.0.0.0 log58-normal-c-alisg.tiktokv.com
 0.0.0.0 log58-normal-c-useast1a.tiktokv.com
@@ -1166,6 +1222,8 @@
 0.0.0.0 log58-normal-useast2a.tiktokv.com
 0.0.0.0 log58-normal-ycru.tiktokv.com
 0.0.0.0 log58-normal.tiktokv.com
+0.0.0.0 log61-normal-c-alisg.tiktokv.com
+0.0.0.0 log61-normal-c-useast1a.tiktokv.com
 0.0.0.0 log77-normal-c-alisg.tiktokv.com
 0.0.0.0 log77-normal-c-useast1a.tiktokv.com
 0.0.0.0 log9-normal-c-useast1a.tiktokv.com
@@ -1338,6 +1396,7 @@
 0.0.0.0 metrics1-drcn.dt.dbankcloud.cn
 0.0.0.0 metrics1.data.dbankcloud.cn
 0.0.0.0 metrics2.data.hicloud.com
+0.0.0.0 metrics6.data.dbankcloud.cn
 0.0.0.0 mi4crawler.pandora.xiaomi.com
 0.0.0.0 mibi.api.xiaomi.com
 0.0.0.0 mibi.stat.pt.xiaomi.com
@@ -1364,6 +1423,7 @@
 0.0.0.0 miui-l7-data-other.pt.miui.com
 0.0.0.0 miui.net
 0.0.0.0 mlog.search.xiaomi.net
+0.0.0.0 mm-miuilog.sms.intl.xiaomi.com
 0.0.0.0 mm.tv.global.mi.com
 0.0.0.0 moa-upload-in.allawnos.com
 0.0.0.0 moa-upload-online-in.coloros.com
@@ -1432,9 +1492,12 @@
 0.0.0.0 mssdk16-normal-us-ttp.capcutapi.us
 0.0.0.0 mssdk16-normal-us-ttp2.capcutapi.us
 0.0.0.0 mx-album-api.vivoglobal.com
+0.0.0.0 mx-api-stsdk.vivoglobal.com
 0.0.0.0 mx-cota.vivoglobal.com
 0.0.0.0 mx-domaincfg.vivoglobal.com
 0.0.0.0 mx-err-up.vivoglobal.com
+0.0.0.0 mx-miuilog.sms.intl.xiaomi.com
+0.0.0.0 mx-nrt-stsdk.vivoglobal.com
 0.0.0.0 mx-onrt-stsdk.vivoglobal.com
 0.0.0.0 mx-ort-stsdk.vivoglobal.com
 0.0.0.0 mx-p.vivoglobal.com
@@ -1447,6 +1510,7 @@
 0.0.0.0 mx-vcode-od.vivoglobal.com
 0.0.0.0 mx-vcode-or.vivoglobal.com
 0.0.0.0 mx.tv.global.mi.com
+0.0.0.0 my-miuilog.sms.intl.xiaomi.com
 0.0.0.0 my.tv.global.mi.com
 0.0.0.0 nav.sec.miui.com
 0.0.0.0 nebula-collector.huawei.com
@@ -1480,13 +1544,16 @@
 0.0.0.0 obus-conf-cn.heytapmobi.com
 0.0.0.0 obus-conf-fr.heytapmobile.com
 0.0.0.0 obus-conf-in.heytapmobile.com
+0.0.0.0 obus-conf-ru.heytapmobile.com
 0.0.0.0 obus-conf-sg.heytapmobile.com
 0.0.0.0 obus-conf-us.heytapmobile.com
 0.0.0.0 obus-config-cn.heytapmobi.com
 0.0.0.0 obus-config-in.heytapmobile.com
 0.0.0.0 obus-config-sg.heytapmobile.com
 0.0.0.0 obus-dc-eu.heytapmobile.com
+0.0.0.0 obus-dc-in.heytapmobile.com
 0.0.0.0 obus-dc-ru.heytapmobile.com
+0.0.0.0 obus-dc-sg.heytapmobile.com
 0.0.0.0 obus-dc-us.heytapmobile.com
 0.0.0.0 obus-dc10-cn.heytapmobi.com
 0.0.0.0 obus-dc121100-sg.heytapmobile.com
@@ -1505,6 +1572,7 @@
 0.0.0.0 obus-dc20305-in.heytapmobile.com
 0.0.0.0 obus-dc20305-sg.heytapmobile.com
 0.0.0.0 obus-dctech-cn.heytapmobi.com
+0.0.0.0 obus-dctech-fr.heytapmobile.com
 0.0.0.0 obus-dctech-in.heytapmobile.com
 0.0.0.0 obus-dctech-sg.heytapmobile.com
 0.0.0.0 obus-dcyitai-cn.heytapmobi.com
@@ -1515,6 +1583,7 @@
 0.0.0.0 obus-jssdk-cn.heytapmobi.com
 0.0.0.0 obus-jssdk-fr.heytapmobile.com
 0.0.0.0 obus-jssdk-in.heytapmobile.com
+0.0.0.0 obus-jssdk-ru.heytapmobile.com
 0.0.0.0 obus-jssdk-sg.heytapmobile.com
 0.0.0.0 obus-jssdk-us.heytapmobile.com
 0.0.0.0 odin-signals.apple.com
@@ -1562,7 +1631,17 @@
 0.0.0.0 pc-mon-va.capcutapi.com
 0.0.0.0 pc-mon.snssdk.com
 0.0.0.0 pc-mon16-normal-us-ttp.capcutapi.us
+0.0.0.0 pe-api-stsdk.vivoglobal.com
+0.0.0.0 pe-err-up.vivoglobal.com
+0.0.0.0 pe-monitor-stsdk.vivoglobal.com
+0.0.0.0 pe-nrt-stsdk.vivoglobal.com
+0.0.0.0 pe-onrt-stsdk.vivoglobal.com
+0.0.0.0 pe-pnrt-stsdk.vivoglobal.com
+0.0.0.0 pe-prt-stsdk.vivoglobal.com
+0.0.0.0 pe-st-sl.vivoglobal.com
+0.0.0.0 pe-stsdk.vivoglobal.com
 0.0.0.0 performance-partners.apple.com
+0.0.0.0 ph-miuilog.sms.intl.xiaomi.com
 0.0.0.0 phonesubmissions.apple.com
 0.0.0.0 pi.ias.xiaomi.com
 0.0.0.0 pk.tv.global.mi.com
@@ -1719,17 +1798,27 @@
 0.0.0.0 rtmpott.pandora.xiaomi.com
 0.0.0.0 ru-album-api.vivoglobal.com
 0.0.0.0 ru-analyzer-appstore.vivoglobal.com
+0.0.0.0 ru-api-stsdk.vivoglobal.com
 0.0.0.0 ru-api.xmpush.global.xiaomi.com
+0.0.0.0 ru-apponrt-stsdk.vivoglobal.com
+0.0.0.0 ru-apport-stsdk.vivoglobal.com
+0.0.0.0 ru-apppnrt-stsdk.vivoglobal.com
 0.0.0.0 ru-commonitor-stsdk.vivoglobal.com
 0.0.0.0 ru-comonrt-stsdk.vivoglobal.com
 0.0.0.0 ru-comort-stsdk.vivoglobal.com
 0.0.0.0 ru-compnrt-stsdk.vivoglobal.com
 0.0.0.0 ru-comprt-stsdk.vivoglobal.com
 0.0.0.0 ru-cota.vivoglobal.com
+0.0.0.0 ru-ctdbonrt-stsdk.vivoglobal.com
+0.0.0.0 ru-ctdbort-stsdk.vivoglobal.com
+0.0.0.0 ru-ctdbpnrt-stsdk.vivoglobal.com
+0.0.0.0 ru-ctdbprt-stsdk.vivoglobal.com
 0.0.0.0 ru-err-up.vivoglobal.com
 0.0.0.0 ru-exstsdk.vivoglobal.com
 0.0.0.0 ru-feedback.xmpush.global.xiaomi.com
+0.0.0.0 ru-miuilog.sms.intl.xiaomi.com
 0.0.0.0 ru-monitor-stsdk.vivoglobal.com
+0.0.0.0 ru-nrt-stsdk.vivoglobal.com
 0.0.0.0 ru-onrt-stsdk.vivoglobal.com
 0.0.0.0 ru-ort-stsdk.vivoglobal.com
 0.0.0.0 ru-os-config-appstore.vivoglobal.com
@@ -1746,6 +1835,7 @@
 0.0.0.0 ru-vcode-api.vivoglobal.com
 0.0.0.0 ru-vcode-od.vivoglobal.com
 0.0.0.0 ru-vcode-or.vivoglobal.com
+0.0.0.0 ru.ekatox.com
 0.0.0.0 ru.feedback.xmpush.global.xiaomi.com
 0.0.0.0 ru.tv.global.mi.com
 0.0.0.0 rus-service-eu.allawnos.com
@@ -1894,6 +1984,7 @@
 0.0.0.0 sf16-telemetry-proxy-oci.tiktokcdn-us.com
 0.0.0.0 sf16-telemetry-proxy-oci.tiktokcdn-us.com.edgesuite.net
 0.0.0.0 sg-cfg-stsdk.vivoglobal.com
+0.0.0.0 sg.ekatox.com
 0.0.0.0 sgali-mcs.byteoversea.com
 0.0.0.0 sgaws-mcs.byteoversea.com
 0.0.0.0 sgee-log.byteoversea.com
@@ -1926,6 +2017,7 @@
 0.0.0.0 ssp.xiaomi.com
 0.0.0.0 sspapi-prd.samsungrs.com
 0.0.0.0 st-ads-jssdk.vivo.com.cn
+0.0.0.0 st-sl.vivoglobal.com
 0.0.0.0 staging-analyze.pt.xiaomi.com
 0.0.0.0 staging.api.zhuti.n.xiaomi.com
 0.0.0.0 staging.appapi.n.xiaomi.com
@@ -1971,6 +2063,7 @@
 0.0.0.0 test.admin.xmpush.xiaomi.com
 0.0.0.0 test.samsungrm.net
 0.0.0.0 testit.miui.com
+0.0.0.0 th-miuilog.sms.intl.xiaomi.com
 0.0.0.0 th.tv.global.mi.com
 0.0.0.0 thm.market.xiaomi.com
 0.0.0.0 time.video.ptqy.gitv.tv
@@ -2031,10 +2124,13 @@
 0.0.0.0 tobapplog.snssdk.com
 0.0.0.0 toblog.snssdk.com
 0.0.0.0 tr-album-api.vivoglobal.com
+0.0.0.0 tr-api-stsdk.vivoglobal.com
 0.0.0.0 tr-cota.vivoglobal.com
 0.0.0.0 tr-domaincfg.vivoglobal.com
 0.0.0.0 tr-err-up.vivoglobal.com
 0.0.0.0 tr-gdpr-vgc-datacenter.vivoglobal.com
+0.0.0.0 tr-miuilog.sms.intl.xiaomi.com
+0.0.0.0 tr-monitor-stsdk.vivoglobal.com
 0.0.0.0 tr-onrt-stsdk.vivoglobal.com
 0.0.0.0 tr-ort-stsdk.vivoglobal.com
 0.0.0.0 tr-p.vivoglobal.com
@@ -2075,14 +2171,21 @@
 0.0.0.0 tvboss.pandora.xiaomi.com
 0.0.0.0 tvepg.pandora.xiaomi.com
 0.0.0.0 u-id.cpc.heytapmobile.com
+0.0.0.0 u-th.cpc.heytapmobile.com
+0.0.0.0 u-vn.cpc.heytapmobile.com
 0.0.0.0 ua.tv.global.mi.com
 0.0.0.0 uba.huaweicloud.com
 0.0.0.0 ubacollect-drcn.cloud.dbankcloud.cn
+0.0.0.0 uc-track-ru.oneplus.com
 0.0.0.0 uc.heytapmobile.com
+0.0.0.0 ug-drcn.media.dbankcloud.cn
 0.0.0.0 ug-sg.byteoversea.com
 0.0.0.0 ug-sg.capcutapi.com
 0.0.0.0 ug-va.capcutapi.com
 0.0.0.0 ug.snssdk.com
+0.0.0.0 uk-monitor-stsdk.vivoglobal.com
+0.0.0.0 uk-nrt-stsdk.vivoglobal.com
+0.0.0.0 uk-prt-stsdk.vivoglobal.com
 0.0.0.0 uk-timesync.vivoglobal.com
 0.0.0.0 ums-rum-cn.heytapimage.com
 0.0.0.0 ums-rum-global.heytapimage.com
@@ -2092,9 +2195,8 @@
 0.0.0.0 upload.luckyorange.net
 0.0.0.0 upu.samsungelectronics.com
 0.0.0.0 ureca.samsungapps.com
-0.0.0.0 url4077.ads-service.tiktok.com
-0.0.0.0 url7108.ads-service.tiktok.com
 0.0.0.0 us-report.gras.samsungdm.com
+0.0.0.0 us.ekatox.com
 0.0.0.0 us.tv.global.mi.com
 0.0.0.0 userid.xiaomi.com
 0.0.0.0 userprofile.push.heytapmobi.com
@@ -2117,6 +2219,7 @@
 0.0.0.0 video.market.xiaomi.com
 0.0.0.0 vip-api.xmpush.global.xiaomi.com
 0.0.0.0 vip-api.xmpush.xiaomi.com
+0.0.0.0 vn-miuilog.sms.intl.xiaomi.com
 0.0.0.0 vn.tv.global.mi.com
 0.0.0.0 voip.game.xiaomi.com
 0.0.0.0 w.pandora.xiaomi.com
