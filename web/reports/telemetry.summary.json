@@ -1,6 +1,6 @@
 {
   "category": "telemetry",
-  "generated_at": "2026-11-17T12:08:58Z",
+  "generated_at": "2026-11-18T11:58:41Z",
   "source_config": "internal/config/filtering/sources/telemetry.yaml",
   "custom_source_config": "internal/config/filtering/sources/custom/telemetry.yaml",
   "allowlist": "dns/local_telemetry_allowlist.txt",
