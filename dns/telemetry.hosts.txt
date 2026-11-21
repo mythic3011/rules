@@ -2,22 +2,22 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/internal/python/generate_adblock_outputs.py
 # CATEGORY: telemetry
-# GENERATED_AT: 2026-11-20T11:56:57Z
-# TOTAL: 2274
+# GENERATED_AT: 2026-11-21T11:28:49Z
+# TOTAL: 2283
 # FORMAT: hosts
-# UPSTREAM hagezi_native_apple: 104
+# UPSTREAM hagezi_native_apple: 105
 # UPSTREAM hagezi_native_apple HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_huawei: 148
 # UPSTREAM hagezi_native_huawei HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_oppo_realme: 530
+# UPSTREAM hagezi_native_oppo_realme: 532
 # UPSTREAM hagezi_native_oppo_realme HOMEPAGE: https://github.com/hagezi/dns-blocklists
 # UPSTREAM hagezi_native_samsung: 201
 # UPSTREAM hagezi_native_samsung HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_tiktok: 547
+# UPSTREAM hagezi_native_tiktok: 553
 # UPSTREAM hagezi_native_tiktok HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_vivo: 303
+# UPSTREAM hagezi_native_vivo: 302
 # UPSTREAM hagezi_native_vivo HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_xiaomi: 410
+# UPSTREAM hagezi_native_xiaomi: 411
 # UPSTREAM hagezi_native_xiaomi HOMEPAGE: https://github.com/hagezi/dns-blocklists
 
 0.0.0.0 0001-metrics1-data-hicloud-com.geac.dbankedge.cn
@@ -53,6 +53,7 @@
 0.0.0.0 ad-format-ttp2.tiktokv.us
 0.0.0.0 ad-format-ttp2.us.tiktokv.com
 0.0.0.0 ad-format.tiktokv.eu
+0.0.0.0 ad-format.tiktokv.us
 0.0.0.0 ad-format.us.tiktokv.com
 0.0.0.0 ad-format16-normal-useastred.tiktokv.eu
 0.0.0.0 ad-growth-in.heytapmobile.com
@@ -196,6 +197,7 @@
 0.0.0.0 analytics-exp-sg.tiktok.com.edgekey.net
 0.0.0.0 analytics-exp-ttp2.tiktokw.eu
 0.0.0.0 analytics-exp-ttp2.tiktokw.eu.edgesuite.net
+0.0.0.0 analytics-exp.tiktokw.eu
 0.0.0.0 analytics-exp.us.tiktok.com
 0.0.0.0 analytics-exp.us.tiktok.com.edgesuite.net
 0.0.0.0 analytics-exp16-normal-useastred.tiktokw.eu
@@ -394,6 +396,7 @@
 0.0.0.0 br-p.vivoglobal.com
 0.0.0.0 br.ekatox.com
 0.0.0.0 br.tv.global.mi.com
+0.0.0.0 browser-api-au.heytapmobile.com
 0.0.0.0 browser-api-br.heytapmobile.com
 0.0.0.0 browser-api-fr.heytapmobile.com
 0.0.0.0 browser-api-gl-01.heytapmobile.com
@@ -673,7 +676,6 @@
 0.0.0.0 dcintl.push.heytapmobi.com
 0.0.0.0 ddf.di.atlas.samsung.com
 0.0.0.0 de-gdpr-err-up.vivoglobal.com
-0.0.0.0 de-gdpr-vcode-api.vivoglobal.com
 0.0.0.0 de.pandora.xiaomi.com
 0.0.0.0 de.tv.global.mi.com
 0.0.0.0 dev-apigw.samsungdmroute.com
@@ -740,7 +742,6 @@
 0.0.0.0 eu-domaincfg.vivoglobal.com
 0.0.0.0 eu-errup.vivoglobal.com
 0.0.0.0 eu-monitor-stsdk.vivoglobal.com
-0.0.0.0 eu-nrt-stsdk.vivoglobal.com
 0.0.0.0 eu-onrt-stsdk.vivoglobal.com
 0.0.0.0 eu-ort-stsdk.vivoglobal.com
 0.0.0.0 eu-p.vivoglobal.com
@@ -1021,6 +1022,7 @@
 0.0.0.0 in-pnrt-stsdk.vivoglobal.com
 0.0.0.0 in-protect-dev.sec.intl.miui.com
 0.0.0.0 in-prt-stsdk.vivoglobal.com
+0.0.0.0 in-rt-stsdk.vivoglobal.com
 0.0.0.0 in-third-appstore.vivoglobal.com
 0.0.0.0 in-timesync.vivoglobal.com
 0.0.0.0 in-vcode-api.vivoglobal.com
@@ -1087,7 +1089,9 @@
 0.0.0.0 live.miphone.pandora.xiaomi.com
 0.0.0.0 location-i18n.tiktokv.com
 0.0.0.0 location-ie.tiktokv.eu
+0.0.0.0 location-ru.tiktokv.com
 0.0.0.0 location-sg.tiktokv.com
+0.0.0.0 location-ttp2.tiktokv.eu
 0.0.0.0 location-ttp2.tiktokv.us
 0.0.0.0 location-ttp2.tiktokw.eu
 0.0.0.0 location-ttp2.tiktokw.us
@@ -1122,6 +1126,9 @@
 0.0.0.0 log-dr16-normal-useast5.tiktokv.us
 0.0.0.0 log-dr16-normal-useast8.tiktokv.us
 0.0.0.0 log-dr16-normal-useastred.tiktokv.eu
+0.0.0.0 log-dr19-normal-no1a.tiktokv.eu
+0.0.0.0 log-dr19-normal-useast5.tiktokv.us
+0.0.0.0 log-dr19-normal-useast8.tiktokv.us
 0.0.0.0 log-dra.platform.hihonorcloud.com
 0.0.0.0 log-drcn.platform.hihonorcloud.com
 0.0.0.0 log-dre.platform.hihonorcloud.com
@@ -1186,7 +1193,6 @@
 0.0.0.0 log22-applog-useast1a.tiktokv.com
 0.0.0.0 log22-applog-useast2a.tiktokv.com
 0.0.0.0 log22-normal-alisg.tiktokv.com
-0.0.0.0 log22-normal-alisg.tiktokv.com.kp45.ru
 0.0.0.0 log22-normal-useast1a.tiktokv.com
 0.0.0.0 log22-normal-useast2a.tiktokv.com
 0.0.0.0 log22-normal-zr-alisg.tiktokv.com
@@ -1425,6 +1431,7 @@
 0.0.0.0 mistat.rus.xiaomi.com.ksyna.net
 0.0.0.0 mistat.xiaomi.com
 0.0.0.0 mistat.xiaomi.com.download.ks-cdn.com
+0.0.0.0 mistat.xiaomi.com.mgslb.com
 0.0.0.0 miui-l7-data-other-c3.pt.miui.com
 0.0.0.0 miui-l7-data-other.pt.miui.com
 0.0.0.0 miui.net
@@ -1602,6 +1609,7 @@
 0.0.0.0 openapi.vip.ptqy.gitv.tv
 0.0.0.0 openlocation-drcn-platform-dbankcloud-com-drcn.appacc.dbankedge.cn
 0.0.0.0 openlocation-drcn.platform.dbankcloud.com
+0.0.0.0 opex-service-eu-allawna-e3dde.fr-w01.cngw.allawnos.com
 0.0.0.0 opex-service-eu.allawnos.com
 0.0.0.0 opex-service-in.allawnos.com
 0.0.0.0 opex-service-sg.allawnos.com
@@ -1672,6 +1680,7 @@
 0.0.0.0 prod-event-relay-sports-api.v.aaplimg.com
 0.0.0.0 prod-event-relay-stocks-api.v.aaplimg.com
 0.0.0.0 prod-event-relay-weather-api.v.aaplimg.com
+0.0.0.0 prod-event-relay-web-api.v.aaplimg.com
 0.0.0.0 prod-iwork-events.v.aaplimg.com
 0.0.0.0 prod-news-notification-events.v.aaplimg.com
 0.0.0.0 protect.dev.sec.intl.miui.com
@@ -1709,6 +1718,7 @@
 0.0.0.0 rnd-cbgpas01.huawei.com
 0.0.0.0 ro-up.vivoglobal.com
 0.0.0.0 rtc-logger-i18n.tiktokv.com
+0.0.0.0 rtc-logger-ie.tiktokv.eu
 0.0.0.0 rtc-logger-ttp2.tiktokv.eu
 0.0.0.0 rtc-logger-ttp2.tiktokv.us
 0.0.0.0 rtc-logger-ttp2.us.tiktokv.com
@@ -1719,6 +1729,7 @@
 0.0.0.0 rtc-logger.us.tiktokv.com
 0.0.0.0 rtc-logger16-normal-alisg.tiktokv.com
 0.0.0.0 rtc-logger16-normal-useastred.tiktokv.eu
+0.0.0.0 rtc-logger16-normal.tiktokv.com
 0.0.0.0 rtlog-i18n.tiktokv.com
 0.0.0.0 rtlog-phx.tiktokv.com
 0.0.0.0 rtlog-ru.tiktokv.com
@@ -1736,7 +1747,6 @@
 0.0.0.0 rtlog16-applog-useast2a.tiktokv.com
 0.0.0.0 rtlog16-applog-useast5.us.tiktokv.com
 0.0.0.0 rtlog16-normal-alisg.tiktokv.com
-0.0.0.0 rtlog16-normal-alisg.tiktokv.com.kp45.ru
 0.0.0.0 rtlog16-normal-ie.tiktokv.eu
 0.0.0.0 rtlog16-normal-ind.tiktokv.com
 0.0.0.0 rtlog16-normal-no1a.tiktokv.eu
@@ -1773,7 +1783,6 @@
 0.0.0.0 rtlog22-applog-useast1a.tiktokv.com
 0.0.0.0 rtlog22-applog-useast2a.tiktokv.com
 0.0.0.0 rtlog22-normal-alisg.tiktokv.com
-0.0.0.0 rtlog22-normal-alisg.tiktokv.com.kp45.ru
 0.0.0.0 rtlog22-normal-useast1a.tiktokv.com
 0.0.0.0 rtlog22-normal-useast2a.tiktokv.com
 0.0.0.0 rtlog22-normal-zr-alisg.tiktokv.com
