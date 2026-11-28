@@ -2,22 +2,22 @@
 # REPO: https://github.com/mythic3011/rules
 # SOURCE: https://github.com/mythic3011/rules/blob/main/internal/python/generate_adblock_outputs.py
 # CATEGORY: telemetry
-# GENERATED_AT: 2026-11-27T12:51:12Z
-# TOTAL: 2283
+# GENERATED_AT: 2026-11-28T12:02:14Z
+# TOTAL: 2275
 # FORMAT: hosts
-# UPSTREAM hagezi_native_apple: 105
+# UPSTREAM hagezi_native_apple: 99
 # UPSTREAM hagezi_native_apple HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_huawei: 148
+# UPSTREAM hagezi_native_huawei: 147
 # UPSTREAM hagezi_native_huawei HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_oppo_realme: 532
+# UPSTREAM hagezi_native_oppo_realme: 535
 # UPSTREAM hagezi_native_oppo_realme HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_samsung: 201
+# UPSTREAM hagezi_native_samsung: 200
 # UPSTREAM hagezi_native_samsung HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_tiktok: 553
+# UPSTREAM hagezi_native_tiktok: 547
 # UPSTREAM hagezi_native_tiktok HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_vivo: 302
+# UPSTREAM hagezi_native_vivo: 304
 # UPSTREAM hagezi_native_vivo HOMEPAGE: https://github.com/hagezi/dns-blocklists
-# UPSTREAM hagezi_native_xiaomi: 411
+# UPSTREAM hagezi_native_xiaomi: 412
 # UPSTREAM hagezi_native_xiaomi HOMEPAGE: https://github.com/hagezi/dns-blocklists
 
 0.0.0.0 0001-metrics1-data-hicloud-com.geac.dbankedge.cn
@@ -53,7 +53,6 @@
 0.0.0.0 ad-format-ttp2.tiktokv.us
 0.0.0.0 ad-format-ttp2.us.tiktokv.com
 0.0.0.0 ad-format.tiktokv.eu
-0.0.0.0 ad-format.tiktokv.us
 0.0.0.0 ad-format.us.tiktokv.com
 0.0.0.0 ad-format16-normal-useastred.tiktokv.eu
 0.0.0.0 ad-growth-in.heytapmobile.com
@@ -91,6 +90,7 @@
 0.0.0.0 ad.tiktokv.eu
 0.0.0.0 ad.tiktokv.us
 0.0.0.0 ad.xiaomi.com
+0.0.0.0 ad.xiaomi.com.mgslb.com
 0.0.0.0 adinstantpage16-normal-useastred.tiktokv.eu
 0.0.0.0 adinstantpage16-normal-useastred.tiktokv.eu.edgesuite.net
 0.0.0.0 adlog.vivo.com
@@ -142,6 +142,7 @@
 0.0.0.0 adv.sec.miui.com
 0.0.0.0 advertising.apple.com
 0.0.0.0 advp.apple.com
+0.0.0.0 adx-ads-fr-heytapmobila-c7870.fr-w01.cngw.heytapmobile.com
 0.0.0.0 adx-ads-fr.heytapmobile.com
 0.0.0.0 adx-ads-ru.heytapmobile.com
 0.0.0.0 adx-ads.realmemobile.com
@@ -165,6 +166,7 @@
 0.0.0.0 adx-op-in.heytapmobile.com
 0.0.0.0 adx-op-ru.heytapmobile.com
 0.0.0.0 adx-op-sg.heytapmobile.com
+0.0.0.0 adx-u-fr.heytapmobile.com
 0.0.0.0 adx-u-in-heytapmobile-a-9ae47.in-s01.cngw.heytapmobile.com
 0.0.0.0 adx-u-in.heytapmobile.com
 0.0.0.0 adx-u-ru.heytapmobile.com
@@ -197,7 +199,6 @@
 0.0.0.0 analytics-exp-sg.tiktok.com.edgekey.net
 0.0.0.0 analytics-exp-ttp2.tiktokw.eu
 0.0.0.0 analytics-exp-ttp2.tiktokw.eu.edgesuite.net
-0.0.0.0 analytics-exp.tiktokw.eu
 0.0.0.0 analytics-exp.us.tiktok.com
 0.0.0.0 analytics-exp.us.tiktok.com.edgesuite.net
 0.0.0.0 analytics-exp16-normal-useastred.tiktokw.eu
@@ -388,7 +389,6 @@
 0.0.0.0 bigdata.ssp.samsung.com
 0.0.0.0 bldr.mkt.samsung.com
 0.0.0.0 books-analytics-events.apple.com
-0.0.0.0 books-analytics-events.news.apple-dns.net
 0.0.0.0 bossadmin.pandora.xiaomi.com
 0.0.0.0 box.pandora.xiaomi.com
 0.0.0.0 bpu.samsungelectronics.com
@@ -404,6 +404,7 @@
 0.0.0.0 browser-api-id.heytapmobile.com
 0.0.0.0 browser-api-in.heytapmobile.com
 0.0.0.0 browser-api-my.heytapmobile.com
+0.0.0.0 browser-api-nz.heytapmobile.com
 0.0.0.0 browser-api-ph.heytapmobile.com
 0.0.0.0 browser-api-ru.heytapmobile.com
 0.0.0.0 browser-api-th.heytapmobile.com
@@ -742,6 +743,7 @@
 0.0.0.0 eu-domaincfg.vivoglobal.com
 0.0.0.0 eu-errup.vivoglobal.com
 0.0.0.0 eu-monitor-stsdk.vivoglobal.com
+0.0.0.0 eu-nrt-stsdk.vivoglobal.com
 0.0.0.0 eu-onrt-stsdk.vivoglobal.com
 0.0.0.0 eu-ort-stsdk.vivoglobal.com
 0.0.0.0 eu-p.vivoglobal.com
@@ -799,7 +801,6 @@
 0.0.0.0 featureinfo-service-sg.allawnos.com
 0.0.0.0 feedback.miui.com
 0.0.0.0 feedbackws.fe.apple-dns.cn
-0.0.0.0 feedbackws.fe.apple-dns.net
 0.0.0.0 feedbackws.fe2.apple-dns.net
 0.0.0.0 feedbackws.icloud.com
 0.0.0.0 feedbackws.icloud.com.cn
@@ -1087,9 +1088,9 @@
 0.0.0.0 live-video-log16-normal-useast5.tiktokv.us
 0.0.0.0 live-video-log16-normal-useastred.tiktokv.eu
 0.0.0.0 live.miphone.pandora.xiaomi.com
+0.0.0.0 location-i18n.tiktok.com
 0.0.0.0 location-i18n.tiktokv.com
 0.0.0.0 location-ie.tiktokv.eu
-0.0.0.0 location-ru.tiktokv.com
 0.0.0.0 location-sg.tiktokv.com
 0.0.0.0 location-ttp2.tiktokv.eu
 0.0.0.0 location-ttp2.tiktokv.us
@@ -1126,9 +1127,6 @@
 0.0.0.0 log-dr16-normal-useast5.tiktokv.us
 0.0.0.0 log-dr16-normal-useast8.tiktokv.us
 0.0.0.0 log-dr16-normal-useastred.tiktokv.eu
-0.0.0.0 log-dr19-normal-no1a.tiktokv.eu
-0.0.0.0 log-dr19-normal-useast5.tiktokv.us
-0.0.0.0 log-dr19-normal-useast8.tiktokv.us
 0.0.0.0 log-dra.platform.hihonorcloud.com
 0.0.0.0 log-drcn.platform.hihonorcloud.com
 0.0.0.0 log-dre.platform.hihonorcloud.com
@@ -1244,7 +1242,6 @@
 0.0.0.0 logbk.tiktokv.com
 0.0.0.0 logforward.browser.heytapmobi.com
 0.0.0.0 logs.n.xiaomi.com
-0.0.0.0 logserver.nzxcloud.cn
 0.0.0.0 logservice-dra.platform.hicloud.com
 0.0.0.0 logservice-dre.platform.dbankcloud.cn
 0.0.0.0 logservice-dre.platform.hicloud.com
@@ -1538,7 +1535,6 @@
 0.0.0.0 nmetrics.samsung.com
 0.0.0.0 nmetrics.samsungmobile.com
 0.0.0.0 notes-analytics-events.apple.com
-0.0.0.0 notes-analytics-events.news.apple-dns.net
 0.0.0.0 notice.game.xiaomi.com
 0.0.0.0 notify.bugsnag.com
 0.0.0.0 nsp-logservice-hiview-p01-drru.obs.ru-northwest-2.myhuaweicloud.ru
@@ -1680,7 +1676,6 @@
 0.0.0.0 prod-event-relay-sports-api.v.aaplimg.com
 0.0.0.0 prod-event-relay-stocks-api.v.aaplimg.com
 0.0.0.0 prod-event-relay-weather-api.v.aaplimg.com
-0.0.0.0 prod-event-relay-web-api.v.aaplimg.com
 0.0.0.0 prod-iwork-events.v.aaplimg.com
 0.0.0.0 prod-news-notification-events.v.aaplimg.com
 0.0.0.0 protect.dev.sec.intl.miui.com
@@ -1718,7 +1713,6 @@
 0.0.0.0 rnd-cbgpas01.huawei.com
 0.0.0.0 ro-up.vivoglobal.com
 0.0.0.0 rtc-logger-i18n.tiktokv.com
-0.0.0.0 rtc-logger-ie.tiktokv.eu
 0.0.0.0 rtc-logger-ttp2.tiktokv.eu
 0.0.0.0 rtc-logger-ttp2.tiktokv.us
 0.0.0.0 rtc-logger-ttp2.us.tiktokv.com
@@ -1729,7 +1723,6 @@
 0.0.0.0 rtc-logger.us.tiktokv.com
 0.0.0.0 rtc-logger16-normal-alisg.tiktokv.com
 0.0.0.0 rtc-logger16-normal-useastred.tiktokv.eu
-0.0.0.0 rtc-logger16-normal.tiktokv.com
 0.0.0.0 rtlog-i18n.tiktokv.com
 0.0.0.0 rtlog-phx.tiktokv.com
 0.0.0.0 rtlog-ru.tiktokv.com
@@ -1756,6 +1749,7 @@
 0.0.0.0 rtlog16-normal-useast8.tiktokv.us
 0.0.0.0 rtlog16-normal-useast8.us.tiktokv.com
 0.0.0.0 rtlog16-normal-useastred.tiktokv.eu
+0.0.0.0 rtlog16-normal-useastred.tiktokv.eu.intern.schreinereistumpf.de
 0.0.0.0 rtlog16-normal-zr-alisg.tiktokv.com
 0.0.0.0 rtlog16-normal-zr-useast1a.tiktokv.com
 0.0.0.0 rtlog16-normal-zr.tiktokv.com
@@ -1843,6 +1837,7 @@
 0.0.0.0 ru-prt-stsdk.vivoglobal.com
 0.0.0.0 ru-register.xmpush.global.xiaomi.com
 0.0.0.0 ru-romsp-unifyconfig.vivoglobal.com
+0.0.0.0 ru-rt-stsdk.vivoglobal.com
 0.0.0.0 ru-st-exappupgrade.vivoglobal.com
 0.0.0.0 ru-st-sl.vivoglobal.com
 0.0.0.0 ru-stsdk.vivoglobal.com
@@ -1879,7 +1874,6 @@
 0.0.0.0 samsung.ecorebates.com
 0.0.0.0 samsung.telemetry.eyeo.com
 0.0.0.0 samsungacr.com
-0.0.0.0 samsungadhub.com
 0.0.0.0 samsungads.adsmeasurement.com
 0.0.0.0 samsungads.com
 0.0.0.0 samsungafrica.demdex.net
@@ -2053,7 +2047,6 @@
 0.0.0.0 stgdata-ads-fr.heytapmobile.com
 0.0.0.0 sticker-service-in.allawnos.com
 0.0.0.0 stocks-analytics-events.apple.com
-0.0.0.0 stocks-analytics-events.news.apple-dns.net
 0.0.0.0 storedl1.nearme.com.cn
 0.0.0.0 storedl3f.nearme.com.cn
 0.0.0.0 storedl4f.nearme.com.cn
@@ -2242,7 +2235,6 @@
 0.0.0.0 w.pandora.xiaomi.com
 0.0.0.0 wap.game.xiaomi.com
 0.0.0.0 weather-analytics-events.apple.com
-0.0.0.0 weather-analytics-events.news.apple-dns.net
 0.0.0.0 web-mon-useast2a.byteoversea.com
 0.0.0.0 wtradv.market.xiaomi.com
 0.0.0.0 xadx.file.market.xiaomi.com
